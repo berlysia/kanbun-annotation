@@ -1,8 +1,24 @@
 import type { KnipConfig } from 'knip';
 
 const config: KnipConfig = {
-  entry: ['src/index.ts'],
-  project: ['src/**/*.ts'],
+  workspaces: {
+    '.': {
+      entry: [],
+      project: [],
+    },
+    'packages/skam': {
+      entry: ['src/index.ts'],
+      project: ['src/**/*.ts'],
+    },
+    'packages/skam-markdown': {
+      entry: ['src/index.ts'],
+      project: ['src/**/*.ts'],
+    },
+    'packages/skam-xml': {
+      entry: ['src/index.ts'],
+      project: ['src/**/*.ts'],
+    },
+  },
   ignore: ['**/*.test.ts', '**/*.spec.ts'],
 };
 

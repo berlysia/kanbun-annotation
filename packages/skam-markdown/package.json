@@ -1,0 +1,33 @@
+{
+  "name": "@kanbun/skam-markdown",
+  "version": "0.1.0",
+  "description": "SKAM-ML/Markdown - SKAMドキュメントのMarkdown形式シリアライズ/デシリアライズ",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsgo --noEmit",
+    "lint": "oxlint src",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "keywords": [
+    "kanbun",
+    "漢文",
+    "annotation",
+    "skam",
+    "markdown"
+  ],
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@kanbun/skam": "workspace:*"
+  }
+}

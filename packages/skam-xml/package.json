@@ -1,0 +1,33 @@
+{
+  "name": "@kanbun/skam-xml",
+  "version": "0.1.0",
+  "description": "SKAM-ML/XML - SKAMドキュメントのXML形式シリアライズ/デシリアライズ",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsgo --noEmit",
+    "lint": "oxlint src",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "keywords": [
+    "kanbun",
+    "漢文",
+    "annotation",
+    "skam",
+    "xml"
+  ],
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@kanbun/skam": "workspace:*"
+  }
+}

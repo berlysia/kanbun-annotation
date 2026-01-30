@@ -1,0 +1,30 @@
+{
+  "name": "@kanbun/skam",
+  "version": "0.1.0",
+  "description": "Stand-off Kanbun Annotation Model - 漢文アノテーションの意味モデル型定義",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsgo --noEmit",
+    "lint": "oxlint src",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "keywords": [
+    "kanbun",
+    "漢文",
+    "annotation",
+    "classical-chinese",
+    "skam"
+  ],
+  "license": "UNLICENSED"
+}

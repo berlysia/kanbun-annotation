@@ -1,25 +1,17 @@
 {
   "name": "kanbun-annotation",
   "version": "0.1.0",
+  "private": true,
   "description": "Stand-off Kanbun Annotation Model - 漢文アノテーションの仕様定義・構文定義・レンダラー",
   "type": "module",
-  "exports": {
-    ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
-    }
-  },
-  "files": [
-    "dist"
-  ],
   "scripts": {
-    "build": "tsup",
-    "typecheck": "tsgo --noEmit",
-    "lint": "oxlint src",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "vitest",
-    "test:run": "vitest run",
+    "test": "pnpm -r test",
+    "test:run": "pnpm -r test:run",
     "clean": "knip"
   },
   "keywords": [

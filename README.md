@@ -13,16 +13,23 @@ SKAM は、漢文本文と訓点・注記・読みを**分離して保持**し�
 - **読み層の分離**: 表示用と読み上げ用を独立した層として保持
 - **拡張性**: `ext` コンテナ方式による安全な拡張と round-trip 保持
 
+## パッケージ構成
+
+| パッケージ | 説明 | 状態 |
+|-----------|------|------|
+| `@kanbun/skam` | SKAM 型定義（TypeScript） | v0.1.0 |
+| `@kanbun/skam-xml` | SKAM-ML/XML パーサー | 開発中 |
+
 ## インストール
 
 ```bash
-pnpm add kanbun-annotation
+pnpm add @kanbun/skam
 ```
 
 ## 使い方
 
 ```typescript
-import type { SKAMDocument } from 'kanbun-annotation';
+import type { SKAMDocument } from '@kanbun/skam';
 
 const doc: SKAMDocument = {
   format: 'skam@0.1',
@@ -47,30 +54,41 @@ const doc: SKAMDocument = {
 };
 ```
 
-## SKAM v0.1 仕様
+## 仕様書
 
-詳細は [SKAM-draft.md](./SKAM-draft.md) を参照。
+| ドキュメント | 説明 |
+|-------------|------|
+| [SKAM-draft.md](./SKAM-draft.md) | SKAM v0.1 仕様（JSON 形式） |
+| [SKAM-ML-draft.md](./SKAM-ML-draft.md) | SKAM-ML/XML v0.1 仕様（人間編集用マークアップ） |
+
+## SKAM v0.1 概要
 
 ### データ構造
 
 ```
 SKAMDocument
 ├── format: "skam@0.1"
-├── tokens: Token[]        # 本文 token 列
-├── marks: Mark[]          # 注記（返り点・送り仮名等）
-├── readings: Reading[]    # 読み層（書き下し文・読み上げ文）
-└── ext?: object           # 拡張フィールド
+├── tokens: Token[]          # 本文 token 列
+├── marks: Mark[]            # 注記（返り点・送り仮名等）
+├── derivations?: Derivation[] # 導出情報（読み順等）
+├── readings: Reading[]      # 読み層（書き下し文・読み上げ文）
+└── ext?: object             # 拡張フィールド
 ```
 
 ### Mark Types (v0.1)
 
-| type | 意味 |
-|------|------|
-| `kaeri` | 返り点（レ、一、二、上、下、甲、乙 等） |
-| `okurigana` | 送り仮名 |
-| `okiji` | 助字・テニヲハ |
-| `emphasis` | 傍点・圏点 |
-| `note` | 注釈（割注・欄外注含む） |
+| type | 意味 | value |
+|------|------|-------|
+| `kaeri` | 返り点 | 必須（レ、一、二、上、下、甲、乙 等） |
+| `okurigana` | 送り仮名 | 必須（送り仮名テキスト） |
+| `yomigana` | 読み仮名（ルビ） | 必須（読み仮名テキスト） |
+| `okiji` | 助字・テニヲハ | 必須（助字テキスト） |
+| `kutoten` | 句読点 | 必須（句点・読点等） |
+| `emphasis` | 傍点・圏点 | 任意（傍点の種類） |
+| `note` | 注釈（割注・欄外注含む） | 必須（注釈テキスト） |
+| `saidoku` | 再読文字 | forms 配列必須 |
+| `okototen` | ヲコト点 | position・shape 必須 |
+| `tateten` | たて点（熟語境界） | なし |
 
 ### Reading Kinds
 

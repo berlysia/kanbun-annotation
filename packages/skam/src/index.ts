@@ -83,7 +83,7 @@ export type Coord = GlyphGridCoord | PageCoord;
 // ============================================================================
 
 /** 注記種別（v0.1） */
-export type MarkType = 'kaeri' | 'okurigana' | 'yomigana' | 'okiji' | 'kutoten' | 'emphasis' | 'note' | 'saidoku' | 'okototen';
+export type MarkType = 'kaeri' | 'okurigana' | 'yomigana' | 'okiji' | 'kutoten' | 'emphasis' | 'note' | 'saidoku' | 'okototen' | 'tateten';
 
 /**
  * 注記の基底構造
@@ -190,6 +190,11 @@ export interface OkototenMark extends BaseMark {
   color?: string;
 }
 
+/** たて点（熟語境界標識） */
+export interface TatetenMark extends BaseMark {
+  type: 'tateten';
+}
+
 /** すべての注記型 */
 export type Mark =
   | KaeriMark
@@ -200,7 +205,8 @@ export type Mark =
   | EmphasisMark
   | NoteMark
   | SaidokuMark
-  | OkototenMark;
+  | OkototenMark
+  | TatetenMark;
 
 // ============================================================================
 // Derivations

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- readings.xml - 読み層 -->
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>學而時習之</skam:block>
+  </skam:body>
+  <skam:readings>
+    <skam:reading kind="kundoku">学びて時に之を習ふ</skam:reading>
+    <skam:reading kind="kakikudashi">学びて時にこれを習ふ</skam:reading>
+    <skam:reading kind="yomiage">まなびて ときに これを ならう</skam:reading>
+  </skam:readings>
+</skam:doc>

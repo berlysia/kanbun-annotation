@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- invalid-okototen-grid.xml - 不正なグリッド形式 -->
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:okototen grid="invalid" x="0" y="0" shape="dot">國</skam:okototen>
+    </skam:block>
+  </skam:body>
+</skam:doc>

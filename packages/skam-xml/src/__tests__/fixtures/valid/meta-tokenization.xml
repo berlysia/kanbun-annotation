@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- meta-tokenization.xml - meta 要素 -->
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:meta tokenization="char"/>
+  <skam:body>
+    <skam:block>學而時習之</skam:block>
+  </skam:body>
+</skam:doc>

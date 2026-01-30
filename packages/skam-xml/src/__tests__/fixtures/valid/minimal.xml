@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- minimal.xml - 最小有効ドキュメント -->
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>學</skam:block>
+  </skam:body>
+</skam:doc>

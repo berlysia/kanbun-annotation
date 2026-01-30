@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- span-emphasis.xml - 傍点 -->
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:span type="emphasis" kind="dot">學而時</skam:span>習之
+    </skam:block>
+    <skam:block>
+      不亦<skam:span type="emphasis">説</skam:span>乎
+    </skam:block>
+  </skam:body>
+</skam:doc>

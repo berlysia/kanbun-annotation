@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- missing-saidoku-base.xml - saidoku base なし -->
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:saidoku>
+        <skam:kunform n="1" reading="まさ" okuri="に"/>
+        <skam:kunform n="2" okuri="す"/>
+      </skam:saidoku>
+    </skam:block>
+  </skam:body>
+</skam:doc>

@@ -6,4 +6,6 @@
 
 export type { SKAMDocument } from '@kanbun/skam';
 
-// TODO: parse, stringify functions
+export { parse, SKAMXMLParseError, type ParseOptions } from './parser.js';
+
+// TODO: stringify function for SKAM JSON → XML serialization

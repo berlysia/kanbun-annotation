@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- saidoku-minimal.xml - 再読文字（最小） -->
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:saidoku>
+        <skam:base>未</skam:base>
+        <skam:kunform reading="いま" okuri="だ"/>
+        <skam:kunform okuri="ず"/>
+      </skam:saidoku>
+    </skam:block>
+  </skam:body>
+</skam:doc>

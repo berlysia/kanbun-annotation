@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- kutoten.xml - 句読点 -->
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      學而時習之<skam:kutoten value="。" kind="ku"/>不亦説乎<skam:kutoten value="。" kind="ku"/>
+    </skam:block>
+    <skam:block>
+      有朋自遠方來<skam:kutoten value="、" kind="ten"/>不亦樂乎<skam:kutoten value="。"/>
+    </skam:block>
+  </skam:body>
+</skam:doc>

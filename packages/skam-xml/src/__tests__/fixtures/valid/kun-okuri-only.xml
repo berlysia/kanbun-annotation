@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- kun-okuri-only.xml - 訓（送りのみ） -->
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:kun okuri="に">時</skam:kun>
+    </skam:block>
+  </skam:body>
+</skam:doc>

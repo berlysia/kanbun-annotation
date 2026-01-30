@@ -72,6 +72,13 @@ xmlns:skam="urn:skam:1"
 </skam:doc>
 ```
 
+### 4.2 Derivations（導出情報）について
+
+SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記述しない**。
+返り点等から計算される読み順などの導出情報は、**コンパイル時に SKAM JSON 側で生成**される。
+
+詳細は SKAM 仕様の「6. Derivations」を参照。
+
 ---
 
 ## 5. 本文構造（HTML非依存）
@@ -159,13 +166,108 @@ xmlns:skam="urn:skam:1"
 
 #### 正規化
 
-* `marks.type = "kun"`
-* `anchor = 内容のtoken範囲`
-* `reading`, `okuri` を保持
+SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana` と `okurigana` に分離される。
+
+* `reading` 属性がある場合: `marks.type = "yomigana"`, `value = reading属性`
+* `okuri` 属性がある場合: `marks.type = "okurigana"`, `value = okuri属性`
+* 両方ある場合: 2つの mark が生成される（同一 anchor を共有）
 
 ---
 
-### 7.4 `skam:okiji`（助字）
+### 7.4 `skam:yomigana`（読み仮名）
+
+漢字の読み（ルビ）を単独で表す。`skam:kun` と異なり、送り仮名を含まない純粋な読み仮名のみを記述する場合に使用。
+
+```xml
+<skam:block>
+  <skam:yomigana value="がく">學</skam:yomigana>而時習之
+</skam:block>
+```
+
+#### 属性
+
+| 属性 | 必須 | 説明 |
+| ---- | ---- | ---- |
+| `value` | 必須 | 読み仮名テキスト |
+
+#### 正規化
+
+* `marks.type = "yomigana"`
+* `anchor = 内容のtoken範囲`
+* `value = value属性`
+
+---
+
+### 7.5 `skam:kutoten`（句読点）
+
+句読点を表す。
+
+```xml
+<skam:block>
+  學而時習之<skam:kutoten value="。" kind="ku"/>
+</skam:block>
+```
+
+#### 属性
+
+| 属性 | 必須 | 説明 |
+| ---- | ---- | ---- |
+| `value` | 必須 | 句読点記号 |
+| `kind` | 任意 | 分類（ku/ten/other） |
+
+#### 正規化
+
+* `marks.type = "kutoten"`
+* `anchor = 直前token`
+* `value = value属性`
+* `kind` があれば `kind` を保持
+
+---
+
+### 7.6 `skam:okototen`（ヲコト点）
+
+漢字の字画の隅や内部に打点される訓点記号。グリッド座標で位置を指定する。
+
+```xml
+<skam:block>
+  <skam:okototen grid="5x5" x="4" y="4" shape="dot" sound="り">學</skam:okototen>而時習之
+</skam:block>
+```
+
+#### 属性
+
+| 属性 | 必須 | 説明 |
+| ---- | ---- | ---- |
+| `grid` | 必須 | グリッドサイズ（"5x5", "7x7"等） |
+| `x` | 必須 | X座標（0-based、左上が原点） |
+| `y` | 必須 | Y座標（0-based、左上が原点） |
+| `shape` | 必須 | 点の形状（dot, circle, line 等） |
+| `sound` | 任意 | 対応する音節 |
+| `color` | 任意 | 朱点・墨点等の区別 |
+
+#### グリッド座標
+
+5×5または7×7のグリッドで位置を指定。NINJAL系の方眼分割と対応。
+
+```
+  0 1 2 3 4
+0 ┌─┬─┬─┬─┐
+1 ├─┼─┼─┼─┤
+2 ├─┼─┼─┼─┤  (5×5 グリッド)
+3 ├─┼─┼─┼─┤
+4 └─┴─┴─┴─┘
+```
+
+#### 正規化
+
+* `marks.type = "okototen"`
+* `anchor = 内容のtoken範囲`
+* `position = { system: "glyph-grid", grid, x, y }`
+* `shape`, `sound`, `color` を保持
+
+---
+
+### 7.7 `skam:okiji`（助字）
 
 ```xml
 <skam:block>
@@ -175,7 +277,7 @@ xmlns:skam="urn:skam:1"
 
 ---
 
-### 7.5 `skam:span`（範囲注記）
+### 7.8 `skam:span`（範囲注記）
 
 ```xml
 <skam:block>
@@ -190,7 +292,7 @@ xmlns:skam="urn:skam:1"
 
 ---
 
-### 7.6 `skam:saidoku`（再読文字）
+### 7.9 `skam:saidoku`（再読文字）
 
 1つの文字を複数回読む再読文字を表現する。baseを1回だけ持ち、回ごとの語形を `skam:kunform` で表す。
 
@@ -345,8 +447,54 @@ xmlns:skam="urn:skam:1"
 </skam:doc>
 ```
 
+### 11.3 ヲコト点の例
+
+```xml
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:okototen grid="5x5" x="4" y="4" shape="dot" sound="り">學</skam:okototen>而時習之
+    </skam:block>
+  </skam:body>
+</skam:doc>
+```
+
+### 11.4 句読点の例
+
+```xml
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:kun reading="まな" okuri="びて">學</skam:kun>
+      而時
+      <skam:kun okuri="に">之</skam:kun>
+      <skam:kaeri kind="re"/>
+      <skam:kun okuri="ふ">習</skam:kun>
+      <skam:kutoten value="。" kind="ku"/>
+    </skam:block>
+  </skam:body>
+</skam:doc>
+```
+
 ---
 
 ## 要点
 
 SKAM-ML/XMLはHTMLに依存しない純XML語彙とし、本文構造は`skam:block`等で完結させる。訓（読み＋送り仮名）は`skam:kun`で表し、再読文字は`skam:saidoku`+`skam:kunform`で複数回の語形を表現する。返り点等は本文近傍に記述し、コンパイルでstand-offなSKAM(JSON)へ正規化する。
+
+### SKAM-ML/XML → SKAM JSON の主な変換対応
+
+| SKAM-ML/XML 要素 | SKAM JSON marks.type |
+| --------------- | -------------------- |
+| `skam:kaeri` | `kaeri` |
+| `skam:kun` (reading属性) | `yomigana` |
+| `skam:kun` (okuri属性) | `okurigana` |
+| `skam:yomigana` | `yomigana` |
+| `skam:kutoten` | `kutoten` |
+| `skam:okototen` | `okototen` |
+| `skam:okiji` | `okiji` |
+| `skam:span` (type="emphasis") | `emphasis` |
+| `skam:ref` / `skam:note` | `note` |
+| `skam:saidoku` | `saidoku` |
+
+※ `derivations`（読み順等）はコンパイル時に生成される。

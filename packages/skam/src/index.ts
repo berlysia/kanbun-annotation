@@ -46,11 +46,44 @@ export interface Anchor {
 }
 
 // ============================================================================
+// Coordinate System
+// ============================================================================
+
+/** 座標系の基底型 */
+export interface BaseCoord {
+  /** 座標系識別子 */
+  system: string;
+}
+
+/** 字内グリッド座標（ヲコト点等） */
+export interface GlyphGridCoord extends BaseCoord {
+  system: 'glyph-grid';
+  /** グリッドサイズ（"5x5", "7x7" 等） */
+  grid: string;
+  /** X座標（0-based、左から） */
+  x: number;
+  /** Y座標（0-based、上から） */
+  y: number;
+}
+
+/** 版面座標（将来用） */
+export interface PageCoord extends BaseCoord {
+  system: 'page';
+  /** 行番号 */
+  line: number;
+  /** 列位置（任意） */
+  col?: number;
+}
+
+/** すべての座標型 */
+export type Coord = GlyphGridCoord | PageCoord;
+
+// ============================================================================
 // Mark Types
 // ============================================================================
 
 /** 注記種別（v0.1） */
-export type MarkType = 'kaeri' | 'okurigana' | 'okiji' | 'emphasis' | 'note';
+export type MarkType = 'kaeri' | 'okurigana' | 'yomigana' | 'okiji' | 'kutoten' | 'emphasis' | 'note' | 'saidoku' | 'okototen';
 
 /**
  * 注記の基底構造
@@ -90,11 +123,27 @@ export interface OkuriganaMark extends BaseMark {
   value: string;
 }
 
+/** 読み仮名（ルビ） */
+export interface YomiganaMark extends BaseMark {
+  type: 'yomigana';
+  /** 読み仮名テキスト */
+  value: string;
+}
+
 /** 助字・テニヲハ */
 export interface OkijiMark extends BaseMark {
   type: 'okiji';
   /** 助字テキスト */
   value: string;
+}
+
+/** 句読点 */
+export interface KutotenMark extends BaseMark {
+  type: 'kutoten';
+  /** 句読点記号（。、等） */
+  value: string;
+  /** 分類（任意） */
+  kind?: 'ku' | 'ten' | 'other';
 }
 
 /** 傍点・圏点 */
@@ -111,13 +160,76 @@ export interface NoteMark extends BaseMark {
   value: string;
 }
 
+/** 再読文字の語形（1回分の読み） */
+export interface SaidokuForm {
+  /** 読み順（省略時は配列順） */
+  n?: number;
+  /** 読み仮名 */
+  reading?: string;
+  /** 送り仮名 */
+  okuri?: string;
+}
+
+/** 再読文字 */
+export interface SaidokuMark extends BaseMark {
+  type: 'saidoku';
+  /** 各回の語形 */
+  forms: SaidokuForm[];
+}
+
+/** ヲコト点 */
+export interface OkototenMark extends BaseMark {
+  type: 'okototen';
+  /** 字内座標（必須） */
+  position: GlyphGridCoord;
+  /** 点の形状（dot, circle, line 等） */
+  shape: string;
+  /** 対応する音節（任意） */
+  sound?: string;
+  /** 朱点・墨点等の区別（任意） */
+  color?: string;
+}
+
 /** すべての注記型 */
 export type Mark =
   | KaeriMark
   | OkuriganaMark
+  | YomiganaMark
   | OkijiMark
+  | KutotenMark
   | EmphasisMark
-  | NoteMark;
+  | NoteMark
+  | SaidokuMark
+  | OkototenMark;
+
+// ============================================================================
+// Derivations
+// ============================================================================
+
+/** 導出情報の種別 */
+export type DerivationKind = 'readingOrder';
+
+/** 導出情報の基底型 */
+export interface BaseDerivation {
+  /** 導出の種別 */
+  kind: DerivationKind;
+  /** 導出方法 */
+  method: string;
+  /** 拡張フィールド */
+  ext?: Record<string, unknown>;
+}
+
+/** 読み順の導出 */
+export interface ReadingOrderDerivation extends BaseDerivation {
+  kind: 'readingOrder';
+  /** 導出方法（kaeriten-stack, manual 等） */
+  method: 'kaeriten-stack' | 'manual' | (string & {});
+  /** 読み順（token ID の配列） */
+  result: string[];
+}
+
+/** すべての導出型 */
+export type Derivation = ReadingOrderDerivation;
 
 // ============================================================================
 // Reading
@@ -156,6 +268,8 @@ export interface SKAMDocument {
   tokens: Token[];
   /** 注記列 */
   marks: Mark[];
+  /** 導出情報（任意） */
+  derivations?: Derivation[];
   /** 読み層 */
   readings: Reading[];
   /** 拡張フィールド（round-trip保持推奨） */

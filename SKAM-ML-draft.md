@@ -204,7 +204,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana` と `okurigana` に�
 
 ```xml
 <skam:block>
-  學而時習之<skam:kutoten value="。" kind="ku"/>
+  學而時習之<skam:kutoten value="。"/>
 </skam:block>
 ```
 
@@ -212,15 +212,15 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana` と `okurigana` に�
 
 | 属性 | 必須 | 説明 |
 | ---- | ---- | ---- |
-| `value` | 必須 | 句読点記号 |
-| `kind` | 任意 | 分類（ku/ten/other） |
+| `value` | 必須 | 句読点記号（「。」「、」「・」等） |
+| `kind` | 任意 | 分類（ku/ten/other）。省略時はvalueから推論可能 |
 
 #### 正規化
 
 * `marks.type = "kutoten"`
 * `anchor = 直前token`
 * `value = value属性`
-* `kind` があれば `kind` を保持
+* `kind` があれば保持、なければパーサーが推論してもよい
 
 ---
 
@@ -497,7 +497,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana` と `okurigana` に�
       <skam:kun okuri="に">之</skam:kun>
       <skam:kaeri kind="re"/>
       <skam:kun okuri="ふ">習</skam:kun>
-      <skam:kutoten value="。" kind="ku"/>
+      <skam:kutoten value="。"/>
     </skam:block>
   </skam:body>
 </skam:doc>

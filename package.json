@@ -1,0 +1,48 @@
+{
+  "name": "kanbun-annotation",
+  "version": "0.1.0",
+  "description": "Stand-off Kanbun Annotation Model - 漢文アノテーションの仕様定義・構文定義・レンダラー",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsgo --noEmit",
+    "lint": "oxlint src",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "vitest",
+    "test:run": "vitest run",
+    "clean": "knip"
+  },
+  "keywords": [
+    "kanbun",
+    "漢文",
+    "annotation",
+    "classical-chinese"
+  ],
+  "author": "",
+  "license": "UNLICENSED",
+  "packageManager": "pnpm@10.27.0",
+  "devDependencies": {
+    "@types/node": "25.0.10",
+    "@typescript/native-preview": "7.0.0-dev.20260122.4",
+    "knip": "5.82.1",
+    "oxlint": "1.41.0",
+    "prettier": "3.8.1",
+    "tsup": "8.5.1",
+    "vitest": "4.0.18"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@anthropic-ai/tokenizer-wasm"
+    ]
+  }
+}

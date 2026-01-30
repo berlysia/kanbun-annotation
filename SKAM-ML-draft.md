@@ -292,7 +292,34 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana` と `okurigana` に�
 
 ---
 
-### 7.9 `skam:saidoku`（再読文字）
+### 7.9 `skam:tateten`（たて点）
+
+熟語境界を示す縦線。複数の漢字が一語として読まれることを示す。
+
+```xml
+<skam:block>
+  <skam:tateten>國家</skam:tateten>之大事
+</skam:block>
+```
+
+#### アンカー規則
+
+* 包囲要素として熟語範囲を囲む
+* アンカーは含まれる token 範囲
+
+#### 正規化
+
+* `marks.type = "tateten"`
+* `anchor = 内容のtoken範囲`
+
+#### 備考
+
+* 熟語の読みは別途 `skam:yomigana` を同じ範囲に付与することで対応可能
+* `emphasis` とは異なり、「強調」ではなく「構文境界」を示す
+
+---
+
+### 7.10 `skam:saidoku`（再読文字）
 
 1つの文字を複数回読む再読文字を表現する。baseを1回だけ持ち、回ごとの語形を `skam:kunform` で表す。
 
@@ -496,5 +523,6 @@ SKAM-ML/XMLはHTMLに依存しない純XML語彙とし、本文構造は`skam:bl
 | `skam:span` (type="emphasis") | `emphasis` |
 | `skam:ref` / `skam:note` | `note` |
 | `skam:saidoku` | `saidoku` |
+| `skam:tateten` | `tateten` |
 
 ※ `derivations`（読み順等）はコンパイル時に生成される。

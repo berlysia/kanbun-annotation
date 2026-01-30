@@ -115,6 +115,34 @@ describe('SKAM Examples', () => {
     });
   });
 
+  describe('たて点: 國家', () => {
+    it('should support tateten mark type for compound words', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [
+          { id: 't1', text: '國' },
+          { id: 't2', text: '家' },
+          { id: 't3', text: '之' },
+          { id: 't4', text: '大' },
+          { id: 't5', text: '事' },
+        ],
+        marks: [
+          { type: 'tateten', id: 'm1', anchor: { from: 't1', to: 't2' } },
+          { type: 'tateten', id: 'm2', anchor: { from: 't4', to: 't5' } },
+          { type: 'yomigana', id: 'm3', anchor: { from: 't1', to: 't2' }, value: 'こっか' },
+        ],
+        readings: [
+          { kind: 'kakikudashi', text: '国家の大事' },
+        ],
+      };
+
+      expect(doc.marks).toHaveLength(3);
+      const tatetenMark = doc.marks[0]!;
+      expect(tatetenMark.type).toBe('tateten');
+      expect(tatetenMark.anchor).toEqual({ from: 't1', to: 't2' });
+    });
+  });
+
   describe('読み順計算: 不可不學', () => {
     it('should support complex kaeriten with derivations', () => {
       const doc: SKAMDocument = {

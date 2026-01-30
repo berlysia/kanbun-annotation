@@ -123,6 +123,7 @@ SKAM は JSON 形式で表現される。
 | `note`      | 注釈（割注・欄外注含む） | 必須（注釈テキスト） |
 | `saidoku`   | 再読文字         | 必須（forms配列） |
 | `okototen`  | ヲコト点         | position必須、shape必須 |
+| `tateten`   | たて点（熟語境界） | なし |
 
 ※ `type` の追加は後方互換で許可される。
 

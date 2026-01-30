@@ -31,8 +31,32 @@ pnpm clean
 
 ```
 packages/
-├── skam/          # @kanbun/skam - SKAM v0.1 型定義 (TypeScript)
-└── skam-xml/      # @kanbun/skam-xml - SKAM-ML/XML パーサー (開発中)
+├── skam/          # @kanbun/skam - SKAM v0.1 型定義・バリデーター (TypeScript)
+└── skam-xml/      # @kanbun/skam-xml - SKAM-ML/XML パーサー
+```
+
+### @kanbun/skam 主要 API
+
+```typescript
+// 型定義
+import type { SKAMDocument, Token, Mark, Reading } from '@kanbun/skam';
+
+// バリデーション
+import { validateSKAMDocument, isSKAMDocument, assertSKAMDocument } from '@kanbun/skam';
+
+const result = validateSKAMDocument(input);
+if (result.valid) {
+  const doc: SKAMDocument = result.document;
+}
+```
+
+### @kanbun/skam-xml 主要 API
+
+```typescript
+import { parse } from '@kanbun/skam-xml';
+
+// XML → SKAM JSON
+const doc = parse(xmlString);
 ```
 
 ### SKAM データモデル

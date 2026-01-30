@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- saidoku.xml - 再読文字（完全） -->
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:saidoku>
+        <skam:base>將</skam:base>
+        <skam:kunform n="1" reading="まさ" okuri="に"/>
+        <skam:kunform n="2" okuri="す"/>
+      </skam:saidoku>
+      <skam:kun reading="し" okuri="なんと">死</skam:kun>
+    </skam:block>
+  </skam:body>
+  <skam:readings>
+    <skam:reading kind="yomiage">まさに しなんとす</skam:reading>
+  </skam:readings>
+</skam:doc>

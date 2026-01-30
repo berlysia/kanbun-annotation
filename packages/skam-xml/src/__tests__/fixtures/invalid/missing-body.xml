@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- missing-body.xml - body なし -->
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:readings>
+    <skam:reading kind="kakikudashi">学びて時に之を習ふ</skam:reading>
+  </skam:readings>
+</skam:doc>

@@ -281,3 +281,23 @@ export interface SKAMDocument {
   /** 拡張フィールド（round-trip保持推奨） */
   ext?: Record<string, unknown>;
 }
+
+// ============================================================================
+// Validation
+// ============================================================================
+
+export {
+  type ValidationError,
+  type ValidationErrorKind,
+  type ValidationResult,
+  type ValidationSuccess,
+  type ValidationFailure,
+  SKAMValidationError,
+  createValidationError,
+} from './errors.js';
+
+export {
+  validateSKAMDocument,
+  isSKAMDocument,
+  assertSKAMDocument,
+} from './validator.js';

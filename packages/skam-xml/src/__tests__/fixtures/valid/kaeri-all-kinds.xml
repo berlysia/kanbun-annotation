@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- kaeri-all-kinds.xml - 全返り点種類 -->
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      不<skam:kaeri kind="ichi"/>可<skam:kaeri kind="ni"/>不<skam:kaeri kind="san"/>學
+    </skam:block>
+    <skam:block>
+      天<skam:kaeri kind="jo"/>下<skam:kaeri kind="chu"/>之<skam:kaeri kind="ge"/>事
+    </skam:block>
+    <skam:block>
+      甲<skam:kaeri kind="ko"/>乙<skam:kaeri kind="otsu"/>丙
+    </skam:block>
+    <skam:block>
+      習<skam:kaeri kind="re"/>之
+    </skam:block>
+  </skam:body>
+</skam:doc>

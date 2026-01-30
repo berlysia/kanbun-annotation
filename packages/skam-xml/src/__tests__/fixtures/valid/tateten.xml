@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- tateten.xml - たて点（熟語境界） -->
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:tateten>國家</skam:tateten>之<skam:tateten>大事</skam:tateten>
+    </skam:block>
+  </skam:body>
+</skam:doc>

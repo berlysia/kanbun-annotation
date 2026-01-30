@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- ref-note.xml - 注釈 -->
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      學而時習之<skam:ref target="#n1"/>
+    </skam:block>
+  </skam:body>
+  <skam:notes>
+    <skam:note xml:id="n1">「之」は目的語として読む。</skam:note>
+  </skam:notes>
+</skam:doc>

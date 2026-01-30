@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- kun-reading-okuri.xml - 訓（読み+送り） -->
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:kun reading="まな" okuri="びて">學</skam:kun>而時習之
+    </skam:block>
+  </skam:body>
+</skam:doc>

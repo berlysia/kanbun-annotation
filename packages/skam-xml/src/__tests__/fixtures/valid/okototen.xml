@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- okototen.xml - ヲコト点 -->
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:okototen grid="5x5" x="4" y="4" shape="dot" sound="り">國</skam:okototen>
+    </skam:block>
+    <skam:block>
+      <skam:okototen grid="7x7" x="3" y="6" shape="circle" sound="の" color="red">天</skam:okototen>下
+    </skam:block>
+  </skam:body>
+</skam:doc>

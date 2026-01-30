@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- yomigana-only.xml - 読み仮名単体 -->
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:yomigana value="がく">學</skam:yomigana>而時習之
+    </skam:block>
+  </skam:body>
+</skam:doc>

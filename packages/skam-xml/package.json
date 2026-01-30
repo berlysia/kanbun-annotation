@@ -28,6 +28,7 @@
   ],
   "license": "UNLICENSED",
   "dependencies": {
-    "@kanbun/skam": "workspace:*"
+    "@kanbun/skam": "workspace:*",
+    "@xmldom/xmldom": "0.8.11"
   }
 }

@@ -1,7 +1,7 @@
 {
-  "name": "@kanbun/skam-xml",
+  "name": "@kanbun/skam-xml-parser",
   "version": "0.1.0",
-  "description": "SKAM-ML/XML - SKAMドキュメントのXML形式シリアライズ/デシリアライズ",
+  "description": "SKAM-ML/XML parser - SKAM-ML/XMLからSKAM JSONへのパーサー",
   "type": "module",
   "exports": {
     ".": {

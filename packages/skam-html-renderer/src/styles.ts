@@ -64,13 +64,12 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
   font-size: 0.5em;
 }
 
-/* Okurigana (送り仮名) - ruby外に配置 */
+/* Okurigana (送り仮名) - ruby内に配置 */
 .${prefix}-okuri {
-  font-size: 0.5em;
-  ${isVertical ? 'display: inline; writing-mode: vertical-rl;' : 'vertical-align: top;'}
+  font-size: inherit;
 }
 
-/* Okiji (助字) - ruby外に配置 */
+/* Okiji (助字) - ruby外に配置（本文の一部として表示） */
 .${prefix}-okiji {
   font-size: 0.5em;
   ${isVertical ? 'display: inline; writing-mode: vertical-rl;' : 'vertical-align: top;'}

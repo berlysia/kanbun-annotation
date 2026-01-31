@@ -63,7 +63,7 @@ describe('render', () => {
       expect(result.html).toContain('まな');
     });
 
-    it('should render okurigana outside ruby element', () => {
+    it('should render okurigana within ruby element', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
@@ -86,8 +86,8 @@ describe('render', () => {
 
       expect(result.html).toContain('skam-okuri');
       expect(result.html).toContain('びて');
-      // Okurigana should be outside ruby element (after the token span)
-      expect(result.html).toMatch(/<\/span><span class="skam-okuri">びて<\/span>/);
+      // Okurigana should be inside rt element with yomigana
+      expect(result.html).toMatch(/<rt class="skam-ruby">まな<span class="skam-okuri">びて<\/span><\/rt>/);
     });
 
     it('should render okiji outside ruby element', () => {
@@ -112,7 +112,7 @@ describe('render', () => {
       expect(result.html).toMatch(/<\/span><span class="skam-okiji">を<\/span>/);
     });
 
-    it('should not create ruby element when only okurigana is present', () => {
+    it('should create ruby element when only okurigana is present', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '習' }],
@@ -128,9 +128,8 @@ describe('render', () => {
 
       const result = render(doc);
 
-      // Ruby element should NOT be present when no yomigana
-      expect(result.html).not.toContain('<ruby>');
-      expect(result.html).toContain('<span class="skam-base">習</span>');
+      // Ruby element should be present for okurigana
+      expect(result.html).toContain('<ruby>');
       expect(result.html).toContain('skam-okuri');
       expect(result.html).toContain('ふ');
     });
@@ -236,7 +235,7 @@ describe('render', () => {
       expect(result.html).toContain('skam-saidoku-under');
     });
 
-    it('should render saidoku okuri outside rt element', () => {
+    it('should render saidoku okuri within rt element', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '將' }],
@@ -255,13 +254,9 @@ describe('render', () => {
 
       const result = render(doc);
 
-      // Okuri should be outside ruby element
-      expect(result.html).toContain('<span class="skam-okuri" data-saidoku-n="1">に</span>');
-      expect(result.html).toContain('<span class="skam-okuri" data-saidoku-n="2">す</span>');
-      // Reading should be inside rt
-      expect(result.html).toMatch(/<rt class="skam-ruby" data-saidoku-n="1">まさ<\/rt>/);
-      // Okuri should NOT be inside rt
-      expect(result.html).not.toMatch(/<rt[^>]*>.*に.*<\/rt>/);
+      // Okuri should be inside rt element with reading
+      expect(result.html).toMatch(/<rt class="skam-ruby" data-saidoku-n="1">まさ<span class="skam-okuri">に<\/span><\/rt>/);
+      expect(result.html).toMatch(/<rt class="skam-ruby skam-saidoku-under" data-saidoku-n="2"><span class="skam-okuri">す<\/span><\/rt>/);
     });
   });
 

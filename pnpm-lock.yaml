@@ -32,13 +32,13 @@ importers:
 
   packages/skam: {}
 
-  packages/skam-markdown:
+  packages/skam-html-renderer:
     dependencies:
       '@kanbun/skam':
         specifier: workspace:*
         version: link:../skam
 
-  packages/skam-xml:
+  packages/skam-xml-parser:
     dependencies:
       '@kanbun/skam':
         specifier: workspace:*

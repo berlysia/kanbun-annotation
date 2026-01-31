@@ -228,45 +228,53 @@ interface TokenRenderContext {
 
 /**
  * ルビ付きのToken HTMLを生成
+ *
+ * - 読み仮名(yomigana)と送り仮名(okurigana)はruby要素のrt内に配置
+ * - 助字(okiji)はruby外に配置（本文の一部として表示）
  */
 function renderTokenWithRuby(
   token: Token,
   ctx: TokenRenderContext
-): string {
+): { baseHtml: string; okiji: string } {
   const { prefix, profile, tokenMarks } = ctx;
 
-  // 読み仮名
+  // 読み仮名（ruby要素のrt内に配置）
   const yomiganaMarks = (tokenMarks.get('yomigana') ?? []) as YomiganaMark[];
   const yomigana =
     profile.yomigana && yomiganaMarks.length > 0
       ? yomiganaMarks.map((m) => escapeHtml(m.value)).join('')
       : '';
 
-  // 送り仮名
+  // 送り仮名（読み仮名と一緒にrt内に配置）
   const okuriganaMarks = (tokenMarks.get('okurigana') ?? []) as OkuriganaMark[];
   const okurigana =
     profile.okurigana && okuriganaMarks.length > 0
       ? `<span class="${prefix}-okuri">${okuriganaMarks.map((m) => escapeHtml(m.value)).join('')}</span>`
       : '';
 
-  // 助字
+  // 助字（ruby外に配置 - 本文の一部）
   const okijiMarks = (tokenMarks.get('okiji') ?? []) as OkijiMark[];
   const okiji =
     profile.okiji && okijiMarks.length > 0
       ? `<span class="${prefix}-okiji">${okijiMarks.map((m) => escapeHtml(m.value)).join('')}</span>`
       : '';
 
-  // ルビが必要な場合
-  if (yomigana || okurigana || okiji) {
-    const rtContent = yomigana + okurigana + okiji;
-    return `<ruby><rb class="${prefix}-base">${escapeHtml(token.text)}</rb><rt class="${prefix}-ruby">${rtContent}</rt></ruby>`;
+  // ルビ（読み仮名 or 送り仮名）が必要な場合はruby要素を使用
+  let baseHtml: string;
+  const rtContent = yomigana + okurigana;
+  if (rtContent) {
+    baseHtml = `<ruby><rb class="${prefix}-base">${escapeHtml(token.text)}</rb><rt class="${prefix}-ruby">${rtContent}</rt></ruby>`;
+  } else {
+    baseHtml = `<span class="${prefix}-base">${escapeHtml(token.text)}</span>`;
   }
 
-  return `<span class="${prefix}-base">${escapeHtml(token.text)}</span>`;
+  return { baseHtml, okiji };
 }
 
 /**
  * 再読文字のToken HTMLを生成
+ *
+ * 読み仮名と送り仮名はrt内に配置する。
  */
 function renderSaidokuToken(
   token: Token,
@@ -281,7 +289,7 @@ function renderSaidokuToken(
 
   const forms = saidokuMark.forms;
 
-  // 各formをrtとして生成
+  // 各formをrtとして生成（読み仮名 + 送り仮名）
   const rtElements = forms
     .map((form, index) => {
       const n = form.n ?? index + 1;
@@ -359,12 +367,16 @@ function renderToken(
           .join('')
       : '';
 
-  // Token本体のHTML
-  let tokenHtml: string;
+  // Token本体のHTML（助字のみruby外に配置）
+  let baseHtml: string;
+  let okiji = '';
+
   if (saidokuMark) {
-    tokenHtml = renderSaidokuToken(token, saidokuMark, fullCtx);
+    baseHtml = renderSaidokuToken(token, saidokuMark, fullCtx);
   } else {
-    tokenHtml = renderTokenWithRuby(token, fullCtx);
+    const result = renderTokenWithRuby(token, fullCtx);
+    baseHtml = result.baseHtml;
+    okiji = result.okiji;
   }
 
   // ヲコト点追加
@@ -387,7 +399,8 @@ function renderToken(
     classes.push(`${prefix}-emphasis`);
   }
 
-  return `<span class="${classes.join(' ')}" data-token-id="${escapeHtml(token.id)}">${tokenHtml}${okototenHtml}${kaeriten}</span>${kutoten}`;
+  // 助字はトークンの外（返り点の後、句読点の前）に配置
+  return `<span class="${classes.join(' ')}" data-token-id="${escapeHtml(token.id)}">${baseHtml}${okototenHtml}${kaeriten}</span>${okiji}${kutoten}`;
 }
 
 // ============================================================================

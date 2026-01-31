@@ -229,13 +229,13 @@ interface TokenRenderContext {
 /**
  * ルビ付きのToken HTMLを生成
  *
- * 注意: ruby要素は読み仮名(yomigana)専用。
- * 送り仮名(okurigana)と助字(okiji)はruby外に配置する。
+ * - 読み仮名(yomigana)と送り仮名(okurigana)はruby要素のrt内に配置
+ * - 助字(okiji)はruby外に配置（本文の一部として表示）
  */
 function renderTokenWithRuby(
   token: Token,
   ctx: TokenRenderContext
-): { baseHtml: string; okurigana: string; okiji: string } {
+): { baseHtml: string; okiji: string } {
   const { prefix, profile, tokenMarks } = ctx;
 
   // 読み仮名（ruby要素のrt内に配置）
@@ -245,74 +245,64 @@ function renderTokenWithRuby(
       ? yomiganaMarks.map((m) => escapeHtml(m.value)).join('')
       : '';
 
-  // 送り仮名（ruby外に配置）
+  // 送り仮名（読み仮名と一緒にrt内に配置）
   const okuriganaMarks = (tokenMarks.get('okurigana') ?? []) as OkuriganaMark[];
   const okurigana =
     profile.okurigana && okuriganaMarks.length > 0
       ? `<span class="${prefix}-okuri">${okuriganaMarks.map((m) => escapeHtml(m.value)).join('')}</span>`
       : '';
 
-  // 助字（ruby外に配置）
+  // 助字（ruby外に配置 - 本文の一部）
   const okijiMarks = (tokenMarks.get('okiji') ?? []) as OkijiMark[];
   const okiji =
     profile.okiji && okijiMarks.length > 0
       ? `<span class="${prefix}-okiji">${okijiMarks.map((m) => escapeHtml(m.value)).join('')}</span>`
       : '';
 
-  // ルビ（読み仮名）が必要な場合のみruby要素を使用
+  // ルビ（読み仮名 or 送り仮名）が必要な場合はruby要素を使用
   let baseHtml: string;
-  if (yomigana) {
-    baseHtml = `<ruby><rb class="${prefix}-base">${escapeHtml(token.text)}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>`;
+  const rtContent = yomigana + okurigana;
+  if (rtContent) {
+    baseHtml = `<ruby><rb class="${prefix}-base">${escapeHtml(token.text)}</rb><rt class="${prefix}-ruby">${rtContent}</rt></ruby>`;
   } else {
     baseHtml = `<span class="${prefix}-base">${escapeHtml(token.text)}</span>`;
   }
 
-  return { baseHtml, okurigana, okiji };
+  return { baseHtml, okiji };
 }
 
 /**
  * 再読文字のToken HTMLを生成
  *
- * 注意: ruby要素は読み仮名専用。送り仮名(okuri)はruby外に配置する。
+ * 読み仮名と送り仮名はrt内に配置する。
  */
 function renderSaidokuToken(
   token: Token,
   saidokuMark: SaidokuMark,
   ctx: TokenRenderContext
-): { baseHtml: string; okuriElements: string[] } {
+): string {
   const { prefix, profile } = ctx;
 
   if (!profile.saidoku) {
-    return {
-      baseHtml: `<span class="${prefix}-base">${escapeHtml(token.text)}</span>`,
-      okuriElements: [],
-    };
+    return `<span class="${prefix}-base">${escapeHtml(token.text)}</span>`;
   }
 
   const forms = saidokuMark.forms;
-  const okuriElements: string[] = [];
 
-  // 各formをrtとして生成（読み仮名のみ）
+  // 各formをrtとして生成（読み仮名 + 送り仮名）
   const rtElements = forms
     .map((form, index) => {
       const n = form.n ?? index + 1;
       const reading = form.reading ? escapeHtml(form.reading) : '';
+      const okuri = form.okuri
+        ? `<span class="${prefix}-okuri">${escapeHtml(form.okuri)}</span>`
+        : '';
       const underClass = index > 0 ? ` ${prefix}-saidoku-under` : '';
-
-      // 送り仮名はruby外に配置するため別途収集
-      if (form.okuri) {
-        okuriElements.push(
-          `<span class="${prefix}-okuri" data-saidoku-n="${n}">${escapeHtml(form.okuri)}</span>`
-        );
-      }
-
-      return `<rt class="${prefix}-ruby${underClass}" data-saidoku-n="${n}">${reading}</rt>`;
+      return `<rt class="${prefix}-ruby${underClass}" data-saidoku-n="${n}">${reading}${okuri}</rt>`;
     })
     .join('');
 
-  const baseHtml = `<ruby><rb class="${prefix}-base">${escapeHtml(token.text)}</rb>${rtElements}</ruby>`;
-
-  return { baseHtml, okuriElements };
+  return `<ruby><rb class="${prefix}-base">${escapeHtml(token.text)}</rb>${rtElements}</ruby>`;
 }
 
 /**
@@ -377,20 +367,15 @@ function renderToken(
           .join('')
       : '';
 
-  // Token本体のHTML（送り仮名・助字はruby外に配置）
+  // Token本体のHTML（助字のみruby外に配置）
   let baseHtml: string;
-  let okurigana = '';
   let okiji = '';
 
   if (saidokuMark) {
-    const result = renderSaidokuToken(token, saidokuMark, fullCtx);
-    baseHtml = result.baseHtml;
-    // 再読文字の送り仮名を結合
-    okurigana = result.okuriElements.join('');
+    baseHtml = renderSaidokuToken(token, saidokuMark, fullCtx);
   } else {
     const result = renderTokenWithRuby(token, fullCtx);
     baseHtml = result.baseHtml;
-    okurigana = result.okurigana;
     okiji = result.okiji;
   }
 
@@ -414,8 +399,8 @@ function renderToken(
     classes.push(`${prefix}-emphasis`);
   }
 
-  // 送り仮名・助字はトークンの外（返り点の後、句読点の前）に配置
-  return `<span class="${classes.join(' ')}" data-token-id="${escapeHtml(token.id)}">${baseHtml}${okototenHtml}${kaeriten}</span>${okurigana}${okiji}${kutoten}`;
+  // 助字はトークンの外（返り点の後、句読点の前）に配置
+  return `<span class="${classes.join(' ')}" data-token-id="${escapeHtml(token.id)}">${baseHtml}${okototenHtml}${kaeriten}</span>${okiji}${kutoten}`;
 }
 
 // ============================================================================

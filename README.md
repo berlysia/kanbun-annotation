@@ -19,12 +19,12 @@ SKAM-ML/XML を試せるインタラクティブなデモ: https://berlysia.gith
 
 ## パッケージ構成
 
-| パッケージ                   | 説明                      | 状態   |
-| ---------------------------- | ------------------------- | ------ |
-| `@kanbun/skam`               | SKAM 型定義（TypeScript） | v0.1.0 |
-| `@kanbun/skam-xml-parser`    | SKAM-ML/XML パーサー      | v0.1.0 |
-| `@kanbun/skam-html-renderer` | SKAM → HTML レンダラー    | v0.1.0 |
-| `@kanbun/playground`         | インタラクティブデモ      | -      |
+| パッケージ | 説明 | 状態 |
+| --- | --- | --- |
+| [@kanbun/skam](./packages/skam/) | SKAM 型定義（TypeScript） | v0.1.0 |
+| [@kanbun/skam-xml-parser](./packages/skam-xml-parser/) | SKAM-ML/XML パーサー | v0.1.0 |
+| [@kanbun/skam-html-renderer](./packages/skam-html-renderer/) | SKAM → HTML レンダラー | v0.1.0 |
+| [@kanbun/playground](./packages/playground/) | インタラクティブデモ | - |
 
 ## インストール
 

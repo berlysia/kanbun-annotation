@@ -63,7 +63,7 @@ ${wrapWithSelector(`[data-writing-mode="vertical"]`, prefix, verticalStyles)}
 ${wrapWithSelector(`[data-writing-mode="horizontal"]`, prefix, horizontalStyles)}
 ${inlineStyles}`.trim();
   } else {
-    // 単一の書字方向のみ出力（後方互換）
+    // 単一の書字方向のみ出力（data-writing-mode セレクタ不要）
     const isVertical = writingMode === 'vertical';
     const writingModeStyles = generateWritingModeStyles(prefix, isVertical);
     const documentWritingMode = isVertical

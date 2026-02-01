@@ -35,16 +35,31 @@ const result = render(doc);
 // result.css: 適用すべき CSS
 ```
 
-### プロファイル指定
+### 書字方向の指定
+
+```typescript
+import { render } from '@kanbun/skam-html-renderer';
+
+// 縦書き（デフォルト）
+const vertical = render(doc, { writingMode: 'vertical' });
+
+// 横書き
+const horizontal = render(doc, { writingMode: 'horizontal' });
+```
+
+### 表示プロファイル
 
 ```typescript
 import { render, PROFILES } from '@kanbun/skam-html-renderer';
 
-// 縦書き（デフォルト）
-const vertical = render(doc, { profile: PROFILES.vertical });
+// フルプロファイル（すべての要素を表示、デフォルト）
+const full = render(doc, { profile: PROFILES.full });
 
-// 横書き
-const horizontal = render(doc, { profile: PROFILES.horizontal });
+// 学習用基本プロファイル（返り点のみ）
+const basic = render(doc, { profile: PROFILES.learningBasic });
+
+// 学習用ヒント付きプロファイル（返り点+送り仮名）
+const hint = render(doc, { profile: PROFILES.learningHint });
 ```
 
 ### スタイルのカスタマイズ

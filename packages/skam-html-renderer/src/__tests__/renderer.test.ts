@@ -372,6 +372,56 @@ describe('render', () => {
       expect(result.html).toContain('skam-note-item');
       expect(result.html).toContain('學問の意。');
     });
+
+    it('should render note reference marker in text', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        marks: [
+          {
+            type: 'note',
+            anchor: { from: 't1', to: 't1' },
+            value: '學問の意。',
+          },
+        ],
+        readings: [],
+      };
+
+      const result = render(doc);
+
+      expect(result.html).toContain('skam-note-ref');
+      expect(result.html).toContain('[1]');
+    });
+
+    it('should render multiple note references with correct numbering', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [
+          { id: 't1', text: '學' },
+          { id: 't2', text: '問' },
+        ],
+        marks: [
+          {
+            type: 'note',
+            anchor: { from: 't1', to: 't1' },
+            value: '第一の注釈。',
+          },
+          {
+            type: 'note',
+            anchor: { from: 't2', to: 't2' },
+            value: '第二の注釈。',
+          },
+        ],
+        readings: [],
+      };
+
+      const result = render(doc);
+
+      expect(result.html).toContain('[1]');
+      expect(result.html).toContain('[2]');
+      expect(result.html).toContain('第一の注釈。');
+      expect(result.html).toContain('第二の注釈。');
+    });
   });
 
   describe('reading layer', () => {

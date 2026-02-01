@@ -690,7 +690,8 @@ function renderToken(
   token: Token,
   marks: Mark[],
   ctx: Omit<TokenRenderContext, 'tokenMarks'>,
-  rangeCtx?: RangeMarkContext
+  rangeCtx?: RangeMarkContext,
+  noteIndexMap?: Map<NoteMark, number>
 ): string {
   const { prefix, profile } = ctx;
   const tokenMarks = getMarksForToken(token.id, marks);
@@ -836,7 +837,24 @@ function renderToken(
     classes.push(`${prefix}-joji`);
   }
 
-  return `<span class="${classes.join(' ')}" data-token-id="${escapeHtml(token.id)}">${baseHtml}${okototenHtml}${suffixRowHtml}</span>${kutoten}`;
+  // 注釈参照（本文中のマーカー）
+  let noteRef = '';
+  if (profile.notes && noteIndexMap) {
+    const noteMarks = (tokenMarks.get('note') ?? []) as NoteMark[];
+    if (noteMarks.length > 0) {
+      noteRef = noteMarks
+        .map((m) => {
+          const index = noteIndexMap.get(m);
+          if (index !== undefined) {
+            return `<sup class="${prefix}-note-ref">[${index}]</sup>`;
+          }
+          return '';
+        })
+        .join('');
+    }
+  }
+
+  return `<span class="${classes.join(' ')}" data-token-id="${escapeHtml(token.id)}">${baseHtml}${okototenHtml}${suffixRowHtml}</span>${kutoten}${noteRef}`;
 }
 
 // ============================================================================
@@ -924,6 +942,13 @@ function renderDisplayLayer(
 ): { tokens: string; prefix: string } {
   const { tokens, marks } = doc;
   const ctx = { prefix, profile };
+
+  // noteマークのインデックスマップを作成（本文中の参照番号用）
+  const noteMarks = marks.filter((m): m is NoteMark => m.type === 'note');
+  const noteIndexMap = new Map<NoteMark, number>();
+  noteMarks.forEach((note, index) => {
+    noteIndexMap.set(note, index + 1); // 1-based
+  });
 
   // たて点グループを特定
   const tatetenGroups = getTatetenGroups(tokens, marks);
@@ -1088,7 +1113,7 @@ function renderDisplayLayer(
         }
       }
 
-      let tokenHtml = renderToken(token, marks, ctx, rangeCtx);
+      let tokenHtml = renderToken(token, marks, ctx, rangeCtx, noteIndexMap);
 
       // ラベルを追加（傍線グループ外のトークンに紐づくラベルのみ）
       if (profile.label && !underlineGroup) {

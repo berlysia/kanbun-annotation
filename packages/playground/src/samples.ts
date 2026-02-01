@@ -217,7 +217,7 @@ export const SAMPLES: Sample[] = [
   },
   {
     name: 'ラベル（フォーマット一覧）',
-    description: 'ラベルの各フォーマット（大文字・小文字・数字・丸数字・イロハ）の例',
+    description: 'ラベルの各フォーマット（大文字・小文字・数字・丸数字・イロハ・五十音・漢数字）の例',
     xml: `<?xml version="1.0" encoding="UTF-8"?>
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
@@ -227,6 +227,10 @@ export const SAMPLES: Sample[] = [
       <skam:underline group="3">數字<skam:label value="3" format="numeric" group="3"/></skam:underline>
       <skam:underline group="4">丸數字<skam:label value="4" format="circled" group="4"/></skam:underline>
       <skam:underline group="5">イロハ<skam:label value="5" format="iroha" group="5"/></skam:underline>
+      <skam:underline group="6">いろは<skam:label value="6" format="iroha-hiragana" group="6"/></skam:underline>
+      <skam:underline group="7">アイウ<skam:label value="7" format="gojuon" group="7"/></skam:underline>
+      <skam:underline group="8">あいう<skam:label value="8" format="gojuon-hiragana" group="8"/></skam:underline>
+      <skam:underline group="9">漢數字<skam:label value="9" format="kanji-numeric" group="9"/></skam:underline>
     </skam:block>
   </skam:body>
 </skam:doc>`,

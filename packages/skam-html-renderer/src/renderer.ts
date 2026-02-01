@@ -149,6 +149,26 @@ export const PROFILES = {
 const IROHA_SEQUENCE = 'イロハニホヘトチリヌルヲワカヨタレソツネナラムウヰノオクヤマケフコエテアサキユメミシヱヒモセス';
 
 /**
+ * イロハ順（ひらがな）
+ */
+const IROHA_HIRAGANA_SEQUENCE = 'いろはにほへとちりぬるをわかよたれそつねならむうゐのおくやまけふこえてあさきゆめみしゑひもせす';
+
+/**
+ * 五十音順（カタカナ）
+ */
+const GOJUON_SEQUENCE = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
+
+/**
+ * 五十音順（ひらがな）
+ */
+const GOJUON_HIRAGANA_SEQUENCE = 'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん';
+
+/**
+ * 漢数字
+ */
+const KANJI_NUMBERS = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+
+/**
  * 丸数字（①〜㊿）
  */
 const CIRCLED_NUMBERS = [
@@ -278,6 +298,14 @@ function formatLabelIndex(index: number, format: LabelMark['format']): string {
       return CIRCLED_NUMBERS[index] ?? `(${index + 1})`;
     case 'iroha':
       return `(${IROHA_SEQUENCE[index] ?? String(index + 1)})`;
+    case 'iroha-hiragana':
+      return `(${IROHA_HIRAGANA_SEQUENCE[index] ?? String(index + 1)})`;
+    case 'gojuon':
+      return `(${GOJUON_SEQUENCE[index] ?? String(index + 1)})`;
+    case 'gojuon-hiragana':
+      return `(${GOJUON_HIRAGANA_SEQUENCE[index] ?? String(index + 1)})`;
+    case 'kanji-numeric':
+      return `(${KANJI_NUMBERS[index] ?? String(index + 1)})`;
     default:
       return `(${index + 1})`;
   }

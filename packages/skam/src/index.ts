@@ -232,7 +232,16 @@ export interface UnderlineMark extends BaseMark {
 }
 
 /** 番号振りフォーマット */
-export type LabelFormat = 'alpha-upper' | 'alpha-lower' | 'numeric' | 'circled' | 'iroha';
+export type LabelFormat =
+  | 'alpha-upper'
+  | 'alpha-lower'
+  | 'numeric'
+  | 'circled'
+  | 'iroha'
+  | 'iroha-hiragana'
+  | 'gojuon'
+  | 'gojuon-hiragana'
+  | 'kanji-numeric';
 
 /** 番号振り（教育用途、傍線部の識別子等） */
 export interface LabelMark extends BaseMark {

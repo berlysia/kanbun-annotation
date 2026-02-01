@@ -44,7 +44,7 @@ const VALID_MARK_TYPES: MarkType[] = [
 ];
 
 const VALID_UNDERLINE_STYLES = ['solid', 'dotted', 'dashed', 'wavy', 'double'] as const;
-const VALID_LABEL_FORMATS = ['alpha-upper', 'alpha-lower', 'numeric', 'circled', 'iroha'] as const;
+const VALID_LABEL_FORMATS = ['alpha-upper', 'alpha-lower', 'numeric', 'circled', 'iroha', 'iroha-hiragana', 'gojuon', 'gojuon-hiragana', 'kanji-numeric'] as const;
 
 const VALID_READING_KINDS: ReadingKind[] = ['kundoku', 'kakikudashi', 'yomiage'];
 

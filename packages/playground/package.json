@@ -9,7 +9,9 @@
     "build": "vite build",
     "preview": "vite preview",
     "typecheck": "tsgo --noEmit",
-    "lint": "oxlint src"
+    "lint": "oxlint src",
+    "test": "vitest",
+    "test:run": "vitest run"
   },
   "keywords": [
     "kanbun",
@@ -25,6 +27,7 @@
     "@kanbun/skam-html-renderer": "workspace:*"
   },
   "devDependencies": {
-    "vite": "6.3.4"
+    "vite": "6.3.4",
+    "vitest": "^3.0.0"
   }
 }

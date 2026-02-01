@@ -220,15 +220,41 @@ function escapeHtml(text: string): string {
 
 /**
  * Token IDから Markを取得
+ *
+ * 範囲マーク（複数トークンにまたがるマーク）の特別処理:
+ * - yomigana: anchor.fromで返す（熟語全体にルビをかけるため）
+ * - okurigana, soegana: anchor.toで返す（熟語の後に付くため）
  */
 function getMarksForToken(tokenId: string, marks: Mark[]): Map<Mark['type'], Mark[]> {
   const result = new Map<Mark['type'], Mark[]>();
 
+  // anchor.fromで返すマーク（先頭に付く）
+  const startMarks = new Set(['yomigana']);
+  // anchor.toで返すマーク（末尾に付く）
+  const endMarks = new Set(['okurigana', 'soegana']);
+
   for (const mark of marks) {
-    if (mark.anchor.from === tokenId || mark.anchor.to === tokenId) {
-      const existing = result.get(mark.type) ?? [];
-      existing.push(mark);
-      result.set(mark.type, existing);
+    if (startMarks.has(mark.type)) {
+      // 先頭マーク: anchor.fromでのみ返す
+      if (mark.anchor.from === tokenId) {
+        const existing = result.get(mark.type) ?? [];
+        existing.push(mark);
+        result.set(mark.type, existing);
+      }
+    } else if (endMarks.has(mark.type)) {
+      // 末尾マーク: anchor.toでのみ返す
+      if (mark.anchor.to === tokenId) {
+        const existing = result.get(mark.type) ?? [];
+        existing.push(mark);
+        result.set(mark.type, existing);
+      }
+    } else {
+      // 他のマークは従来通り
+      if (mark.anchor.from === tokenId || mark.anchor.to === tokenId) {
+        const existing = result.get(mark.type) ?? [];
+        existing.push(mark);
+        result.set(mark.type, existing);
+      }
     }
   }
 
@@ -252,6 +278,50 @@ function getTatetenGroups(tokens: Token[], marks: Mark[]): Map<string, TatetenMa
         if (token) {
           tokenIdToGroup.set(token.id, tateten);
         }
+      }
+    }
+  }
+
+  return tokenIdToGroup;
+}
+
+/**
+ * 範囲を持つマーク（yomigana, okurigana, soegana）のグループ情報
+ */
+interface RangeMarkGroup {
+  mark: YomiganaMark | OkuriganaMark | SoeganaMark;
+  tokenIds: string[];
+}
+
+/**
+ * 範囲マークのグループを取得（anchor.from !== anchor.to のマーク）
+ */
+function getRangeMarkGroups(
+  tokens: Token[],
+  marks: Mark[],
+  type: 'yomigana' | 'okurigana' | 'soegana'
+): Map<string, RangeMarkGroup> {
+  const targetMarks = marks.filter((m) => m.type === type && m.anchor.from !== m.anchor.to);
+  const tokenIdToGroup = new Map<string, RangeMarkGroup>();
+
+  for (const mark of targetMarks) {
+    const fromIndex = tokens.findIndex((t) => t.id === mark.anchor.from);
+    const toIndex = tokens.findIndex((t) => t.id === mark.anchor.to);
+
+    if (fromIndex !== -1 && toIndex !== -1) {
+      const tokenIds: string[] = [];
+      for (let i = fromIndex; i <= toIndex; i++) {
+        const token = tokens[i];
+        if (token) {
+          tokenIds.push(token.id);
+        }
+      }
+      const group: RangeMarkGroup = {
+        mark: mark as YomiganaMark | OkuriganaMark | SoeganaMark,
+        tokenIds,
+      };
+      for (const tokenId of tokenIds) {
+        tokenIdToGroup.set(tokenId, group);
       }
     }
   }
@@ -402,8 +472,9 @@ interface TokenRenderContext {
  *
  * - 読み仮名(yomigana)はruby要素のrt内に配置（中央揃え）
  * - 送り仮名・添え仮名はrenderTokenで返り点と一緒にsuffix-lineコンテナにまとめる
+ * - 熟語ルビ（範囲yomigana）の場合はbaseTextを使用
  */
-function renderTokenWithRuby(token: Token, ctx: TokenRenderContext): string {
+function renderTokenWithRuby(token: Token, ctx: TokenRenderContext, baseText?: string): string {
   const { prefix, profile, tokenMarks } = ctx;
 
   // 読み仮名（ruby要素のrt内に配置、中央揃え）
@@ -414,10 +485,12 @@ function renderTokenWithRuby(token: Token, ctx: TokenRenderContext): string {
       : '';
 
   // ルビ（読み仮名）が必要な場合はruby要素を使用
+  // 熟語ルビの場合はbaseTextを使用
+  const displayText = baseText ?? token.text;
   if (yomigana) {
-    return `<ruby><rb class="${prefix}-base">${escapeHtml(token.text)}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>`;
+    return `<ruby><rb class="${prefix}-base">${escapeHtml(displayText)}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>`;
   } else {
-    return `<span class="${prefix}-base">${escapeHtml(token.text)}</span>`;
+    return `<span class="${prefix}-base">${escapeHtml(displayText)}</span>`;
   }
 }
 
@@ -485,12 +558,29 @@ function renderOkototen(okototenMark: OkototenMark, prefix: string): string {
 }
 
 /**
+ * 範囲マークのコンテキスト（熟語ルビ等のベーステキスト・値）
+ */
+interface RangeMarkContext {
+  /** 範囲yomiganaのベーステキスト（全トークンのテキストを結合） */
+  yomiganaBaseText?: string;
+  /** 範囲okuriganaのベーステキスト */
+  okuriganaBaseText?: string;
+  /** 範囲okuriganaの値 */
+  okuriganaValue?: string;
+  /** 範囲soeganaのベーステキスト */
+  soeganaBaseText?: string;
+  /** 範囲soeganaの値 */
+  soeganaValue?: string;
+}
+
+/**
  * 単一TokenのHTMLを生成
  */
 function renderToken(
   token: Token,
   marks: Mark[],
-  ctx: Omit<TokenRenderContext, 'tokenMarks'>
+  ctx: Omit<TokenRenderContext, 'tokenMarks'>,
+  rangeCtx?: RangeMarkContext
 ): string {
   const { prefix, profile } = ctx;
   const tokenMarks = getMarksForToken(token.id, marks);
@@ -529,20 +619,28 @@ function renderToken(
         }
       }
     } else {
-      // 通常のToken: okuriganaMarksから取得
+      // 通常のToken: okuriganaMarksから取得、または範囲グループの値を使用
       const okuriganaMarks = (tokenMarks.get('okurigana') ?? []) as OkuriganaMark[];
       if (okuriganaMarks.length > 0) {
         okurigana = `<span class="${prefix}-okuri">${okuriganaMarks.map((m) => escapeHtml(m.value)).join('')}</span>`;
+      } else if (rangeCtx?.okuriganaValue) {
+        // 範囲okuriganaグループの値を使用
+        okurigana = `<span class="${prefix}-okuri">${escapeHtml(rangeCtx.okuriganaValue)}</span>`;
       }
     }
   }
 
   // 添え仮名
   const soeganaMarks = (tokenMarks.get('soegana') ?? []) as SoeganaMark[];
-  const soegana =
-    profile.soegana && soeganaMarks.length > 0
-      ? `<span class="${prefix}-soegana">${soeganaMarks.map((m) => escapeHtml(m.value)).join('')}</span>`
-      : '';
+  let soegana = '';
+  if (profile.soegana) {
+    if (soeganaMarks.length > 0) {
+      soegana = `<span class="${prefix}-soegana">${soeganaMarks.map((m) => escapeHtml(m.value)).join('')}</span>`;
+    } else if (rangeCtx?.soeganaValue) {
+      // 範囲soeganaグループの値を使用
+      soegana = `<span class="${prefix}-soegana">${escapeHtml(rangeCtx.soeganaValue)}</span>`;
+    }
+  }
 
   // 返り点
   const kaeriMarks = (tokenMarks.get('kaeri') ?? []) as KaeriMark[];
@@ -595,10 +693,14 @@ function renderToken(
   // Token本体のHTML
   let baseHtml: string;
 
+  // 範囲グループのベーステキストを決定（優先順位: yomigana > okurigana > soegana）
+  const rangeBaseText = rangeCtx?.yomiganaBaseText ?? rangeCtx?.okuriganaBaseText ?? rangeCtx?.soeganaBaseText;
+
   if (saidokuMark) {
     baseHtml = renderSaidokuToken(token, saidokuMark, fullCtx);
   } else {
-    baseHtml = renderTokenWithRuby(token, fullCtx);
+    // 範囲グループがある場合は熟語全体のテキストを使用
+    baseHtml = renderTokenWithRuby(token, fullCtx, rangeBaseText);
   }
 
   // ヲコト点追加
@@ -674,12 +776,42 @@ function renderNotes(marks: Mark[], prefix: string, profile: RenderProfile): str
 }
 
 /**
+ * Tokenからブロック境界を検出してグループ化
+ */
+function groupTokensByBlock(tokens: Token[]): { blockId: string | null; tokens: Token[] }[] {
+  const groups: { blockId: string | null; tokens: Token[] }[] = [];
+  let currentBlockId: string | null = null;
+  let currentGroup: Token[] = [];
+
+  for (const token of tokens) {
+    const blockId = (token.ext?.['blockId'] as string | undefined) ?? null;
+
+    if (blockId !== currentBlockId) {
+      if (currentGroup.length > 0) {
+        groups.push({ blockId: currentBlockId, tokens: currentGroup });
+      }
+      currentBlockId = blockId;
+      currentGroup = [token];
+    } else {
+      currentGroup.push(token);
+    }
+  }
+
+  if (currentGroup.length > 0) {
+    groups.push({ blockId: currentBlockId, tokens: currentGroup });
+  }
+
+  return groups;
+}
+
+/**
  * Display層のHTMLを生成
  */
 function renderDisplayLayer(
   doc: SKAMDocument,
   prefix: string,
-  profile: RenderProfile
+  profile: RenderProfile,
+  inline: boolean
 ): { tokens: string; prefix: string } {
   const { tokens, marks } = doc;
   const ctx = { prefix, profile };
@@ -689,6 +821,15 @@ function renderDisplayLayer(
 
   // 傍線グループを特定
   const underlineGroups = profile.underline ? getUnderlineGroups(tokens, marks) : new Map();
+
+  // 範囲yomiganaグループを特定（熟語ルビ対応）
+  const yomiganaRangeGroups = profile.yomigana ? getRangeMarkGroups(tokens, marks, 'yomigana') : new Map();
+
+  // 範囲okuriganaグループを特定
+  const okuriganaRangeGroups = profile.okurigana ? getRangeMarkGroups(tokens, marks, 'okurigana') : new Map();
+
+  // 範囲soeganaグループを特定
+  const soeganaRangeGroups = profile.soegana ? getRangeMarkGroups(tokens, marks, 'soegana') : new Map();
 
   // ラベル値を事前計算
   const labelValues = profile.label ? resolveLabelValues(marks) : new Map();
@@ -741,18 +882,96 @@ function renderDisplayLayer(
     return labelsInGroup.join('');
   };
 
-  // トークンをグループ化してレンダリング
-  const renderedTokens: string[] = [];
-  let currentTatetenGroup: TatetenMark | undefined;
-  let currentUnderlineGroup: UnderlineMark | undefined;
-  let groupTokens: string[] = [];
-  let underlineTokens: string[] = [];
+  // ブロックごとにトークンをグループ化
+  const blockGroups = groupTokensByBlock(tokens);
+  const blockTag = inline ? 'span' : 'div';
 
-  for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i]!;
-    const tokenGroup = tatetenGroups.get(token.id);
-    const underlineGroup = underlineGroups.get(token.id);
-    let tokenHtml = renderToken(token, marks, ctx);
+  // 各ブロックを個別にレンダリング
+  const renderedBlocks: string[] = [];
+
+  for (const blockGroup of blockGroups) {
+    const blockTokens = blockGroup.tokens;
+    const renderedTokens: string[] = [];
+    let currentTatetenGroup: TatetenMark | undefined;
+    let currentUnderlineGroup: UnderlineMark | undefined;
+    let groupTokens: string[] = [];
+    let underlineTokens: string[] = [];
+
+    // 処理済みトークンを追跡（範囲グループのスキップ用）
+    const processedTokenIds = new Set<string>();
+
+    for (let i = 0; i < blockTokens.length; i++) {
+      const token = blockTokens[i]!;
+
+      // 範囲グループで既に処理済みのトークンはスキップ
+      if (processedTokenIds.has(token.id)) {
+        continue;
+      }
+
+      const tokenGroup = tatetenGroups.get(token.id);
+      const underlineGroup = underlineGroups.get(token.id);
+
+      // 範囲グループのチェック
+      const yomiganaGroup = yomiganaRangeGroups.get(token.id);
+      const okuriganaGroup = okuriganaRangeGroups.get(token.id);
+      const soeganaGroup = soeganaRangeGroups.get(token.id);
+      let rangeCtx: RangeMarkContext | undefined;
+
+      // 範囲yomiganaグループ: 熟語全体にルビをかける
+      if (yomiganaGroup && yomiganaGroup.tokenIds[0] === token.id) {
+        const baseText = yomiganaGroup.tokenIds
+          .map((tid: string) => {
+            const t = tokens.find((tok) => tok.id === tid);
+            return t?.text ?? '';
+          })
+          .join('');
+        rangeCtx = { ...rangeCtx, yomiganaBaseText: baseText };
+
+        // グループ内の他のトークンを処理済みとしてマーク
+        for (const tid of yomiganaGroup.tokenIds.slice(1)) {
+          processedTokenIds.add(tid);
+        }
+      }
+
+      // 範囲okuriganaグループ: 熟語全体の後に送り仮名を付ける
+      if (okuriganaGroup && okuriganaGroup.tokenIds[0] === token.id) {
+        const baseText = okuriganaGroup.tokenIds
+          .map((tid: string) => {
+            const t = tokens.find((tok) => tok.id === tid);
+            return t?.text ?? '';
+          })
+          .join('');
+        const okuriganaValue = (okuriganaGroup.mark as OkuriganaMark).value;
+        rangeCtx = { ...rangeCtx, okuriganaBaseText: baseText, okuriganaValue };
+
+        // グループ内の他のトークンを処理済みとしてマーク（yomiganaと重複しなければ）
+        for (const tid of okuriganaGroup.tokenIds.slice(1)) {
+          if (!processedTokenIds.has(tid)) {
+            processedTokenIds.add(tid);
+          }
+        }
+      }
+
+      // 範囲soeganaグループ: 熟語全体の後に添え仮名を付ける
+      if (soeganaGroup && soeganaGroup.tokenIds[0] === token.id) {
+        const baseText = soeganaGroup.tokenIds
+          .map((tid: string) => {
+            const t = tokens.find((tok) => tok.id === tid);
+            return t?.text ?? '';
+          })
+          .join('');
+        const soeganaValue = (soeganaGroup.mark as SoeganaMark).value;
+        rangeCtx = { ...rangeCtx, soeganaBaseText: baseText, soeganaValue };
+
+        // グループ内の他のトークンを処理済みとしてマーク（他グループと重複しなければ）
+        for (const tid of soeganaGroup.tokenIds.slice(1)) {
+          if (!processedTokenIds.has(tid)) {
+            processedTokenIds.add(tid);
+          }
+        }
+      }
+
+      let tokenHtml = renderToken(token, marks, ctx, rangeCtx);
 
     // ラベルを追加（傍線グループ外のトークンに紐づくラベルのみ）
     if (profile.label && !underlineGroup) {
@@ -857,30 +1076,42 @@ function renderDisplayLayer(
     }
   }
 
-  // 最後のグループを閉じる
-  if (currentTatetenGroup && groupTokens.length > 0) {
-    if (currentUnderlineGroup) {
-      underlineTokens.push(
-        `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
+    // 最後のグループを閉じる
+    if (currentTatetenGroup && groupTokens.length > 0) {
+      if (currentUnderlineGroup) {
+        underlineTokens.push(
+          `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
+        );
+      } else {
+        renderedTokens.push(
+          `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
+        );
+      }
+    }
+
+    if (currentUnderlineGroup && underlineTokens.length > 0) {
+      const style = currentUnderlineGroup.style ?? 'solid';
+      const labelsHtml = collectLabelsForUnderline(currentUnderlineGroup);
+      const hasRuby = hasYomiganaInUnderline(currentUnderlineGroup);
+      const rubyClass = hasRuby ? ` ${prefix}-underline--has-ruby` : '';
+      renderedTokens.push(
+        `<span class="${prefix}-underline${rubyClass}" data-style="${style}">${underlineTokens.join('')}${labelsHtml}</span>`
+      );
+    }
+
+    // ブロックをラップして追加
+    const blockContent = renderedTokens.join('');
+    if (blockGroup.blockId) {
+      renderedBlocks.push(
+        `<${blockTag} class="${prefix}-block" data-block-id="${escapeHtml(blockGroup.blockId)}">${blockContent}</${blockTag}>`
       );
     } else {
-      renderedTokens.push(
-        `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
-      );
+      // blockIdがない場合はそのまま追加
+      renderedBlocks.push(blockContent);
     }
   }
 
-  if (currentUnderlineGroup && underlineTokens.length > 0) {
-    const style = currentUnderlineGroup.style ?? 'solid';
-    const labelsHtml = collectLabelsForUnderline(currentUnderlineGroup);
-    const hasRuby = hasYomiganaInUnderline(currentUnderlineGroup);
-    const rubyClass = hasRuby ? ` ${prefix}-underline--has-ruby` : '';
-    renderedTokens.push(
-      `<span class="${prefix}-underline${rubyClass}" data-style="${style}">${underlineTokens.join('')}${labelsHtml}</span>`
-    );
-  }
-
-  return { tokens: renderedTokens.join(''), prefix };
+  return { tokens: renderedBlocks.join(''), prefix };
 }
 
 // ============================================================================
@@ -898,7 +1129,7 @@ export function render(doc: SKAMDocument, options: RenderOptions = {}): RenderRe
   const inline = options.inline ?? false;
 
   // Display層
-  const displayResult = renderDisplayLayer(doc, prefix, profile);
+  const displayResult = renderDisplayLayer(doc, prefix, profile, inline);
   const displayTag = inline ? 'span' : 'div';
   const displayHtml = `<${displayTag} class="${prefix}-display" aria-hidden="true">${displayResult.tokens}</${displayTag}>`;
 

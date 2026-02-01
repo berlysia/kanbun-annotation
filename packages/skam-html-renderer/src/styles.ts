@@ -49,6 +49,11 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
   position: relative;
 }
 
+/* Block (論理的なブロック単位、句や段落など) */
+.${prefix}-block {
+  display: block;
+}
+
 /* Reading Layer (a11y, visually hidden) */
 .${prefix}-reading {
   position: absolute;

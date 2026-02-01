@@ -47,7 +47,7 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
 /* Token */
 .${prefix}-token {
   position: relative;
-  display: inline;
+  display: inline-block;
 }
 
 /* Base character */
@@ -64,22 +64,31 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
   font-size: 0.5em;
 }
 
-/* Okurigana (送り仮名) - ruby内に配置 */
+/* Okurigana (送り仮名) - ruby内rtに配置 */
 .${prefix}-okuri {
   font-size: inherit;
 }
 
-/* Okiji (助字) - ruby外に配置（本文の一部として表示） */
-.${prefix}-okiji {
-  font-size: 0.5em;
-  ${isVertical ? 'display: inline; writing-mode: vertical-rl;' : 'vertical-align: top;'}
+/* Soegana (添え仮名) - ruby内rtに配置（okuriganaと同じパターン） */
+.${prefix}-soegana {
+  font-size: inherit;
 }
 
-/* Kaeriten (返り点) */
+/* Okimoji (置字) - 訓読時に読まない漢字 */
+.${prefix}-okimoji {
+  opacity: 0.6;
+}
+
+/* Joji (助字) - 文法的機能を持つ漢字の分類ラベル */
+.${prefix}-joji {
+  /* デフォルトでは特別なスタイルなし（必要に応じてカスタマイズ可能） */
+}
+
+/* Kaeriten (返り点) - 縦書き時は右下に配置 */
 .${prefix}-kaeriten {
   font-size: 0.5em;
-  ${isVertical ? 'margin-inline-start: -0.5em;' : 'vertical-align: sub;'}
   color: inherit;
+  ${isVertical ? 'position: relative; inset-block-end: -1em;' : 'vertical-align: sub;'}
 }
 
 /* Kutoten (句読点) */

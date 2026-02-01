@@ -30,7 +30,9 @@ const VALID_MARK_TYPES: MarkType[] = [
   'kaeri',
   'okurigana',
   'yomigana',
-  'okiji',
+  'okimoji',
+  'joji',
+  'soegana',
   'kutoten',
   'emphasis',
   'note',
@@ -330,7 +332,7 @@ function validateMark(mark: unknown, index: number, errors: ValidationError[]): 
       case 'kaeri':
       case 'okurigana':
       case 'yomigana':
-      case 'okiji':
+      case 'soegana':
       case 'note':
         if (!isString(mark['value'])) {
           errors.push(
@@ -344,6 +346,11 @@ function validateMark(mark: unknown, index: number, errors: ValidationError[]): 
           );
           valid = false;
         }
+        break;
+
+      case 'okimoji':
+      case 'joji':
+        // No additional required fields (label marks)
         break;
 
       case 'kutoten':

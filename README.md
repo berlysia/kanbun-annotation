@@ -43,7 +43,7 @@ const doc: SKAMDocument = {
   marks: [
     { type: 'okurigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'びて' },
     { type: 'okurigana', id: 'm2', anchor: { from: 't3', to: 't3' }, value: 'に' },
-    { type: 'okiji', id: 'm3', anchor: { from: 't5', to: 't5' }, value: 'を' },
+    { type: 'soegana', id: 'm3', anchor: { from: 't5', to: 't5' }, value: 'を' },
     { type: 'okurigana', id: 'm4', anchor: { from: 't4', to: 't4' }, value: 'ふ' },
     { type: 'kaeri', id: 'm5', anchor: { from: 't5', to: 't5' }, value: 'レ' },
   ],
@@ -77,18 +77,20 @@ SKAMDocument
 
 ### Mark Types (v0.1)
 
-| type        | 意味                     | value                                 |
-| ----------- | ------------------------ | ------------------------------------- |
-| `kaeri`     | 返り点                   | 必須（レ、一、二、上、下、甲、乙 等） |
-| `okurigana` | 送り仮名                 | 必須（送り仮名テキスト）              |
-| `yomigana`  | 読み仮名（ルビ）         | 必須（読み仮名テキスト）              |
-| `okiji`     | 助字・テニヲハ           | 必須（助字テキスト）                  |
-| `kutoten`   | 句読点                   | 必須（句点・読点等）                  |
-| `emphasis`  | 傍点・圏点               | 任意（傍点の種類）                    |
-| `note`      | 注釈（割注・欄外注含む） | 必須（注釈テキスト）                  |
-| `saidoku`   | 再読文字                 | forms 配列必須                        |
-| `okototen`  | ヲコト点                 | position・shape 必須                  |
-| `tateten`   | たて点（熟語境界）       | なし                                  |
+| type        | 意味                               | value                                 |
+| ----------- | ---------------------------------- | ------------------------------------- |
+| `kaeri`     | 返り点                             | 必須（レ、一、二、上、下、甲、乙 等） |
+| `okurigana` | 送り仮名                           | 必須（送り仮名テキスト）              |
+| `yomigana`  | 読み仮名（ルビ）                   | 必須（読み仮名テキスト）              |
+| `soegana`   | 添え仮名（訓読時に補う助詞）       | 必須（助詞テキスト）                  |
+| `okimoji`   | 置字（訓読時に読まない漢字）       | なし                                  |
+| `joji`      | 助字（文法的機能を持つ漢字ラベル） | なし                                  |
+| `kutoten`   | 句読点                             | 必須（句点・読点等）                  |
+| `emphasis`  | 傍点・圏点                         | 任意（傍点の種類）                    |
+| `note`      | 注釈（割注・欄外注含む）           | 必須（注釈テキスト）                  |
+| `saidoku`   | 再読文字                           | forms 配列必須                        |
+| `okototen`  | ヲコト点                           | position・shape 必須                  |
+| `tateten`   | たて点（熟語境界）                 | なし                                  |
 
 ### Reading Kinds
 

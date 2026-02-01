@@ -16,13 +16,14 @@ export const SAMPLES: Sample[] = [
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      <skam:kun reading="まな" okuri="びて">學</skam:kun>而時
-      <skam:kun okuri="に">之</skam:kun><skam:kaeri kind="re"/>
-      <skam:kun okuri="ふ">習</skam:kun><skam:kutoten value="。" kind="ku"/>
+      <skam:kun reading="まな" okuri="びて">學</skam:kun>而
+      <skam:kun okuri="に">時</skam:kun>
+      <skam:kun okuri="ふ">習</skam:kun>
+      <skam:kun soe="を">之</skam:kun><skam:kaeri kind="re"/><skam:kutoten value="。" kind="ku"/>
     </skam:block>
   </skam:body>
   <skam:readings>
-    <skam:reading kind="kakikudashi">学びて時にこれを習ふ。</skam:reading>
+    <skam:reading kind="kakikudashi">学びて時に之を習ふ。</skam:reading>
   </skam:readings>
 </skam:doc>`,
   },
@@ -33,9 +34,10 @@ export const SAMPLES: Sample[] = [
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      <skam:kun reading="まな" okuri="びて">學</skam:kun>而時
-      <skam:kun okuri="に">之</skam:kun><skam:kaeri kind="re"/>
-      <skam:kun okuri="ふ">習</skam:kun><skam:kutoten value="。" kind="ku"/>
+      <skam:kun reading="まな" okuri="びて">學</skam:kun>而
+      <skam:kun okuri="に">時</skam:kun>
+      <skam:kun okuri="ふ">習</skam:kun>
+      <skam:kun soe="を">之</skam:kun><skam:kaeri kind="re"/><skam:kutoten value="。" kind="ku"/>
     </skam:block>
     <skam:block>
       不亦<skam:kun reading="よろこ" okuri="ば">説</skam:kun>乎<skam:kutoten value="。" kind="ku"/>
@@ -104,16 +106,16 @@ export const SAMPLES: Sample[] = [
 </skam:doc>`,
   },
   {
-    name: '助字（ヲ）',
-    description: '助字を含む例',
+    name: '添え仮名（を）',
+    description: '添え仮名（テニヲハ）を含む例',
     xml: `<?xml version="1.0" encoding="UTF-8"?>
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      學而時
-      <skam:kun okuri="に">之</skam:kun><skam:kaeri kind="re"/>
-      <skam:okiji>を</skam:okiji>
-      <skam:kun okuri="ふ">習</skam:kun><skam:kutoten value="。" kind="ku"/>
+      學而
+      <skam:kun okuri="に">時</skam:kun>
+      <skam:kun okuri="ふ">習</skam:kun>
+      <skam:kun soe="を">之</skam:kun><skam:kaeri kind="re"/><skam:kutoten value="。" kind="ku"/>
     </skam:block>
   </skam:body>
 </skam:doc>`,

@@ -87,7 +87,9 @@ export type MarkType =
   | 'kaeri'
   | 'okurigana'
   | 'yomigana'
-  | 'okiji'
+  | 'okimoji'
+  | 'joji'
+  | 'soegana'
   | 'kutoten'
   | 'emphasis'
   | 'note'
@@ -140,10 +142,20 @@ export interface YomiganaMark extends BaseMark {
   value: string;
 }
 
-/** 助字・テニヲハ */
-export interface OkijiMark extends BaseMark {
-  type: 'okiji';
-  /** 助字テキスト */
+/** 置字（訓読時に読まない漢字をマーク） */
+export interface OkimojiMark extends BaseMark {
+  type: 'okimoji';
+}
+
+/** 助字（文法的機能を持つ漢字の分類ラベル） */
+export interface JojiMark extends BaseMark {
+  type: 'joji';
+}
+
+/** 添え仮名（訓読時に補う助詞・テニヲハ） */
+export interface SoeganaMark extends BaseMark {
+  type: 'soegana';
+  /** 添え仮名テキスト（を、に、は 等） */
   value: string;
 }
 
@@ -210,7 +222,9 @@ export type Mark =
   | KaeriMark
   | OkuriganaMark
   | YomiganaMark
-  | OkijiMark
+  | OkimojiMark
+  | JojiMark
+  | SoeganaMark
   | KutotenMark
   | EmphasisMark
   | NoteMark

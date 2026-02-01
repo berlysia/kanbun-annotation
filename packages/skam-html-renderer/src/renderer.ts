@@ -11,7 +11,9 @@ import type {
   KaeriMark,
   OkuriganaMark,
   YomiganaMark,
-  OkijiMark,
+  OkimojiMark,
+  JojiMark,
+  SoeganaMark,
   KutotenMark,
   EmphasisMark,
   NoteMark,
@@ -39,7 +41,9 @@ export interface RenderProfile {
   tateten: boolean;
   emphasis: boolean;
   notes: boolean;
-  okiji: boolean;
+  okimoji: boolean;
+  joji: boolean;
+  soegana: boolean;
 }
 
 /**
@@ -79,7 +83,9 @@ const FULL_PROFILE: RenderProfile = {
   tateten: true,
   emphasis: true,
   notes: true,
-  okiji: true,
+  okimoji: true,
+  joji: true,
+  soegana: true,
 };
 
 /** 学習用基本プロファイル（返り点のみ） */
@@ -93,7 +99,9 @@ const LEARNING_BASIC_PROFILE: RenderProfile = {
   tateten: false,
   emphasis: false,
   notes: false,
-  okiji: false,
+  okimoji: true,
+  joji: true,
+  soegana: false,
 };
 
 /** 学習用ヒント付きプロファイル（返り点+送り仮名） */
@@ -107,7 +115,9 @@ const LEARNING_HINT_PROFILE: RenderProfile = {
   tateten: false,
   emphasis: false,
   notes: false,
-  okiji: true,
+  okimoji: true,
+  joji: true,
+  soegana: true,
 };
 
 /**
@@ -221,13 +231,9 @@ interface TokenRenderContext {
 /**
  * ルビ付きのToken HTMLを生成
  *
- * - 読み仮名(yomigana)と送り仮名(okurigana)はruby要素のrt内に配置
- * - 助字(okiji)はruby外に配置（本文の一部として表示）
+ * - 読み仮名(yomigana)、送り仮名(okurigana)、添え仮名(soegana)はruby要素のrt内に配置
  */
-function renderTokenWithRuby(
-  token: Token,
-  ctx: TokenRenderContext
-): { baseHtml: string; okiji: string } {
+function renderTokenWithRuby(token: Token, ctx: TokenRenderContext): string {
   const { prefix, profile, tokenMarks } = ctx;
 
   // 読み仮名（ruby要素のrt内に配置）
@@ -244,23 +250,20 @@ function renderTokenWithRuby(
       ? `<span class="${prefix}-okuri">${okuriganaMarks.map((m) => escapeHtml(m.value)).join('')}</span>`
       : '';
 
-  // 助字（ruby外に配置 - 本文の一部）
-  const okijiMarks = (tokenMarks.get('okiji') ?? []) as OkijiMark[];
-  const okiji =
-    profile.okiji && okijiMarks.length > 0
-      ? `<span class="${prefix}-okiji">${okijiMarks.map((m) => escapeHtml(m.value)).join('')}</span>`
+  // 添え仮名（送り仮名と同じパターンでrt内に配置）
+  const soeganaMarks = (tokenMarks.get('soegana') ?? []) as SoeganaMark[];
+  const soegana =
+    profile.soegana && soeganaMarks.length > 0
+      ? `<span class="${prefix}-soegana">${soeganaMarks.map((m) => escapeHtml(m.value)).join('')}</span>`
       : '';
 
-  // ルビ（読み仮名 or 送り仮名）が必要な場合はruby要素を使用
-  let baseHtml: string;
-  const rtContent = yomigana + okurigana;
+  // ルビ（読み仮名 or 送り仮名 or 添え仮名）が必要な場合はruby要素を使用
+  const rtContent = yomigana + okurigana + soegana;
   if (rtContent) {
-    baseHtml = `<ruby><rb class="${prefix}-base">${escapeHtml(token.text)}</rb><rt class="${prefix}-ruby">${rtContent}</rt></ruby>`;
+    return `<ruby><rb class="${prefix}-base">${escapeHtml(token.text)}</rb><rt class="${prefix}-ruby">${rtContent}</rt></ruby>`;
   } else {
-    baseHtml = `<span class="${prefix}-base">${escapeHtml(token.text)}</span>`;
+    return `<span class="${prefix}-base">${escapeHtml(token.text)}</span>`;
   }
-
-  return { baseHtml, okiji };
 }
 
 /**
@@ -371,16 +374,21 @@ function renderToken(
           .join('')
       : '';
 
-  // Token本体のHTML（助字のみruby外に配置）
+  // 置字チェック
+  const okimojiMarks = (tokenMarks.get('okimoji') ?? []) as OkimojiMark[];
+  const isOkimoji = profile.okimoji && okimojiMarks.length > 0;
+
+  // 助字チェック
+  const jojiMarks = (tokenMarks.get('joji') ?? []) as JojiMark[];
+  const isJoji = profile.joji && jojiMarks.length > 0;
+
+  // Token本体のHTML
   let baseHtml: string;
-  let okiji = '';
 
   if (saidokuMark) {
     baseHtml = renderSaidokuToken(token, saidokuMark, fullCtx);
   } else {
-    const result = renderTokenWithRuby(token, fullCtx);
-    baseHtml = result.baseHtml;
-    okiji = result.okiji;
+    baseHtml = renderTokenWithRuby(token, fullCtx);
   }
 
   // ヲコト点追加
@@ -400,9 +408,14 @@ function renderToken(
   if (hasEmphasis) {
     classes.push(`${prefix}-emphasis`);
   }
+  if (isOkimoji) {
+    classes.push(`${prefix}-okimoji`);
+  }
+  if (isJoji) {
+    classes.push(`${prefix}-joji`);
+  }
 
-  // 助字はトークンの外（返り点の後、句読点の前）に配置
-  return `<span class="${classes.join(' ')}" data-token-id="${escapeHtml(token.id)}">${baseHtml}${okototenHtml}${kaeriten}</span>${okiji}${kutoten}`;
+  return `<span class="${classes.join(' ')}" data-token-id="${escapeHtml(token.id)}">${baseHtml}${okototenHtml}${kaeriten}</span>${kutoten}`;
 }
 
 // ============================================================================

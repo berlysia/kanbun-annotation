@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- joji.xml - 助字（文法的機能を持つ漢字） -->
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      學而時習<skam:joji>之</skam:joji>
+    </skam:block>
+  </skam:body>
+</skam:doc>

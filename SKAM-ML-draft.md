@@ -145,31 +145,35 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 
 ### 7.3 `skam:kun`（訓）
 
-漢字の読み仮名と送り仮名を表す語形要素。baseは内容、読みと送りは属性。
+漢字の読み仮名・送り仮名・添え仮名を表す語形要素。baseは内容、読み・送り・添えは属性。
 
 ```xml
 <skam:block>
-  <skam:kun reading="まな" okuri="びて">學</skam:kun>
-  而時習之
+  <skam:kun reading="まな" okuri="びて">學</skam:kun>而
+  <skam:kun okuri="に">時</skam:kun>
+  <skam:kun okuri="ふ">習</skam:kun>
+  <skam:kun soe="を">之</skam:kun>
 </skam:block>
 ```
 
 #### 属性
 
-| 属性      | 必須 | 説明                   |
-| --------- | ---- | ---------------------- |
-| `reading` | 任意 | 読み仮名（漢字の読み） |
-| `okuri`   | 任意 | 送り仮名（活用語尾）   |
+| 属性      | 必須 | 説明                         |
+| --------- | ---- | ---------------------------- |
+| `reading` | 任意 | 読み仮名（漢字の読み）       |
+| `okuri`   | 任意 | 送り仮名（活用語尾）         |
+| `soe`     | 任意 | 添え仮名（テニヲハ等の助詞） |
 
-※ 両方省略可。少なくとも一方を指定することを推奨。
+※ 全て省略可。少なくとも一方を指定することを推奨。
 
 #### 正規化
 
-SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana` と `okurigana` に分離される。
+SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soegana` に分離される。
 
 - `reading` 属性がある場合: `marks.type = "yomigana"`, `value = reading属性`
 - `okuri` 属性がある場合: `marks.type = "okurigana"`, `value = okuri属性`
-- 両方ある場合: 2つの mark が生成される（同一 anchor を共有）
+- `soe` 属性がある場合: `marks.type = "soegana"`, `value = soe属性`
+- 複数ある場合: 複数の mark が生成される（同一 anchor を共有）
 
 ---
 
@@ -266,17 +270,53 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana` と `okurigana` に�
 
 ---
 
-### 7.7 `skam:okiji`（助字）
+### 7.7 `skam:soegana`（添え仮名）
+
+訓読時に補う助詞（テニヲハ）。
+
+**推奨**: `skam:kun` の `soe` 属性を使用する。
+
+```xml
+<!-- 推奨: kun の soe 属性 -->
+<skam:kun soe="を">之</skam:kun>
+
+<!-- 代替: 単独の soegana 要素（将来のネスト構造用に予約） -->
+<skam:soegana value="を">之</skam:soegana>
+```
+
+#### 属性（単独要素の場合）
+
+- `value`（必須）: 添え仮名テキスト（を、に、は 等）
+
+上記の例では「之」に添え仮名「を」が付属し、「之を」と読む。
+
+---
+
+### 7.8 `skam:okimoji`（置字）
+
+原文にあるが訓読時に読まない漢字をマーク。
 
 ```xml
 <skam:block>
-  不<skam:okiji>レ</skam:okiji>可
+  學<skam:okimoji>而</skam:okimoji>時習之
 </skam:block>
 ```
 
 ---
 
-### 7.8 `skam:span`（範囲注記）
+### 7.9 `skam:joji`（助字）
+
+文法的機能を持つ漢字の分類ラベル。
+
+```xml
+<skam:block>
+  學而時習<skam:joji>之</skam:joji>
+</skam:block>
+```
+
+---
+
+### 7.10 `skam:span`（範囲注記）
 
 ```xml
 <skam:block>
@@ -291,7 +331,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana` と `okurigana` に�
 
 ---
 
-### 7.9 `skam:tateten`（たて点）
+### 7.11 `skam:tateten`（たて点）
 
 熟語境界を示す縦線。複数の漢字が一語として読まれることを示す。
 
@@ -318,7 +358,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana` と `okurigana` に�
 
 ---
 
-### 7.10 `skam:saidoku`（再読文字）
+### 7.12 `skam:saidoku`（再読文字）
 
 1つの文字を複数回読む再読文字を表現する。baseを1回だけ持ち、回ごとの語形を `skam:kunform` で表す。
 
@@ -518,7 +558,9 @@ SKAM-ML/XMLはHTMLに依存しない純XML語彙とし、本文構造は`skam:bl
 | `skam:yomigana`               | `yomigana`           |
 | `skam:kutoten`                | `kutoten`            |
 | `skam:okototen`               | `okototen`           |
-| `skam:okiji`                  | `okiji`              |
+| `skam:soegana`                | `soegana`            |
+| `skam:okimoji`                | `okimoji`            |
+| `skam:joji`                   | `joji`               |
 | `skam:span` (type="emphasis") | `emphasis`           |
 | `skam:ref` / `skam:note`      | `note`               |
 | `skam:saidoku`                | `saidoku`            |

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- soegana.xml - 添え仮名（kun要素のsoe属性で指定） -->
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      學而時習<skam:kun soe="を">之</skam:kun>
+    </skam:block>
+  </skam:body>
+</skam:doc>

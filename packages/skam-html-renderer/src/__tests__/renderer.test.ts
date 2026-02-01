@@ -92,13 +92,13 @@ describe('render', () => {
       );
     });
 
-    it('should render okiji outside ruby element', () => {
+    it('should render soegana inside ruby element like okurigana', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '之' }],
         marks: [
           {
-            type: 'okiji',
+            type: 'soegana',
             anchor: { from: 't1', to: 't1' },
             value: 'を',
           },
@@ -108,10 +108,10 @@ describe('render', () => {
 
       const result = render(doc);
 
-      expect(result.html).toContain('skam-okiji');
+      expect(result.html).toContain('skam-soegana');
       expect(result.html).toContain('を');
-      // Okiji should be outside token span, not inside ruby
-      expect(result.html).toMatch(/<\/span><span class="skam-okiji">を<\/span>/);
+      // Soegana should be inside rt element (same pattern as okurigana)
+      expect(result.html).toMatch(/<rt class="skam-ruby"><span class="skam-soegana">を<\/span><\/rt>/);
     });
 
     it('should create ruby element when only okurigana is present', () => {
@@ -577,7 +577,9 @@ describe('PROFILES', () => {
     expect(PROFILES.full.tateten).toBe(true);
     expect(PROFILES.full.emphasis).toBe(true);
     expect(PROFILES.full.notes).toBe(true);
-    expect(PROFILES.full.okiji).toBe(true);
+    expect(PROFILES.full.okimoji).toBe(true);
+    expect(PROFILES.full.joji).toBe(true);
+    expect(PROFILES.full.soegana).toBe(true);
   });
 
   it('should have learningBasic profile with minimal elements', () => {
@@ -591,7 +593,7 @@ describe('PROFILES', () => {
     expect(PROFILES.learningHint.yomigana).toBe(false);
     expect(PROFILES.learningHint.okurigana).toBe(true);
     expect(PROFILES.learningHint.kaeriten).toBe(true);
-    expect(PROFILES.learningHint.okiji).toBe(true);
+    expect(PROFILES.learningHint.soegana).toBe(true);
   });
 });
 
@@ -611,7 +613,7 @@ describe('「學而時習之」sample rendering', () => {
         { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'びて' },
         { type: 'yomigana', anchor: { from: 't3', to: 't3' }, value: 'とき' },
         { type: 'okurigana', anchor: { from: 't3', to: 't3' }, value: 'に' },
-        { type: 'okiji', anchor: { from: 't5', to: 't5' }, value: 'を' },
+        { type: 'soegana', anchor: { from: 't5', to: 't5' }, value: 'を' },
         { type: 'kaeri', anchor: { from: 't4', to: 't4' }, value: 'レ' },
         { type: 'yomigana', anchor: { from: 't4', to: 't4' }, value: 'なら' },
         { type: 'okurigana', anchor: { from: 't4', to: 't4' }, value: 'ふ' },
@@ -642,9 +644,9 @@ describe('「學而時習之」sample rendering', () => {
     expect(result.html).toContain('びて');
     expect(result.html).toContain('ふ');
 
-    // Check okiji
+    // Check soegana
     expect(result.html).toContain('を');
-    expect(result.html).toContain('skam-okiji');
+    expect(result.html).toContain('skam-soegana');
 
     // Check kaeriten
     expect(result.html).toContain('\u3191'); // レ

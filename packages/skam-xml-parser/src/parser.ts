@@ -13,7 +13,9 @@ import type {
   KaeriMark,
   OkuriganaMark,
   YomiganaMark,
-  OkijiMark,
+  OkimojiMark,
+  JojiMark,
+  SoeganaMark,
   KutotenMark,
   EmphasisMark,
   NoteMark,
@@ -176,6 +178,7 @@ function processKaeri(element: Element, state: ParserState, precedingTokenId: st
 function processKun(element: Element, state: ParserState): string[] {
   const reading = getAttr(element, 'reading');
   const okuri = getAttr(element, 'okuri');
+  const soe = getAttr(element, 'soe');
 
   // Extract text content and generate tokens
   const textContent = element.textContent ?? '';
@@ -198,13 +201,23 @@ function processKun(element: Element, state: ParserState): string[] {
   }
 
   if (okuri) {
-    const okugananaMark: OkuriganaMark = {
+    const okuriganaMark: OkuriganaMark = {
       type: 'okurigana',
       id: generateMarkId(state),
       anchor,
       value: okuri,
     };
-    state.marks.push(okugananaMark);
+    state.marks.push(okuriganaMark);
+  }
+
+  if (soe) {
+    const soeganaMark: SoeganaMark = {
+      type: 'soegana',
+      id: generateMarkId(state),
+      anchor,
+      value: soe,
+    };
+    state.marks.push(soeganaMark);
   }
 
   return tokenIds;
@@ -313,25 +326,62 @@ function processOkototen(element: Element, state: ParserState): string[] {
   return tokenIds;
 }
 
-function processOkiji(element: Element, state: ParserState, precedingTokenId: string | null): void {
+function processOkimoji(element: Element, state: ParserState): string[] {
   const textContent = element.textContent ?? '';
+  const tokenIds = addTokensFromText(textContent, state);
 
-  if (!textContent.trim()) {
-    throw new SKAMXMLParseError('<skam:okiji> must contain text');
+  if (tokenIds.length === 0) {
+    throw new SKAMXMLParseError('<skam:okimoji> must contain text');
   }
 
-  if (!precedingTokenId) {
-    throw new SKAMXMLParseError('<skam:okiji> requires a preceding token');
-  }
-
-  const mark: OkijiMark = {
-    type: 'okiji',
+  const mark: OkimojiMark = {
+    type: 'okimoji',
     id: generateMarkId(state),
-    anchor: { from: precedingTokenId, to: precedingTokenId },
-    value: textContent.trim(),
+    anchor: createAnchor(tokenIds),
   };
 
   state.marks.push(mark);
+  return tokenIds;
+}
+
+function processJoji(element: Element, state: ParserState): string[] {
+  const textContent = element.textContent ?? '';
+  const tokenIds = addTokensFromText(textContent, state);
+
+  if (tokenIds.length === 0) {
+    throw new SKAMXMLParseError('<skam:joji> must contain text');
+  }
+
+  const mark: JojiMark = {
+    type: 'joji',
+    id: generateMarkId(state),
+    anchor: createAnchor(tokenIds),
+  };
+
+  state.marks.push(mark);
+  return tokenIds;
+}
+
+function processSoegana(element: Element, state: ParserState): string[] {
+  const value = getRequiredAttr(element, 'value', 'skam:soegana');
+
+  // Extract text content (the wrapped character) and generate tokens
+  const textContent = element.textContent ?? '';
+  const tokenIds = addTokensFromText(textContent, state);
+
+  if (tokenIds.length === 0) {
+    throw new SKAMXMLParseError('<skam:soegana> must contain text (the character to annotate)');
+  }
+
+  const mark: SoeganaMark = {
+    type: 'soegana',
+    id: generateMarkId(state),
+    anchor: createAnchor(tokenIds),
+    value,
+  };
+
+  state.marks.push(mark);
+  return tokenIds;
 }
 
 function processSpan(element: Element, state: ParserState): string[] {
@@ -514,9 +564,24 @@ function processBlockChildren(element: Element, state: ParserState): string[] {
           if (ids.length > 0) lastTokenId = ids[ids.length - 1]!;
           break;
         }
-        case 'okiji':
-          processOkiji(child, state, lastTokenId);
+        case 'okimoji': {
+          const ids = processOkimoji(child, state);
+          allTokenIds.push(...ids);
+          if (ids.length > 0) lastTokenId = ids[ids.length - 1]!;
           break;
+        }
+        case 'joji': {
+          const ids = processJoji(child, state);
+          allTokenIds.push(...ids);
+          if (ids.length > 0) lastTokenId = ids[ids.length - 1]!;
+          break;
+        }
+        case 'soegana': {
+          const ids = processSoegana(child, state);
+          allTokenIds.push(...ids);
+          if (ids.length > 0) lastTokenId = ids[ids.length - 1]!;
+          break;
+        }
         case 'span': {
           const ids = processSpan(child, state);
           allTokenIds.push(...ids);

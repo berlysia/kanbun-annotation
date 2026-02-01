@@ -17,7 +17,7 @@ describe('SKAM Examples', () => {
           { type: 'yomigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'まな' },
           { type: 'okurigana', id: 'm2', anchor: { from: 't1', to: 't1' }, value: 'びて' },
           { type: 'okurigana', id: 'm3', anchor: { from: 't3', to: 't3' }, value: 'に' },
-          { type: 'okiji', id: 'm4', anchor: { from: 't5', to: 't5' }, value: 'を' },
+          { type: 'soegana', id: 'm4', anchor: { from: 't5', to: 't5' }, value: 'を' },
           { type: 'okurigana', id: 'm5', anchor: { from: 't4', to: 't4' }, value: 'ふ' },
           { type: 'kaeri', id: 'm6', anchor: { from: 't5', to: 't5' }, value: 'レ' },
         ],

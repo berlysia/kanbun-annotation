@@ -85,7 +85,9 @@ SKAMDocument
 | `kaeri`     | 返り点（レ、一二、上下、甲乙）           |
 | `okurigana` | 送り仮名                                 |
 | `yomigana`  | 読み仮名（ルビ）                         |
-| `okiji`     | 助字・テニヲハ                           |
+| `soegana`   | 添え仮名（訓読時に補う助詞・テニヲハ）   |
+| `okimoji`   | 置字（訓読時に読まない漢字をマーク）     |
+| `joji`      | 助字（文法的機能を持つ漢字の分類ラベル） |
 | `kutoten`   | 句読点                                   |
 | `saidoku`   | 再読文字（forms[] で複数回の読みを表現） |
 | `okototen`  | ヲコト点（glyph-grid 座標系で位置指定）  |

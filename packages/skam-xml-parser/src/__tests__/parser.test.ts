@@ -200,16 +200,16 @@ describe('parse - valid fixtures', () => {
     });
   });
 
-  describe('okiji.xml', () => {
-    it('should parse okiji mark', () => {
-      const xml = readFixture('valid', 'okiji.xml');
+  describe('soegana.xml', () => {
+    it('should parse soegana mark', () => {
+      const xml = readFixture('valid', 'soegana.xml');
       const doc = parse(xml);
 
-      const okiji = doc.marks.find((m) => m.type === 'okiji');
-      expect(okiji).toBeDefined();
+      const soegana = doc.marks.find((m) => m.type === 'soegana');
+      expect(soegana).toBeDefined();
 
-      if (okiji?.type === 'okiji') {
-        expect(okiji.value).toBe('を');
+      if (soegana?.type === 'soegana') {
+        expect(soegana.value).toBe('を');
       }
     });
   });
@@ -343,7 +343,9 @@ describe('parse - valid fixtures', () => {
       'yomigana-only.xml',
       'kutoten.xml',
       'okototen.xml',
-      'okiji.xml',
+      'soegana.xml',
+      'okimoji.xml',
+      'joji.xml',
       'span-emphasis.xml',
       'tateten.xml',
       'saidoku.xml',

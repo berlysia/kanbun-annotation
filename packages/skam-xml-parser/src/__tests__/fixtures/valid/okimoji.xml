@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- okiji.xml - 助字 -->
+<!-- okimoji.xml - 置字（訓読時に読まない漢字） -->
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      學而時習<skam:okiji>を</skam:okiji>之
+      學<skam:okimoji>而</skam:okimoji>時習之
     </skam:block>
   </skam:body>
 </skam:doc>

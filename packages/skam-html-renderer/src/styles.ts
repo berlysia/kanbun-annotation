@@ -3,6 +3,20 @@
  */
 
 /**
+ * コピー可能にする要素の種類
+ *
+ * - 'ruby': 読み仮名（ルビ）
+ * - 'okurigana': 送り仮名
+ * - 'soegana': 添え仮名
+ * - 'kaeriten': 返り点
+ * - 'okototen': ヲコト点
+ *
+ * これらは data-copyable 属性で実行時に制御可能。
+ * 例: <div class="skam-document" data-copyable="ruby okurigana">
+ */
+export type CopyableElement = 'ruby' | 'okurigana' | 'soegana' | 'kaeriten' | 'okototen';
+
+/**
  * CSSスタイル生成オプション
  */
 export interface StyleOptions {
@@ -156,6 +170,7 @@ function generateCommonStyles(prefix: string, vp: string): string {
   font-size: var(--${vp}-ruby-font-size);
   font-family: var(--${vp}-font-family-ruby);
   color: var(--${vp}-color-ruby);
+  user-select: none;
 }
 
 /* Okurigana (送り仮名) */
@@ -199,28 +214,33 @@ function generateCommonStyles(prefix: string, vp: string): string {
 /* Suffix Right (送り仮名・添え仮名) */
 :where(.${prefix}-suffix-right) {
   grid-row: 1;
+  user-select: none;
 }
 
 /* Suffix Center (返り点) - 縦書き時は左寄せ、横書き時は下寄せ */
 :where(.${prefix}-suffix-center) {
   grid-row: 2;
   align-self: end;
+  user-select: none;
 }
 
 /* Suffix Left (再読文字2回目の送り仮名) */
 :where(.${prefix}-suffix-left) {
   grid-row: 3;
+  user-select: none;
 }
 
 /* Kaeriten (返り点) */
 :where(.${prefix}-kaeriten) {
   color: var(--${vp}-color-kaeriten);
+  user-select: none;
 }
 
 /* Suffix Kana (送り仮名・添え仮名のみの場合) */
 :where(.${prefix}-suffix-kana) {
   font-size: var(--${vp}-ruby-font-size);
   vertical-align: top;
+  user-select: none;
 }
 
 /* Kutoten (句読点) */
@@ -256,6 +276,7 @@ function generateCommonStyles(prefix: string, vp: string): string {
   left: calc((var(--okototen-x) / var(--okototen-grid)) * var(--${vp}-glyph-size));
   top: calc((var(--okototen-y) / var(--okototen-grid)) * var(--${vp}-glyph-size));
   pointer-events: none;
+  user-select: none;
 }
 
 :where(.${prefix}-okototen[data-shape="dot"])::before {
@@ -340,6 +361,55 @@ function generateCommonStyles(prefix: string, vp: string): string {
   position: absolute;
   vertical-align: baseline;
   white-space: nowrap;
+}
+
+/*
+ * Copyable Elements Override (data-copyable 属性による選択可能化)
+ *
+ * デフォルトでは注記要素は user-select: none（コピー不可）。
+ * data-copyable 属性で特定の要素をコピー可能にする。
+ *
+ * 使用例:
+ *   <div class="skam-document" data-copyable="ruby">           → ルビのみコピー可能
+ *   <div class="skam-document" data-copyable="okurigana">      → 送り仮名のみコピー可能
+ *   <div class="skam-document" data-copyable="ruby okurigana"> → 両方コピー可能
+ *   <div class="skam-document" data-copyable="all">            → 全てコピー可能
+ */
+
+/* ruby をコピー可能にする */
+:where(.${prefix}-document[data-copyable~="ruby"]) :where(.${prefix}-ruby),
+:where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-ruby) {
+  user-select: text;
+}
+
+/* okurigana をコピー可能にする (suffix-right, suffix-left, suffix-kana) */
+:where(.${prefix}-document[data-copyable~="okurigana"]) :where(.${prefix}-suffix-right),
+:where(.${prefix}-document[data-copyable~="okurigana"]) :where(.${prefix}-suffix-left),
+:where(.${prefix}-document[data-copyable~="okurigana"]) :where(.${prefix}-suffix-kana),
+:where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-suffix-right),
+:where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-suffix-left),
+:where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-suffix-kana) {
+  user-select: text;
+}
+
+/* soegana をコピー可能にする (suffix-right, suffix-kana と同じ要素) */
+:where(.${prefix}-document[data-copyable~="soegana"]) :where(.${prefix}-suffix-right),
+:where(.${prefix}-document[data-copyable~="soegana"]) :where(.${prefix}-suffix-kana) {
+  user-select: text;
+}
+
+/* kaeriten をコピー可能にする */
+:where(.${prefix}-document[data-copyable~="kaeriten"]) :where(.${prefix}-suffix-center),
+:where(.${prefix}-document[data-copyable~="kaeriten"]) :where(.${prefix}-kaeriten),
+:where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-suffix-center),
+:where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-kaeriten) {
+  user-select: text;
+}
+
+/* okototen をコピー可能にする */
+:where(.${prefix}-document[data-copyable~="okototen"]) :where(.${prefix}-okototen),
+:where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-okototen) {
+  user-select: text;
 }`;
 }
 

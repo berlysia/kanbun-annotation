@@ -108,6 +108,40 @@ const result = render(doc, { writingMode: 'vertical' });
 | **余白・間隔** | `--skam-line-height` | `2` | 行間 |
 | | `--skam-letter-spacing` | `0` | 字間 |
 
+### コピー可能範囲の制御
+
+デフォルトでは、テキスト選択・コピー時に**本文のみ**がコピーされ、返り点・送り仮名・ルビなどの注記はコピーされません。
+
+`data-copyable` 属性で、コピー可能にする要素を指定できます。
+
+```html
+<!-- デフォルト: 本文のみコピー可能 -->
+<div class="skam-document">...</div>
+
+<!-- 読み仮名もコピー可能 -->
+<div class="skam-document" data-copyable="ruby">...</div>
+
+<!-- 送り仮名もコピー可能 -->
+<div class="skam-document" data-copyable="okurigana">...</div>
+
+<!-- 複数指定（スペース区切り） -->
+<div class="skam-document" data-copyable="ruby okurigana">...</div>
+
+<!-- 全てコピー可能 -->
+<div class="skam-document" data-copyable="all">...</div>
+```
+
+#### 指定可能な値
+
+| 値 | 対象 |
+|----|------|
+| `ruby` | 読み仮名（ルビ） |
+| `okurigana` | 送り仮名 |
+| `soegana` | 添え仮名 |
+| `kaeriten` | 返り点 |
+| `okototen` | ヲコト点 |
+| `all` | 全ての注記要素 |
+
 ### CSS @layer との統合
 
 生成される CSS はデフォルトで `@layer skam-kanbun` でラップされます。

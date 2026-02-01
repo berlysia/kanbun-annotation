@@ -109,6 +109,30 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 - SKAM-ML/XML では token を明示しない
   → **token は常にコンパイル生成物**
 
+### 6.1 Tokenization アルゴリズム（char mode）
+
+1. `skam:body` 内の全 `skam:block` を文書順で走査
+2. 各 `skam:block` 内の全子ノードを深さ優先走査
+3. テキストノードを文字単位（Unicode コードポイント単位）で分割
+4. 要素の内容も含めて、文書順序で token 列を構築
+5. token index は `skam:body` 全体で通し番号（0-based）
+   - `skam:block` の境界で index はリセット**されない**
+
+### 6.2 空白・改行の扱い
+
+- 改行（U+000A）、タブ（U+0009）、半角スペース（U+0020）の連続は tokenization 時に**無視される**
+- 意図的な空白が必要な場合は全角スペース（U+3000）等を使用
+
+### 6.3 例
+
+```xml
+<skam:body>
+  <skam:block><skam:kun>學</skam:kun>而</skam:block>
+  <skam:block>時習之</skam:block>
+</skam:body>
+```
+→ tokens: `[{id:"t0", text:"學"}, {id:"t1", text:"而"}, {id:"t2", text:"時"}, {id:"t3", text:"習"}, {id:"t4", text:"之"}]`
+
 ---
 
 ## 7. 注記要素（本文内）
@@ -135,10 +159,30 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 - `kind`（必須）
   - `re`, `ichi`, `ni`, `jo`, `chu`, `ge`, `ko`, `otsu`, …
 
+#### kind と value の対応
+
+| kind   | SKAM JSON value |
+| ------ | --------------- |
+| `re`   | レ              |
+| `ichi` | 一              |
+| `ni`   | 二              |
+| `san`  | 三              |
+| `shi`  | 四              |
+| `jo`   | 上              |
+| `chu`  | 中              |
+| `ge`   | 下              |
+| `ten`  | 点              |
+| `ko`   | 甲              |
+| `otsu` | 乙              |
+| `hei`  | 丙              |
+| `tei`  | 丁              |
+
+複合返り点（例: 一レ）は `kind="ichi-re"` のように連結表記する。
+
 #### 正規化
 
 - `marks.type = "kaeri"`
-- `marks.kind = kind`
+- `marks.value = kind に対応する記号`（上記対応表参照）
 - `anchor = 直前token`
 
 ---
@@ -174,6 +218,13 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 - `okuri` 属性がある場合: `marks.type = "okurigana"`, `value = okuri属性`
 - `soe` 属性がある場合: `marks.type = "soegana"`, `value = soe属性`
 - 複数ある場合: 複数の mark が生成される（同一 anchor を共有）
+  - ※ 生成順序は SKAM 仕様 5.1節「同一 anchor を持つ marks の順序」を参照
+
+#### 内容モデル
+
+- テキストノードのみ（漢字1文字を推奨）
+- 他の `skam:*` 要素を子として含まない
+- 他の `skam:*` 要素（`underline`, `span` 等）の子要素として使用可能
 
 ---
 
@@ -248,18 +299,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 | `sound` | 任意 | 対応する音節                     |
 | `color` | 任意 | 朱点・墨点等の区別               |
 
-#### グリッド座標
-
-5×5または7×7のグリッドで位置を指定。NINJAL系の方眼分割と対応。
-
-```
-  0 1 2 3 4
-0 ┌─┬─┬─┬─┐
-1 ├─┼─┼─┼─┤
-2 ├─┼─┼─┼─┤  (5×5 グリッド)
-3 ├─┼─┼─┼─┤
-4 └─┴─┴─┴─┘
-```
+※ グリッド座標の詳細は SKAM 仕様 5.6節を参照。
 
 #### 正規化
 
@@ -289,6 +329,12 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 - `value`（必須）: 添え仮名テキスト（を、に、は 等）
 
 上記の例では「之」に添え仮名「を」が付属し、「之を」と読む。
+
+#### 競合時の扱い
+
+同一 token に `skam:kun` の `soe` 属性と単独の `skam:soegana` 要素が重複する場合:
+- パーサーは警告を出してもよい
+- `skam:kun` の `soe` 属性を**優先**する
 
 ---
 
@@ -392,17 +438,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 
 ※ `kunform` は `kun` の1回分に相当する。
 
-#### 主な再読文字
-
-| 文字   | 1回目 (reading + okuri) | 2回目 (okuri) | 意味                 |
-| ------ | ----------------------- | ------------- | -------------------- |
-| 將・且 | まさ＋に                | す            | 今にも〜しようとする |
-| 未     | いま＋だ                | ず            | まだ〜ない           |
-| 當・応 | まさ＋に                | し            | 〜すべきである       |
-| 須     | すべから＋く            | し            | 〜すべきである       |
-| 宜     | よろ＋しく              | し            | 〜するのがよい       |
-| 猶     | な＋ほ                  | ごとし        | ちょうど〜のようだ   |
-| 盍     | なん＋ぞ                | ざる          | どうして〜しないのか |
+※ 主な再読文字の一覧は SKAM 仕様 5.5節を参照。
 
 #### 正規化
 
@@ -429,15 +465,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 | `style` | 任意 | 傍線スタイル（solid, dotted, dashed, wavy, double） |
 | `group` | 任意 | ラベルとの関連付けグループID                       |
 
-#### style 一覧
-
-| style    | 説明     |
-| -------- | -------- |
-| `solid`  | 実線     |
-| `dotted` | 点線     |
-| `dashed` | 破線     |
-| `wavy`   | 波線     |
-| `double` | 二重線   |
+※ style の値一覧は SKAM 仕様 5.7節を参照。
 
 #### 正規化
 
@@ -466,19 +494,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 | `format` | 任意 | 番号フォーマット                           |
 | `group`  | 任意 | アンダーラインとの関連付けグループID       |
 
-#### format 一覧
-
-| format            | 例               | 説明             |
-| ----------------- | ---------------- | ---------------- |
-| `alpha-upper`     | A, B, C, ...     | 英大文字         |
-| `alpha-lower`     | a, b, c, ...     | 英小文字         |
-| `numeric`         | 1, 2, 3, ...     | 数字             |
-| `circled`         | ①, ②, ③, ...     | 丸数字           |
-| `iroha`           | ア, イ, ウ, ...  | いろは順カタカナ |
-| `iroha-hiragana`  | あ, い, う, ...  | いろは順ひらがな |
-| `gojuon`          | ア, イ, ウ, ...  | 五十音順カタカナ |
-| `gojuon-hiragana` | あ, い, う, ...  | 五十音順ひらがな |
-| `kanji-numeric`   | 一, 二, 三, ...  | 漢数字           |
+※ format の値一覧は SKAM 仕様 5.8節を参照。
 
 #### 正規化
 
@@ -514,7 +530,16 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 </skam:block>
 ```
 
-- 既定アンカー：直前token
+#### 内容モデル
+
+- **空要素のみ**（テキスト・子要素を含まない）
+- 常に直前 token にアンカーされる
+
+#### 属性
+
+- `target`（必須）: 参照先の `skam:note` の `xml:id`（`#` 付き）
+
+※ 範囲全体に注釈を付ける場合は `skam:span type="note"` を使用する（将来拡張）。
 
 ### 9.2 `skam:note`
 
@@ -547,8 +572,9 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
   <skam:body>
     <skam:block>
       <skam:kun reading="まな" okuri="びて">學</skam:kun>
-      而時
-      <skam:kun okuri="に">之</skam:kun>
+      而
+      <skam:kun okuri="に">時</skam:kun>
+      <skam:kun soe="を">之</skam:kun>
       <skam:kaeri kind="re"/>
       <skam:kun okuri="ふ">習</skam:kun>
       <skam:ref target="#n1"/>

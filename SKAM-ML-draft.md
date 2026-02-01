@@ -412,6 +412,82 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 
 ---
 
+### 7.13 `skam:underline`（傍線）
+
+教育用途や試験問題等で傍線部を指示するために使用する。
+
+```xml
+<skam:block>
+  <skam:underline style="solid" group="a">學而時習</skam:underline>之
+</skam:block>
+```
+
+#### 属性
+
+| 属性    | 必須 | 説明                                               |
+| ------- | ---- | -------------------------------------------------- |
+| `style` | 任意 | 傍線スタイル（solid, dotted, dashed, wavy, double） |
+| `group` | 任意 | ラベルとの関連付けグループID                       |
+
+#### style 一覧
+
+| style    | 説明     |
+| -------- | -------- |
+| `solid`  | 実線     |
+| `dotted` | 点線     |
+| `dashed` | 破線     |
+| `wavy`   | 波線     |
+| `double` | 二重線   |
+
+#### 正規化
+
+- `marks.type = "underline"`
+- `anchor = 内容のtoken範囲`
+- `style`, `group` を保持
+
+---
+
+### 7.14 `skam:label`（番号振り）
+
+傍線部の識別や問題番号の付与等に使用する。空要素として直前tokenに付与する。
+
+```xml
+<skam:block>
+  <skam:underline style="solid" group="a">學而時習</skam:underline>
+  <skam:label format="iroha" group="a"/>之
+</skam:block>
+```
+
+#### 属性
+
+| 属性     | 必須 | 説明                                       |
+| -------- | ---- | ------------------------------------------ |
+| `value`  | 任意 | 識別用文字列（format指定時は自動生成可能） |
+| `format` | 任意 | 番号フォーマット                           |
+| `group`  | 任意 | アンダーラインとの関連付けグループID       |
+
+#### format 一覧
+
+| format            | 例               | 説明             |
+| ----------------- | ---------------- | ---------------- |
+| `alpha-upper`     | A, B, C, ...     | 英大文字         |
+| `alpha-lower`     | a, b, c, ...     | 英小文字         |
+| `numeric`         | 1, 2, 3, ...     | 数字             |
+| `circled`         | ①, ②, ③, ...     | 丸数字           |
+| `iroha`           | ア, イ, ウ, ...  | いろは順カタカナ |
+| `iroha-hiragana`  | あ, い, う, ...  | いろは順ひらがな |
+| `gojuon`          | ア, イ, ウ, ...  | 五十音順カタカナ |
+| `gojuon-hiragana` | あ, い, う, ...  | 五十音順ひらがな |
+| `kanji-numeric`   | 一, 二, 三, ...  | 漢数字           |
+
+#### 正規化
+
+- `marks.type = "label"`
+- `anchor = 直前token`
+- `value`, `format`, `group` を保持
+
+---
+
 ## 8. Readings（読み層）
 
 ```xml
@@ -542,6 +618,28 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 </skam:doc>
 ```
 
+### 11.5 傍線と番号振りの例
+
+教育用途での傍線部指示の例：
+
+```xml
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:underline style="solid" group="a">
+        <skam:kun reading="まな" okuri="びて">學</skam:kun>
+        而
+        <skam:kun okuri="に">時</skam:kun>
+        <skam:kun okuri="ふ">習</skam:kun>
+      </skam:underline>
+      <skam:label format="iroha" group="a"/>
+      <skam:kun soe="を">之</skam:kun>
+      <skam:kaeri kind="re"/>
+    </skam:block>
+  </skam:body>
+</skam:doc>
+```
+
 ---
 
 ## 要点
@@ -565,5 +663,7 @@ SKAM-ML/XMLはHTMLに依存しない純XML語彙とし、本文構造は`skam:bl
 | `skam:ref` / `skam:note`      | `note`               |
 | `skam:saidoku`                | `saidoku`            |
 | `skam:tateten`                | `tateten`            |
+| `skam:underline`              | `underline`          |
+| `skam:label`                  | `label`              |
 
 ※ `derivations`（読み順等）はコンパイル時に生成される。

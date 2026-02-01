@@ -14,6 +14,7 @@ export {
   type RenderHTMLOptions,
   type CSSOptions,
   type RenderResult,
+  type CopyableElement,
 } from './renderer.js';
 
 export { getDefaultStyles, type StyleOptions } from './styles.js';

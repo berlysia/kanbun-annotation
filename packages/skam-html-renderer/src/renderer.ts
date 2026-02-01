@@ -51,6 +51,11 @@ export interface RenderProfile {
 }
 
 /**
+ * コピー可能にする要素の種類
+ */
+export type CopyableElement = 'ruby' | 'okurigana' | 'soegana' | 'kaeriten' | 'okototen';
+
+/**
  * レンダリングオプション
  */
 export interface RenderOptions {
@@ -70,6 +75,14 @@ export interface RenderOptions {
   layerName?: string;
   /** CSS Variables のプレフィックス（default: 'skam'） */
   variablePrefix?: string;
+  /**
+   * コピー可能にする要素（default: undefined = 本文のみ）
+   *
+   * - undefined: 本文のみコピー可能（デフォルト）
+   * - 'all': 全ての要素をコピー可能
+   * - CopyableElement[]: 指定した要素をコピー可能
+   */
+  copyable?: CopyableElement[] | 'all';
 }
 
 /**
@@ -94,6 +107,14 @@ export interface RenderHTMLOptions {
   includeReadingLayer?: boolean;
   /** インラインモード（文中埋め込み・連続フロー用） */
   inline?: boolean;
+  /**
+   * コピー可能にする要素（default: undefined = 本文のみ）
+   *
+   * - undefined: 本文のみコピー可能（デフォルト）
+   * - 'all': 全ての要素をコピー可能
+   * - CopyableElement[]: 指定した要素をコピー可能
+   */
+  copyable?: CopyableElement[] | 'all';
 }
 
 /**
@@ -1225,6 +1246,7 @@ export function render(doc: SKAMDocument, options: RenderOptions = {}): RenderRe
   const prefix = options.classPrefix ?? 'skam';
   const includeReadingLayer = options.includeReadingLayer ?? true;
   const inline = options.inline ?? false;
+  const copyable = options.copyable;
 
   // Display層
   const displayResult = renderDisplayLayer(doc, prefix, profile, inline);
@@ -1237,10 +1259,15 @@ export function render(doc: SKAMDocument, options: RenderOptions = {}): RenderRe
   // 注釈（インラインモードでは出力しない）
   const notesHtml = inline ? '' : renderNotes(doc.marks, prefix, profile);
 
+  // data-copyable 属性
+  const copyableAttr = copyable
+    ? ` data-copyable="${copyable === 'all' ? 'all' : copyable.join(' ')}"`
+    : '';
+
   // Document全体
   const containerTag = inline ? 'span' : 'div';
   const inlineClass = inline ? ` ${prefix}-document--inline` : '';
-  const html = `<${containerTag} class="${prefix}-document${inlineClass}" lang="ja" data-writing-mode="${writingMode}">${displayHtml}${readingHtml}${notesHtml}</${containerTag}>`;
+  const html = `<${containerTag} class="${prefix}-document${inlineClass}" lang="ja" data-writing-mode="${writingMode}"${copyableAttr}>${displayHtml}${readingHtml}${notesHtml}</${containerTag}>`;
 
   // CSS
   const styleOptions: import('./styles.js').StyleOptions = {
@@ -1284,6 +1311,7 @@ export function renderHTML(doc: SKAMDocument, options: RenderHTMLOptions = {}): 
   const prefix = options.classPrefix ?? 'skam';
   const includeReadingLayer = options.includeReadingLayer ?? true;
   const inline = options.inline ?? false;
+  const copyable = options.copyable;
 
   // Display層
   const displayResult = renderDisplayLayer(doc, prefix, profile, inline);
@@ -1296,10 +1324,15 @@ export function renderHTML(doc: SKAMDocument, options: RenderHTMLOptions = {}): 
   // 注釈（インラインモードでは出力しない）
   const notesHtml = inline ? '' : renderNotes(doc.marks, prefix, profile);
 
+  // data-copyable 属性
+  const copyableAttr = copyable
+    ? ` data-copyable="${copyable === 'all' ? 'all' : copyable.join(' ')}"`
+    : '';
+
   // Document全体
   const containerTag = inline ? 'span' : 'div';
   const inlineClass = inline ? ` ${prefix}-document--inline` : '';
-  const html = `<${containerTag} class="${prefix}-document${inlineClass}" lang="ja" data-writing-mode="${writingMode}">${displayHtml}${readingHtml}${notesHtml}</${containerTag}>`;
+  const html = `<${containerTag} class="${prefix}-document${inlineClass}" lang="ja" data-writing-mode="${writingMode}"${copyableAttr}>${displayHtml}${readingHtml}${notesHtml}</${containerTag}>`;
 
   return html;
 }

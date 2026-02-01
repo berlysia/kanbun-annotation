@@ -112,7 +112,25 @@ const result = render(doc, { writingMode: 'vertical' });
 
 デフォルトでは、テキスト選択・コピー時に**本文のみ**がコピーされ、返り点・送り仮名・ルビなどの注記はコピーされません。
 
-`data-copyable` 属性で、コピー可能にする要素を指定できます。
+#### API での指定
+
+```typescript
+import { render, renderHTML } from '@kanbun/skam-html-renderer';
+
+// デフォルト: 本文のみコピー可能
+const result = render(doc);
+
+// 読み仮名もコピー可能
+const result = render(doc, { copyable: ['ruby'] });
+
+// 複数指定
+const result = render(doc, { copyable: ['ruby', 'okurigana'] });
+
+// 全てコピー可能
+const result = render(doc, { copyable: 'all' });
+```
+
+#### 生成される HTML
 
 ```html
 <!-- デフォルト: 本文のみコピー可能 -->
@@ -120,9 +138,6 @@ const result = render(doc, { writingMode: 'vertical' });
 
 <!-- 読み仮名もコピー可能 -->
 <div class="skam-document" data-copyable="ruby">...</div>
-
-<!-- 送り仮名もコピー可能 -->
-<div class="skam-document" data-copyable="okurigana">...</div>
 
 <!-- 複数指定（スペース区切り） -->
 <div class="skam-document" data-copyable="ruby okurigana">...</div>
@@ -141,6 +156,8 @@ const result = render(doc, { writingMode: 'vertical' });
 | `kaeriten` | 返り点 |
 | `okototen` | ヲコト点 |
 | `all` | 全ての注記要素 |
+
+**Note:** `data-copyable` 属性は CSS で制御されるため、HTML を直接編集して属性を変更することで、ビルド後でも動的に切り替えられます。
 
 ### CSS @layer との統合
 

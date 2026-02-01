@@ -80,7 +80,7 @@ export const SAMPLES: Sample[] = [
       我<skam:kaeri kind="ni"/>
       <skam:kun okuri="す">以</skam:kun><skam:kaeri kind="ge"/>
       <skam:kun okuri="を">子</skam:kun><skam:kaeri kind="ichi"/>
-      爲<skam:kaeri kind="jou"/>師<skam:kutoten value="。" kind="ku"/>
+      爲<skam:kaeri kind="jo"/>師<skam:kutoten value="。" kind="ku"/>
     </skam:block>
   </skam:body>
   <skam:readings>

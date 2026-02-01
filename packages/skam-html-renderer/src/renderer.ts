@@ -64,6 +64,12 @@ export interface RenderOptions {
   includeReadingLayer?: boolean;
   /** インラインモード（文中埋め込み・連続フロー用） */
   inline?: boolean;
+  /** @layer でラップするか（default: true） */
+  useLayer?: boolean;
+  /** @layer のレイヤー名（default: 'skam-kanbun'） */
+  layerName?: string;
+  /** CSS Variables のプレフィックス（default: 'skam'） */
+  variablePrefix?: string;
 }
 
 /**
@@ -100,6 +106,12 @@ export interface CSSOptions {
   writingMode?: 'vertical' | 'horizontal' | 'both';
   /** インラインモード用スタイルを含める */
   inline?: boolean;
+  /** @layer でラップするか（default: true） */
+  useLayer?: boolean;
+  /** @layer のレイヤー名（default: 'skam-kanbun'） */
+  layerName?: string;
+  /** CSS Variables のプレフィックス（default: 'skam'） */
+  variablePrefix?: string;
 }
 
 // ============================================================================
@@ -1231,7 +1243,21 @@ export function render(doc: SKAMDocument, options: RenderOptions = {}): RenderRe
   const html = `<${containerTag} class="${prefix}-document${inlineClass}" lang="ja" data-writing-mode="${writingMode}">${displayHtml}${readingHtml}${notesHtml}</${containerTag}>`;
 
   // CSS
-  const css = getDefaultStyles({ classPrefix: prefix, writingMode, inline });
+  const styleOptions: import('./styles.js').StyleOptions = {
+    classPrefix: prefix,
+    writingMode,
+    inline,
+  };
+  if (options.useLayer !== undefined) {
+    styleOptions.useLayer = options.useLayer;
+  }
+  if (options.layerName !== undefined) {
+    styleOptions.layerName = options.layerName;
+  }
+  if (options.variablePrefix !== undefined) {
+    styleOptions.variablePrefix = options.variablePrefix;
+  }
+  const css = getDefaultStyles(styleOptions);
 
   return { html, css };
 }
@@ -1306,6 +1332,15 @@ export function generateCSS(options: CSSOptions = {}): string {
   }
   if (options.inline !== undefined) {
     styleOptions.inline = options.inline;
+  }
+  if (options.useLayer !== undefined) {
+    styleOptions.useLayer = options.useLayer;
+  }
+  if (options.layerName !== undefined) {
+    styleOptions.layerName = options.layerName;
+  }
+  if (options.variablePrefix !== undefined) {
+    styleOptions.variablePrefix = options.variablePrefix;
   }
   return getDefaultStyles(styleOptions);
 }

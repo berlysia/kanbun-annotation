@@ -6,9 +6,18 @@
  * CSSスタイル生成オプション
  */
 export interface StyleOptions {
+  /** CSSクラス名プレフィックス（default: 'skam'） */
   classPrefix?: string;
+  /** 書字方向（'vertical' | 'horizontal' | 'both'） */
   writingMode?: 'vertical' | 'horizontal' | 'both';
+  /** インラインモード用スタイルを含めるか */
   inline?: boolean;
+  /** @layer でラップするか（default: true） */
+  useLayer?: boolean;
+  /** @layer のレイヤー名（default: 'skam-kanbun'） */
+  layerName?: string;
+  /** CSS Variables のプレフィックス（default: 'skam'） */
+  variablePrefix?: string;
 }
 
 /**
@@ -18,24 +27,32 @@ export interface StyleOptions {
  * @param options.classPrefix - CSSクラス名プレフィックス（default: 'skam'）
  * @param options.writingMode - 書字方向（'vertical' | 'horizontal' | 'both'）
  * @param options.inline - インラインモード用スタイルを含めるか
+ * @param options.useLayer - @layer でラップするか（default: true）
+ * @param options.layerName - @layer のレイヤー名（default: 'skam-kanbun'）
+ * @param options.variablePrefix - CSS Variables のプレフィックス（default: 'skam'）
  */
 export function getDefaultStyles(options: StyleOptions = {}): string {
   const prefix = options.classPrefix ?? 'skam';
+  const vp = options.variablePrefix ?? 'skam';
   const writingMode = options.writingMode ?? 'vertical';
   const inline = options.inline ?? false;
+  const useLayer = options.useLayer ?? true;
+  const layerName = options.layerName ?? 'skam-kanbun';
 
-  const commonStyles = generateCommonStyles(prefix);
+  const commonStyles = generateCommonStyles(prefix, vp);
   const inlineStyles = inline ? generateInlineStyles(prefix) : '';
+
+  let css: string;
 
   if (writingMode === 'both') {
     // 縦書き・横書き両方のスタイルを data-writing-mode セレクタでラップして出力
     const verticalStyles = generateWritingModeStyles(prefix, true);
     const horizontalStyles = generateWritingModeStyles(prefix, false);
 
-    return `${commonStyles}
+    css = `${commonStyles}
 
 /* Vertical Writing Mode */
-.${prefix}-document[data-writing-mode="vertical"] {
+:where(.${prefix}-document[data-writing-mode="vertical"]) {
   writing-mode: vertical-rl;
   text-orientation: mixed;
 }
@@ -51,43 +68,63 @@ ${inlineStyles}`.trim();
     const writingModeStyles = generateWritingModeStyles(prefix, isVertical);
     const documentWritingMode = isVertical
       ? `
-.${prefix}-document {
+:where(.${prefix}-document) {
   writing-mode: vertical-rl;
   text-orientation: mixed;
 }`
       : '';
 
-    return `${commonStyles}
+    css = `${commonStyles}
 ${documentWritingMode}
 ${writingModeStyles}
 ${inlineStyles}`.trim();
   }
+
+  // @layer でラップ
+  if (useLayer) {
+    return `@layer ${layerName} {\n${css}\n}`;
+  }
+
+  return css;
 }
 
 /**
  * 共通スタイル（書字方向に依存しない）
  */
-function generateCommonStyles(prefix: string): string {
+function generateCommonStyles(prefix: string, vp: string): string {
   return `
 /* SKAM Document Container */
-.${prefix}-document {
-  --glyph-size: 1em;
-  font-family: "Noto Serif JP", "Source Han Serif JP", "Yu Mincho", serif;
-  line-height: 2;
+:where(.${prefix}-document) {
+  /* CSS Variables - カスタマイズポイント */
+  --${vp}-color-fg: currentColor;
+  --${vp}-color-kaeriten: currentColor;
+  --${vp}-color-ruby: currentColor;
+  --${vp}-color-emphasis: currentColor;
+  --${vp}-font-family: inherit;
+  --${vp}-font-family-ruby: inherit;
+  --${vp}-glyph-size: 1em;
+  --${vp}-ruby-font-size: 0.5em;
+  --${vp}-line-height: 2;
+  --${vp}-letter-spacing: 0;
+
+  /* 変数を適用 */
+  font-family: var(--${vp}-font-family);
+  line-height: var(--${vp}-line-height);
+  letter-spacing: var(--${vp}-letter-spacing);
 }
 
 /* Display Layer */
-.${prefix}-display {
+:where(.${prefix}-display) {
   position: relative;
 }
 
 /* Block (論理的なブロック単位、句や段落など) */
-.${prefix}-block {
+:where(.${prefix}-block) {
   display: block;
 }
 
 /* Reading Layer (a11y, visually hidden) */
-.${prefix}-reading {
+:where(.${prefix}-reading) {
   position: absolute;
   width: 1px;
   height: 1px;
@@ -100,42 +137,44 @@ function generateCommonStyles(prefix: string): string {
 }
 
 /* Token */
-.${prefix}-token {
+:where(.${prefix}-token) {
   position: relative;
   display: inline-block;
 }
 
 /* Base character */
-.${prefix}-base {
+:where(.${prefix}-base) {
   display: inline;
 }
 
 /* Ruby styling */
-.${prefix}-token ruby {
+:where(.${prefix}-token ruby) {
   ruby-align: center;
 }
 
-.${prefix}-ruby {
-  font-size: 0.5em;
+:where(.${prefix}-ruby) {
+  font-size: var(--${vp}-ruby-font-size);
+  font-family: var(--${vp}-font-family-ruby);
+  color: var(--${vp}-color-ruby);
 }
 
 /* Okurigana (送り仮名) */
-.${prefix}-okuri {
+:where(.${prefix}-okuri) {
   display: inline;
 }
 
 /* Soegana (添え仮名) */
-.${prefix}-soegana {
+:where(.${prefix}-soegana) {
   display: inline;
 }
 
 /* Okimoji (置字) - 訓読時に読まない漢字 */
-.${prefix}-okimoji {
+:where(.${prefix}-okimoji) {
   opacity: 0.6;
 }
 
 /* Joji (助字) - 文法的機能を持つ漢字の分類ラベル */
-.${prefix}-joji {
+:where(.${prefix}-joji) {
   /* デフォルトでは特別なスタイルなし（必要に応じてカスタマイズ可能） */
 }
 
@@ -149,43 +188,43 @@ function generateCommonStyles(prefix: string): string {
  *   row2: 返り点（中央）
  *   row3: 再読2送り（縦書き時は左、横書き時は下）
  */
-.${prefix}-suffix-row {
+:where(.${prefix}-suffix-row) {
   display: inline-grid;
-  font-size: 0.5em;
+  font-size: var(--${vp}-ruby-font-size);
   grid-template-rows: 1em 2em 1em;
   line-height: 1;
   vertical-align: top;
 }
 
 /* Suffix Right (送り仮名・添え仮名) */
-.${prefix}-suffix-right {
+:where(.${prefix}-suffix-right) {
   grid-row: 1;
 }
 
 /* Suffix Center (返り点) - 縦書き時は左寄せ、横書き時は下寄せ */
-.${prefix}-suffix-center {
+:where(.${prefix}-suffix-center) {
   grid-row: 2;
   align-self: end;
 }
 
 /* Suffix Left (再読文字2回目の送り仮名) */
-.${prefix}-suffix-left {
+:where(.${prefix}-suffix-left) {
   grid-row: 3;
 }
 
 /* Kaeriten (返り点) */
-.${prefix}-kaeriten {
-  color: inherit;
+:where(.${prefix}-kaeriten) {
+  color: var(--${vp}-color-kaeriten);
 }
 
 /* Suffix Kana (送り仮名・添え仮名のみの場合) */
-.${prefix}-suffix-kana {
-  font-size: 0.5em;
+:where(.${prefix}-suffix-kana) {
+  font-size: var(--${vp}-ruby-font-size);
   vertical-align: top;
 }
 
 /* Kutoten (句読点) */
-.${prefix}-kutoten {
+:where(.${prefix}-kutoten) {
   display: inline;
 }
 
@@ -198,76 +237,77 @@ function generateCommonStyles(prefix: string): string {
  * - ruby-position は ruby 要素に適用する（rt 要素ではない）
  * - ruby-position は継承するため、内側 ruby にも明示的に設定が必要
  */
-.${prefix}-saidoku-outer {
+:where(.${prefix}-saidoku-outer) {
   ruby-position: under;
 }
 
-.${prefix}-saidoku-inner {
+:where(.${prefix}-saidoku-inner) {
   ruby-position: over;
 }
 
 /* Okototen (ヲコト点) */
-.${prefix}-has-okototen {
+:where(.${prefix}-has-okototen) {
   position: relative;
 }
 
-.${prefix}-okototen {
+:where(.${prefix}-okototen) {
   position: absolute;
   font-size: 0.3em;
-  left: calc((var(--okototen-x) / var(--okototen-grid)) * var(--glyph-size));
-  top: calc((var(--okototen-y) / var(--okototen-grid)) * var(--glyph-size));
+  left: calc((var(--okototen-x) / var(--okototen-grid)) * var(--${vp}-glyph-size));
+  top: calc((var(--okototen-y) / var(--okototen-grid)) * var(--${vp}-glyph-size));
   pointer-events: none;
 }
 
-.${prefix}-okototen[data-shape="dot"]::before {
+:where(.${prefix}-okototen[data-shape="dot"])::before {
   content: "・";
 }
 
-.${prefix}-okototen[data-shape="circle"]::before {
+:where(.${prefix}-okototen[data-shape="circle"])::before {
   content: "○";
 }
 
-.${prefix}-okototen[data-shape="line"]::before {
+:where(.${prefix}-okototen[data-shape="line"])::before {
   content: "—";
 }
 
 /* Tateten (たて点) - 共通部分 */
-.${prefix}-tateten-group {
+:where(.${prefix}-tateten-group) {
   display: inline;
 }
 
-.${prefix}-tateten-mark {
+:where(.${prefix}-tateten-mark) {
   display: inline-block;
   background-color: currentColor;
   vertical-align: middle;
 }
 
 /* Note (注釈) */
-.${prefix}-note-ref {
+:where(.${prefix}-note-ref) {
   font-size: 0.7em;
   vertical-align: super;
   color: inherit;
 }
 
-.${prefix}-notes {
+:where(.${prefix}-notes) {
   margin-top: 1em;
   padding-top: 1em;
   border-top: 1px solid currentColor;
   font-size: 0.9em;
 }
 
-.${prefix}-note-item {
+:where(.${prefix}-note-item) {
   margin-bottom: 0.5em;
 }
 
-.${prefix}-note-marker {
+:where(.${prefix}-note-marker) {
   font-weight: bold;
   margin-right: 0.5em;
 }
 
 /* Emphasis (傍点) - 共通部分 */
-.${prefix}-emphasis {
+:where(.${prefix}-emphasis) {
   text-emphasis: filled circle;
+  text-emphasis-color: var(--${vp}-color-emphasis);
 }
 
 /*
@@ -277,11 +317,11 @@ function generateCommonStyles(prefix: string): string {
  * text-decoration は display: inline-block の子要素には伝播しないため、
  * box-shadow で代替実装。inset を使用し、spread で線の太さを制御。
  */
-.${prefix}-underline {
+:where(.${prefix}-underline) {
   position: relative;
 }
 
-.${prefix}-underline[data-style="solid"] {
+:where(.${prefix}-underline[data-style="solid"]) {
   /* Default solid line - スタイルは書字方向依存部分で定義 */
 }
 
@@ -290,13 +330,13 @@ function generateCommonStyles(prefix: string): string {
  *
  * 傍線部の識別子や注番号として表示。
  */
-.${prefix}-label {
+:where(.${prefix}-label) {
   font-size: 0.7em;
   vertical-align: super;
 }
 
 /* underline内のラベル - 共通部分 */
-.${prefix}-underline .${prefix}-label {
+:where(.${prefix}-underline .${prefix}-label) {
   position: absolute;
   vertical-align: baseline;
   white-space: nowrap;
@@ -310,28 +350,28 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   if (isVertical) {
     return `
 /* Tateten (たて点) - 縦書き */
-.${prefix}-tateten-mark {
+:where(.${prefix}-tateten-mark) {
   width: 0.1em;
   height: 0.6em;
 }
 
 /* Emphasis (傍点) - 縦書き */
-.${prefix}-emphasis {
+:where(.${prefix}-emphasis) {
   text-emphasis-position: right;
 }
 
 /* Underline (傍線) - 縦書き: 右側に表示 */
-.${prefix}-underline {
+:where(.${prefix}-underline) {
   box-shadow: inset -1px 0 0 0 currentColor;
   padding-right: 0.25em;
 }
 
 /* 読み仮名がある場合はpadding-rightを広げる */
-.${prefix}-underline--has-ruby {
+:where(.${prefix}-underline--has-ruby) {
   padding-right: 0.5em;
 }
 
-.${prefix}-underline[data-style="dotted"] {
+:where(.${prefix}-underline[data-style="dotted"]) {
   box-shadow: none;
   background-image: linear-gradient(to bottom, currentColor 2px, transparent 2px);
   background-size: 1px 4px;
@@ -339,7 +379,7 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: right;
 }
 
-.${prefix}-underline[data-style="dashed"] {
+:where(.${prefix}-underline[data-style="dashed"]) {
   box-shadow: none;
   background-image: linear-gradient(to bottom, currentColor 4px, transparent 4px);
   background-size: 1px 8px;
@@ -347,7 +387,7 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: right;
 }
 
-.${prefix}-underline[data-style="wavy"] {
+:where(.${prefix}-underline[data-style="wavy"]) {
   /*
    * Wavy line using repeating SVG pattern
    * SVG内でcurrentColorは効かないため、黒色を直接指定。
@@ -360,13 +400,13 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: right;
 }
 
-.${prefix}-underline[data-style="double"] {
+:where(.${prefix}-underline[data-style="double"]) {
   box-shadow: none;
   padding-right: 0.5em;
 }
 
-.${prefix}-underline[data-style="double"]::before,
-.${prefix}-underline[data-style="double"]::after {
+:where(.${prefix}-underline[data-style="double"])::before,
+:where(.${prefix}-underline[data-style="double"])::after {
   content: '';
   position: absolute;
   background-color: currentColor;
@@ -375,53 +415,53 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   width: 1px;
 }
 
-.${prefix}-underline[data-style="double"]::before {
+:where(.${prefix}-underline[data-style="double"])::before {
   right: 0;
 }
 
-.${prefix}-underline[data-style="double"]::after {
+:where(.${prefix}-underline[data-style="double"])::after {
   right: 3px;
 }
 
-.${prefix}-underline--has-ruby[data-style="double"] {
+:where(.${prefix}-underline--has-ruby[data-style="double"]) {
   padding-right: 0.7em;
 }
 
 /* Label - 縦書き: 傍線の開始位置（上）に配置 */
-.${prefix}-underline .${prefix}-label {
+:where(.${prefix}-underline .${prefix}-label) {
   inset-inline-start: 0;
   inset-block-start: -1.5em;
 }
 
 /* 縦書きで半角文字の場合は縦中横 */
-.${prefix}-label--half-width {
+:where(.${prefix}-label--half-width) {
   text-combine-upright: all;
 }`;
   } else {
     return `
 /* Tateten (たて点) - 横書き */
-.${prefix}-tateten-mark {
+:where(.${prefix}-tateten-mark) {
   width: 0.6em;
   height: 0.1em;
 }
 
 /* Emphasis (傍点) - 横書き */
-.${prefix}-emphasis {
+:where(.${prefix}-emphasis) {
   text-emphasis-position: over;
 }
 
 /* Underline (傍線) - 横書き: 下側に表示 */
-.${prefix}-underline {
+:where(.${prefix}-underline) {
   box-shadow: inset 0 -1px 0 0 currentColor;
   padding-bottom: 0.1em;
 }
 
 /* 読み仮名がある場合 - 横書きでは特別な調整なし */
-.${prefix}-underline--has-ruby {
+:where(.${prefix}-underline--has-ruby) {
   /* No additional padding needed for horizontal */
 }
 
-.${prefix}-underline[data-style="dotted"] {
+:where(.${prefix}-underline[data-style="dotted"]) {
   box-shadow: none;
   background-image: linear-gradient(to right, currentColor 2px, transparent 2px);
   background-size: 4px 1px;
@@ -429,7 +469,7 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: bottom;
 }
 
-.${prefix}-underline[data-style="dashed"] {
+:where(.${prefix}-underline[data-style="dashed"]) {
   box-shadow: none;
   background-image: linear-gradient(to right, currentColor 4px, transparent 4px);
   background-size: 8px 1px;
@@ -437,7 +477,7 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: bottom;
 }
 
-.${prefix}-underline[data-style="wavy"] {
+:where(.${prefix}-underline[data-style="wavy"]) {
   /*
    * Wavy line using repeating SVG pattern
    * SVG内でcurrentColorは効かないため、黒色を直接指定。
@@ -450,13 +490,13 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: bottom;
 }
 
-.${prefix}-underline[data-style="double"] {
+:where(.${prefix}-underline[data-style="double"]) {
   box-shadow: none;
   padding-bottom: 0.3em;
 }
 
-.${prefix}-underline[data-style="double"]::before,
-.${prefix}-underline[data-style="double"]::after {
+:where(.${prefix}-underline[data-style="double"])::before,
+:where(.${prefix}-underline[data-style="double"])::after {
   content: '';
   position: absolute;
   background-color: currentColor;
@@ -465,26 +505,26 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   height: 1px;
 }
 
-.${prefix}-underline[data-style="double"]::before {
+:where(.${prefix}-underline[data-style="double"])::before {
   bottom: 0;
 }
 
-.${prefix}-underline[data-style="double"]::after {
+:where(.${prefix}-underline[data-style="double"])::after {
   bottom: 3px;
 }
 
-.${prefix}-underline--has-ruby[data-style="double"] {
+:where(.${prefix}-underline--has-ruby[data-style="double"]) {
   /* No additional padding needed for horizontal */
 }
 
 /* Label - 横書き: 傍線の開始位置（下）に配置 */
-.${prefix}-underline .${prefix}-label {
+:where(.${prefix}-underline .${prefix}-label) {
   inset-inline-start: 0;
   inset-block-end: -1.5em;
 }
 
 /* 横書きでは縦中横不要 */
-.${prefix}-label--half-width {
+:where(.${prefix}-label--half-width) {
   /* No text-combine-upright needed for horizontal */
 }`;
   }
@@ -497,17 +537,17 @@ function generateInlineStyles(prefix: string): string {
   return `
 
 /* Inline Mode */
-.${prefix}-document--inline {
+:where(.${prefix}-document--inline) {
   display: inline-block;
   position: relative;
   vertical-align: baseline;
 }
 
-.${prefix}-document--inline .${prefix}-display {
+:where(.${prefix}-document--inline .${prefix}-display) {
   display: inline;
 }
 
-.${prefix}-document--inline .${prefix}-block {
+:where(.${prefix}-document--inline .${prefix}-block) {
   display: inline;
 }`;
 }
@@ -516,27 +556,31 @@ function generateInlineStyles(prefix: string): string {
  * セレクタでラップ（data-writing-mode 属性セレクタ用）
  *
  * 各ルールのセレクタに親セレクタを付与する
- * 例: `.skam-emphasis { ... }` → `.skam-document[data-writing-mode="vertical"] .skam-emphasis { ... }`
+ * 例: `:where(.skam-emphasis) { ... }` → `:where(.skam-document[data-writing-mode="vertical"] .skam-emphasis) { ... }`
  */
 function wrapWithSelector(attrSelector: string, prefix: string, css: string): string {
   // CSSルールを解析して各セレクタにプレフィックスを追加
-  // 簡易的な実装: 行頭の .${prefix}- で始まるセレクタを検出
+  // :where() でラップされたセレクタを検出
   const lines = css.split('\n');
   const result: string[] = [];
 
   for (const line of lines) {
-    // セレクタ行を検出（.prefix- で始まり { で終わる、または , で終わる）
-    const selectorMatch = line.match(/^(\s*)(\.[\w-]+.*?)(\s*\{?\s*,?\s*)$/);
-    if (selectorMatch) {
-      const indent = selectorMatch[1] ?? '';
-      const selector = selectorMatch[2];
-      const suffix = selectorMatch[3] ?? '';
+    // :where() セレクタ行を検出
+    const whereMatch = line.match(/^(\s*)(:where\()(.+?)(\).*)$/);
+    if (whereMatch) {
+      const indent = whereMatch[1] ?? '';
+      const whereOpen = whereMatch[2]; // ':where('
+      const innerSelector = whereMatch[3]; // '.skam-emphasis' など
+      const rest = whereMatch[4]; // ')' 以降（')', ')::before', ') {' など）
+
       // セレクタが prefix を含む場合のみ変換
-      if (selector && selector.includes(`.${prefix}-`)) {
+      if (innerSelector && innerSelector.includes(`.${prefix}-`)) {
         // 複数セレクタ（カンマ区切り）の場合は分割して処理
-        const selectors = selector.split(',').map((s) => s.trim());
-        const wrappedSelectors = selectors.map((s) => `.${prefix}-document${attrSelector} ${s}`);
-        result.push(`${indent}${wrappedSelectors.join(',\n' + indent)}${suffix}`);
+        const selectors = innerSelector.split(',').map((s) => s.trim());
+        const wrappedSelectors = selectors.map(
+          (s) => `${whereOpen}.${prefix}-document${attrSelector} ${s}${rest}`
+        );
+        result.push(`${indent}${wrappedSelectors.join(',\n' + indent)}`);
         continue;
       }
     }

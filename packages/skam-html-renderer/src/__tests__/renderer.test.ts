@@ -1194,3 +1194,116 @@ describe('CSS and HTML integration', () => {
     expect(html2).toContain('data-writing-mode="horizontal"');
   });
 });
+
+describe('CSS layer options', () => {
+  it('should wrap CSS with @layer by default', () => {
+    const css = getDefaultStyles();
+    expect(css).toMatch(/^@layer skam-kanbun \{/);
+    expect(css).toContain(':where(.skam-document)');
+  });
+
+  it('should not wrap with @layer when useLayer is false', () => {
+    const css = getDefaultStyles({ useLayer: false });
+    expect(css).not.toContain('@layer');
+    expect(css).toContain(':where(.skam-document)');
+  });
+
+  it('should use custom layer name', () => {
+    const css = getDefaultStyles({ layerName: 'my-kanbun' });
+    expect(css).toContain('@layer my-kanbun');
+    expect(css).not.toContain('@layer skam-kanbun');
+  });
+
+  it('should generate @layer in render() output', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學' }],
+      marks: [],
+      readings: [],
+    };
+
+    const result = render(doc);
+    expect(result.css).toMatch(/^@layer skam-kanbun \{/);
+  });
+
+  it('should respect useLayer option in render()', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學' }],
+      marks: [],
+      readings: [],
+    };
+
+    const result = render(doc, { useLayer: false });
+    expect(result.css).not.toContain('@layer');
+  });
+});
+
+describe('CSS variables options', () => {
+  it('should use default variable prefix', () => {
+    const css = getDefaultStyles();
+    expect(css).toContain('--skam-color-fg');
+    expect(css).toContain('--skam-font-family');
+    expect(css).toContain('--skam-line-height');
+  });
+
+  it('should use custom variable prefix', () => {
+    const css = getDefaultStyles({ variablePrefix: 'kb' });
+    expect(css).toContain('--kb-color-fg');
+    expect(css).toContain('--kb-font-family');
+    expect(css).not.toContain('--skam-color-fg');
+  });
+
+  it('should use variables for styling', () => {
+    const css = getDefaultStyles();
+    expect(css).toContain('font-family: var(--skam-font-family)');
+    expect(css).toContain('line-height: var(--skam-line-height)');
+    expect(css).toContain('color: var(--skam-color-kaeriten)');
+  });
+
+  it('should define all expected CSS variables', () => {
+    const css = getDefaultStyles();
+    const expectedVariables = [
+      '--skam-color-fg',
+      '--skam-color-kaeriten',
+      '--skam-color-ruby',
+      '--skam-color-emphasis',
+      '--skam-font-family',
+      '--skam-font-family-ruby',
+      '--skam-glyph-size',
+      '--skam-ruby-font-size',
+      '--skam-line-height',
+      '--skam-letter-spacing',
+    ];
+
+    for (const variable of expectedVariables) {
+      expect(css).toContain(variable);
+    }
+  });
+});
+
+describe(':where() specificity', () => {
+  it('should wrap all selectors with :where()', () => {
+    const css = getDefaultStyles({ useLayer: false });
+    // All class selectors should be wrapped with :where()
+    expect(css).toContain(':where(.skam-document)');
+    expect(css).toContain(':where(.skam-token)');
+    expect(css).toContain(':where(.skam-ruby)');
+    expect(css).toContain(':where(.skam-kaeriten)');
+    expect(css).toContain(':where(.skam-emphasis)');
+  });
+
+  it('should wrap attribute selectors with :where()', () => {
+    const css = getDefaultStyles({ useLayer: false });
+    expect(css).toContain(':where(.skam-underline[data-style="dotted"])');
+    expect(css).toContain(':where(.skam-okototen[data-shape="dot"])');
+  });
+
+  it('should not have unwrapped class selectors', () => {
+    const css = getDefaultStyles({ useLayer: false });
+    // Should not have bare .skam-document { (without :where())
+    // But should have :where(.skam-document) {
+    const bareSelectors = css.match(/(?<!:where\()\.skam-[\w-]+\s*\{/g);
+    expect(bareSelectors).toBeNull();
+  });
+});

@@ -50,18 +50,90 @@ const horizontal = render(doc, { profile: PROFILES.horizontal });
 ### スタイルのカスタマイズ
 
 ```typescript
-import { render, getDefaultStyles } from '@kanbun/skam-html-renderer';
+import { render, getDefaultStyles, generateCSS } from '@kanbun/skam-html-renderer';
 
-const result = render(doc, {
-  profile: PROFILES.vertical,
-  styles: {
-    fontSize: '1.2em',
-    lineHeight: 2,
-  },
+// CSS 生成オプション
+const css = generateCSS({
+  writingMode: 'vertical',  // 'vertical' | 'horizontal' | 'both'
+  inline: false,            // インラインモード
+  useLayer: true,           // @layer でラップ（デフォルト: true）
+  layerName: 'skam-kanbun', // レイヤー名（デフォルト: 'skam-kanbun'）
 });
 
-// または、デフォルトスタイルを取得してカスタマイズ
-const defaultStyles = getDefaultStyles();
+// レンダリングも同様のオプションに対応
+const result = render(doc, { writingMode: 'vertical' });
+```
+
+### CSS Variables によるカスタマイズ
+
+生成される CSS は CSS Variables を公開しており、ユーザー側で簡単にカスタマイズできます。
+
+```css
+/* ユーザー側でカスタマイズ */
+.skam-document {
+  --skam-color-fg: #333;
+  --skam-color-kaeriten: #c00;
+  --skam-color-ruby: #666;
+  --skam-font-family: "游明朝", serif;
+}
+```
+
+#### 公開 CSS Variables 一覧
+
+| カテゴリ | 変数名 | デフォルト値 | 用途 |
+|---------|--------|-------------|------|
+| **色** | `--skam-color-fg` | `currentColor` | 前景色（テキスト、傍線等） |
+| | `--skam-color-kaeriten` | `currentColor` | 返り点の色 |
+| | `--skam-color-ruby` | `currentColor` | ルビ・送り仮名の色 |
+| | `--skam-color-emphasis` | `currentColor` | 傍点の色 |
+| **フォント** | `--skam-font-family` | `inherit` | 本文フォント |
+| | `--skam-font-family-ruby` | `inherit` | ルビ・送り仮名フォント |
+| **サイズ** | `--skam-glyph-size` | `1em` | 基準グリフサイズ |
+| | `--skam-ruby-font-size` | `0.5em` | ルビ・送り仮名サイズ |
+| **余白・間隔** | `--skam-line-height` | `2` | 行間 |
+| | `--skam-letter-spacing` | `0` | 字間 |
+
+### CSS @layer との統合
+
+生成される CSS はデフォルトで `@layer skam-kanbun` でラップされます。
+これにより、ユーザー側でカスケード順序を制御できます。
+
+```css
+/* ユーザー側でレイヤー順序を定義 */
+@layer reset, base, skam-kanbun, app;
+
+/* skam-kanbun レイヤーより後のレイヤーで上書き可能 */
+@layer app {
+  .skam-document {
+    --skam-color-kaeriten: red;
+  }
+}
+```
+
+#### @layer を無効にする
+
+```typescript
+const css = generateCSS({ useLayer: false });
+```
+
+### リセット CSS との共存
+
+本ライブラリは `:where()` セレクタで specificity を 0 に抑えているため、
+一般的なリセット CSS と競合しにくい設計です。
+
+#### sanitize.css との組み合わせ
+
+```html
+<link rel="stylesheet" href="sanitize.css" />
+<style>
+  @layer reset, skam-kanbun;
+</style>
+```
+
+#### Tailwind CSS preflight との組み合わせ
+
+```css
+@layer base, skam-kanbun, components, utilities;
 ```
 
 ## レンダリング対応

@@ -16,7 +16,7 @@ export const SAMPLES: Sample[] = [
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      <skam:kun reading="まな" okuri="びて">學</skam:kun>而
+      <skam:kun yomi="まな" okuri="びて">學</skam:kun>而
       <skam:kun okuri="に">時</skam:kun>
       <skam:kun okuri="ふ">習</skam:kun>
       <skam:kun soe="を">之</skam:kun><skam:kaeri kind="re"/><skam:kutoten value="。" kind="ku"/>
@@ -34,17 +34,17 @@ export const SAMPLES: Sample[] = [
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      <skam:kun reading="まな" okuri="びて">學</skam:kun>而
+      <skam:kun yomi="まな" okuri="びて">學</skam:kun>而
       <skam:kun okuri="に">時</skam:kun>
       <skam:kun okuri="ふ">習</skam:kun>
       <skam:kun soe="を">之</skam:kun><skam:kaeri kind="re"/><skam:kutoten value="。" kind="ku"/>
     </skam:block>
     <skam:block>
-      不亦<skam:kun reading="よろこ" okuri="ば">説</skam:kun>乎<skam:kutoten value="。" kind="ku"/>
+      不亦<skam:kun yomi="よろこ" okuri="ば">説</skam:kun>乎<skam:kutoten value="。" kind="ku"/>
     </skam:block>
     <skam:block>
       有朋自遠方來<skam:kutoten value="、" kind="ten"/>
-      不亦<skam:kun reading="たの" okuri="し">樂</skam:kun>乎<skam:kutoten value="。" kind="ku"/>
+      不亦<skam:kun yomi="たの" okuri="し">樂</skam:kun>乎<skam:kutoten value="。" kind="ku"/>
     </skam:block>
   </skam:body>
   <skam:readings>
@@ -61,10 +61,10 @@ export const SAMPLES: Sample[] = [
     <skam:block>
       <skam:saidoku>
         <skam:base>將</skam:base>
-        <skam:kunform n="1" reading="まさ" okuri="に"/>
+        <skam:kunform n="1" yomi="まさ" okuri="に"/>
         <skam:kunform n="2" okuri="す"/>
       </skam:saidoku>
-      <skam:kun reading="し" okuri="なんと">死</skam:kun>
+      <skam:kun yomi="し" okuri="なんと">死</skam:kun>
     </skam:block>
   </skam:body>
   <skam:readings>
@@ -172,7 +172,7 @@ export const SAMPLES: Sample[] = [
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      <skam:underline group="a"><skam:kun reading="まな" okuri="びて">學</skam:kun>而<skam:label value="a" format="alpha-upper" group="a"/></skam:underline>
+      <skam:underline group="a"><skam:kun yomi="まな" okuri="びて">學</skam:kun>而<skam:label value="a" format="alpha-upper" group="a"/></skam:underline>
       <skam:kun okuri="に">時</skam:kun>
       <skam:kun okuri="ふ">習</skam:kun>
       <skam:underline group="b"><skam:kun soe="を">之</skam:kun><skam:kaeri kind="re"/><skam:label value="b" format="alpha-upper" group="b"/></skam:underline><skam:kutoten value="。" kind="ku"/>

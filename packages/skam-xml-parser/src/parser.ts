@@ -774,7 +774,9 @@ function processNotes(element: Element, state: ParserState): void {
     if (!child) continue;
 
     if (isElement(child) && getLocalName(child) === 'note') {
-      const id = getAttr(child, 'xml:id') ?? getAttr(child, 'id');
+      // Note: @xmldom/xmldom returns "" for missing attributes, not null
+      // Use || instead of ?? to handle empty string fallback
+      const id = getAttr(child, 'xml:id') || getAttr(child, 'id');
       if (id) {
         const text = (child.textContent ?? '').trim();
         state.notes.set(id, text);

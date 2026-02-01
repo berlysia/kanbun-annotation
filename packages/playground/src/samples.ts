@@ -243,16 +243,16 @@ export const SAMPLES: Sample[] = [
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      春眠不<skam:kaeri kind="re"/><skam:kun yomi="おぼ" okuri="エ">覺</skam:kun><skam:kun soe="ヲ" yomi="あかつき">曉</skam:kun>
+      春眠不<skam:kaeri kind="re"/><skam:kun yomi="おぼ" okuri="エ">覺</skam:kun><skam:kaeri kind="re"/><skam:kun soe="ヲ" yomi="あかつき">曉</skam:kun>
     </skam:block>
     <skam:block>
-      處處<skam:kun yomi="き" okuri="ク">聞</skam:kun><skam:kun yomi="ていてう" soe="ヲ">啼鳥</skam:kun><skam:kaeri kind="re"/>
+      處處<skam:kun yomi="き" okuri="ク">聞</skam:kun><skam:kaeri kind="ni"/><skam:kun yomi="ていてう" soe="ヲ">啼鳥</skam:kun><skam:kaeri kind="ichi"/>
     </skam:block>
     <skam:block>
       夜來<skam:kun soe="ノ">風雨</skam:kun>聲
     </skam:block>
     <skam:block>
-      花<skam:kun yomi="お" okuri="ツルコト">落</skam:kun><skam:kun yomi="し" okuri="ル">知</skam:kun><skam:kaeri kind="re"/><skam:kun soe="ゾ">多少</skam:kun>
+      花<skam:kun yomi="お" okuri="ツルコト">落</skam:kun><skam:kun yomi="し" okuri="ル">知</skam:kun><skam:kun soe="ゾ">多少</skam:kun>
     </skam:block>
   </skam:body>
   <skam:readings>

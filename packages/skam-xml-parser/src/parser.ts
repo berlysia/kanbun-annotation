@@ -79,6 +79,8 @@ interface ParserState {
   readings: Reading[];
   notes: Map<string, string>;
   tokenIndex: number;
+  blockIndex: number;
+  currentBlockId: string | null;
 }
 
 function createParserState(): ParserState {
@@ -88,6 +90,8 @@ function createParserState(): ParserState {
     readings: [],
     notes: new Map(),
     tokenIndex: 0,
+    blockIndex: 0,
+    currentBlockId: null,
   };
 }
 
@@ -142,7 +146,11 @@ function addTokensFromText(text: string, state: ParserState): string[] {
   for (const char of text) {
     if (/\s/.test(char)) continue; // Skip whitespace
     const id = generateTokenId(state);
-    state.tokens.push({ id, text: char });
+    const token: Token = { id, text: char };
+    if (state.currentBlockId) {
+      token.ext = { blockId: state.currentBlockId };
+    }
+    state.tokens.push(token);
     ids.push(id);
   }
   return ids;
@@ -704,7 +712,13 @@ function processBlockChildren(element: Element, state: ParserState): string[] {
 }
 
 function processBlock(element: Element, state: ParserState): void {
+  // Set current block ID for tokens created within this block
+  state.currentBlockId = `b${++state.blockIndex}`;
+
   const tokenIds = processBlockChildren(element, state);
+
+  // Clear current block ID
+  state.currentBlockId = null;
 
   // Validate non-empty block
   if (tokenIds.length === 0) {

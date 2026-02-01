@@ -87,7 +87,15 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
   display: inline;
 }
 
-/* Saidoku (再読文字) - 入れ子ruby方式 */
+/*
+ * Saidoku (再読文字) - 入れ子ruby方式
+ *
+ * 構造: <ruby class="outer"><ruby class="inner">將<rt>まさに</rt></ruby><rt>す</rt></ruby>
+ *
+ * 注意:
+ * - ruby-position は ruby 要素に適用する（rt 要素ではない）
+ * - ruby-position は継承するため、内側 ruby にも明示的に設定が必要
+ */
 .${prefix}-saidoku-outer {
   ruby-position: under;
 }

@@ -26,7 +26,8 @@ describe('parse - valid fixtures', () => {
 
       expect(doc.format).toBe('skam@0.1');
       expect(doc.tokens).toHaveLength(1);
-      expect(doc.tokens[0]).toEqual({ id: 't1', text: '學' });
+      expect(doc.tokens[0]).toMatchObject({ id: 't1', text: '學' });
+      expect(doc.tokens[0]?.ext?.['blockId']).toBe('b1');
       expect(doc.marks).toHaveLength(0);
       expect(doc.readings).toHaveLength(0);
       expect(validateSKAMDocument(doc).valid).toBe(true);

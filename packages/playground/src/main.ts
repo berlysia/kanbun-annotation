@@ -164,14 +164,16 @@ function applyCustomStyles(): void {
     document.head.appendChild(styleEl);
   }
 
-  // Apply CSS Variables to override defaults
-  const css = `.skam-document {
-  --skam-color-kaeriten: ${state.colorKaeriten};
-  --skam-color-ruby: ${state.colorRuby};
-  --skam-color-emphasis: ${state.colorEmphasis};
-  --skam-font-family: ${state.fontFamily};
-  --skam-ruby-font-size: ${state.rubyFontSize}em;
-  --skam-line-height: ${state.lineHeight};
+  // Apply CSS Variables to override defaults (in skam-overrides layer to override skam-kanbun)
+  const css = `@layer skam-overrides {
+  .skam-document {
+    --skam-color-kaeriten: ${state.colorKaeriten};
+    --skam-color-ruby: ${state.colorRuby};
+    --skam-color-emphasis: ${state.colorEmphasis};
+    --skam-font-family: ${state.fontFamily};
+    --skam-ruby-font-size: ${state.rubyFontSize}em;
+    --skam-line-height: ${state.lineHeight};
+  }
 }`;
   styleEl.textContent = css;
   updateRangeDisplays();

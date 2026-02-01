@@ -1,14 +1,20 @@
-/* Reset */
-*,
-*::before,
-*::after {
-  box-sizing: border-box;
-  margin: 0;
-  padding: 0;
+/* CSS Layer Order Declaration */
+@layer base, skam-kanbun, playground, skam-overrides;
+
+@layer base {
+  /* Reset */
+  *,
+  *::before,
+  *::after {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+  }
 }
 
-/* Variables */
-:root {
+@layer playground {
+  /* Variables */
+  :root {
   --color-bg: #f5f5f5;
   --color-surface: #ffffff;
   --color-text: #333333;
@@ -455,3 +461,4 @@ body {
 .footer a:hover {
   text-decoration: underline;
 }
+} /* end @layer playground */

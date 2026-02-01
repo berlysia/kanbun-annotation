@@ -4,16 +4,16 @@
   <skam:meta tokenization="char"/>
   <skam:body>
     <skam:block>
-      <skam:kun reading="まな" okuri="びて">學</skam:kun>而時
+      <skam:kun yomi="まな" okuri="びて">學</skam:kun>而時
       <skam:kun okuri="に">之</skam:kun><skam:kaeri kind="re"/>
       <skam:kun okuri="ふ">習</skam:kun><skam:kutoten value="。" kind="ku"/>
     </skam:block>
     <skam:block>
-      不亦<skam:kun reading="よろこ" okuri="ば">説</skam:kun>乎<skam:kutoten value="。" kind="ku"/>
+      不亦<skam:kun yomi="よろこ" okuri="ば">説</skam:kun>乎<skam:kutoten value="。" kind="ku"/>
     </skam:block>
     <skam:block>
       有朋自遠方來<skam:kutoten value="、" kind="ten"/>
-      不亦<skam:kun reading="たの" okuri="し">樂</skam:kun>乎<skam:kutoten value="。" kind="ku"/>
+      不亦<skam:kun yomi="たの" okuri="し">樂</skam:kun>乎<skam:kutoten value="。" kind="ku"/>
     </skam:block>
   </skam:body>
   <skam:readings>

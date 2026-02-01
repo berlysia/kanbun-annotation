@@ -444,11 +444,11 @@ function renderSaidokuToken(
   let firstRt = '';
   if (firstForm) {
     const n = firstForm.n ?? 1;
-    const reading = firstForm.reading ? escapeHtml(firstForm.reading) : '';
+    const yomi = firstForm.yomi ? escapeHtml(firstForm.yomi) : '';
     const okuri = firstForm.okuri
       ? `<span class="${prefix}-okuri">${escapeHtml(firstForm.okuri)}</span>`
       : '';
-    firstRt = `<rt class="${prefix}-ruby" data-saidoku-n="${n}">${reading}${okuri}</rt>`;
+    firstRt = `<rt class="${prefix}-ruby" data-saidoku-n="${n}">${yomi}${okuri}</rt>`;
   }
 
   // 内側ruby（第1読み）
@@ -461,11 +461,11 @@ function renderSaidokuToken(
 
   // 第2読み用のrt
   const n2 = secondForm.n ?? 2;
-  const reading2 = secondForm.reading ? escapeHtml(secondForm.reading) : '';
+  const yomi2 = secondForm.yomi ? escapeHtml(secondForm.yomi) : '';
   const okuri2 = secondForm.okuri
     ? `<span class="${prefix}-okuri">${escapeHtml(secondForm.okuri)}</span>`
     : '';
-  const secondRt = `<rt class="${prefix}-ruby ${prefix}-saidoku-under" data-saidoku-n="${n2}">${reading2}${okuri2}</rt>`;
+  const secondRt = `<rt class="${prefix}-ruby ${prefix}-saidoku-under" data-saidoku-n="${n2}">${yomi2}${okuri2}</rt>`;
 
   // 外側ruby（第2読み）で内側rubyを包む
   return `<ruby class="${prefix}-saidoku-outer">${innerRuby}${secondRt}</ruby>`;

@@ -270,14 +270,14 @@ function validateSaidokuForm(
     valid = false;
   }
 
-  if ('reading' in form && !isString(form['reading'])) {
+  if ('yomi' in form && !isString(form['yomi'])) {
     errors.push(
       createValidationError(
         'INVALID_TYPE',
-        `${path}.reading`,
-        'reading must be a string if provided',
+        `${path}.yomi`,
+        'yomi must be a string if provided',
         'string',
-        typeof form['reading']
+        typeof form['yomi']
       )
     );
     valid = false;

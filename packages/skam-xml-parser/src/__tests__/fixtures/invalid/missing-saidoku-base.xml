@@ -4,7 +4,7 @@
   <skam:body>
     <skam:block>
       <skam:saidoku>
-        <skam:kunform n="1" reading="まさ" okuri="に"/>
+        <skam:kunform n="1" yomi="まさ" okuri="に"/>
         <skam:kunform n="2" okuri="す"/>
       </skam:saidoku>
     </skam:block>

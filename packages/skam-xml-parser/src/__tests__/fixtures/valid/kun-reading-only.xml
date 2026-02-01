@@ -3,7 +3,7 @@
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      <skam:kun reading="まなぶ">學</skam:kun>
+      <skam:kun yomi="まなぶ">學</skam:kun>
     </skam:block>
   </skam:body>
 </skam:doc>

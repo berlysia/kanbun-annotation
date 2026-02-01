@@ -5,7 +5,7 @@
     <skam:block>
       <skam:saidoku>
         <skam:base>未</skam:base>
-        <skam:kunform reading="いま" okuri="だ"/>
+        <skam:kunform yomi="いま" okuri="だ"/>
         <skam:kunform okuri="ず"/>
       </skam:saidoku>
     </skam:block>

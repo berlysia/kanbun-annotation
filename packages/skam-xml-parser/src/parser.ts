@@ -183,7 +183,7 @@ function processKaeri(element: Element, state: ParserState, precedingTokenId: st
 }
 
 function processKun(element: Element, state: ParserState): string[] {
-  const reading = getAttr(element, 'reading');
+  const yomi = getAttr(element, 'yomi');
   const okuri = getAttr(element, 'okuri');
   const soe = getAttr(element, 'soe');
 
@@ -197,12 +197,12 @@ function processKun(element: Element, state: ParserState): string[] {
 
   const anchor = createAnchor(tokenIds);
 
-  if (reading) {
+  if (yomi) {
     const yomiganaMark: YomiganaMark = {
       type: 'yomigana',
       id: generateMarkId(state),
       anchor,
-      value: reading,
+      value: yomi,
     };
     state.marks.push(yomiganaMark);
   }
@@ -474,14 +474,14 @@ function processSaidoku(element: Element, state: ParserState): string[] {
   const forms: SaidokuForm[] = kunforms.map((kunform) => {
     const form: SaidokuForm = {};
     const nAttr = getAttr(kunform, 'n');
-    const reading = getAttr(kunform, 'reading');
+    const yomi = getAttr(kunform, 'yomi');
     const okuri = getAttr(kunform, 'okuri');
 
     if (nAttr) {
       form.n = parseInt(nAttr, 10);
     }
-    if (reading) {
-      form.reading = reading;
+    if (yomi) {
+      form.yomi = yomi;
     }
     if (okuri) {
       form.okuri = okuri;

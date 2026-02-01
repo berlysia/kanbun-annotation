@@ -253,7 +253,7 @@ describe('parse - valid fixtures', () => {
       if (saidoku?.type === 'saidoku') {
         expect(saidoku.forms).toHaveLength(2);
         expect(saidoku.forms[0]!.n).toBe(1);
-        expect(saidoku.forms[0]!.reading).toBe('まさ');
+        expect(saidoku.forms[0]!.yomi).toBe('まさ');
         expect(saidoku.forms[0]!.okuri).toBe('に');
         expect(saidoku.forms[1]!.n).toBe(2);
         expect(saidoku.forms[1]!.okuri).toBe('す');

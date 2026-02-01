@@ -5,10 +5,10 @@
     <skam:block>
       <skam:saidoku>
         <skam:base>將</skam:base>
-        <skam:kunform n="1" reading="まさ" okuri="に"/>
+        <skam:kunform n="1" yomi="まさ" okuri="に"/>
         <skam:kunform n="2" okuri="す"/>
       </skam:saidoku>
-      <skam:kun reading="し" okuri="なんと">死</skam:kun>
+      <skam:kun yomi="し" okuri="なんと">死</skam:kun>
     </skam:block>
   </skam:body>
   <skam:readings>

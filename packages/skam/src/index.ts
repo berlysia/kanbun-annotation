@@ -189,7 +189,7 @@ export interface SaidokuForm {
   /** 読み順（省略時は配列順） */
   n?: number;
   /** 読み仮名 */
-  reading?: string;
+  yomi?: string;
   /** 送り仮名 */
   okuri?: string;
 }

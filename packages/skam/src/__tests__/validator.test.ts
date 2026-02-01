@@ -64,7 +64,7 @@ describe('validateSKAMDocument', () => {
           {
             type: 'saidoku',
             anchor: { from: 't1', to: 't1' },
-            forms: [{ reading: 'まさ', okuri: 'に' }],
+            forms: [{ yomi: 'まさ', okuri: 'に' }],
           },
           {
             type: 'okototen',
@@ -228,7 +228,7 @@ describe('validateSKAMDocument', () => {
             type: 'saidoku',
             anchor: { from: 't1', to: 't1' },
             forms: [
-              { n: 1, reading: 'まさ', okuri: 'に' },
+              { n: 1, yomi: 'まさ', okuri: 'に' },
               { n: 2, okuri: 'す' },
             ],
           },

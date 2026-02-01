@@ -235,4 +235,28 @@ export const SAMPLES: Sample[] = [
   </skam:body>
 </skam:doc>`,
   },
+  {
+    name: '春曉（五言絶句）',
+    description: '孟浩然の五言絶句「春曉」の訓読例',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      春眠不<skam:kaeri kind="re"/><skam:kun yomi="おぼ" okuri="エ">覺</skam:kun><skam:kun soe="ヲ" yomi="あかつき">曉</skam:kun>
+    </skam:block>
+    <skam:block>
+      處處<skam:kun yomi="き" okuri="ク">聞</skam:kun><skam:kun yomi="ていてう" soe="ヲ">啼鳥</skam:kun><skam:kaeri kind="re"/>
+    </skam:block>
+    <skam:block>
+      夜來<skam:kun soe="ノ">風雨</skam:kun>聲
+    </skam:block>
+    <skam:block>
+      花<skam:kun yomi="お" okuri="ツルコト">落</skam:kun><skam:kun yomi="し" okuri="ル">知</skam:kun><skam:kaeri kind="re"/><skam:kun soe="ゾ">多少</skam:kun>
+    </skam:block>
+  </skam:body>
+  <skam:readings>
+    <skam:reading kind="kakikudashi">春眠暁を覚えず、処処啼鳥を聞く。夜来風雨の声、花落つること知る多少ぞ。</skam:reading>
+  </skam:readings>
+</skam:doc>`,
+  },
 ];

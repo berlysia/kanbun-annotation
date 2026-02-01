@@ -95,7 +95,7 @@ export const SAMPLES: Sample[] = [
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      <skam:span type="tateten">國家</skam:span>之大事<skam:kutoten value="。" kind="ku"/>
+      <skam:tateten>國家</skam:tateten>之大事<skam:kutoten value="。" kind="ku"/>
     </skam:block>
   </skam:body>
   <skam:readings>
@@ -112,7 +112,7 @@ export const SAMPLES: Sample[] = [
     <skam:block>
       學而時
       <skam:kun okuri="に">之</skam:kun><skam:kaeri kind="re"/>
-      <skam:okiji value="を"/>
+      <skam:okiji>を</skam:okiji>
       <skam:kun okuri="ふ">習</skam:kun><skam:kutoten value="。" kind="ku"/>
     </skam:block>
   </skam:body>

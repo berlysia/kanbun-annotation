@@ -266,7 +266,8 @@ function renderTokenWithRuby(
 /**
  * 再読文字のToken HTMLを生成
  *
- * 読み仮名と送り仮名はrt内に配置する。
+ * 入れ子ruby方式: 内側rubyで第1読み、外側rubyで第2読みを配置。
+ * <ruby><ruby>將<rt>まさに</rt></ruby><rt>す</rt></ruby>
  */
 function renderSaidokuToken(
   token: Token,
@@ -280,21 +281,38 @@ function renderSaidokuToken(
   }
 
   const forms = saidokuMark.forms;
+  const firstForm = forms[0];
+  const secondForm = forms[1];
 
-  // 各formをrtとして生成（読み仮名 + 送り仮名）
-  const rtElements = forms
-    .map((form, index) => {
-      const n = form.n ?? index + 1;
-      const reading = form.reading ? escapeHtml(form.reading) : '';
-      const okuri = form.okuri
-        ? `<span class="${prefix}-okuri">${escapeHtml(form.okuri)}</span>`
-        : '';
-      const underClass = index > 0 ? ` ${prefix}-saidoku-under` : '';
-      return `<rt class="${prefix}-ruby${underClass}" data-saidoku-n="${n}">${reading}${okuri}</rt>`;
-    })
-    .join('');
+  // 第1読み用のrt
+  let firstRt = '';
+  if (firstForm) {
+    const n = firstForm.n ?? 1;
+    const reading = firstForm.reading ? escapeHtml(firstForm.reading) : '';
+    const okuri = firstForm.okuri
+      ? `<span class="${prefix}-okuri">${escapeHtml(firstForm.okuri)}</span>`
+      : '';
+    firstRt = `<rt class="${prefix}-ruby" data-saidoku-n="${n}">${reading}${okuri}</rt>`;
+  }
 
-  return `<ruby><rb class="${prefix}-base">${escapeHtml(token.text)}</rb>${rtElements}</ruby>`;
+  // 内側ruby（第1読み）
+  const innerRuby = `<ruby class="${prefix}-saidoku-inner"><rb class="${prefix}-base">${escapeHtml(token.text)}</rb>${firstRt}</ruby>`;
+
+  // 第2読みがなければ内側rubyのみ返す
+  if (!secondForm) {
+    return innerRuby;
+  }
+
+  // 第2読み用のrt
+  const n2 = secondForm.n ?? 2;
+  const reading2 = secondForm.reading ? escapeHtml(secondForm.reading) : '';
+  const okuri2 = secondForm.okuri
+    ? `<span class="${prefix}-okuri">${escapeHtml(secondForm.okuri)}</span>`
+    : '';
+  const secondRt = `<rt class="${prefix}-ruby ${prefix}-saidoku-under" data-saidoku-n="${n2}">${reading2}${okuri2}</rt>`;
+
+  // 外側ruby（第2読み）で内側rubyを包む
+  return `<ruby class="${prefix}-saidoku-outer">${innerRuby}${secondRt}</ruby>`;
 }
 
 /**

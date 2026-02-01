@@ -237,7 +237,7 @@ describe('render', () => {
       expect(result.html).toContain('skam-saidoku-under');
     });
 
-    it('should render saidoku okuri within rt element', () => {
+    it('should render saidoku with nested ruby (double ruby)', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '將' }],
@@ -256,13 +256,16 @@ describe('render', () => {
 
       const result = render(doc);
 
-      // Okuri should be inside rt element with reading
+      // First reading should be in inner ruby's rt element
       expect(result.html).toMatch(
         /<rt class="skam-ruby" data-saidoku-n="1">まさ<span class="skam-okuri">に<\/span><\/rt>/
       );
+      // Second reading should be in outer ruby's rt element with saidoku-under class
       expect(result.html).toMatch(
         /<rt class="skam-ruby skam-saidoku-under" data-saidoku-n="2"><span class="skam-okuri">す<\/span><\/rt>/
       );
+      // Should have nested ruby structure with inner and outer ruby classes
+      expect(result.html).toMatch(/<ruby class="skam-saidoku-outer"><ruby class="skam-saidoku-inner">.*<\/ruby><rt/);
     });
   });
 

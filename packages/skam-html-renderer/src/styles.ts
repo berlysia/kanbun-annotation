@@ -87,14 +87,13 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
   display: inline;
 }
 
-/* Saidoku (再読文字) */
-.${prefix}-saidoku ruby {
-  display: inline-flex;
-  flex-direction: column;
+/* Saidoku (再読文字) - 入れ子ruby方式 */
+.${prefix}-saidoku-outer {
+  ruby-position: under;
 }
 
-.${prefix}-saidoku-under {
-  ruby-position: under;
+.${prefix}-saidoku-inner {
+  ruby-position: over;
 }
 
 /* Okototen (ヲコト点) */
@@ -128,13 +127,10 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
 }
 
 .${prefix}-tateten-mark {
-  display: inline;
-}
-
-.${prefix}-tateten-mark::before {
-  content: "〽";
-  font-size: 0.5em;
-  ${isVertical ? 'writing-mode: horizontal-tb;' : ''}
+  display: inline-block;
+  ${isVertical ? 'width: 0.1em; height: 0.6em;' : 'width: 0.6em; height: 0.1em;'}
+  background-color: currentColor;
+  vertical-align: middle;
 }
 
 /* Emphasis (傍点) */

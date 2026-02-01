@@ -103,3 +103,26 @@ SKAMDocument
 - `noUncheckedIndexedAccess: true` - 配列アクセス時は `!` または型ガードが必要
 - `exactOptionalPropertyTypes: true` - optional プロパティに `undefined` を明示的に代入不可
 - `verbatimModuleSyntax: true` - 型インポートは `import type` を使用
+
+## CSS 実装時の注意
+
+### Ruby 関連
+
+- **`ruby-position`**: ruby 要素に適用するプロパティ。rt 要素ではない
+- **両ルビ（入れ子ruby）**: `ruby-position`は継承するため、内側rubyにも明示的に設定が必要
+  ```html
+  <ruby class="outer">
+    <ruby class="inner">base<rt>top</rt></ruby>
+    <rt>bottom</rt>
+  </ruby>
+  ```
+  ```css
+  .outer { ruby-position: under; }
+  .inner { ruby-position: over; }  /* 継承を上書き */
+  ```
+
+### 一般原則
+
+- CSSプロパティを使用する前に、適用対象の要素を必ず確認する
+- MDN等の公式ドキュメントで仕様を確認してから実装する
+- **ユーザーにデバッグさせない**: 不確かな実装を「確認してください」で済ませず、事前に仕様を調査・検証する

@@ -26,5 +26,21 @@
     "classical-chinese",
     "skam"
   ],
-  "license": "UNLICENSED"
+  "author": "berlysia",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/berlysia/kanbun-annotation.git",
+    "directory": "packages/skam"
+  },
+  "bugs": {
+    "url": "https://github.com/berlysia/kanbun-annotation/issues"
+  },
+  "homepage": "https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
 }

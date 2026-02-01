@@ -276,8 +276,8 @@ function shouldApplyTateChuYoko(text: string): boolean {
   if (/^\([A-Za-z0-9]\)$/.test(text)) {
     return true;
   }
-  // 2文字以下の半角文字の場合
-  if (/^[\x00-\x7F]{1,2}$/.test(text)) {
+  // 2文字以下の半角文字の場合（印字可能ASCII: 0x20-0x7E）
+  if (/^[\x20-\x7E]{1,2}$/.test(text)) {
     return true;
   }
   return false;

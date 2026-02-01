@@ -30,6 +30,73 @@ const inlineModeCheckbox = document.getElementById('inline-mode') as HTMLInputEl
 let currentDocument: SKAMDocument | null = null;
 
 // ============================================================================
+// URL State Management
+// ============================================================================
+
+interface URLState {
+  sample: number;
+  mode: 'vertical' | 'horizontal';
+  inline: boolean;
+}
+
+function getStateFromURL(): URLState {
+  const params = new URLSearchParams(window.location.search);
+
+  const sampleStr = params.get('sample');
+  let sample = 0;
+  if (sampleStr !== null) {
+    const parsed = parseInt(sampleStr, 10);
+    if (!isNaN(parsed) && parsed >= 0 && parsed < SAMPLES.length) {
+      sample = parsed;
+    }
+  }
+
+  const modeStr = params.get('mode');
+  const mode: 'vertical' | 'horizontal' =
+    modeStr === 'horizontal' ? 'horizontal' : 'vertical';
+
+  const inlineStr = params.get('inline');
+  const inline = inlineStr === '1';
+
+  return { sample, mode, inline };
+}
+
+function updateURL(state: Partial<URLState>): void {
+  const params = new URLSearchParams(window.location.search);
+
+  if (state.sample !== undefined) {
+    if (state.sample === 0) {
+      params.delete('sample');
+    } else {
+      params.set('sample', String(state.sample));
+    }
+  }
+
+  if (state.mode !== undefined) {
+    if (state.mode === 'vertical') {
+      params.delete('mode');
+    } else {
+      params.set('mode', state.mode);
+    }
+  }
+
+  if (state.inline !== undefined) {
+    if (state.inline) {
+      params.set('inline', '1');
+    } else {
+      params.delete('inline');
+    }
+  }
+
+  const queryString = params.toString();
+  const newURL = queryString
+    ? `${window.location.pathname}?${queryString}`
+    : window.location.pathname;
+
+  window.history.replaceState(null, '', newURL);
+}
+
+// ============================================================================
 // Functions
 // ============================================================================
 
@@ -115,10 +182,14 @@ function parseAndRender(): void {
   }
 }
 
-function loadSample(index: number): void {
+function loadSample(index: number, updateUrlState = true): void {
   const sample = SAMPLES[index];
   if (sample) {
     xmlInput.value = sample.xml;
+    sampleSelect.value = String(index);
+    if (updateUrlState) {
+      updateURL({ sample: index });
+    }
     parseAndRender();
   }
 }
@@ -162,7 +233,7 @@ for (let i = 0; i < SAMPLES.length; i++) {
 sampleSelect.addEventListener('change', () => {
   const index = parseInt(sampleSelect.value, 10);
   if (!isNaN(index)) {
-    loadSample(index);
+    loadSample(index, true);
   }
 });
 
@@ -182,6 +253,7 @@ copyHtmlBtn.addEventListener('click', () => {
 // Writing mode change
 for (const radio of writingModeRadios) {
   radio.addEventListener('change', () => {
+    updateURL({ mode: getWritingMode() });
     if (currentDocument) {
       renderDocument(currentDocument);
     }
@@ -190,6 +262,7 @@ for (const radio of writingModeRadios) {
 
 // Inline mode change
 inlineModeCheckbox.addEventListener('change', () => {
+  updateURL({ inline: getInlineMode() });
   if (currentDocument) {
     renderDocument(currentDocument);
   }
@@ -199,5 +272,16 @@ inlineModeCheckbox.addEventListener('change', () => {
 // Initialize
 // ============================================================================
 
-// Load first sample on init
-loadSample(0);
+// Restore state from URL
+const initialState = getStateFromURL();
+
+// Set writing mode
+for (const radio of writingModeRadios) {
+  radio.checked = radio.value === initialState.mode;
+}
+
+// Set inline mode
+inlineModeCheckbox.checked = initialState.inline;
+
+// Load sample (without updating URL since we're restoring from URL)
+loadSample(initialState.sample, false);

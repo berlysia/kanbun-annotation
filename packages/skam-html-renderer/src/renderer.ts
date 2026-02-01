@@ -425,7 +425,14 @@ function renderTokenWithRuby(token: Token, ctx: TokenRenderContext): string {
  * 再読文字のToken HTMLを生成
  *
  * 入れ子ruby方式: 内側rubyで第1読み、外側rubyで第2読みを配置。
- * <ruby><ruby>將<rt>まさに</rt></ruby><rt>す</rt></ruby>
+ * 送り仮名はkunと同様にsuffix領域に配置（ルビ内には含めない）。
+ *
+ * 構造:
+ * <ruby class="outer">
+ *   <ruby class="inner">將<rt>まさ</rt></ruby>
+ *   <rt></rt>  <!-- 第2読みのyomiがあれば入る -->
+ * </ruby>
+ * + suffix（送り仮名）は呼び出し元で別途処理
  */
 function renderSaidokuToken(
   token: Token,
@@ -442,15 +449,12 @@ function renderSaidokuToken(
   const firstForm = forms[0];
   const secondForm = forms[1];
 
-  // 第1読み用のrt
+  // 第1読み用のrt（読み仮名のみ、送り仮名は含めない）
   let firstRt = '';
   if (firstForm) {
     const n = firstForm.n ?? 1;
     const yomi = firstForm.yomi ? escapeHtml(firstForm.yomi) : '';
-    const okuri = firstForm.okuri
-      ? `<span class="${prefix}-okuri">${escapeHtml(firstForm.okuri)}</span>`
-      : '';
-    firstRt = `<rt class="${prefix}-ruby" data-saidoku-n="${n}">${yomi}${okuri}</rt>`;
+    firstRt = `<rt class="${prefix}-ruby" data-saidoku-n="${n}">${yomi}</rt>`;
   }
 
   // 内側ruby（第1読み）
@@ -461,13 +465,10 @@ function renderSaidokuToken(
     return innerRuby;
   }
 
-  // 第2読み用のrt
+  // 第2読み用のrt（読み仮名のみ、送り仮名は含めない）
   const n2 = secondForm.n ?? 2;
   const yomi2 = secondForm.yomi ? escapeHtml(secondForm.yomi) : '';
-  const okuri2 = secondForm.okuri
-    ? `<span class="${prefix}-okuri">${escapeHtml(secondForm.okuri)}</span>`
-    : '';
-  const secondRt = `<rt class="${prefix}-ruby ${prefix}-saidoku-under" data-saidoku-n="${n2}">${yomi2}${okuri2}</rt>`;
+  const secondRt = `<rt class="${prefix}-ruby ${prefix}-saidoku-under" data-saidoku-n="${n2}">${yomi2}</rt>`;
 
   // 外側ruby（第2読み）で内側rubyを包む
   return `<ruby class="${prefix}-saidoku-outer">${innerRuby}${secondRt}</ruby>`;
@@ -508,12 +509,33 @@ function renderToken(
   const okototenMarks = (tokenMarks.get('okototen') ?? []) as OkototenMark[];
   const hasOkototen = profile.okototen && okototenMarks.length > 0;
 
-  // 送り仮名
-  const okuriganaMarks = (tokenMarks.get('okurigana') ?? []) as OkuriganaMark[];
-  const okurigana =
-    profile.okurigana && okuriganaMarks.length > 0
-      ? `<span class="${prefix}-okuri">${okuriganaMarks.map((m) => escapeHtml(m.value)).join('')}</span>`
-      : '';
+  // 送り仮名（再読文字の場合はformsから取得）
+  // 再読文字の場合: 第1読みは右側（通常の送り仮名位置）、第2読みは左側（返り点位置）
+  let saidokuOkuri1 = '';  // 第1読みの送り仮名（右側）
+  let saidokuOkuri2 = '';  // 第2読みの送り仮名（左側、返り点と同じ位置）
+  let okurigana = '';
+  if (profile.okurigana) {
+    if (saidokuMark && profile.saidoku) {
+      // 再読文字の場合: formsから送り仮名を取得
+      for (const form of saidokuMark.forms) {
+        if (form.okuri) {
+          const n = form.n ?? (saidokuMark.forms.indexOf(form) + 1);
+          const okuriHtml = `<span class="${prefix}-okuri" data-saidoku-n="${n}">${escapeHtml(form.okuri)}</span>`;
+          if (n === 1) {
+            saidokuOkuri1 = okuriHtml;
+          } else {
+            saidokuOkuri2 = okuriHtml;
+          }
+        }
+      }
+    } else {
+      // 通常のToken: okuriganaMarksから取得
+      const okuriganaMarks = (tokenMarks.get('okurigana') ?? []) as OkuriganaMark[];
+      if (okuriganaMarks.length > 0) {
+        okurigana = `<span class="${prefix}-okuri">${okuriganaMarks.map((m) => escapeHtml(m.value)).join('')}</span>`;
+      }
+    }
+  }
 
   // 添え仮名
   const soeganaMarks = (tokenMarks.get('soegana') ?? []) as SoeganaMark[];
@@ -534,15 +556,17 @@ function renderToken(
           .join('')
       : '';
 
-  // suffix-row: 送り仮名・添え仮名（右）と返り点（左）を同じ行に配置するコンテナ
-  const suffixKanaContent = okurigana + soegana;
-  const hasBothSuffixes = suffixKanaContent && kaeriten;
+  // suffix-row: 送り仮名・添え仮名（右）と返り点・第2読み送り仮名（左）を同じ行に配置するコンテナ
+  // 再読文字の場合: 第1読み送り仮名は右側、第2読み送り仮名は左側（返り点と同じ位置）
+  const suffixKanaRight = saidokuOkuri1 || okurigana + soegana;  // 右側: 第1読み送り仮名 or 通常の送り仮名・添え仮名
+  const suffixKanaLeft = saidokuOkuri2 + kaeriten;              // 左側: 第2読み送り仮名 + 返り点
+  const hasBothSuffixes = suffixKanaRight && suffixKanaLeft;
   const suffixRow = hasBothSuffixes
-    ? `<span class="${prefix}-suffix-row"><span class="${prefix}-suffix-left">${kaeriten}</span><span class="${prefix}-suffix-right">${suffixKanaContent}</span></span>`
-    : suffixKanaContent
-      ? `<span class="${prefix}-suffix-kana">${suffixKanaContent}</span>`
-      : kaeriten
-        ? `<span class="${prefix}-kaeriten-only">${kaeriten}</span>`
+    ? `<span class="${prefix}-suffix-row"><span class="${prefix}-suffix-left">${suffixKanaLeft}</span><span class="${prefix}-suffix-right">${suffixKanaRight}</span></span>`
+    : suffixKanaRight
+      ? `<span class="${prefix}-suffix-kana">${suffixKanaRight}</span>`
+      : suffixKanaLeft
+        ? `<span class="${prefix}-kaeriten-only">${suffixKanaLeft}</span>`
         : '';
 
   // 句読点

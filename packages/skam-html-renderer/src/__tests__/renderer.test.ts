@@ -257,14 +257,20 @@ describe('render', () => {
 
       const result = render(doc);
 
-      // First reading should be in inner ruby's rt element
+      // First reading yomi should be in inner ruby's rt element (without okuri)
       expect(result.html).toMatch(
-        /<rt class="skam-ruby" data-saidoku-n="1">まさ<span class="skam-okuri">に<\/span><\/rt>/
+        /<rt class="skam-ruby" data-saidoku-n="1">まさ<\/rt>/
       );
-      // Second reading should be in outer ruby's rt element with saidoku-under class
+      // Second reading should be in outer ruby's rt element with saidoku-under class (yomi only)
       expect(result.html).toMatch(
-        /<rt class="skam-ruby skam-saidoku-under" data-saidoku-n="2"><span class="skam-okuri">す<\/span><\/rt>/
+        /<rt class="skam-ruby skam-saidoku-under" data-saidoku-n="2"><\/rt>/
       );
+      // First reading okuri should be on right side (suffix-kana or suffix-right)
+      expect(result.html).toMatch(/<span class="skam-okuri" data-saidoku-n="1">に<\/span>/);
+      // Second reading okuri should be on left side (suffix-left, same position as kaeriten)
+      expect(result.html).toMatch(/<span class="skam-okuri" data-saidoku-n="2">す<\/span>/);
+      // Both okuri should be in suffix-row structure
+      expect(result.html).toMatch(/<span class="skam-suffix-row">/);
       // Should have nested ruby structure with inner and outer ruby classes
       expect(result.html).toMatch(/<ruby class="skam-saidoku-outer"><ruby class="skam-saidoku-inner">.*<\/ruby><rt/);
     });

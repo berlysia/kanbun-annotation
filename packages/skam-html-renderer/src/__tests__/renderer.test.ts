@@ -905,3 +905,122 @@ describe('「學而時習之」sample rendering', () => {
     expect(result.css).toContain('.skam-document');
   });
 });
+
+describe('inline mode', () => {
+  it('should render with span container when inline: true', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學' }],
+      marks: [],
+      readings: [],
+    };
+
+    const result = render(doc, { inline: true });
+
+    // Should use span instead of div for document container
+    expect(result.html).toMatch(/^<span class="skam-document skam-document--inline"/);
+    expect(result.html).toMatch(/<\/span>$/);
+    // Display layer should also be span
+    expect(result.html).toContain('<span class="skam-display"');
+  });
+
+  it('should not render notes section when inline: true', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學' }],
+      marks: [
+        {
+          type: 'note',
+          anchor: { from: 't1', to: 't1' },
+          value: '注釈テキスト',
+        },
+      ],
+      readings: [],
+    };
+
+    const result = render(doc, { inline: true });
+
+    // Notes should not be rendered
+    expect(result.html).not.toContain('skam-notes');
+    expect(result.html).not.toContain('注釈テキスト');
+  });
+
+  it('should render notes when inline: false (default)', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學' }],
+      marks: [
+        {
+          type: 'note',
+          anchor: { from: 't1', to: 't1' },
+          value: '注釈テキスト',
+        },
+      ],
+      readings: [],
+    };
+
+    const result = render(doc, { inline: false });
+
+    // Notes should be rendered
+    expect(result.html).toContain('skam-notes');
+    expect(result.html).toContain('注釈テキスト');
+  });
+
+  it('should include reading layer when inline: true', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學' }],
+      marks: [],
+      readings: [{ kind: 'kakikudashi', text: '学ぶ' }],
+    };
+
+    const result = render(doc, { inline: true });
+
+    // Reading layer should be included as span
+    expect(result.html).toContain('skam-reading');
+    expect(result.html).toContain('学ぶ');
+    expect(result.html).toContain('<span class="skam-reading"');
+  });
+
+  it('should generate inline CSS styles when inline: true', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學' }],
+      marks: [],
+      readings: [],
+    };
+
+    const result = render(doc, { inline: true });
+
+    expect(result.css).toContain('.skam-document--inline');
+    expect(result.css).toContain('display: inline-block');
+  });
+
+  it('should work with vertical writing mode', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學' }],
+      marks: [],
+      readings: [],
+    };
+
+    const result = render(doc, { inline: true, writingMode: 'vertical' });
+
+    expect(result.html).toContain('data-writing-mode="vertical"');
+    expect(result.css).toContain('writing-mode: vertical-rl');
+  });
+
+  it('should work with horizontal writing mode', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學' }],
+      marks: [],
+      readings: [],
+    };
+
+    const result = render(doc, { inline: true, writingMode: 'horizontal' });
+
+    expect(result.html).toContain('data-writing-mode="horizontal"');
+    expect(result.css).not.toContain('writing-mode: vertical-rl');
+  });
+});

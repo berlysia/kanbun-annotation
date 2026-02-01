@@ -21,6 +21,7 @@ const sampleSelect = document.getElementById('sample-select') as HTMLSelectEleme
 const copyJsonBtn = document.getElementById('copy-json-btn') as HTMLButtonElement;
 const copyHtmlBtn = document.getElementById('copy-html-btn') as HTMLButtonElement;
 const writingModeRadios = document.querySelectorAll<HTMLInputElement>('input[name="writing-mode"]');
+const inlineModeCheckbox = document.getElementById('inline-mode') as HTMLInputElement;
 
 // ============================================================================
 // State
@@ -50,6 +51,10 @@ function getWritingMode(): 'vertical' | 'horizontal' {
   return 'vertical';
 }
 
+function getInlineMode(): boolean {
+  return inlineModeCheckbox.checked;
+}
+
 function renderDocument(doc: SKAMDocument): void {
   currentDocument = doc;
 
@@ -58,7 +63,8 @@ function renderDocument(doc: SKAMDocument): void {
 
   // HTML render
   const writingMode = getWritingMode();
-  const result = render(doc, { writingMode });
+  const inline = getInlineMode();
+  const result = render(doc, { writingMode, inline });
 
   // Apply CSS and HTML
   const styleId = 'skam-playground-styles';
@@ -70,7 +76,13 @@ function renderDocument(doc: SKAMDocument): void {
   }
   styleEl.textContent = result.css;
 
-  renderOutput.innerHTML = result.html;
+  // インラインモードの場合は前後にテキストを追加
+  if (inline) {
+    const writingModeClass = writingMode === 'vertical' ? ' inline-demo--vertical' : '';
+    renderOutput.innerHTML = `<p class="inline-demo${writingModeClass}">本文中に「${result.html}」のように漢文を埋め込める。</p>`;
+  } else {
+    renderOutput.innerHTML = result.html;
+  }
 
   // HTML source output
   htmlOutput.textContent = result.html;
@@ -175,6 +187,13 @@ for (const radio of writingModeRadios) {
     }
   });
 }
+
+// Inline mode change
+inlineModeCheckbox.addEventListener('change', () => {
+  if (currentDocument) {
+    renderDocument(currentDocument);
+  }
+});
 
 // ============================================================================
 // Initialize

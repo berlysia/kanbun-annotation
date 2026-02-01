@@ -190,6 +190,7 @@ body {
   display: flex;
   gap: 1rem;
   font-size: 0.75rem;
+  align-items: center;
 }
 
 .render-options label {
@@ -199,6 +200,10 @@ body {
   cursor: pointer;
 }
 
+.render-options .option-separator {
+  color: var(--color-border);
+}
+
 #render-output {
   flex: 1;
   padding: 2rem;
@@ -206,6 +211,20 @@ body {
   display: flex;
   justify-content: center;
   align-items: flex-start;
+}
+
+/* インラインモードのデモ表示 */
+#render-output .inline-demo {
+  font-family: 'Noto Serif JP', 'Source Han Serif JP', 'Yu Mincho', serif;
+  font-size: 1.125rem;
+  line-height: 2;
+  text-align: left;
+}
+
+#render-output .inline-demo--vertical {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  height: 100%;
 }
 
 /* Details Panel (collapsible) */

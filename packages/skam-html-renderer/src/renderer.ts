@@ -62,6 +62,8 @@ export interface RenderOptions {
   classPrefix?: string;
   /** a11y用読み層を含める */
   includeReadingLayer?: boolean;
+  /** インラインモード（文中埋め込み・連続フロー用） */
+  inline?: boolean;
 }
 
 /**
@@ -603,7 +605,7 @@ function renderToken(
 /**
  * 読み層のHTMLを生成
  */
-function renderReadingLayer(readings: Reading[], prefix: string): string {
+function renderReadingLayer(readings: Reading[], prefix: string, inline: boolean): string {
   const yomiage = readings.find((r) => r.kind === 'yomiage');
   const kakikudashi = readings.find((r) => r.kind === 'kakikudashi');
 
@@ -613,7 +615,8 @@ function renderReadingLayer(readings: Reading[], prefix: string): string {
     return '';
   }
 
-  return `<div class="${prefix}-reading" aria-label="読み上げテキスト">${escapeHtml(text)}</div>`;
+  const tag = inline ? 'span' : 'div';
+  return `<${tag} class="${prefix}-reading" aria-label="読み上げテキスト">${escapeHtml(text)}</${tag}>`;
 }
 
 /**
@@ -643,7 +646,11 @@ function renderNotes(marks: Mark[], prefix: string, profile: RenderProfile): str
 /**
  * Display層のHTMLを生成
  */
-function renderDisplayLayer(doc: SKAMDocument, prefix: string, profile: RenderProfile): string {
+function renderDisplayLayer(
+  doc: SKAMDocument,
+  prefix: string,
+  profile: RenderProfile
+): { tokens: string; prefix: string } {
   const { tokens, marks } = doc;
   const ctx = { prefix, profile };
 
@@ -843,7 +850,7 @@ function renderDisplayLayer(doc: SKAMDocument, prefix: string, profile: RenderPr
     );
   }
 
-  return `<div class="${prefix}-display" aria-hidden="true">${renderedTokens.join('')}</div>`;
+  return { tokens: renderedTokens.join(''), prefix };
 }
 
 // ============================================================================
@@ -858,21 +865,26 @@ export function render(doc: SKAMDocument, options: RenderOptions = {}): RenderRe
   const writingMode = options.writingMode ?? 'vertical';
   const prefix = options.classPrefix ?? 'skam';
   const includeReadingLayer = options.includeReadingLayer ?? true;
+  const inline = options.inline ?? false;
 
   // Display層
-  const displayHtml = renderDisplayLayer(doc, prefix, profile);
+  const displayResult = renderDisplayLayer(doc, prefix, profile);
+  const displayTag = inline ? 'span' : 'div';
+  const displayHtml = `<${displayTag} class="${prefix}-display" aria-hidden="true">${displayResult.tokens}</${displayTag}>`;
 
   // 読み層
-  const readingHtml = includeReadingLayer ? renderReadingLayer(doc.readings, prefix) : '';
+  const readingHtml = includeReadingLayer ? renderReadingLayer(doc.readings, prefix, inline) : '';
 
-  // 注釈
-  const notesHtml = renderNotes(doc.marks, prefix, profile);
+  // 注釈（インラインモードでは出力しない）
+  const notesHtml = inline ? '' : renderNotes(doc.marks, prefix, profile);
 
   // Document全体
-  const html = `<div class="${prefix}-document" lang="ja" data-writing-mode="${writingMode}">${displayHtml}${readingHtml}${notesHtml}</div>`;
+  const containerTag = inline ? 'span' : 'div';
+  const inlineClass = inline ? ` ${prefix}-document--inline` : '';
+  const html = `<${containerTag} class="${prefix}-document${inlineClass}" lang="ja" data-writing-mode="${writingMode}">${displayHtml}${readingHtml}${notesHtml}</${containerTag}>`;
 
   // CSS
-  const css = getDefaultStyles({ classPrefix: prefix, writingMode });
+  const css = getDefaultStyles({ classPrefix: prefix, writingMode, inline });
 
   return { html, css };
 }

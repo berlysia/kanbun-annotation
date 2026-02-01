@@ -5,6 +5,7 @@
 export interface StyleOptions {
   classPrefix?: string;
   writingMode?: 'vertical' | 'horizontal';
+  inline?: boolean;
 }
 
 /**
@@ -13,8 +14,25 @@ export interface StyleOptions {
 export function getDefaultStyles(options: StyleOptions = {}): string {
   const prefix = options.classPrefix ?? 'skam';
   const writingMode = options.writingMode ?? 'vertical';
+  const inline = options.inline ?? false;
 
   const isVertical = writingMode === 'vertical';
+
+  // インラインモード用スタイル
+  const inlineStyles = inline
+    ? `
+/* Inline Mode */
+.${prefix}-document--inline {
+  display: inline-block;
+  position: relative;
+  vertical-align: baseline;
+}
+
+.${prefix}-document--inline .${prefix}-display {
+  display: inline;
+}
+`
+    : '';
 
   return `
 /* SKAM Document Container */
@@ -314,5 +332,5 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
 .${prefix}-label--half-width {
   ${isVertical ? 'text-combine-upright: all;' : ''}
 }
-`.trim();
+${inlineStyles}`.trim();
 }

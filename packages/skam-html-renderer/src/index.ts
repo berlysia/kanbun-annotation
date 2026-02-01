@@ -6,9 +6,13 @@
 
 export {
   render,
+  renderHTML,
+  generateCSS,
   PROFILES,
   type RenderProfile,
   type RenderOptions,
+  type RenderHTMLOptions,
+  type CSSOptions,
   type RenderResult,
 } from './renderer.js';
 

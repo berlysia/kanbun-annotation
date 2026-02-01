@@ -1034,3 +1034,163 @@ describe('inline mode', () => {
     expect(result.css).not.toContain('writing-mode: vertical-rl');
   });
 });
+
+describe('renderHTML', () => {
+  it('should return HTML only without CSS', async () => {
+    const { renderHTML } = await import('../index.js');
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學' }],
+      marks: [],
+      readings: [],
+    };
+
+    const html = renderHTML(doc);
+
+    expect(html).toContain('skam-document');
+    expect(html).toContain('data-token-id="t1"');
+    expect(html).toContain('data-writing-mode="vertical"');
+    expect(typeof html).toBe('string');
+  });
+
+  it('should respect writingMode option', async () => {
+    const { renderHTML } = await import('../index.js');
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學' }],
+      marks: [],
+      readings: [],
+    };
+
+    const html = renderHTML(doc, { writingMode: 'horizontal' });
+
+    expect(html).toContain('data-writing-mode="horizontal"');
+  });
+
+  it('should produce same HTML as render()', async () => {
+    const { renderHTML, render } = await import('../index.js');
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學' }],
+      marks: [],
+      readings: [],
+    };
+
+    const htmlOnly = renderHTML(doc, { writingMode: 'vertical' });
+    const { html } = render(doc, { writingMode: 'vertical' });
+
+    expect(htmlOnly).toBe(html);
+  });
+});
+
+describe('generateCSS', () => {
+  it('should return CSS string', async () => {
+    const { generateCSS } = await import('../index.js');
+
+    const css = generateCSS();
+
+    expect(typeof css).toBe('string');
+    expect(css).toContain('.skam-document');
+    expect(css).toContain('.skam-token');
+  });
+
+  it('should generate vertical-only CSS by default', async () => {
+    const { generateCSS } = await import('../index.js');
+
+    const css = generateCSS({ writingMode: 'vertical' });
+
+    expect(css).toContain('writing-mode: vertical-rl');
+    expect(css).not.toContain('[data-writing-mode="vertical"]');
+    expect(css).not.toContain('[data-writing-mode="horizontal"]');
+  });
+
+  it('should generate horizontal-only CSS', async () => {
+    const { generateCSS } = await import('../index.js');
+
+    const css = generateCSS({ writingMode: 'horizontal' });
+
+    expect(css).not.toContain('writing-mode: vertical-rl');
+    expect(css).not.toContain('[data-writing-mode="vertical"]');
+  });
+
+  it('should generate both vertical and horizontal CSS with writingMode: both', async () => {
+    const { generateCSS } = await import('../index.js');
+
+    const css = generateCSS({ writingMode: 'both' });
+
+    // Should contain data-writing-mode selectors for both directions
+    expect(css).toContain('[data-writing-mode="vertical"]');
+    expect(css).toContain('[data-writing-mode="horizontal"]');
+    // Should contain vertical-specific styles
+    expect(css).toContain('writing-mode: vertical-rl');
+    expect(css).toContain('text-orientation: mixed');
+  });
+
+  it('should produce same CSS as render() for single writingMode', async () => {
+    const { generateCSS, render } = await import('../index.js');
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學' }],
+      marks: [],
+      readings: [],
+    };
+
+    const cssOnly = generateCSS({ writingMode: 'vertical' });
+    const { css } = render(doc, { writingMode: 'vertical' });
+
+    expect(cssOnly).toBe(css);
+  });
+
+  it('should respect classPrefix option', async () => {
+    const { generateCSS } = await import('../index.js');
+
+    const css = generateCSS({ classPrefix: 'custom' });
+
+    expect(css).toContain('.custom-document');
+    expect(css).toContain('.custom-token');
+    expect(css).not.toContain('.skam-');
+  });
+
+  it('should include inline styles when inline option is true', async () => {
+    const { generateCSS } = await import('../index.js');
+
+    const cssWithInline = generateCSS({ inline: true });
+    const cssWithoutInline = generateCSS({ inline: false });
+
+    expect(cssWithInline).toContain('.skam-document--inline');
+    expect(cssWithoutInline).not.toContain('.skam-document--inline');
+  });
+});
+
+describe('CSS and HTML integration', () => {
+  it('should work together for multiple documents with shared CSS', async () => {
+    const { renderHTML, generateCSS } = await import('../index.js');
+    const doc1: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學' }],
+      marks: [],
+      readings: [],
+    };
+    const doc2: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't2', text: '習' }],
+      marks: [],
+      readings: [],
+    };
+
+    // Generate shared CSS once
+    const css = generateCSS({ writingMode: 'both' });
+
+    // Generate HTML for each document
+    const html1 = renderHTML(doc1, { writingMode: 'vertical' });
+    const html2 = renderHTML(doc2, { writingMode: 'horizontal' });
+
+    // Verify CSS contains both writing mode styles
+    expect(css).toContain('[data-writing-mode="vertical"]');
+    expect(css).toContain('[data-writing-mode="horizontal"]');
+
+    // Verify HTML has correct data attributes
+    expect(html1).toContain('data-writing-mode="vertical"');
+    expect(html2).toContain('data-writing-mode="horizontal"');
+  });
+});

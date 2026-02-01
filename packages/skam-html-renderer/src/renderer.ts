@@ -74,6 +74,34 @@ export interface RenderResult {
   css: string;
 }
 
+/**
+ * HTMLのみ生成オプション
+ */
+export interface RenderHTMLOptions {
+  /** 表示要素の制御プロファイル */
+  profile?: Partial<RenderProfile>;
+  /** 書字方向 */
+  writingMode?: 'vertical' | 'horizontal';
+  /** CSSクラス名プレフィックス */
+  classPrefix?: string;
+  /** a11y用読み層を含める */
+  includeReadingLayer?: boolean;
+  /** インラインモード（文中埋め込み・連続フロー用） */
+  inline?: boolean;
+}
+
+/**
+ * CSS生成オプション
+ */
+export interface CSSOptions {
+  /** CSSクラス名プレフィックス */
+  classPrefix?: string;
+  /** 書字方向（'both' で縦横両対応CSS出力） */
+  writingMode?: 'vertical' | 'horizontal' | 'both';
+  /** インラインモード用スタイルを含める */
+  inline?: boolean;
+}
+
 // ============================================================================
 // Presets
 // ============================================================================
@@ -1206,4 +1234,78 @@ export function render(doc: SKAMDocument, options: RenderOptions = {}): RenderRe
   const css = getDefaultStyles({ classPrefix: prefix, writingMode, inline });
 
   return { html, css };
+}
+
+/**
+ * SKAMドキュメントをHTMLのみにレンダリング（CSSなし）
+ *
+ * 複数文書をレンダリングする場合、CSSは generateCSS() で1回だけ生成し、
+ * 各文書は renderHTML() でHTMLのみを生成することで効率化できる。
+ *
+ * @example
+ * ```typescript
+ * // 静的CSS（縦横両対応）を事前生成
+ * const css = generateCSS({ writingMode: 'both' });
+ *
+ * // 各文書はHTMLのみ生成
+ * const html1 = renderHTML(doc1, { writingMode: 'vertical' });
+ * const html2 = renderHTML(doc2, { writingMode: 'horizontal' });
+ * ```
+ */
+export function renderHTML(doc: SKAMDocument, options: RenderHTMLOptions = {}): string {
+  const profile: RenderProfile = { ...FULL_PROFILE, ...options.profile };
+  const writingMode = options.writingMode ?? 'vertical';
+  const prefix = options.classPrefix ?? 'skam';
+  const includeReadingLayer = options.includeReadingLayer ?? true;
+  const inline = options.inline ?? false;
+
+  // Display層
+  const displayResult = renderDisplayLayer(doc, prefix, profile, inline);
+  const displayTag = inline ? 'span' : 'div';
+  const displayHtml = `<${displayTag} class="${prefix}-display" aria-hidden="true">${displayResult.tokens}</${displayTag}>`;
+
+  // 読み層
+  const readingHtml = includeReadingLayer ? renderReadingLayer(doc.readings, prefix, inline) : '';
+
+  // 注釈（インラインモードでは出力しない）
+  const notesHtml = inline ? '' : renderNotes(doc.marks, prefix, profile);
+
+  // Document全体
+  const containerTag = inline ? 'span' : 'div';
+  const inlineClass = inline ? ` ${prefix}-document--inline` : '';
+  const html = `<${containerTag} class="${prefix}-document${inlineClass}" lang="ja" data-writing-mode="${writingMode}">${displayHtml}${readingHtml}${notesHtml}</${containerTag}>`;
+
+  return html;
+}
+
+/**
+ * CSSのみを生成
+ *
+ * 複数文書をレンダリングする場合や、CSSを静的ファイルとして出力する場合に使用。
+ * writingMode: 'both' を指定すると、縦書き・横書き両対応のCSSを生成する。
+ *
+ * @example
+ * ```typescript
+ * // 縦横両対応CSS
+ * const cssAll = generateCSS({ writingMode: 'both' });
+ *
+ * // 縦書きのみ
+ * const cssVertical = generateCSS({ writingMode: 'vertical' });
+ *
+ * // ファイル出力
+ * fs.writeFileSync('skam.css', generateCSS({ writingMode: 'both' }));
+ * ```
+ */
+export function generateCSS(options: CSSOptions = {}): string {
+  const styleOptions: import('./styles.js').StyleOptions = {};
+  if (options.classPrefix !== undefined) {
+    styleOptions.classPrefix = options.classPrefix;
+  }
+  if (options.writingMode !== undefined) {
+    styleOptions.writingMode = options.writingMode;
+  }
+  if (options.inline !== undefined) {
+    styleOptions.inline = options.inline;
+  }
+  return getDefaultStyles(styleOptions);
 }

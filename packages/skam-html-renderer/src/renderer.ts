@@ -20,6 +20,8 @@ import type {
   SaidokuMark,
   OkototenMark,
   TatetenMark,
+  UnderlineMark,
+  LabelMark,
   Reading,
 } from '@kanbun/skam';
 import { getDefaultStyles } from './styles.js';
@@ -44,6 +46,8 @@ export interface RenderProfile {
   okimoji: boolean;
   joji: boolean;
   soegana: boolean;
+  underline: boolean;
+  label: boolean;
 }
 
 /**
@@ -86,6 +90,8 @@ const FULL_PROFILE: RenderProfile = {
   okimoji: true,
   joji: true,
   soegana: true,
+  underline: true,
+  label: true,
 };
 
 /** 学習用基本プロファイル（返り点のみ） */
@@ -102,6 +108,8 @@ const LEARNING_BASIC_PROFILE: RenderProfile = {
   okimoji: true,
   joji: true,
   soegana: false,
+  underline: true,
+  label: true,
 };
 
 /** 学習用ヒント付きプロファイル（返り点+送り仮名） */
@@ -118,6 +126,8 @@ const LEARNING_HINT_PROFILE: RenderProfile = {
   okimoji: true,
   joji: true,
   soegana: true,
+  underline: true,
+  label: true,
 };
 
 /**
@@ -132,6 +142,22 @@ export const PROFILES = {
 // ============================================================================
 // Unicode Constants
 // ============================================================================
+
+/**
+ * イロハ順（カタカナ）
+ */
+const IROHA_SEQUENCE = 'イロハニホヘトチリヌルヲワカヨタレソツネナラムウヰノオクヤマケフコエテアサキユメミシヱヒモセス';
+
+/**
+ * 丸数字（①〜㊿）
+ */
+const CIRCLED_NUMBERS = [
+  '①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩',
+  '⑪', '⑫', '⑬', '⑭', '⑮', '⑯', '⑰', '⑱', '⑲', '⑳',
+  '㉑', '㉒', '㉓', '㉔', '㉕', '㉖', '㉗', '㉘', '㉙', '㉚',
+  '㉛', '㉜', '㉝', '㉞', '㉟', '㊱', '㊲', '㊳', '㊴', '㊵',
+  '㊶', '㊷', '㊸', '㊹', '㊺', '㊻', '㊼', '㊽', '㊾', '㊿',
+];
 
 /**
  * 返り点のUnicode対応表
@@ -216,6 +242,100 @@ function getTatetenGroups(tokens: Token[], marks: Mark[]): Map<string, TatetenMa
  */
 function convertKaeriToUnicode(value: string): string {
   return KAERI_UNICODE[value] ?? value;
+}
+
+/**
+ * インデックスをフォーマットに従って文字列化
+ */
+function formatLabelIndex(index: number, format: LabelMark['format']): string {
+  switch (format) {
+    case 'alpha-upper':
+      return `(${String.fromCharCode(65 + index)})`;  // A=65
+    case 'alpha-lower':
+      return `(${String.fromCharCode(97 + index)})`;  // a=97
+    case 'numeric':
+      return `(${index + 1})`;
+    case 'circled':
+      return CIRCLED_NUMBERS[index] ?? `(${index + 1})`;
+    case 'iroha':
+      return `(${IROHA_SEQUENCE[index] ?? String(index + 1)})`;
+    default:
+      return `(${index + 1})`;
+  }
+}
+
+/**
+ * ドキュメント内のLabelMarkを解決してマップを生成
+ */
+function resolveLabelValues(marks: Mark[]): Map<LabelMark, string> {
+  const labelMarks = marks.filter((m): m is LabelMark => m.type === 'label');
+  const result = new Map<LabelMark, string>();
+
+  // format指定ありのラベルをフォーマット別にグループ化
+  const formatGroups = new Map<string, LabelMark[]>();
+
+  for (const label of labelMarks) {
+    if (label.format) {
+      const group = formatGroups.get(label.format) ?? [];
+      group.push(label);
+      formatGroups.set(label.format, group);
+    } else if (label.value) {
+      // formatなしの場合はvalueをそのまま使用
+      result.set(label, label.value);
+    }
+  }
+
+  // 各フォーマットグループ内でインデックスを割り当て
+  for (const [format, labels] of formatGroups) {
+    const valueToIndex = new Map<string, number>();
+    let nextIndex = 0;
+
+    for (const label of labels) {
+      let index: number;
+
+      if (label.value !== undefined) {
+        // valueありの場合：同一valueは同一インデックス
+        const existingIndex = valueToIndex.get(label.value);
+        if (existingIndex !== undefined) {
+          index = existingIndex;
+        } else {
+          index = nextIndex++;
+          valueToIndex.set(label.value, index);
+        }
+      } else {
+        // valueなしの場合：単純にインクリメント
+        index = nextIndex++;
+      }
+
+      result.set(label, formatLabelIndex(index, format as LabelMark['format']));
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Underline Markの範囲に含まれるTokenを特定
+ */
+function getUnderlineGroups(tokens: Token[], marks: Mark[]): Map<string, UnderlineMark> {
+  const underlineMarks = marks.filter((m): m is UnderlineMark => m.type === 'underline');
+  const tokenIdToGroup = new Map<string, UnderlineMark>();
+
+  for (const underline of underlineMarks) {
+    const fromIndex = tokens.findIndex((t) => t.id === underline.anchor.from);
+    const toIndex = tokens.findIndex((t) => t.id === underline.anchor.to);
+
+    if (fromIndex !== -1 && toIndex !== -1) {
+      for (let i = fromIndex; i <= toIndex; i++) {
+        const token = tokens[i];
+        if (token) {
+          tokenIdToGroup.set(token.id, underline);
+        }
+      }
+    }
+  }
+
+  return tokenIdToGroup;
 }
 
 // ============================================================================
@@ -483,46 +603,138 @@ function renderDisplayLayer(doc: SKAMDocument, prefix: string, profile: RenderPr
   // たて点グループを特定
   const tatetenGroups = getTatetenGroups(tokens, marks);
 
+  // 傍線グループを特定
+  const underlineGroups = profile.underline ? getUnderlineGroups(tokens, marks) : new Map();
+
+  // ラベル値を事前計算
+  const labelValues = profile.label ? resolveLabelValues(marks) : new Map();
+
   // トークンをグループ化してレンダリング
   const renderedTokens: string[] = [];
   let currentTatetenGroup: TatetenMark | undefined;
+  let currentUnderlineGroup: UnderlineMark | undefined;
   let groupTokens: string[] = [];
+  let underlineTokens: string[] = [];
 
   for (let i = 0; i < tokens.length; i++) {
     const token = tokens[i]!;
     const tokenGroup = tatetenGroups.get(token.id);
-    const tokenHtml = renderToken(token, marks, ctx);
+    const underlineGroup = underlineGroups.get(token.id);
+    let tokenHtml = renderToken(token, marks, ctx);
 
-    if (profile.tateten && tokenGroup) {
-      // たて点グループ内
-      if (currentTatetenGroup !== tokenGroup) {
-        // 新しいグループ開始（前のグループがあれば閉じる）
+    // ラベルを追加（このトークンに紐づくラベル）
+    if (profile.label) {
+      const tokenMarks = getMarksForToken(token.id, marks);
+      const tokenLabelMarks = (tokenMarks.get('label') ?? []) as LabelMark[];
+      if (tokenLabelMarks.length > 0) {
+        const labelHtml = tokenLabelMarks
+          .map((m) => {
+            const labelText = labelValues.get(m) ?? m.value ?? '';
+            const dataAttrs = m.format ? ` data-format="${m.format}"` : '';
+            return `<span class="${prefix}-label"${dataAttrs}>${escapeHtml(labelText)}</span>`;
+          })
+          .join('');
+        tokenHtml += labelHtml;
+      }
+    }
+
+    // 傍線グループ処理
+    if (profile.underline && underlineGroup) {
+      if (currentUnderlineGroup !== underlineGroup) {
+        // 新しい傍線グループ開始（前のグループがあれば閉じる）
+        if (currentUnderlineGroup && underlineTokens.length > 0) {
+          const style = currentUnderlineGroup.style ?? 'solid';
+          renderedTokens.push(
+            `<span class="${prefix}-underline" data-style="${style}">${underlineTokens.join('')}</span>`
+          );
+          underlineTokens = [];
+        }
+        currentUnderlineGroup = underlineGroup;
+      }
+      // 傍線グループ内のトークンを蓄積（たて点処理も考慮）
+      if (profile.tateten && tokenGroup) {
+        if (currentTatetenGroup !== tokenGroup) {
+          if (currentTatetenGroup && groupTokens.length > 0) {
+            underlineTokens.push(
+              `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
+            );
+            groupTokens = [];
+          }
+          currentTatetenGroup = tokenGroup;
+        }
+        groupTokens.push(tokenHtml);
+      } else {
+        if (currentTatetenGroup && groupTokens.length > 0) {
+          underlineTokens.push(
+            `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
+          );
+          groupTokens = [];
+          currentTatetenGroup = undefined;
+        }
+        underlineTokens.push(tokenHtml);
+      }
+    } else {
+      // 傍線グループ外
+      // 前の傍線グループを閉じる
+      if (currentUnderlineGroup && underlineTokens.length > 0) {
+        // たて点グループも閉じる
+        if (currentTatetenGroup && groupTokens.length > 0) {
+          underlineTokens.push(
+            `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
+          );
+          groupTokens = [];
+          currentTatetenGroup = undefined;
+        }
+        const style = currentUnderlineGroup.style ?? 'solid';
+        renderedTokens.push(
+          `<span class="${prefix}-underline" data-style="${style}">${underlineTokens.join('')}</span>`
+        );
+        underlineTokens = [];
+        currentUnderlineGroup = undefined;
+      }
+
+      // たて点グループ処理
+      if (profile.tateten && tokenGroup) {
+        if (currentTatetenGroup !== tokenGroup) {
+          if (currentTatetenGroup && groupTokens.length > 0) {
+            renderedTokens.push(
+              `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
+            );
+            groupTokens = [];
+          }
+          currentTatetenGroup = tokenGroup;
+        }
+        groupTokens.push(tokenHtml);
+      } else {
         if (currentTatetenGroup && groupTokens.length > 0) {
           renderedTokens.push(
             `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
           );
           groupTokens = [];
+          currentTatetenGroup = undefined;
         }
-        currentTatetenGroup = tokenGroup;
+        renderedTokens.push(tokenHtml);
       }
-      groupTokens.push(tokenHtml);
-    } else {
-      // たて点グループ外
-      if (currentTatetenGroup && groupTokens.length > 0) {
-        renderedTokens.push(
-          `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
-        );
-        groupTokens = [];
-        currentTatetenGroup = undefined;
-      }
-      renderedTokens.push(tokenHtml);
     }
   }
 
   // 最後のグループを閉じる
   if (currentTatetenGroup && groupTokens.length > 0) {
+    if (currentUnderlineGroup) {
+      underlineTokens.push(
+        `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
+      );
+    } else {
+      renderedTokens.push(
+        `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
+      );
+    }
+  }
+
+  if (currentUnderlineGroup && underlineTokens.length > 0) {
+    const style = currentUnderlineGroup.style ?? 'solid';
     renderedTokens.push(
-      `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
+      `<span class="${prefix}-underline" data-style="${style}">${underlineTokens.join('')}</span>`
     );
   }
 

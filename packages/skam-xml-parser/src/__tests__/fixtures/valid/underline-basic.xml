@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1">
+  <skam:body>
+    <skam:block>
+      <skam:underline>重要語句</skam:underline>
+    </skam:block>
+  </skam:body>
+</skam:doc>

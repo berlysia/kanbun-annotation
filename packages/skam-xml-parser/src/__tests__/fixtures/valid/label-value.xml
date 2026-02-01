@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1">
+  <skam:body>
+    <skam:block>
+      傍線部<skam:label value="(A)"/>を訳せ。
+      傍線部<skam:label value="(B)"/>を訳せ。
+      傍線部<skam:label value="※"/>は重要。
+    </skam:block>
+  </skam:body>
+</skam:doc>

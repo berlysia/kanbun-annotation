@@ -568,6 +568,246 @@ describe('getDefaultStyles', () => {
   });
 });
 
+describe('underline', () => {
+  it('should render underline mark', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '重' },
+        { id: 't2', text: '要' },
+      ],
+      marks: [
+        {
+          type: 'underline',
+          anchor: { from: 't1', to: 't2' },
+        },
+      ],
+      readings: [],
+    };
+
+    const result = render(doc);
+
+    expect(result.html).toContain('skam-underline');
+    expect(result.html).toContain('data-style="solid"');
+  });
+
+  it('should render underline with style', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '波' },
+        { id: 't2', text: '線' },
+      ],
+      marks: [
+        {
+          type: 'underline',
+          anchor: { from: 't1', to: 't2' },
+          style: 'wavy',
+        },
+      ],
+      readings: [],
+    };
+
+    const result = render(doc);
+
+    expect(result.html).toContain('skam-underline');
+    expect(result.html).toContain('data-style="wavy"');
+  });
+
+  it('should not render underline when profile.underline is false', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '重' },
+        { id: 't2', text: '要' },
+      ],
+      marks: [
+        {
+          type: 'underline',
+          anchor: { from: 't1', to: 't2' },
+        },
+      ],
+      readings: [],
+    };
+
+    const result = render(doc, { profile: { underline: false } });
+
+    expect(result.html).not.toContain('skam-underline');
+  });
+});
+
+describe('label', () => {
+  it('should render label with value', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '語' }],
+      marks: [
+        {
+          type: 'label',
+          anchor: { from: 't1', to: 't1' },
+          value: '(A)',
+        },
+      ],
+      readings: [],
+    };
+
+    const result = render(doc);
+
+    expect(result.html).toContain('skam-label');
+    expect(result.html).toContain('(A)');
+  });
+
+  it('should render label with format', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '一' },
+        { id: 't2', text: '二' },
+      ],
+      marks: [
+        {
+          type: 'label',
+          anchor: { from: 't1', to: 't1' },
+          format: 'alpha-upper',
+        },
+        {
+          type: 'label',
+          anchor: { from: 't2', to: 't2' },
+          format: 'alpha-upper',
+        },
+      ],
+      readings: [],
+    };
+
+    const result = render(doc);
+
+    expect(result.html).toContain('(A)');
+    expect(result.html).toContain('(B)');
+    expect(result.html).toContain('data-format="alpha-upper"');
+  });
+
+  it('should render label with iroha format', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '一' },
+        { id: 't2', text: '二' },
+        { id: 't3', text: '三' },
+      ],
+      marks: [
+        {
+          type: 'label',
+          anchor: { from: 't1', to: 't1' },
+          format: 'iroha',
+        },
+        {
+          type: 'label',
+          anchor: { from: 't2', to: 't2' },
+          format: 'iroha',
+        },
+        {
+          type: 'label',
+          anchor: { from: 't3', to: 't3' },
+          format: 'iroha',
+        },
+      ],
+      readings: [],
+    };
+
+    const result = render(doc);
+
+    expect(result.html).toContain('(イ)');
+    expect(result.html).toContain('(ロ)');
+    expect(result.html).toContain('(ハ)');
+  });
+
+  it('should render label with circled format', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '一' },
+        { id: 't2', text: '二' },
+      ],
+      marks: [
+        {
+          type: 'label',
+          anchor: { from: 't1', to: 't1' },
+          format: 'circled',
+        },
+        {
+          type: 'label',
+          anchor: { from: 't2', to: 't2' },
+          format: 'circled',
+        },
+      ],
+      readings: [],
+    };
+
+    const result = render(doc);
+
+    expect(result.html).toContain('①');
+    expect(result.html).toContain('②');
+  });
+
+  it('should reuse same index for same value', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '一' },
+        { id: 't2', text: '二' },
+        { id: 't3', text: '三' },
+      ],
+      marks: [
+        {
+          type: 'label',
+          anchor: { from: 't1', to: 't1' },
+          value: 'x',
+          format: 'alpha-upper',
+        },
+        {
+          type: 'label',
+          anchor: { from: 't2', to: 't2' },
+          value: 'y',
+          format: 'alpha-upper',
+        },
+        {
+          type: 'label',
+          anchor: { from: 't3', to: 't3' },
+          value: 'x',
+          format: 'alpha-upper',
+        },
+      ],
+      readings: [],
+    };
+
+    const result = render(doc);
+
+    // First and third should have same label (A), second should have (B)
+    const matches = result.html.match(/\(A\)/g);
+    expect(matches).toHaveLength(2);
+  });
+
+  it('should not render label when profile.label is false', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '語' }],
+      marks: [
+        {
+          type: 'label',
+          anchor: { from: 't1', to: 't1' },
+          value: '(A)',
+        },
+      ],
+      readings: [],
+    };
+
+    const result = render(doc, { profile: { label: false } });
+
+    expect(result.html).not.toContain('skam-label');
+    expect(result.html).not.toContain('(A)');
+  });
+});
+
 describe('PROFILES', () => {
   it('should have full profile with all elements enabled', () => {
     expect(PROFILES.full.yomigana).toBe(true);
@@ -581,6 +821,8 @@ describe('PROFILES', () => {
     expect(PROFILES.full.okimoji).toBe(true);
     expect(PROFILES.full.joji).toBe(true);
     expect(PROFILES.full.soegana).toBe(true);
+    expect(PROFILES.full.underline).toBe(true);
+    expect(PROFILES.full.label).toBe(true);
   });
 
   it('should have learningBasic profile with minimal elements', () => {
@@ -588,6 +830,8 @@ describe('PROFILES', () => {
     expect(PROFILES.learningBasic.okurigana).toBe(false);
     expect(PROFILES.learningBasic.kaeriten).toBe(true);
     expect(PROFILES.learningBasic.kutoten).toBe(true);
+    expect(PROFILES.learningBasic.underline).toBe(true);
+    expect(PROFILES.learningBasic.label).toBe(true);
   });
 
   it('should have learningHint profile with helpful elements', () => {
@@ -595,6 +839,8 @@ describe('PROFILES', () => {
     expect(PROFILES.learningHint.okurigana).toBe(true);
     expect(PROFILES.learningHint.kaeriten).toBe(true);
     expect(PROFILES.learningHint.soegana).toBe(true);
+    expect(PROFILES.learningHint.underline).toBe(true);
+    expect(PROFILES.learningHint.label).toBe(true);
   });
 });
 

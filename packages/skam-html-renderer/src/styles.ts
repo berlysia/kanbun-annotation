@@ -211,5 +211,51 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
   font-weight: bold;
   margin-right: 0.5em;
 }
+
+/*
+ * Underline (傍線) - 教育用途
+ *
+ * text-decoration を使用して傍線を表示。
+ * 縦書きでは右側（text-underline-position: right）に表示。
+ * これは漢文の傍線部が従来右側に引かれる慣習に従う。
+ * 横書きでは下側に表示される。
+ */
+.${prefix}-underline {
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 0.1em;
+  ${isVertical ? 'text-underline-position: right;' : ''}
+}
+
+.${prefix}-underline[data-style="solid"] {
+  text-decoration-style: solid;
+}
+
+.${prefix}-underline[data-style="dotted"] {
+  text-decoration-style: dotted;
+}
+
+.${prefix}-underline[data-style="dashed"] {
+  text-decoration-style: dashed;
+}
+
+.${prefix}-underline[data-style="wavy"] {
+  text-decoration-style: wavy;
+}
+
+.${prefix}-underline[data-style="double"] {
+  text-decoration-style: double;
+}
+
+/*
+ * Label (番号振り) - 教育用途
+ *
+ * 傍線部の識別子や注番号として表示。
+ * 上付き文字として配置。
+ */
+.${prefix}-label {
+  font-size: 0.7em;
+  vertical-align: super;
+}
 `.trim();
 }

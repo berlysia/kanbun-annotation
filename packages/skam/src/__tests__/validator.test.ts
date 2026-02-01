@@ -73,12 +73,104 @@ describe('validateSKAMDocument', () => {
             shape: 'dot',
           },
           { type: 'tateten', anchor: { from: 't1', to: 't1' } },
+          { type: 'underline', anchor: { from: 't1', to: 't1' } },
+          { type: 'label', anchor: { from: 't1', to: 't1' }, value: '(A)' },
         ],
         readings: [],
       };
 
       const result = validateSKAMDocument(doc);
       expect(result.valid).toBe(true);
+    });
+
+    it('should validate underline with all optional fields', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        marks: [
+          { type: 'underline', anchor: { from: 't1', to: 't1' }, style: 'wavy', group: 'a' },
+        ],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(true);
+    });
+
+    it('should validate label with value only', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        marks: [
+          { type: 'label', anchor: { from: 't1', to: 't1' }, value: '(A)' },
+        ],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(true);
+    });
+
+    it('should validate label with format only', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        marks: [
+          { type: 'label', anchor: { from: 't1', to: 't1' }, format: 'alpha-upper' },
+        ],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(true);
+    });
+
+    it('should validate label with both value and format', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        marks: [
+          { type: 'label', anchor: { from: 't1', to: 't1' }, value: 'a', format: 'alpha-upper', group: 'a' },
+        ],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(true);
+    });
+
+    it('should validate all underline styles', () => {
+      const styles = ['solid', 'dotted', 'dashed', 'wavy', 'double'] as const;
+      for (const style of styles) {
+        const doc: SKAMDocument = {
+          format: 'skam@0.1',
+          tokens: [{ id: 't1', text: '學' }],
+          marks: [
+            { type: 'underline', anchor: { from: 't1', to: 't1' }, style },
+          ],
+          readings: [],
+        };
+
+        const result = validateSKAMDocument(doc);
+        expect(result.valid).toBe(true);
+      }
+    });
+
+    it('should validate all label formats', () => {
+      const formats = ['alpha-upper', 'alpha-lower', 'numeric', 'circled', 'iroha'] as const;
+      for (const format of formats) {
+        const doc: SKAMDocument = {
+          format: 'skam@0.1',
+          tokens: [{ id: 't1', text: '學' }],
+          marks: [
+            { type: 'label', anchor: { from: 't1', to: 't1' }, format },
+          ],
+          readings: [],
+        };
+
+        const result = validateSKAMDocument(doc);
+        expect(result.valid).toBe(true);
+      }
     });
 
     it('should validate kutoten with kind field', () => {
@@ -465,6 +557,57 @@ describe('validateSKAMDocument', () => {
       expect(result.valid).toBe(false);
       if (!result.valid) {
         expect(result.errors.some((e) => e.path === 'marks[0].kind')).toBe(true);
+      }
+    });
+
+    it('should reject underline with invalid style', () => {
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        marks: [
+          { type: 'underline', anchor: { from: 't1', to: 't1' }, style: 'invalid' },
+        ],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.path === 'marks[0].style')).toBe(true);
+      }
+    });
+
+    it('should reject label without value and format', () => {
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        marks: [
+          { type: 'label', anchor: { from: 't1', to: 't1' } },
+        ],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.message.includes('value or format'))).toBe(true);
+      }
+    });
+
+    it('should reject label with invalid format', () => {
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        marks: [
+          { type: 'label', anchor: { from: 't1', to: 't1' }, format: 'invalid' },
+        ],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.path === 'marks[0].format')).toBe(true);
       }
     });
   });

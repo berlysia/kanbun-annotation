@@ -332,6 +332,87 @@ describe('parse - valid fixtures', () => {
     });
   });
 
+  describe('underline-basic.xml', () => {
+    it('should parse underline element', () => {
+      const xml = readFixture('valid', 'underline-basic.xml');
+      const doc = parse(xml);
+
+      const underlineMarks = doc.marks.filter((m) => m.type === 'underline');
+      expect(underlineMarks).toHaveLength(1);
+
+      const mark = underlineMarks[0]!;
+      expect(mark.anchor.from).not.toBe(mark.anchor.to);
+    });
+  });
+
+  describe('underline-style.xml', () => {
+    it('should parse underline with style attributes', () => {
+      const xml = readFixture('valid', 'underline-style.xml');
+      const doc = parse(xml);
+
+      const underlineMarks = doc.marks.filter((m) => m.type === 'underline');
+      expect(underlineMarks.length).toBeGreaterThanOrEqual(5);
+
+      const styles = underlineMarks.map((m) => (m as { style?: string }).style);
+      expect(styles).toContain('solid');
+      expect(styles).toContain('wavy');
+      expect(styles).toContain('double');
+      expect(styles).toContain('dotted');
+      expect(styles).toContain('dashed');
+    });
+  });
+
+  describe('label-value.xml', () => {
+    it('should parse label with value attribute', () => {
+      const xml = readFixture('valid', 'label-value.xml');
+      const doc = parse(xml);
+
+      const labelMarks = doc.marks.filter((m) => m.type === 'label');
+      expect(labelMarks.length).toBeGreaterThanOrEqual(3);
+
+      const values = labelMarks.map((m) => (m as { value?: string }).value);
+      expect(values).toContain('(A)');
+      expect(values).toContain('(B)');
+      expect(values).toContain('※');
+    });
+  });
+
+  describe('label-format.xml', () => {
+    it('should parse label with format attribute', () => {
+      const xml = readFixture('valid', 'label-format.xml');
+      const doc = parse(xml);
+
+      const labelMarks = doc.marks.filter((m) => m.type === 'label');
+      expect(labelMarks.length).toBeGreaterThanOrEqual(4);
+
+      const formats = labelMarks.map((m) => (m as { format?: string }).format);
+      expect(formats).toContain('alpha-upper');
+      expect(formats).toContain('circled');
+      expect(formats).toContain('iroha');
+    });
+  });
+
+  describe('underline-label-combined.xml', () => {
+    it('should parse underline and label with group', () => {
+      const xml = readFixture('valid', 'underline-label-combined.xml');
+      const doc = parse(xml);
+
+      const underlineMarks = doc.marks.filter((m) => m.type === 'underline');
+      const labelMarks = doc.marks.filter((m) => m.type === 'label');
+
+      expect(underlineMarks).toHaveLength(1);
+      expect(labelMarks).toHaveLength(1);
+
+      const underline = underlineMarks[0]!;
+      const label = labelMarks[0]!;
+
+      expect((underline as { group?: string }).group).toBe('a');
+      expect((label as { group?: string }).group).toBe('a');
+      expect((label as { value?: string }).value).toBe('a');
+      expect((label as { format?: string }).format).toBe('alpha-upper');
+    });
+  });
+
   describe('all valid fixtures produce valid SKAMDocument', () => {
     const validFixtures = [
       'minimal.xml',
@@ -354,6 +435,11 @@ describe('parse - valid fixtures', () => {
       'readings.xml',
       'meta-tokenization.xml',
       'multiple-blocks.xml',
+      'underline-basic.xml',
+      'underline-style.xml',
+      'label-value.xml',
+      'label-format.xml',
+      'underline-label-combined.xml',
     ];
 
     for (const fixture of validFixtures) {

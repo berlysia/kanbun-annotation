@@ -95,7 +95,9 @@ export type MarkType =
   | 'note'
   | 'saidoku'
   | 'okototen'
-  | 'tateten';
+  | 'tateten'
+  | 'underline'
+  | 'label';
 
 /**
  * 注記の基底構造
@@ -217,6 +219,32 @@ export interface TatetenMark extends BaseMark {
   type: 'tateten';
 }
 
+/** 傍線スタイル */
+export type UnderlineStyle = 'solid' | 'dotted' | 'dashed' | 'wavy' | 'double';
+
+/** 傍線（教育用途、テストの傍線部指示等） */
+export interface UnderlineMark extends BaseMark {
+  type: 'underline';
+  /** 傍線スタイル */
+  style?: UnderlineStyle;
+  /** labelとの関連付け用グループ識別子（メタデータ、レンダリングには影響しない） */
+  group?: string;
+}
+
+/** 番号振りフォーマット */
+export type LabelFormat = 'alpha-upper' | 'alpha-lower' | 'numeric' | 'circled' | 'iroha';
+
+/** 番号振り（教育用途、傍線部の識別子等） */
+export interface LabelMark extends BaseMark {
+  type: 'label';
+  /** 識別用文字列（format指定時は表示に使わない、省略可） */
+  value?: string;
+  /** 番号フォーマット（format指定時は登場順で自動番号） */
+  format?: LabelFormat;
+  /** underlineとの関連付け用グループ識別子（メタデータ、レンダリングには影響しない） */
+  group?: string;
+}
+
 /** すべての注記型 */
 export type Mark =
   | KaeriMark
@@ -230,7 +258,9 @@ export type Mark =
   | NoteMark
   | SaidokuMark
   | OkototenMark
-  | TatetenMark;
+  | TatetenMark
+  | UnderlineMark
+  | LabelMark;
 
 // ============================================================================
 // Derivations

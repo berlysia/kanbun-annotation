@@ -24,6 +24,10 @@ import type {
   OkototenMark,
   TatetenMark,
   GlyphGridCoord,
+  UnderlineMark,
+  UnderlineStyle,
+  LabelMark,
+  LabelFormat,
 } from '@kanbun/skam';
 
 // ============================================================================
@@ -46,6 +50,9 @@ const KAERI_VALUE_MAP: Record<KaeriKind, string> = {
   ko: '甲',
   otsu: '乙',
 };
+
+const VALID_UNDERLINE_STYLES = ['solid', 'dotted', 'dashed', 'wavy', 'double'] as const;
+const VALID_LABEL_FORMATS = ['alpha-upper', 'alpha-lower', 'numeric', 'circled', 'iroha'] as const;
 
 // ============================================================================
 // Error Types
@@ -516,6 +523,80 @@ function processRef(element: Element, state: ParserState, precedingTokenId: stri
   state.marks.push(mark);
 }
 
+function processUnderline(element: Element, state: ParserState): string[] {
+  const styleAttr = getAttr(element, 'style');
+  const group = getAttr(element, 'group');
+
+  // Process children to get tokens
+  const tokenIds = processBlockChildren(element, state);
+
+  if (tokenIds.length === 0) {
+    throw new SKAMXMLParseError('<skam:underline> must contain content');
+  }
+
+  const mark: UnderlineMark = {
+    type: 'underline',
+    id: generateMarkId(state),
+    anchor: createAnchor(tokenIds),
+  };
+
+  if (styleAttr) {
+    if (!VALID_UNDERLINE_STYLES.includes(styleAttr as (typeof VALID_UNDERLINE_STYLES)[number])) {
+      throw new SKAMXMLParseError(
+        `Invalid underline style '${styleAttr}'. Valid styles: ${VALID_UNDERLINE_STYLES.join(', ')}`
+      );
+    }
+    mark.style = styleAttr as UnderlineStyle;
+  }
+
+  if (group) {
+    mark.group = group;
+  }
+
+  state.marks.push(mark);
+  return tokenIds;
+}
+
+function processLabel(element: Element, state: ParserState, precedingTokenId: string | null): void {
+  const value = getAttr(element, 'value');
+  const formatAttr = getAttr(element, 'format');
+  const group = getAttr(element, 'group');
+
+  // Either value or format must be present
+  if (!value && !formatAttr) {
+    throw new SKAMXMLParseError('<skam:label> requires either value or format attribute');
+  }
+
+  if (!precedingTokenId) {
+    throw new SKAMXMLParseError('<skam:label> requires a preceding token');
+  }
+
+  const mark: LabelMark = {
+    type: 'label',
+    id: generateMarkId(state),
+    anchor: { from: precedingTokenId, to: precedingTokenId },
+  };
+
+  if (value) {
+    mark.value = value;
+  }
+
+  if (formatAttr) {
+    if (!VALID_LABEL_FORMATS.includes(formatAttr as (typeof VALID_LABEL_FORMATS)[number])) {
+      throw new SKAMXMLParseError(
+        `Invalid label format '${formatAttr}'. Valid formats: ${VALID_LABEL_FORMATS.join(', ')}`
+      );
+    }
+    mark.format = formatAttr as LabelFormat;
+  }
+
+  if (group) {
+    mark.group = group;
+  }
+
+  state.marks.push(mark);
+}
+
 // ============================================================================
 // Block Processing
 // ============================================================================
@@ -602,6 +683,15 @@ function processBlockChildren(element: Element, state: ParserState): string[] {
         }
         case 'ref':
           processRef(child, state, lastTokenId);
+          break;
+        case 'underline': {
+          const ids = processUnderline(child, state);
+          allTokenIds.push(...ids);
+          if (ids.length > 0) lastTokenId = ids[ids.length - 1]!;
+          break;
+        }
+        case 'label':
+          processLabel(child, state, lastTokenId);
           break;
         default:
           // Unknown elements are ignored per spec

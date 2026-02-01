@@ -39,7 +39,12 @@ const VALID_MARK_TYPES: MarkType[] = [
   'saidoku',
   'okototen',
   'tateten',
+  'underline',
+  'label',
 ];
+
+const VALID_UNDERLINE_STYLES = ['solid', 'dotted', 'dashed', 'wavy', 'double'] as const;
+const VALID_LABEL_FORMATS = ['alpha-upper', 'alpha-lower', 'numeric', 'circled', 'iroha'] as const;
 
 const VALID_READING_KINDS: ReadingKind[] = ['kundoku', 'kakikudashi', 'yomiage'];
 
@@ -439,6 +444,94 @@ function validateMark(mark: unknown, index: number, errors: ValidationError[]): 
 
       case 'tateten':
         // No additional required fields
+        break;
+
+      case 'underline':
+        // style is optional but must be valid if present
+        if ('style' in mark && mark['style'] !== undefined) {
+          if (!VALID_UNDERLINE_STYLES.includes(mark['style'] as (typeof VALID_UNDERLINE_STYLES)[number])) {
+            errors.push(
+              createValidationError(
+                'INVALID_VALUE',
+                `${path}.style`,
+                `underline style must be one of: ${VALID_UNDERLINE_STYLES.join(', ')}`,
+                VALID_UNDERLINE_STYLES.join('|'),
+                mark['style']
+              )
+            );
+            valid = false;
+          }
+        }
+        // group is optional string
+        if ('group' in mark && mark['group'] !== undefined && !isString(mark['group'])) {
+          errors.push(
+            createValidationError(
+              'INVALID_TYPE',
+              `${path}.group`,
+              'group must be a string if provided',
+              'string',
+              typeof mark['group']
+            )
+          );
+          valid = false;
+        }
+        break;
+
+      case 'label':
+        // Either value or format must be present (at least one)
+        if (!('value' in mark) && !('format' in mark)) {
+          errors.push(
+            createValidationError(
+              'MISSING_FIELD',
+              `${path}`,
+              'label requires either value or format (or both)',
+              'value or format',
+              'neither'
+            )
+          );
+          valid = false;
+        }
+        // value is optional but must be string if present
+        if ('value' in mark && mark['value'] !== undefined && !isString(mark['value'])) {
+          errors.push(
+            createValidationError(
+              'INVALID_TYPE',
+              `${path}.value`,
+              'value must be a string if provided',
+              'string',
+              typeof mark['value']
+            )
+          );
+          valid = false;
+        }
+        // format is optional but must be valid if present
+        if ('format' in mark && mark['format'] !== undefined) {
+          if (!VALID_LABEL_FORMATS.includes(mark['format'] as (typeof VALID_LABEL_FORMATS)[number])) {
+            errors.push(
+              createValidationError(
+                'INVALID_VALUE',
+                `${path}.format`,
+                `label format must be one of: ${VALID_LABEL_FORMATS.join(', ')}`,
+                VALID_LABEL_FORMATS.join('|'),
+                mark['format']
+              )
+            );
+            valid = false;
+          }
+        }
+        // group is optional string
+        if ('group' in mark && mark['group'] !== undefined && !isString(mark['group'])) {
+          errors.push(
+            createValidationError(
+              'INVALID_TYPE',
+              `${path}.group`,
+              'group must be a string if provided',
+              'string',
+              typeof mark['group']
+            )
+          );
+          valid = false;
+        }
         break;
     }
   }

@@ -441,6 +441,7 @@ describe('parse - valid fixtures', () => {
       'label-value.xml',
       'label-format.xml',
       'underline-label-combined.xml',
+      'readme-example.xml',
     ];
 
     for (const fixture of validFixtures) {

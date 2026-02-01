@@ -1,11 +1,3 @@
-了解。では **HTML互換は Ruby の意味互換のみに限定**し、
-**本文構造は純粋な SKAM 語彙で完結する XML**として、
-**SKAM-ML/XML v0.1 を再構成**する。
-
-以下は **差分ではなく、読めばそのまま使える再構成版仕様案**。
-
----
-
 # SKAM-ML/XML
 
 ## Stand-off Kanbun Annotation Model – Markup Language (XML)

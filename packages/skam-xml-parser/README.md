@@ -18,25 +18,17 @@ pnpm add @kanbun/skam-xml-parser
 import { parse } from '@kanbun/skam-xml-parser';
 
 const xml = `
-<skam xmlns="https://kanbun.example/ns/skam/0.1">
-  <text>
-    <c id="t1">学</c>
-    <c id="t2">而</c>
-    <c id="t3">時</c>
-    <c id="t4">習</c>
-    <c id="t5">之</c>
-  </text>
-  <marks>
-    <okurigana for="t1">びて</okurigana>
-    <okurigana for="t3">に</okurigana>
-    <soegana for="t5">を</soegana>
-    <okurigana for="t4">ふ</okurigana>
-    <kaeri for="t5">レ</kaeri>
-  </marks>
-  <readings>
-    <kakikudashi>学びて時に之を習ふ</kakikudashi>
-  </readings>
-</skam>
+<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:kun yomi="まな" okuri="びて">學</skam:kun><skam:okimoji>而</skam:okimoji>時<skam:kaeri kind="re"/><skam:kun soe="を">之</skam:kun><skam:kun okuri="ふ">習</skam:kun>
+    </skam:block>
+  </skam:body>
+  <skam:readings>
+    <skam:reading kind="kakikudashi">学びて時に之を習ふ</skam:reading>
+  </skam:readings>
+</skam:doc>
 `;
 
 const doc = parse(xml);
@@ -48,42 +40,100 @@ const doc = parse(xml);
 ### ルート要素
 
 ```xml
-<skam xmlns="https://kanbun.example/ns/skam/0.1">
-  <text>...</text>
-  <marks>...</marks>
-  <readings>...</readings>
-</skam>
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>...</skam:body>
+  <skam:readings>...</skam:readings>
+  <skam:notes>...</skam:notes>
+</skam:doc>
 ```
 
-### 本文 (`<text>`)
+### 本文 (`<skam:body>`)
 
 ```xml
-<text>
-  <c id="t1">学</c>      <!-- 単一文字 -->
-  <c id="t2">而</c>
-</text>
+<skam:body>
+  <skam:block>學而時習之</skam:block>
+  <skam:block>不亦説乎</skam:block>
+</skam:body>
 ```
 
-### 注記 (`<marks>`)
+### 訓読注記（インライン）
 
 ```xml
-<marks>
-  <kaeri for="t1">レ</kaeri>
-  <okurigana for="t1">びて</okurigana>
-  <yomigana for="t1">がく</yomigana>
-  <soegana for="t1">を</soegana>
-  <okimoji for="t1" />
-  <kutoten for="t1">。</kutoten>
-</marks>
+<skam:block>
+  <!-- 訓（読み仮名+送り仮名） -->
+  <skam:kun yomi="まな" okuri="びて">學</skam:kun>
+
+  <!-- 読み仮名のみ -->
+  <skam:yomigana value="がく">學</skam:yomigana>
+
+  <!-- 送り仮名のみ -->
+  <skam:kun okuri="びて">學</skam:kun>
+
+  <!-- 添え仮名（助詞など） -->
+  <skam:kun soe="を">之</skam:kun>
+
+  <!-- 置字（読まない文字） -->
+  <skam:okimoji>而</skam:okimoji>
+
+  <!-- 返り点 -->
+  <skam:kaeri kind="re"/>      <!-- レ点 -->
+  <skam:kaeri kind="ichi"/>    <!-- 一 -->
+  <skam:kaeri kind="ni"/>      <!-- 二 -->
+  <skam:kaeri kind="san"/>     <!-- 三 -->
+  <skam:kaeri kind="jo"/>      <!-- 上 -->
+  <skam:kaeri kind="chu"/>     <!-- 中 -->
+  <skam:kaeri kind="ge"/>      <!-- 下 -->
+  <skam:kaeri kind="ko"/>      <!-- 甲 -->
+  <skam:kaeri kind="otsu"/>    <!-- 乙 -->
+
+  <!-- 句読点 -->
+  <skam:kutoten value="。" kind="ku"/>
+  <skam:kutoten value="、" kind="ten"/>
+</skam:block>
 ```
 
-### 読み層 (`<readings>`)
+### 再読文字
 
 ```xml
-<readings>
-  <kakikudashi>書き下し文テキスト</kakikudashi>
-  <yomiage>読み上げ用テキスト</yomiage>
-</readings>
+<skam:saidoku>
+  <skam:base>將</skam:base>
+  <skam:kunform n="1" yomi="まさ" okuri="に"/>
+  <skam:kunform n="2" okuri="す"/>
+</skam:saidoku>
+```
+
+### その他の注記
+
+```xml
+<!-- たて点（熟語境界） -->
+<skam:tateten>國家</skam:tateten>
+
+<!-- 傍点 -->
+<skam:span type="emphasis" kind="dot">學而時</skam:span>
+
+<!-- ヲコト点 -->
+<skam:okototen grid="5x5" x="4" y="4" shape="dot" sound="り">國</skam:okototen>
+```
+
+### 注釈 (`<skam:notes>`)
+
+```xml
+<skam:body>
+  <skam:block>學而時習之<skam:ref target="#n1"/></skam:block>
+</skam:body>
+<skam:notes>
+  <skam:note xml:id="n1">「之」は目的語として読む。</skam:note>
+</skam:notes>
+```
+
+### 読み層 (`<skam:readings>`)
+
+```xml
+<skam:readings>
+  <skam:reading kind="kundoku">学びて時に之を習ふ</skam:reading>
+  <skam:reading kind="kakikudashi">学びて時にこれを習ふ</skam:reading>
+  <skam:reading kind="yomiage">まなびて ときに これを ならう</skam:reading>
+</skam:readings>
 ```
 
 ## エラーハンドリング

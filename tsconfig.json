@@ -3,7 +3,8 @@
   "files": [],
   "references": [
     { "path": "packages/skam" },
-    { "path": "packages/skam-markdown" },
-    { "path": "packages/skam-xml" }
+    { "path": "packages/skam-xml-parser" },
+    { "path": "packages/skam-html-renderer" },
+    { "path": "packages/playground" }
   ]
 }

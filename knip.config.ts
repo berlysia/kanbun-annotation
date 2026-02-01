@@ -5,21 +5,24 @@ const config: KnipConfig = {
     '.': {
       entry: [],
       project: [],
+      vitest: false,
     },
     'packages/skam': {
-      entry: ['src/index.ts'],
       project: ['src/**/*.ts'],
     },
-    'packages/skam-markdown': {
-      entry: ['src/index.ts'],
+    'packages/skam-xml-parser': {
       project: ['src/**/*.ts'],
     },
-    'packages/skam-xml': {
-      entry: ['src/index.ts'],
+    'packages/skam-html-renderer': {
+      project: ['src/**/*.ts'],
+    },
+    'packages/playground': {
+      entry: ['src/main.ts', 'index.html'],
       project: ['src/**/*.ts'],
     },
   },
   ignore: ['**/*.test.ts', '**/*.spec.ts'],
+  ignoreExportsUsedInFile: true,
 };
 
 export default config;

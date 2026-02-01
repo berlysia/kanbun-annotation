@@ -34,8 +34,20 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
+      - name: Lint
+        run: pnpm lint
+
+      - name: Format check
+        run: pnpm format:check
+
+      - name: Type check
+        run: pnpm typecheck
+
       - name: Build packages
         run: pnpm build
+
+      - name: Test
+        run: pnpm test:run
 
       - name: Build playground
         run: pnpm --filter @kanbun/playground build

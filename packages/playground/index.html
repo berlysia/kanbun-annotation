@@ -64,6 +64,50 @@
             </div>
           </div>
           <div id="render-output"></div>
+          <details class="customize-panel">
+            <summary>CSSカスタマイズ</summary>
+            <div class="customize-options">
+              <div class="customize-group">
+                <label>
+                  返り点の色
+                  <input type="color" id="color-kaeriten" value="#000000" />
+                </label>
+                <label>
+                  ルビの色
+                  <input type="color" id="color-ruby" value="#000000" />
+                </label>
+                <label>
+                  傍点の色
+                  <input type="color" id="color-emphasis" value="#000000" />
+                </label>
+              </div>
+              <div class="customize-group">
+                <label>
+                  フォント
+                  <select id="font-family">
+                    <option value="'Noto Serif JP', serif" selected>Noto Serif JP</option>
+                    <option value="inherit">継承</option>
+                    <option value="'Yu Mincho', 'YuMincho', serif">游明朝</option>
+                    <option value="'Hiragino Mincho ProN', serif">ヒラギノ明朝</option>
+                    <option value="'MS Mincho', serif">MS 明朝</option>
+                  </select>
+                </label>
+              </div>
+              <div class="customize-group">
+                <label>
+                  ルビサイズ
+                  <input type="range" id="ruby-font-size" min="0.3" max="0.8" step="0.05" value="0.5" />
+                  <span id="ruby-font-size-value">0.5em</span>
+                </label>
+                <label>
+                  行間
+                  <input type="range" id="line-height" min="1.5" max="3" step="0.1" value="2" />
+                  <span id="line-height-value">2</span>
+                </label>
+              </div>
+              <button id="reset-customize-btn" type="button" class="reset-btn">リセット</button>
+            </div>
+          </details>
         </div>
       </section>
 

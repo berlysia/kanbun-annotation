@@ -245,6 +245,114 @@ body {
   height: 100%;
 }
 
+/* Customize Panel */
+.customize-panel {
+  margin-top: auto;
+  border-top: 1px solid var(--color-border);
+}
+
+.customize-panel summary {
+  padding: 0.5rem 1rem;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  user-select: none;
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.customize-panel summary::-webkit-details-marker {
+  display: none;
+}
+
+.customize-panel summary::before {
+  content: '▶';
+  font-size: 0.5rem;
+  transition: transform 0.2s;
+}
+
+.customize-panel[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.customize-panel summary:hover {
+  background-color: #fafafa;
+}
+
+.customize-options {
+  padding: 0.75rem 1rem;
+  background-color: #fafafa;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  align-items: flex-end;
+}
+
+.customize-group {
+  display: flex;
+  gap: 1rem;
+}
+
+.customize-group label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--color-text-secondary);
+}
+
+.customize-group label:has(input[type="range"]) {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.customize-group input[type="color"] {
+  width: 2rem;
+  height: 1.5rem;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.customize-group select {
+  font-size: 0.75rem;
+  padding: 0.25rem 0.5rem;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  background-color: white;
+  cursor: pointer;
+}
+
+.customize-group input[type="range"] {
+  width: 80px;
+  cursor: pointer;
+}
+
+.customize-group span {
+  font-size: 0.625rem;
+  color: var(--color-text-secondary);
+  min-width: 3em;
+  text-align: right;
+}
+
+.reset-btn {
+  padding: 0.25rem 0.75rem;
+  font-size: 0.75rem;
+  background-color: transparent;
+  border: 1px solid var(--color-border);
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.reset-btn:hover {
+  background-color: #f0f0f0;
+}
+
 /* Details Panel (collapsible) */
 .details-panel {
   background-color: var(--color-surface);

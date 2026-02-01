@@ -23,11 +23,41 @@ const copyHtmlBtn = document.getElementById('copy-html-btn') as HTMLButtonElemen
 const writingModeRadios = document.querySelectorAll<HTMLInputElement>('input[name="writing-mode"]');
 const inlineModeCheckbox = document.getElementById('inline-mode') as HTMLInputElement;
 
+// CSS Customize elements
+const colorKaeritenInput = document.getElementById('color-kaeriten') as HTMLInputElement;
+const colorRubyInput = document.getElementById('color-ruby') as HTMLInputElement;
+const colorEmphasisInput = document.getElementById('color-emphasis') as HTMLInputElement;
+const fontFamilySelect = document.getElementById('font-family') as HTMLSelectElement;
+const rubyFontSizeInput = document.getElementById('ruby-font-size') as HTMLInputElement;
+const rubyFontSizeValue = document.getElementById('ruby-font-size-value') as HTMLSpanElement;
+const lineHeightInput = document.getElementById('line-height') as HTMLInputElement;
+const lineHeightValue = document.getElementById('line-height-value') as HTMLSpanElement;
+const resetCustomizeBtn = document.getElementById('reset-customize-btn') as HTMLButtonElement;
+
 // ============================================================================
 // State
 // ============================================================================
 
 let currentDocument: SKAMDocument | null = null;
+
+// CSS Customize state
+interface CustomizeState {
+  colorKaeriten: string;
+  colorRuby: string;
+  colorEmphasis: string;
+  fontFamily: string;
+  rubyFontSize: string;
+  lineHeight: string;
+}
+
+const DEFAULT_CUSTOMIZE_STATE: CustomizeState = {
+  colorKaeriten: '#000000',
+  colorRuby: '#000000',
+  colorEmphasis: '#000000',
+  fontFamily: "'Noto Serif JP', serif",
+  rubyFontSize: '0.5',
+  lineHeight: '2',
+};
 
 // ============================================================================
 // URL State Management
@@ -106,6 +136,55 @@ function showError(message: string): void {
 
 function hideError(): void {
   errorMessage.classList.remove('visible');
+}
+
+function getCustomizeState(): CustomizeState {
+  return {
+    colorKaeriten: colorKaeritenInput.value,
+    colorRuby: colorRubyInput.value,
+    colorEmphasis: colorEmphasisInput.value,
+    fontFamily: fontFamilySelect.value,
+    rubyFontSize: rubyFontSizeInput.value,
+    lineHeight: lineHeightInput.value,
+  };
+}
+
+function updateRangeDisplays(): void {
+  rubyFontSizeValue.textContent = `${rubyFontSizeInput.value}em`;
+  lineHeightValue.textContent = lineHeightInput.value;
+}
+
+function applyCustomStyles(): void {
+  const state = getCustomizeState();
+  const styleId = 'skam-playground-customize';
+  let styleEl = document.getElementById(styleId) as HTMLStyleElement | null;
+  if (!styleEl) {
+    styleEl = document.createElement('style');
+    styleEl.id = styleId;
+    document.head.appendChild(styleEl);
+  }
+
+  // Apply CSS Variables to override defaults
+  const css = `.skam-document {
+  --skam-color-kaeriten: ${state.colorKaeriten};
+  --skam-color-ruby: ${state.colorRuby};
+  --skam-color-emphasis: ${state.colorEmphasis};
+  --skam-font-family: ${state.fontFamily};
+  --skam-ruby-font-size: ${state.rubyFontSize}em;
+  --skam-line-height: ${state.lineHeight};
+}`;
+  styleEl.textContent = css;
+  updateRangeDisplays();
+}
+
+function resetCustomize(): void {
+  colorKaeritenInput.value = DEFAULT_CUSTOMIZE_STATE.colorKaeriten;
+  colorRubyInput.value = DEFAULT_CUSTOMIZE_STATE.colorRuby;
+  colorEmphasisInput.value = DEFAULT_CUSTOMIZE_STATE.colorEmphasis;
+  fontFamilySelect.value = DEFAULT_CUSTOMIZE_STATE.fontFamily;
+  rubyFontSizeInput.value = DEFAULT_CUSTOMIZE_STATE.rubyFontSize;
+  lineHeightInput.value = DEFAULT_CUSTOMIZE_STATE.lineHeight;
+  applyCustomStyles();
 }
 
 function getWritingMode(): 'vertical' | 'horizontal' {
@@ -267,6 +346,15 @@ inlineModeCheckbox.addEventListener('change', () => {
   }
 });
 
+// CSS Customize
+colorKaeritenInput.addEventListener('input', applyCustomStyles);
+colorRubyInput.addEventListener('input', applyCustomStyles);
+colorEmphasisInput.addEventListener('input', applyCustomStyles);
+fontFamilySelect.addEventListener('change', applyCustomStyles);
+rubyFontSizeInput.addEventListener('input', applyCustomStyles);
+lineHeightInput.addEventListener('input', applyCustomStyles);
+resetCustomizeBtn.addEventListener('click', resetCustomize);
+
 // ============================================================================
 // Initialize
 // ============================================================================
@@ -284,3 +372,6 @@ inlineModeCheckbox.checked = initialState.inline;
 
 // Load sample (without updating URL since we're restoring from URL)
 loadSample(initialState.sample, false);
+
+// Apply initial customize styles
+applyCustomStyles();

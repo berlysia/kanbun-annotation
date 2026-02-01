@@ -52,8 +52,7 @@ function getStateFromURL(): URLState {
   }
 
   const modeStr = params.get('mode');
-  const mode: 'vertical' | 'horizontal' =
-    modeStr === 'horizontal' ? 'horizontal' : 'vertical';
+  const mode: 'vertical' | 'horizontal' = modeStr === 'horizontal' ? 'horizontal' : 'vertical';
 
   const inlineStr = params.get('inline');
   const inline = inlineStr === '1';

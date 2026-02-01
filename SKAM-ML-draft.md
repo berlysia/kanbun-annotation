@@ -131,6 +131,7 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
   <skam:block>時習之</skam:block>
 </skam:body>
 ```
+
 → tokens: `[{id:"t0", text:"學"}, {id:"t1", text:"而"}, {id:"t2", text:"時"}, {id:"t3", text:"習"}, {id:"t4", text:"之"}]`
 
 ---
@@ -333,6 +334,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 #### 競合時の扱い
 
 同一 token に `skam:kun` の `soe` 属性と単独の `skam:soegana` 要素が重複する場合:
+
 - パーサーは警告を出してもよい
 - `skam:kun` の `soe` 属性を**優先**する
 
@@ -460,10 +462,10 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 
 #### 属性
 
-| 属性    | 必須 | 説明                                               |
-| ------- | ---- | -------------------------------------------------- |
+| 属性    | 必須 | 説明                                                |
+| ------- | ---- | --------------------------------------------------- |
 | `style` | 任意 | 傍線スタイル（solid, dotted, dashed, wavy, double） |
-| `group` | 任意 | ラベルとの関連付けグループID                       |
+| `group` | 任意 | ラベルとの関連付けグループID                        |
 
 ※ style の値一覧は SKAM 仕様 5.7節を参照。
 

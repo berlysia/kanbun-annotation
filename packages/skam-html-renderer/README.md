@@ -26,9 +26,7 @@ const doc: SKAMDocument = {
     { id: 't1', text: '学' },
     { id: 't2', text: '而' },
   ],
-  marks: [
-    { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'びて' },
-  ],
+  marks: [{ type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'びて' }],
   readings: [],
 };
 

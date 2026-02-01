@@ -25,12 +25,8 @@ const doc: SKAMDocument = {
     { id: 't1', text: '学' },
     { id: 't2', text: '而' },
   ],
-  marks: [
-    { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'びて' },
-  ],
-  readings: [
-    { kind: 'kakikudashi', text: '学びて' },
-  ],
+  marks: [{ type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'びて' }],
+  readings: [{ kind: 'kakikudashi', text: '学びて' }],
 };
 ```
 
@@ -58,29 +54,29 @@ assertSKAMDocument(input);
 
 ## Mark Types
 
-| type        | 説明                           |
-| ----------- | ------------------------------ |
-| `kaeri`     | 返り点                         |
-| `okurigana` | 送り仮名                       |
-| `yomigana`  | 読み仮名（ルビ）               |
-| `soegana`   | 添え仮名（助詞補完）           |
-| `okimoji`   | 置字（訓読時に読まない）       |
-| `joji`      | 助字（文法ラベル）             |
-| `kutoten`   | 句読点                         |
-| `emphasis`  | 傍点・圏点                     |
-| `note`      | 注釈                           |
-| `saidoku`   | 再読文字                       |
-| `okototen`  | ヲコト点                       |
-| `tateten`   | たて点（熟語境界）             |
-| `underline` | 傍線（教育用途）               |
-| `label`     | 番号振り（教育用途）           |
+| type        | 説明                     |
+| ----------- | ------------------------ |
+| `kaeri`     | 返り点                   |
+| `okurigana` | 送り仮名                 |
+| `yomigana`  | 読み仮名（ルビ）         |
+| `soegana`   | 添え仮名（助詞補完）     |
+| `okimoji`   | 置字（訓読時に読まない） |
+| `joji`      | 助字（文法ラベル）       |
+| `kutoten`   | 句読点                   |
+| `emphasis`  | 傍点・圏点               |
+| `note`      | 注釈                     |
+| `saidoku`   | 再読文字                 |
+| `okototen`  | ヲコト点                 |
+| `tateten`   | たて点（熟語境界）       |
+| `underline` | 傍線（教育用途）         |
+| `label`     | 番号振り（教育用途）     |
 
 ## Reading Kinds
 
-| kind          | 説明              |
-| ------------- | ----------------- |
-| `kundoku`     | 訓読文            |
-| `kakikudashi` | 書き下し文        |
+| kind          | 説明               |
+| ------------- | ------------------ |
+| `kundoku`     | 訓読文             |
+| `kakikudashi` | 書き下し文         |
 | `yomiage`     | 読み上げ用テキスト |
 
 ## 関連パッケージ

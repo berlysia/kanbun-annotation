@@ -87,9 +87,7 @@ describe('validateSKAMDocument', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [
-          { type: 'underline', anchor: { from: 't1', to: 't1' }, style: 'wavy', group: 'a' },
-        ],
+        marks: [{ type: 'underline', anchor: { from: 't1', to: 't1' }, style: 'wavy', group: 'a' }],
         readings: [],
       };
 
@@ -101,9 +99,7 @@ describe('validateSKAMDocument', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [
-          { type: 'label', anchor: { from: 't1', to: 't1' }, value: '(A)' },
-        ],
+        marks: [{ type: 'label', anchor: { from: 't1', to: 't1' }, value: '(A)' }],
         readings: [],
       };
 
@@ -115,9 +111,7 @@ describe('validateSKAMDocument', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [
-          { type: 'label', anchor: { from: 't1', to: 't1' }, format: 'alpha-upper' },
-        ],
+        marks: [{ type: 'label', anchor: { from: 't1', to: 't1' }, format: 'alpha-upper' }],
         readings: [],
       };
 
@@ -130,7 +124,13 @@ describe('validateSKAMDocument', () => {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
         marks: [
-          { type: 'label', anchor: { from: 't1', to: 't1' }, value: 'a', format: 'alpha-upper', group: 'a' },
+          {
+            type: 'label',
+            anchor: { from: 't1', to: 't1' },
+            value: 'a',
+            format: 'alpha-upper',
+            group: 'a',
+          },
         ],
         readings: [],
       };
@@ -145,9 +145,7 @@ describe('validateSKAMDocument', () => {
         const doc: SKAMDocument = {
           format: 'skam@0.1',
           tokens: [{ id: 't1', text: '學' }],
-          marks: [
-            { type: 'underline', anchor: { from: 't1', to: 't1' }, style },
-          ],
+          marks: [{ type: 'underline', anchor: { from: 't1', to: 't1' }, style }],
           readings: [],
         };
 
@@ -162,9 +160,7 @@ describe('validateSKAMDocument', () => {
         const doc: SKAMDocument = {
           format: 'skam@0.1',
           tokens: [{ id: 't1', text: '學' }],
-          marks: [
-            { type: 'label', anchor: { from: 't1', to: 't1' }, format },
-          ],
+          marks: [{ type: 'label', anchor: { from: 't1', to: 't1' }, format }],
           readings: [],
         };
 
@@ -564,9 +560,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [
-          { type: 'underline', anchor: { from: 't1', to: 't1' }, style: 'invalid' },
-        ],
+        marks: [{ type: 'underline', anchor: { from: 't1', to: 't1' }, style: 'invalid' }],
         readings: [],
       };
 
@@ -581,9 +575,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [
-          { type: 'label', anchor: { from: 't1', to: 't1' } },
-        ],
+        marks: [{ type: 'label', anchor: { from: 't1', to: 't1' } }],
         readings: [],
       };
 
@@ -598,9 +590,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [
-          { type: 'label', anchor: { from: 't1', to: 't1' }, format: 'invalid' },
-        ],
+        marks: [{ type: 'label', anchor: { from: 't1', to: 't1' }, format: 'invalid' }],
         readings: [],
       };
 

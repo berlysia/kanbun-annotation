@@ -44,7 +44,17 @@ const VALID_MARK_TYPES: MarkType[] = [
 ];
 
 const VALID_UNDERLINE_STYLES = ['solid', 'dotted', 'dashed', 'wavy', 'double'] as const;
-const VALID_LABEL_FORMATS = ['alpha-upper', 'alpha-lower', 'numeric', 'circled', 'iroha', 'iroha-hiragana', 'gojuon', 'gojuon-hiragana', 'kanji-numeric'] as const;
+const VALID_LABEL_FORMATS = [
+  'alpha-upper',
+  'alpha-lower',
+  'numeric',
+  'circled',
+  'iroha',
+  'iroha-hiragana',
+  'gojuon',
+  'gojuon-hiragana',
+  'kanji-numeric',
+] as const;
 
 const VALID_READING_KINDS: ReadingKind[] = ['kundoku', 'kakikudashi', 'yomiage'];
 
@@ -449,7 +459,11 @@ function validateMark(mark: unknown, index: number, errors: ValidationError[]): 
       case 'underline':
         // style is optional but must be valid if present
         if ('style' in mark && mark['style'] !== undefined) {
-          if (!VALID_UNDERLINE_STYLES.includes(mark['style'] as (typeof VALID_UNDERLINE_STYLES)[number])) {
+          if (
+            !VALID_UNDERLINE_STYLES.includes(
+              mark['style'] as (typeof VALID_UNDERLINE_STYLES)[number]
+            )
+          ) {
             errors.push(
               createValidationError(
                 'INVALID_VALUE',
@@ -506,7 +520,9 @@ function validateMark(mark: unknown, index: number, errors: ValidationError[]): 
         }
         // format is optional but must be valid if present
         if ('format' in mark && mark['format'] !== undefined) {
-          if (!VALID_LABEL_FORMATS.includes(mark['format'] as (typeof VALID_LABEL_FORMATS)[number])) {
+          if (
+            !VALID_LABEL_FORMATS.includes(mark['format'] as (typeof VALID_LABEL_FORMATS)[number])
+          ) {
             errors.push(
               createValidationError(
                 'INVALID_VALUE',

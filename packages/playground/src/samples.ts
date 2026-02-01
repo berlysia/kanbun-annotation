@@ -217,7 +217,8 @@ export const SAMPLES: Sample[] = [
   },
   {
     name: 'ラベル（フォーマット一覧）',
-    description: 'ラベルの各フォーマット（大文字・小文字・数字・丸数字・イロハ・五十音・漢数字）の例',
+    description:
+      'ラベルの各フォーマット（大文字・小文字・数字・丸数字・イロハ・五十音・漢数字）の例',
     xml: `<?xml version="1.0" encoding="UTF-8"?>
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>

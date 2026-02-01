@@ -270,15 +270,19 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
 }
 
 .${prefix}-underline[data-style="dotted"] {
-  ${isVertical
+  ${
+    isVertical
       ? 'box-shadow: none; background-image: linear-gradient(to bottom, currentColor 2px, transparent 2px); background-size: 1px 4px; background-repeat: repeat-y; background-position: right;'
-      : 'box-shadow: none; background-image: linear-gradient(to right, currentColor 2px, transparent 2px); background-size: 4px 1px; background-repeat: repeat-x; background-position: bottom;'}
+      : 'box-shadow: none; background-image: linear-gradient(to right, currentColor 2px, transparent 2px); background-size: 4px 1px; background-repeat: repeat-x; background-position: bottom;'
+  }
 }
 
 .${prefix}-underline[data-style="dashed"] {
-  ${isVertical
+  ${
+    isVertical
       ? 'box-shadow: none; background-image: linear-gradient(to bottom, currentColor 4px, transparent 4px); background-size: 1px 8px; background-repeat: repeat-y; background-position: right;'
-      : 'box-shadow: none; background-image: linear-gradient(to right, currentColor 4px, transparent 4px); background-size: 8px 1px; background-repeat: repeat-x; background-position: bottom;'}
+      : 'box-shadow: none; background-image: linear-gradient(to right, currentColor 4px, transparent 4px); background-size: 8px 1px; background-repeat: repeat-x; background-position: bottom;'
+  }
 }
 
 .${prefix}-underline[data-style="wavy"] {
@@ -288,9 +292,11 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
    * 縦書き: 右側に縦方向の波線（幅4px、周期8px）
    * 横書き: 下側に横方向の波線（周期8px、高さ4px）
    */
-  ${isVertical
+  ${
+    isVertical
       ? `box-shadow: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='8' viewBox='0 0 4 8'%3E%3Cpath d='M3 0 Q0 4 3 8' stroke='%23333' fill='none' stroke-width='1'/%3E%3C/svg%3E"); background-size: 4px 8px; background-repeat: repeat-y; background-position: right;`
-      : `box-shadow: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='4' viewBox='0 0 8 4'%3E%3Cpath d='M0 3 Q4 0 8 3' stroke='%23333' fill='none' stroke-width='1'/%3E%3C/svg%3E"); background-size: 8px 4px; background-repeat: repeat-x; background-position: bottom;`}
+      : `box-shadow: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='4' viewBox='0 0 8 4'%3E%3Cpath d='M0 3 Q4 0 8 3' stroke='%23333' fill='none' stroke-width='1'/%3E%3C/svg%3E"); background-size: 8px 4px; background-repeat: repeat-x; background-position: bottom;`
+  }
 }
 
 .${prefix}-underline[data-style="double"] {
@@ -303,9 +309,7 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
   content: '';
   position: absolute;
   background-color: currentColor;
-  ${isVertical
-      ? 'top: 0; bottom: 0; width: 1px;'
-      : 'left: 0; right: 0; height: 1px;'}
+  ${isVertical ? 'top: 0; bottom: 0; width: 1px;' : 'left: 0; right: 0; height: 1px;'}
 }
 
 .${prefix}-underline[data-style="double"]::before {
@@ -335,9 +339,11 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
 /* underline内のラベルは絶対配置（傍線の開始位置に配置） */
 .${prefix}-underline .${prefix}-label {
   position: absolute;
-  ${isVertical
+  ${
+    isVertical
       ? 'inset-inline-start: 0; inset-block-start: -1.5em;'
-      : 'inset-inline-start: 0; inset-block-end: -1.5em;'}
+      : 'inset-inline-start: 0; inset-block-end: -1.5em;'
+  }
   vertical-align: baseline;
   white-space: nowrap;
 }

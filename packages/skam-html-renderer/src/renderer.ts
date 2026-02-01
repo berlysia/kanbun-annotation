@@ -148,22 +148,26 @@ export const PROFILES = {
 /**
  * イロハ順（カタカナ）
  */
-const IROHA_SEQUENCE = 'イロハニホヘトチリヌルヲワカヨタレソツネナラムウヰノオクヤマケフコエテアサキユメミシヱヒモセス';
+const IROHA_SEQUENCE =
+  'イロハニホヘトチリヌルヲワカヨタレソツネナラムウヰノオクヤマケフコエテアサキユメミシヱヒモセス';
 
 /**
  * イロハ順（ひらがな）
  */
-const IROHA_HIRAGANA_SEQUENCE = 'いろはにほへとちりぬるをわかよたれそつねならむうゐのおくやまけふこえてあさきゆめみしゑひもせす';
+const IROHA_HIRAGANA_SEQUENCE =
+  'いろはにほへとちりぬるをわかよたれそつねならむうゐのおくやまけふこえてあさきゆめみしゑひもせす';
 
 /**
  * 五十音順（カタカナ）
  */
-const GOJUON_SEQUENCE = 'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
+const GOJUON_SEQUENCE =
+  'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
 
 /**
  * 五十音順（ひらがな）
  */
-const GOJUON_HIRAGANA_SEQUENCE = 'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん';
+const GOJUON_HIRAGANA_SEQUENCE =
+  'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん';
 
 /**
  * 漢数字
@@ -174,11 +178,56 @@ const KANJI_NUMBERS = ['一', '二', '三', '四', '五', '六', '七', '八', '
  * 丸数字（①〜㊿）
  */
 const CIRCLED_NUMBERS = [
-  '①', '②', '③', '④', '⑤', '⑥', '⑦', '⑧', '⑨', '⑩',
-  '⑪', '⑫', '⑬', '⑭', '⑮', '⑯', '⑰', '⑱', '⑲', '⑳',
-  '㉑', '㉒', '㉓', '㉔', '㉕', '㉖', '㉗', '㉘', '㉙', '㉚',
-  '㉛', '㉜', '㉝', '㉞', '㉟', '㊱', '㊲', '㊳', '㊴', '㊵',
-  '㊶', '㊷', '㊸', '㊹', '㊺', '㊻', '㊼', '㊽', '㊾', '㊿',
+  '①',
+  '②',
+  '③',
+  '④',
+  '⑤',
+  '⑥',
+  '⑦',
+  '⑧',
+  '⑨',
+  '⑩',
+  '⑪',
+  '⑫',
+  '⑬',
+  '⑭',
+  '⑮',
+  '⑯',
+  '⑰',
+  '⑱',
+  '⑲',
+  '⑳',
+  '㉑',
+  '㉒',
+  '㉓',
+  '㉔',
+  '㉕',
+  '㉖',
+  '㉗',
+  '㉘',
+  '㉙',
+  '㉚',
+  '㉛',
+  '㉜',
+  '㉝',
+  '㉞',
+  '㉟',
+  '㊱',
+  '㊲',
+  '㊳',
+  '㊴',
+  '㊵',
+  '㊶',
+  '㊷',
+  '㊸',
+  '㊹',
+  '㊺',
+  '㊻',
+  '㊼',
+  '㊽',
+  '㊾',
+  '㊿',
 ];
 
 /**
@@ -361,9 +410,9 @@ function shouldApplyTateChuYoko(text: string): boolean {
 function formatLabelIndex(index: number, format: LabelMark['format']): string {
   switch (format) {
     case 'alpha-upper':
-      return `(${String.fromCharCode(65 + index)})`;  // A=65
+      return `(${String.fromCharCode(65 + index)})`; // A=65
     case 'alpha-lower':
-      return `(${String.fromCharCode(97 + index)})`;  // a=97
+      return `(${String.fromCharCode(97 + index)})`; // a=97
     case 'numeric':
       return `(${index + 1})`;
     case 'circled':
@@ -601,15 +650,15 @@ function renderToken(
 
   // 送り仮名（再読文字の場合はformsから取得）
   // 再読文字の場合: 第1読みは右側（通常の送り仮名位置）、第2読みは左側（返り点位置）
-  let saidokuOkuri1 = '';  // 第1読みの送り仮名（右側）
-  let saidokuOkuri2 = '';  // 第2読みの送り仮名（左側、返り点と同じ位置）
+  let saidokuOkuri1 = ''; // 第1読みの送り仮名（右側）
+  let saidokuOkuri2 = ''; // 第2読みの送り仮名（左側、返り点と同じ位置）
   let okurigana = '';
   if (profile.okurigana) {
     if (saidokuMark && profile.saidoku) {
       // 再読文字の場合: formsから送り仮名を取得
       for (const form of saidokuMark.forms) {
         if (form.okuri) {
-          const n = form.n ?? (saidokuMark.forms.indexOf(form) + 1);
+          const n = form.n ?? saidokuMark.forms.indexOf(form) + 1;
           const okuriHtml = `<span class="${prefix}-okuri" data-saidoku-n="${n}">${escapeHtml(form.okuri)}</span>`;
           if (n === 1) {
             saidokuOkuri1 = okuriHtml;
@@ -658,17 +707,15 @@ function renderToken(
   // col1(右): 送り仮名・添え仮名、再読1回目送り仮名
   // col2(中央): 返り点
   // col3(左): 再読2回目送り仮名
-  const suffixRight = saidokuOkuri1 || okurigana + soegana;  // 右列
-  const suffixCenter = kaeriten;                              // 中央列
-  const suffixLeft = saidokuOkuri2;                           // 左列
+  const suffixRight = saidokuOkuri1 || okurigana + soegana; // 右列
+  const suffixCenter = kaeriten; // 中央列
+  const suffixLeft = saidokuOkuri2; // 左列
 
   const hasSuffix = suffixRight || suffixCenter || suffixLeft;
   const suffixRowHtml = hasSuffix
     ? `<span class="${prefix}-suffix-row">${
         suffixRight ? `<span class="${prefix}-suffix-right">${suffixRight}</span>` : ''
-      }${
-        suffixCenter ? `<span class="${prefix}-suffix-center">${suffixCenter}</span>` : ''
-      }${
+      }${suffixCenter ? `<span class="${prefix}-suffix-center">${suffixCenter}</span>` : ''}${
         suffixLeft ? `<span class="${prefix}-suffix-left">${suffixLeft}</span>` : ''
       }</span>`
     : '';
@@ -694,7 +741,8 @@ function renderToken(
   let baseHtml: string;
 
   // 範囲グループのベーステキストを決定（優先順位: yomigana > okurigana > soegana）
-  const rangeBaseText = rangeCtx?.yomiganaBaseText ?? rangeCtx?.okuriganaBaseText ?? rangeCtx?.soeganaBaseText;
+  const rangeBaseText =
+    rangeCtx?.yomiganaBaseText ?? rangeCtx?.okuriganaBaseText ?? rangeCtx?.soeganaBaseText;
 
   if (saidokuMark) {
     baseHtml = renderSaidokuToken(token, saidokuMark, fullCtx);
@@ -823,13 +871,19 @@ function renderDisplayLayer(
   const underlineGroups = profile.underline ? getUnderlineGroups(tokens, marks) : new Map();
 
   // 範囲yomiganaグループを特定（熟語ルビ対応）
-  const yomiganaRangeGroups = profile.yomigana ? getRangeMarkGroups(tokens, marks, 'yomigana') : new Map();
+  const yomiganaRangeGroups = profile.yomigana
+    ? getRangeMarkGroups(tokens, marks, 'yomigana')
+    : new Map();
 
   // 範囲okuriganaグループを特定
-  const okuriganaRangeGroups = profile.okurigana ? getRangeMarkGroups(tokens, marks, 'okurigana') : new Map();
+  const okuriganaRangeGroups = profile.okurigana
+    ? getRangeMarkGroups(tokens, marks, 'okurigana')
+    : new Map();
 
   // 範囲soeganaグループを特定
-  const soeganaRangeGroups = profile.soegana ? getRangeMarkGroups(tokens, marks, 'soegana') : new Map();
+  const soeganaRangeGroups = profile.soegana
+    ? getRangeMarkGroups(tokens, marks, 'soegana')
+    : new Map();
 
   // ラベル値を事前計算
   const labelValues = profile.label ? resolveLabelValues(marks) : new Map();
@@ -870,7 +924,9 @@ function renderDisplayLayer(
           for (const m of tLabelMarks) {
             const labelText = labelValues.get(m) ?? m.value ?? '';
             const dataAttrs = m.format ? ` data-format="${m.format}"` : '';
-            const halfWidthClass = shouldApplyTateChuYoko(labelText) ? ` ${prefix}-label--half-width` : '';
+            const halfWidthClass = shouldApplyTateChuYoko(labelText)
+              ? ` ${prefix}-label--half-width`
+              : '';
             labelsInGroup.push(
               `<span class="${prefix}-label${halfWidthClass}"${dataAttrs}>${escapeHtml(labelText)}</span>`
             );
@@ -973,28 +1029,75 @@ function renderDisplayLayer(
 
       let tokenHtml = renderToken(token, marks, ctx, rangeCtx);
 
-    // ラベルを追加（傍線グループ外のトークンに紐づくラベルのみ）
-    if (profile.label && !underlineGroup) {
-      const tokenMarks = getMarksForToken(token.id, marks);
-      const tokenLabelMarks = (tokenMarks.get('label') ?? []) as LabelMark[];
-      if (tokenLabelMarks.length > 0) {
-        const labelHtml = tokenLabelMarks
-          .map((m) => {
-            const labelText = labelValues.get(m) ?? m.value ?? '';
-            const dataAttrs = m.format ? ` data-format="${m.format}"` : '';
-            const halfWidthClass = shouldApplyTateChuYoko(labelText) ? ` ${prefix}-label--half-width` : '';
-            return `<span class="${prefix}-label${halfWidthClass}"${dataAttrs}>${escapeHtml(labelText)}</span>`;
-          })
-          .join('');
-        tokenHtml += labelHtml;
+      // ラベルを追加（傍線グループ外のトークンに紐づくラベルのみ）
+      if (profile.label && !underlineGroup) {
+        const tokenMarks = getMarksForToken(token.id, marks);
+        const tokenLabelMarks = (tokenMarks.get('label') ?? []) as LabelMark[];
+        if (tokenLabelMarks.length > 0) {
+          const labelHtml = tokenLabelMarks
+            .map((m) => {
+              const labelText = labelValues.get(m) ?? m.value ?? '';
+              const dataAttrs = m.format ? ` data-format="${m.format}"` : '';
+              const halfWidthClass = shouldApplyTateChuYoko(labelText)
+                ? ` ${prefix}-label--half-width`
+                : '';
+              return `<span class="${prefix}-label${halfWidthClass}"${dataAttrs}>${escapeHtml(labelText)}</span>`;
+            })
+            .join('');
+          tokenHtml += labelHtml;
+        }
       }
-    }
 
-    // 傍線グループ処理
-    if (profile.underline && underlineGroup) {
-      if (currentUnderlineGroup !== underlineGroup) {
-        // 新しい傍線グループ開始（前のグループがあれば閉じる）
+      // 傍線グループ処理
+      if (profile.underline && underlineGroup) {
+        if (currentUnderlineGroup !== underlineGroup) {
+          // 新しい傍線グループ開始（前のグループがあれば閉じる）
+          if (currentUnderlineGroup && underlineTokens.length > 0) {
+            const style = currentUnderlineGroup.style ?? 'solid';
+            const labelsHtml = collectLabelsForUnderline(currentUnderlineGroup);
+            const hasRuby = hasYomiganaInUnderline(currentUnderlineGroup);
+            const rubyClass = hasRuby ? ` ${prefix}-underline--has-ruby` : '';
+            renderedTokens.push(
+              `<span class="${prefix}-underline${rubyClass}" data-style="${style}">${underlineTokens.join('')}${labelsHtml}</span>`
+            );
+            underlineTokens = [];
+          }
+          currentUnderlineGroup = underlineGroup;
+        }
+        // 傍線グループ内のトークンを蓄積（たて点処理も考慮）
+        if (profile.tateten && tokenGroup) {
+          if (currentTatetenGroup !== tokenGroup) {
+            if (currentTatetenGroup && groupTokens.length > 0) {
+              underlineTokens.push(
+                `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
+              );
+              groupTokens = [];
+            }
+            currentTatetenGroup = tokenGroup;
+          }
+          groupTokens.push(tokenHtml);
+        } else {
+          if (currentTatetenGroup && groupTokens.length > 0) {
+            underlineTokens.push(
+              `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
+            );
+            groupTokens = [];
+            currentTatetenGroup = undefined;
+          }
+          underlineTokens.push(tokenHtml);
+        }
+      } else {
+        // 傍線グループ外
+        // 前の傍線グループを閉じる
         if (currentUnderlineGroup && underlineTokens.length > 0) {
+          // たて点グループも閉じる
+          if (currentTatetenGroup && groupTokens.length > 0) {
+            underlineTokens.push(
+              `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
+            );
+            groupTokens = [];
+            currentTatetenGroup = undefined;
+          }
           const style = currentUnderlineGroup.style ?? 'solid';
           const labelsHtml = collectLabelsForUnderline(currentUnderlineGroup);
           const hasRuby = hasYomiganaInUnderline(currentUnderlineGroup);
@@ -1003,78 +1106,33 @@ function renderDisplayLayer(
             `<span class="${prefix}-underline${rubyClass}" data-style="${style}">${underlineTokens.join('')}${labelsHtml}</span>`
           );
           underlineTokens = [];
+          currentUnderlineGroup = undefined;
         }
-        currentUnderlineGroup = underlineGroup;
-      }
-      // 傍線グループ内のトークンを蓄積（たて点処理も考慮）
-      if (profile.tateten && tokenGroup) {
-        if (currentTatetenGroup !== tokenGroup) {
-          if (currentTatetenGroup && groupTokens.length > 0) {
-            underlineTokens.push(
-              `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
-            );
-            groupTokens = [];
-          }
-          currentTatetenGroup = tokenGroup;
-        }
-        groupTokens.push(tokenHtml);
-      } else {
-        if (currentTatetenGroup && groupTokens.length > 0) {
-          underlineTokens.push(
-            `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
-          );
-          groupTokens = [];
-          currentTatetenGroup = undefined;
-        }
-        underlineTokens.push(tokenHtml);
-      }
-    } else {
-      // 傍線グループ外
-      // 前の傍線グループを閉じる
-      if (currentUnderlineGroup && underlineTokens.length > 0) {
-        // たて点グループも閉じる
-        if (currentTatetenGroup && groupTokens.length > 0) {
-          underlineTokens.push(
-            `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
-          );
-          groupTokens = [];
-          currentTatetenGroup = undefined;
-        }
-        const style = currentUnderlineGroup.style ?? 'solid';
-        const labelsHtml = collectLabelsForUnderline(currentUnderlineGroup);
-        const hasRuby = hasYomiganaInUnderline(currentUnderlineGroup);
-        const rubyClass = hasRuby ? ` ${prefix}-underline--has-ruby` : '';
-        renderedTokens.push(
-          `<span class="${prefix}-underline${rubyClass}" data-style="${style}">${underlineTokens.join('')}${labelsHtml}</span>`
-        );
-        underlineTokens = [];
-        currentUnderlineGroup = undefined;
-      }
 
-      // たて点グループ処理
-      if (profile.tateten && tokenGroup) {
-        if (currentTatetenGroup !== tokenGroup) {
+        // たて点グループ処理
+        if (profile.tateten && tokenGroup) {
+          if (currentTatetenGroup !== tokenGroup) {
+            if (currentTatetenGroup && groupTokens.length > 0) {
+              renderedTokens.push(
+                `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
+              );
+              groupTokens = [];
+            }
+            currentTatetenGroup = tokenGroup;
+          }
+          groupTokens.push(tokenHtml);
+        } else {
           if (currentTatetenGroup && groupTokens.length > 0) {
             renderedTokens.push(
               `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
             );
             groupTokens = [];
+            currentTatetenGroup = undefined;
           }
-          currentTatetenGroup = tokenGroup;
+          renderedTokens.push(tokenHtml);
         }
-        groupTokens.push(tokenHtml);
-      } else {
-        if (currentTatetenGroup && groupTokens.length > 0) {
-          renderedTokens.push(
-            `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
-          );
-          groupTokens = [];
-          currentTatetenGroup = undefined;
-        }
-        renderedTokens.push(tokenHtml);
       }
     }
-  }
 
     // 最後のグループを閉じる
     if (currentTatetenGroup && groupTokens.length > 0) {

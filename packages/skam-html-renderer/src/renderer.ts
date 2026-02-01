@@ -229,38 +229,24 @@ interface TokenRenderContext {
 }
 
 /**
- * ルビ付きのToken HTMLを生成
+ * ルビ付きのToken HTMLを生成（読み仮名のみ、送り仮名・添え仮名は含まない）
  *
- * - 読み仮名(yomigana)、送り仮名(okurigana)、添え仮名(soegana)はruby要素のrt内に配置
+ * - 読み仮名(yomigana)はruby要素のrt内に配置（中央揃え）
+ * - 送り仮名・添え仮名はrenderTokenで返り点と一緒にsuffix-lineコンテナにまとめる
  */
 function renderTokenWithRuby(token: Token, ctx: TokenRenderContext): string {
   const { prefix, profile, tokenMarks } = ctx;
 
-  // 読み仮名（ruby要素のrt内に配置）
+  // 読み仮名（ruby要素のrt内に配置、中央揃え）
   const yomiganaMarks = (tokenMarks.get('yomigana') ?? []) as YomiganaMark[];
   const yomigana =
     profile.yomigana && yomiganaMarks.length > 0
       ? yomiganaMarks.map((m) => escapeHtml(m.value)).join('')
       : '';
 
-  // 送り仮名（読み仮名と一緒にrt内に配置）
-  const okuriganaMarks = (tokenMarks.get('okurigana') ?? []) as OkuriganaMark[];
-  const okurigana =
-    profile.okurigana && okuriganaMarks.length > 0
-      ? `<span class="${prefix}-okuri">${okuriganaMarks.map((m) => escapeHtml(m.value)).join('')}</span>`
-      : '';
-
-  // 添え仮名（送り仮名と同じパターンでrt内に配置）
-  const soeganaMarks = (tokenMarks.get('soegana') ?? []) as SoeganaMark[];
-  const soegana =
-    profile.soegana && soeganaMarks.length > 0
-      ? `<span class="${prefix}-soegana">${soeganaMarks.map((m) => escapeHtml(m.value)).join('')}</span>`
-      : '';
-
-  // ルビ（読み仮名 or 送り仮名 or 添え仮名）が必要な場合はruby要素を使用
-  const rtContent = yomigana + okurigana + soegana;
-  if (rtContent) {
-    return `<ruby><rb class="${prefix}-base">${escapeHtml(token.text)}</rb><rt class="${prefix}-ruby">${rtContent}</rt></ruby>`;
+  // ルビ（読み仮名）が必要な場合はruby要素を使用
+  if (yomigana) {
+    return `<ruby><rb class="${prefix}-base">${escapeHtml(token.text)}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>`;
   } else {
     return `<span class="${prefix}-base">${escapeHtml(token.text)}</span>`;
   }
@@ -353,6 +339,20 @@ function renderToken(
   const okototenMarks = (tokenMarks.get('okototen') ?? []) as OkototenMark[];
   const hasOkototen = profile.okototen && okototenMarks.length > 0;
 
+  // 送り仮名
+  const okuriganaMarks = (tokenMarks.get('okurigana') ?? []) as OkuriganaMark[];
+  const okurigana =
+    profile.okurigana && okuriganaMarks.length > 0
+      ? `<span class="${prefix}-okuri">${okuriganaMarks.map((m) => escapeHtml(m.value)).join('')}</span>`
+      : '';
+
+  // 添え仮名
+  const soeganaMarks = (tokenMarks.get('soegana') ?? []) as SoeganaMark[];
+  const soegana =
+    profile.soegana && soeganaMarks.length > 0
+      ? `<span class="${prefix}-soegana">${soeganaMarks.map((m) => escapeHtml(m.value)).join('')}</span>`
+      : '';
+
   // 返り点
   const kaeriMarks = (tokenMarks.get('kaeri') ?? []) as KaeriMark[];
   const kaeriten =
@@ -364,6 +364,17 @@ function renderToken(
           )
           .join('')
       : '';
+
+  // suffix-row: 送り仮名・添え仮名（右）と返り点（左）を同じ行に配置するコンテナ
+  const suffixKanaContent = okurigana + soegana;
+  const hasBothSuffixes = suffixKanaContent && kaeriten;
+  const suffixRow = hasBothSuffixes
+    ? `<span class="${prefix}-suffix-row"><span class="${prefix}-suffix-left">${kaeriten}</span><span class="${prefix}-suffix-right">${suffixKanaContent}</span></span>`
+    : suffixKanaContent
+      ? `<span class="${prefix}-suffix-kana">${suffixKanaContent}</span>`
+      : kaeriten
+        ? `<span class="${prefix}-kaeriten-only">${kaeriten}</span>`
+        : '';
 
   // 句読点
   const kutotenMarks = (tokenMarks.get('kutoten') ?? []) as KutotenMark[];
@@ -415,7 +426,7 @@ function renderToken(
     classes.push(`${prefix}-joji`);
   }
 
-  return `<span class="${classes.join(' ')}" data-token-id="${escapeHtml(token.id)}">${baseHtml}${okototenHtml}${kaeriten}</span>${kutoten}`;
+  return `<span class="${classes.join(' ')}" data-token-id="${escapeHtml(token.id)}">${baseHtml}${okototenHtml}${suffixRow}</span>${kutoten}`;
 }
 
 // ============================================================================

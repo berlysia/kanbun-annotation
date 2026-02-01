@@ -64,14 +64,37 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
   font-size: 0.5em;
 }
 
-/* Okurigana (送り仮名) - ruby内rtに配置 */
-.${prefix}-okuri {
-  font-size: inherit;
+/*
+ * Suffix Row (送り仮名・添え仮名・返り点の配置コンテナ)
+ *
+ * 送り仮名・添え仮名（右）と返り点（左）を同じ行に配置。
+ * フロー内に留まりつつ、開始位置を揃える。
+ */
+.${prefix}-suffix-row {
+  display: inline-grid;
+  font-size: 0.5em;
+  vertical-align: top;
+  ${isVertical ? 'grid-template-rows: auto auto; grid-template-areas: "right" "left";' : 'grid-template-columns: auto auto; grid-template-areas: "left right";'}
 }
 
-/* Soegana (添え仮名) - ruby内rtに配置（okuriganaと同じパターン） */
+/* Suffix Left (返り点を左側に配置) */
+.${prefix}-suffix-left {
+  grid-area: left;
+}
+
+/* Suffix Right (送り仮名・添え仮名を右側に配置) */
+.${prefix}-suffix-right {
+  grid-area: right;
+}
+
+/* Okurigana (送り仮名) */
+.${prefix}-okuri {
+  display: inline;
+}
+
+/* Soegana (添え仮名) */
 .${prefix}-soegana {
-  font-size: inherit;
+  display: inline;
 }
 
 /* Okimoji (置字) - 訓読時に読まない漢字 */
@@ -84,11 +107,21 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
   /* デフォルトでは特別なスタイルなし（必要に応じてカスタマイズ可能） */
 }
 
-/* Kaeriten (返り点) - 縦書き時は右下に配置 */
+/* Kaeriten (返り点) - suffix-row内で左側に配置 */
 .${prefix}-kaeriten {
-  font-size: 0.5em;
   color: inherit;
-  ${isVertical ? 'position: relative; inset-block-end: -1em;' : 'vertical-align: sub;'}
+}
+
+/* Suffix Kana (送り仮名・添え仮名のみの場合) - 右側に配置 */
+.${prefix}-suffix-kana {
+  font-size: 0.5em;
+  vertical-align: top;
+}
+
+/* Kaeriten Only (返り点のみの場合) - 左下に配置 */
+.${prefix}-kaeriten-only {
+  font-size: 0.5em;
+  vertical-align: bottom;
 }
 
 /* Kutoten (句読点) */

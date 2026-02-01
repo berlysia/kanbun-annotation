@@ -86,13 +86,12 @@ describe('render', () => {
 
       expect(result.html).toContain('skam-okuri');
       expect(result.html).toContain('びて');
-      // Okurigana should be inside rt element with yomigana
-      expect(result.html).toMatch(
-        /<rt class="skam-ruby">まな<span class="skam-okuri">びて<\/span><\/rt>/
-      );
+      // Yomigana should be in rt, okurigana should be in suffix-kana (no kaeriten)
+      expect(result.html).toMatch(/<rt class="skam-ruby">まな<\/rt>/);
+      expect(result.html).toContain('skam-suffix-kana');
     });
 
-    it('should render soegana inside ruby element like okurigana', () => {
+    it('should render soegana in suffix-kana container', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '之' }],
@@ -110,11 +109,12 @@ describe('render', () => {
 
       expect(result.html).toContain('skam-soegana');
       expect(result.html).toContain('を');
-      // Soegana should be inside rt element (same pattern as okurigana)
-      expect(result.html).toMatch(/<rt class="skam-ruby"><span class="skam-soegana">を<\/span><\/rt>/);
+      expect(result.html).toContain('skam-suffix-kana');
+      // No ruby element when only soegana is present
+      expect(result.html).not.toContain('<ruby>');
     });
 
-    it('should create ruby element when only okurigana is present', () => {
+    it('should not create ruby element when only okurigana is present', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '習' }],
@@ -130,10 +130,11 @@ describe('render', () => {
 
       const result = render(doc);
 
-      // Ruby element should be present for okurigana
-      expect(result.html).toContain('<ruby>');
+      // No ruby element when only okurigana is present
+      expect(result.html).not.toContain('<ruby>');
       expect(result.html).toContain('skam-okuri');
       expect(result.html).toContain('ふ');
+      expect(result.html).toContain('skam-suffix-kana');
     });
   });
 

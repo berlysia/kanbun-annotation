@@ -38,11 +38,11 @@ jobs:
       - name: Format check
         run: pnpm format:check
 
-      - name: Type check
-        run: pnpm typecheck
-
       - name: Build
         run: pnpm build
+
+      - name: Type check
+        run: pnpm typecheck
 
       - name: Run tests
         run: pnpm test:run

@@ -450,12 +450,12 @@ function convertKaeriToUnicode(value: string): string {
  * 縦中横を適用すべきかを判定
  *
  * 以下の条件で縦中横を適用:
- * - 括弧で囲まれた1文字（例: "(A)", "(1)"）
+ * - 括弧で囲まれた1文字（例: "(A)", "(1)", "[1]"）
  * - または2文字以下の半角文字
  */
 function shouldApplyTateChuYoko(text: string): boolean {
-  // 括弧で囲まれた1文字の場合
-  if (/^\([A-Za-z0-9]\)$/.test(text)) {
+  // 丸括弧または角括弧で囲まれた1文字の場合
+  if (/^[(\[][A-Za-z0-9][)\]]$/.test(text)) {
     return true;
   }
   // 2文字以下の半角文字の場合（印字可能ASCII: 0x20-0x7E）
@@ -846,7 +846,11 @@ function renderToken(
         .map((m) => {
           const index = noteIndexMap.get(m);
           if (index !== undefined) {
-            return `<sup class="${prefix}-note-ref">[${index}]</sup>`;
+            const refText = `[${index}]`;
+            const halfWidthClass = shouldApplyTateChuYoko(refText)
+              ? ` ${prefix}-note-ref--half-width`
+              : '';
+            return `<sup class="${prefix}-note-ref${halfWidthClass}">${refText}</sup>`;
           }
           return '';
         })
@@ -894,8 +898,11 @@ function renderNotes(marks: Mark[], prefix: string, profile: RenderProfile): str
 
   const noteItems = noteMarks
     .map((note, index) => {
-      const marker = index + 1;
-      return `<div class="${prefix}-note-item"><span class="${prefix}-note-marker">${marker}</span>${escapeHtml(note.value)}</div>`;
+      const marker = String(index + 1);
+      const halfWidthClass = shouldApplyTateChuYoko(marker)
+        ? ` ${prefix}-note-marker--half-width`
+        : '';
+      return `<div class="${prefix}-note-item"><span class="${prefix}-note-marker${halfWidthClass}">${marker}</span>${escapeHtml(note.value)}</div>`;
     })
     .join('');
 

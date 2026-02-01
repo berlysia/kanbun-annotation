@@ -506,6 +506,16 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
 /* 縦書きで半角文字の場合は縦中横 */
 :where(.${prefix}-label--half-width) {
   text-combine-upright: all;
+}
+
+/* Note reference - 縦中横 */
+:where(.${prefix}-note-ref--half-width) {
+  text-combine-upright: all;
+}
+
+/* Note marker - 縦中横 */
+:where(.${prefix}-note-marker--half-width) {
+  text-combine-upright: all;
 }`;
   } else {
     return `

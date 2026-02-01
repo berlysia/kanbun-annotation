@@ -31,6 +31,10 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
 .${prefix}-document--inline .${prefix}-display {
   display: inline;
 }
+
+.${prefix}-document--inline .${prefix}-block {
+  display: inline;
+}
 `
     : '';
 

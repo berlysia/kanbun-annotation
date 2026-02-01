@@ -21,9 +21,7 @@ describe('SKAM Examples', () => {
           { type: 'okurigana', id: 'm5', anchor: { from: 't4', to: 't4' }, value: 'ふ' },
           { type: 'kaeri', id: 'm6', anchor: { from: 't5', to: 't5' }, value: 'レ' },
         ],
-        readings: [
-          { kind: 'kakikudashi', text: '学びて時に之を習ふ' },
-        ],
+        readings: [{ kind: 'kakikudashi', text: '学びて時に之を習ふ' }],
       };
 
       expect(doc.format).toBe('skam@0.1');
@@ -53,12 +51,8 @@ describe('SKAM Examples', () => {
           { type: 'yomigana', id: 'm2', anchor: { from: 't2', to: 't2' }, value: 'し' },
           { type: 'okurigana', id: 'm3', anchor: { from: 't2', to: 't2' }, value: 'なんと' },
         ],
-        derivations: [
-          { kind: 'readingOrder', method: 'manual', result: ['t1', 't2', 't1'] },
-        ],
-        readings: [
-          { kind: 'kakikudashi', text: 'まさに死なんとす' },
-        ],
+        derivations: [{ kind: 'readingOrder', method: 'manual', result: ['t1', 't2', 't1'] }],
+        readings: [{ kind: 'kakikudashi', text: 'まさに死なんとす' }],
       };
 
       const firstMark = doc.marks[0]!;
@@ -131,9 +125,7 @@ describe('SKAM Examples', () => {
           { type: 'tateten', id: 'm2', anchor: { from: 't4', to: 't5' } },
           { type: 'yomigana', id: 'm3', anchor: { from: 't1', to: 't2' }, value: 'こっか' },
         ],
-        readings: [
-          { kind: 'kakikudashi', text: '国家の大事' },
-        ],
+        readings: [{ kind: 'kakikudashi', text: '国家の大事' }],
       };
 
       expect(doc.marks).toHaveLength(3);
@@ -160,9 +152,7 @@ describe('SKAM Examples', () => {
         derivations: [
           { kind: 'readingOrder', method: 'kaeriten-stack', result: ['t4', 't3', 't2', 't1'] },
         ],
-        readings: [
-          { kind: 'kakikudashi', text: '学ばざるべからず' },
-        ],
+        readings: [{ kind: 'kakikudashi', text: '学ばざるべからず' }],
       };
 
       expect(doc.derivations).toBeDefined();

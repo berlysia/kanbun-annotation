@@ -1,0 +1,30 @@
+{
+  "name": "@kanbun/playground",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SKAM Playground - SKAM-ML/XMLを試すインタラクティブなデモ",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "typecheck": "tsgo --noEmit",
+    "lint": "oxlint src"
+  },
+  "keywords": [
+    "kanbun",
+    "漢文",
+    "skam",
+    "playground",
+    "demo"
+  ],
+  "license": "UNLICENSED",
+  "dependencies": {
+    "@kanbun/skam": "workspace:*",
+    "@kanbun/skam-xml-parser": "workspace:*",
+    "@kanbun/skam-html-renderer": "workspace:*"
+  },
+  "devDependencies": {
+    "vite": "6.3.4"
+  }
+}

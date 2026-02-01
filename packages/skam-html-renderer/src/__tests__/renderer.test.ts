@@ -87,7 +87,9 @@ describe('render', () => {
       expect(result.html).toContain('skam-okuri');
       expect(result.html).toContain('びて');
       // Okurigana should be inside rt element with yomigana
-      expect(result.html).toMatch(/<rt class="skam-ruby">まな<span class="skam-okuri">びて<\/span><\/rt>/);
+      expect(result.html).toMatch(
+        /<rt class="skam-ruby">まな<span class="skam-okuri">びて<\/span><\/rt>/
+      );
     });
 
     it('should render okiji outside ruby element', () => {
@@ -255,8 +257,12 @@ describe('render', () => {
       const result = render(doc);
 
       // Okuri should be inside rt element with reading
-      expect(result.html).toMatch(/<rt class="skam-ruby" data-saidoku-n="1">まさ<span class="skam-okuri">に<\/span><\/rt>/);
-      expect(result.html).toMatch(/<rt class="skam-ruby skam-saidoku-under" data-saidoku-n="2"><span class="skam-okuri">す<\/span><\/rt>/);
+      expect(result.html).toMatch(
+        /<rt class="skam-ruby" data-saidoku-n="1">まさ<span class="skam-okuri">に<\/span><\/rt>/
+      );
+      expect(result.html).toMatch(
+        /<rt class="skam-ruby skam-saidoku-under" data-saidoku-n="2"><span class="skam-okuri">す<\/span><\/rt>/
+      );
     });
   });
 

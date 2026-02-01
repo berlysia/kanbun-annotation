@@ -12,7 +12,10 @@
     "format:check": "prettier --check .",
     "test": "pnpm -r test",
     "test:run": "pnpm -r test:run",
-    "clean": "knip"
+    "clean": "knip",
+    "playground:dev": "pnpm --filter @kanbun/playground dev",
+    "playground:build": "pnpm --filter @kanbun/playground build",
+    "playground:preview": "pnpm --filter @kanbun/playground preview"
   },
   "keywords": [
     "kanbun",

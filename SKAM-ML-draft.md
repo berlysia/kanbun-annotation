@@ -19,8 +19,8 @@
 SKAM-ML/XML は、**人間が編集しやすいソース表現**であり、
 機械処理の正規形は **SKAM（JSON）** である。
 
-* SKAM-ML/XML →（compile）→ SKAM JSON →（render）→ HTML/CSS/SVG 等
-* SKAM-ML/XML 自体は **表示言語ではない**
+- SKAM-ML/XML →（compile）→ SKAM JSON →（render）→ HTML/CSS/SVG 等
+- SKAM-ML/XML 自体は **表示言語ではない**
 
 ---
 
@@ -56,12 +56,12 @@ xmlns:skam="urn:skam:1"
 
 ### 4.1 トップレベル構成
 
-| 要素              | 必須 | 説明         |
-| --------------- | -- | ---------- |
+| 要素            | 必須 | 説明                 |
+| --------------- | ---- | -------------------- |
 | `skam:meta`     | 任意 | トークナイズ等の指示 |
-| `skam:body`     | 必須 | 本文         |
-| `skam:readings` | 任意 | 読み層        |
-| `skam:notes`    | 任意 | 注釈本文       |
+| `skam:body`     | 必須 | 本文                 |
+| `skam:readings` | 任意 | 読み層               |
+| `skam:notes`    | 任意 | 注釈本文             |
 
 ```xml
 <skam:doc xmlns:skam="urn:skam:1">
@@ -97,16 +97,16 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 </skam:body>
 ```
 
-* 改行・段落の意味は **構造情報としてのみ**扱う
-* 見た目の段落とは無関係
+- 改行・段落の意味は **構造情報としてのみ**扱う
+- 見た目の段落とは無関係
 
 ---
 
 ## 6. Tokenization（非規範）
 
-* 既定：`tokenization="char"`
-* `skam:block` 内のテキストから token 列を生成
-* SKAM-ML/XML では token を明示しない
+- 既定：`tokenization="char"`
+- `skam:block` 内のテキストから token 列を生成
+- SKAM-ML/XML では token を明示しない
   → **token は常にコンパイル生成物**
 
 ---
@@ -115,9 +115,9 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 
 ### 7.1 アンカー規則（規範）
 
-| 要素種別 | アンカー          |
-| ---- | ------------- |
-| 空要素  | 直前 token      |
+| 要素種別 | アンカー            |
+| -------- | ------------------- |
+| 空要素   | 直前 token          |
 | 包囲要素 | 含まれる token 範囲 |
 
 ---
@@ -132,15 +132,14 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 
 #### 属性
 
-* `kind`（必須）
-
-  * `re`, `ichi`, `ni`, `jo`, `chu`, `ge`, `ko`, `otsu`, …
+- `kind`（必須）
+  - `re`, `ichi`, `ni`, `jo`, `chu`, `ge`, `ko`, `otsu`, …
 
 #### 正規化
 
-* `marks.type = "kaeri"`
-* `marks.kind = kind`
-* `anchor = 直前token`
+- `marks.type = "kaeri"`
+- `marks.kind = kind`
+- `anchor = 直前token`
 
 ---
 
@@ -157,10 +156,10 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 
 #### 属性
 
-| 属性 | 必須 | 説明 |
-| ---- | ---- | ---- |
+| 属性      | 必須 | 説明                   |
+| --------- | ---- | ---------------------- |
 | `reading` | 任意 | 読み仮名（漢字の読み） |
-| `okuri` | 任意 | 送り仮名（活用語尾） |
+| `okuri`   | 任意 | 送り仮名（活用語尾）   |
 
 ※ 両方省略可。少なくとも一方を指定することを推奨。
 
@@ -168,9 +167,9 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 
 SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana` と `okurigana` に分離される。
 
-* `reading` 属性がある場合: `marks.type = "yomigana"`, `value = reading属性`
-* `okuri` 属性がある場合: `marks.type = "okurigana"`, `value = okuri属性`
-* 両方ある場合: 2つの mark が生成される（同一 anchor を共有）
+- `reading` 属性がある場合: `marks.type = "yomigana"`, `value = reading属性`
+- `okuri` 属性がある場合: `marks.type = "okurigana"`, `value = okuri属性`
+- 両方ある場合: 2つの mark が生成される（同一 anchor を共有）
 
 ---
 
@@ -186,15 +185,15 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana` と `okurigana` に�
 
 #### 属性
 
-| 属性 | 必須 | 説明 |
-| ---- | ---- | ---- |
+| 属性    | 必須 | 説明             |
+| ------- | ---- | ---------------- |
 | `value` | 必須 | 読み仮名テキスト |
 
 #### 正規化
 
-* `marks.type = "yomigana"`
-* `anchor = 内容のtoken範囲`
-* `value = value属性`
+- `marks.type = "yomigana"`
+- `anchor = 内容のtoken範囲`
+- `value = value属性`
 
 ---
 
@@ -210,17 +209,17 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana` と `okurigana` に�
 
 #### 属性
 
-| 属性 | 必須 | 説明 |
-| ---- | ---- | ---- |
-| `value` | 必須 | 句読点記号（「。」「、」「・」等） |
-| `kind` | 任意 | 分類（ku/ten/other）。省略時はvalueから推論可能 |
+| 属性    | 必須 | 説明                                            |
+| ------- | ---- | ----------------------------------------------- |
+| `value` | 必須 | 句読点記号（「。」「、」「・」等）              |
+| `kind`  | 任意 | 分類（ku/ten/other）。省略時はvalueから推論可能 |
 
 #### 正規化
 
-* `marks.type = "kutoten"`
-* `anchor = 直前token`
-* `value = value属性`
-* `kind` があれば保持、なければパーサーが推論してもよい
+- `marks.type = "kutoten"`
+- `anchor = 直前token`
+- `value = value属性`
+- `kind` があれば保持、なければパーサーが推論してもよい
 
 ---
 
@@ -236,14 +235,14 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana` と `okurigana` に�
 
 #### 属性
 
-| 属性 | 必須 | 説明 |
-| ---- | ---- | ---- |
-| `grid` | 必須 | グリッドサイズ（"5x5", "7x7"等） |
-| `x` | 必須 | X座標（0-based、左上が原点） |
-| `y` | 必須 | Y座標（0-based、左上が原点） |
+| 属性    | 必須 | 説明                             |
+| ------- | ---- | -------------------------------- |
+| `grid`  | 必須 | グリッドサイズ（"5x5", "7x7"等） |
+| `x`     | 必須 | X座標（0-based、左上が原点）     |
+| `y`     | 必須 | Y座標（0-based、左上が原点）     |
 | `shape` | 必須 | 点の形状（dot, circle, line 等） |
-| `sound` | 任意 | 対応する音節 |
-| `color` | 任意 | 朱点・墨点等の区別 |
+| `sound` | 任意 | 対応する音節                     |
+| `color` | 任意 | 朱点・墨点等の区別               |
 
 #### グリッド座標
 
@@ -260,10 +259,10 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana` と `okurigana` に�
 
 #### 正規化
 
-* `marks.type = "okototen"`
-* `anchor = 内容のtoken範囲`
-* `position = { system: "glyph-grid", grid, x, y }`
-* `shape`, `sound`, `color` を保持
+- `marks.type = "okototen"`
+- `anchor = 内容のtoken範囲`
+- `position = { system: "glyph-grid", grid, x, y }`
+- `shape`, `sound`, `color` を保持
 
 ---
 
@@ -287,8 +286,8 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana` と `okurigana` に�
 
 #### 属性
 
-* `type`（必須）
-* `kind`（任意）
+- `type`（必須）
+- `kind`（任意）
 
 ---
 
@@ -304,18 +303,18 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana` と `okurigana` に�
 
 #### アンカー規則
 
-* 包囲要素として熟語範囲を囲む
-* アンカーは含まれる token 範囲
+- 包囲要素として熟語範囲を囲む
+- アンカーは含まれる token 範囲
 
 #### 正規化
 
-* `marks.type = "tateten"`
-* `anchor = 内容のtoken範囲`
+- `marks.type = "tateten"`
+- `anchor = 内容のtoken範囲`
 
 #### 備考
 
-* 熟語の読みは別途 `skam:yomigana` を同じ範囲に付与することで対応可能
-* `emphasis` とは異なり、「強調」ではなく「構文境界」を示す
+- 熟語の読みは別途 `skam:yomigana` を同じ範囲に付与することで対応可能
+- `emphasis` とは異なり、「強調」ではなく「構文境界」を示す
 
 ---
 
@@ -338,38 +337,38 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana` と `okurigana` に�
 
 #### 子要素
 
-| 要素 | 必須 | 説明 |
-| ---- | ---- | ---- |
-| `skam:base` | 必須 | 再読文字本体（1回のみ） |
-| `skam:kunform` | 必須 | 各回の語形（1つ以上） |
+| 要素           | 必須 | 説明                    |
+| -------------- | ---- | ----------------------- |
+| `skam:base`    | 必須 | 再読文字本体（1回のみ） |
+| `skam:kunform` | 必須 | 各回の語形（1つ以上）   |
 
 #### `skam:kunform` の属性
 
-| 属性 | 必須 | 説明 |
-| ---- | ---- | ---- |
-| `n` | 任意 | 読み順（省略時は出現順） |
-| `reading` | 任意 | 読み仮名 |
-| `okuri` | 任意 | 送り仮名 |
+| 属性      | 必須 | 説明                     |
+| --------- | ---- | ------------------------ |
+| `n`       | 任意 | 読み順（省略時は出現順） |
+| `reading` | 任意 | 読み仮名                 |
+| `okuri`   | 任意 | 送り仮名                 |
 
 ※ `kunform` は `kun` の1回分に相当する。
 
 #### 主な再読文字
 
-| 文字 | 1回目 (reading + okuri) | 2回目 (okuri) | 意味 |
-| ---- | ----------------------- | ------------- | ---- |
-| 將・且 | まさ＋に | す | 今にも〜しようとする |
-| 未 | いま＋だ | ず | まだ〜ない |
-| 當・応 | まさ＋に | し | 〜すべきである |
-| 須 | すべから＋く | し | 〜すべきである |
-| 宜 | よろ＋しく | し | 〜するのがよい |
-| 猶 | な＋ほ | ごとし | ちょうど〜のようだ |
-| 盍 | なん＋ぞ | ざる | どうして〜しないのか |
+| 文字   | 1回目 (reading + okuri) | 2回目 (okuri) | 意味                 |
+| ------ | ----------------------- | ------------- | -------------------- |
+| 將・且 | まさ＋に                | す            | 今にも〜しようとする |
+| 未     | いま＋だ                | ず            | まだ〜ない           |
+| 當・応 | まさ＋に                | し            | 〜すべきである       |
+| 須     | すべから＋く            | し            | 〜すべきである       |
+| 宜     | よろ＋しく              | し            | 〜するのがよい       |
+| 猶     | な＋ほ                  | ごとし        | ちょうど〜のようだ   |
+| 盍     | なん＋ぞ                | ざる          | どうして〜しないのか |
 
 #### 正規化
 
-* `marks.type = "saidoku"`
-* `anchor = base内のtoken`
-* `forms[]` 配列に各 `kunform` を保持
+- `marks.type = "saidoku"`
+- `anchor = base内のtoken`
+- `forms[]` 配列に各 `kunform` を保持
 
 ---
 
@@ -383,9 +382,9 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana` と `okurigana` に�
 </skam:readings>
 ```
 
-* `kind` は必須
-* 内容は全文テキスト
-* token/mark との対応付けは v0.1 では行わない
+- `kind` は必須
+- 内容は全文テキスト
+- token/mark との対応付けは v0.1 では行わない
 
 ---
 
@@ -399,7 +398,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana` と `okurigana` に�
 </skam:block>
 ```
 
-* 既定アンカー：直前token
+- 既定アンカー：直前token
 
 ### 9.2 `skam:note`
 
@@ -415,9 +414,9 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana` と `okurigana` に�
 
 ## 10. 拡張性
 
-* 未知の `skam:*` 要素・属性は **無視してよい**
-* round-trip を行う処理系は **保持して再出力してよい**
-* 将来の拡張は **後方互換**で行う
+- 未知の `skam:*` 要素・属性は **無視してよい**
+- round-trip を行う処理系は **保持して再出力してよい**
+- 将来の拡張は **後方互換**で行う
 
 ---
 
@@ -511,18 +510,18 @@ SKAM-ML/XMLはHTMLに依存しない純XML語彙とし、本文構造は`skam:bl
 
 ### SKAM-ML/XML → SKAM JSON の主な変換対応
 
-| SKAM-ML/XML 要素 | SKAM JSON marks.type |
-| --------------- | -------------------- |
-| `skam:kaeri` | `kaeri` |
-| `skam:kun` (reading属性) | `yomigana` |
-| `skam:kun` (okuri属性) | `okurigana` |
-| `skam:yomigana` | `yomigana` |
-| `skam:kutoten` | `kutoten` |
-| `skam:okototen` | `okototen` |
-| `skam:okiji` | `okiji` |
-| `skam:span` (type="emphasis") | `emphasis` |
-| `skam:ref` / `skam:note` | `note` |
-| `skam:saidoku` | `saidoku` |
-| `skam:tateten` | `tateten` |
+| SKAM-ML/XML 要素              | SKAM JSON marks.type |
+| ----------------------------- | -------------------- |
+| `skam:kaeri`                  | `kaeri`              |
+| `skam:kun` (reading属性)      | `yomigana`           |
+| `skam:kun` (okuri属性)        | `okurigana`          |
+| `skam:yomigana`               | `yomigana`           |
+| `skam:kutoten`                | `kutoten`            |
+| `skam:okototen`               | `okototen`           |
+| `skam:okiji`                  | `okiji`              |
+| `skam:span` (type="emphasis") | `emphasis`           |
+| `skam:ref` / `skam:note`      | `note`               |
+| `skam:saidoku`                | `saidoku`            |
+| `skam:tateten`                | `tateten`            |
 
 ※ `derivations`（読み順等）はコンパイル時に生成される。

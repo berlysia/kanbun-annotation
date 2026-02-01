@@ -23,6 +23,11 @@ pnpm lint
 
 # 未使用コード検出
 pnpm clean
+
+# Playground
+pnpm playground:dev      # 開発サーバー起動
+pnpm playground:build    # プロダクションビルド
+pnpm playground:preview  # ビルド結果のプレビュー
 ```
 
 ## Architecture
@@ -31,8 +36,10 @@ pnpm clean
 
 ```
 packages/
-├── skam/          # @kanbun/skam - SKAM v0.1 型定義・バリデーター (TypeScript)
-└── skam-xml/      # @kanbun/skam-xml - SKAM-ML/XML パーサー
+├── skam/               # @kanbun/skam - SKAM v0.1 型定義・バリデーター
+├── skam-xml-parser/    # @kanbun/skam-xml-parser - SKAM-ML/XML パーサー
+├── skam-html-renderer/ # @kanbun/skam-html-renderer - HTML レンダラー
+└── playground/         # @kanbun/playground - インタラクティブデモ (GitHub Pages)
 ```
 
 ### @kanbun/skam 主要 API
@@ -73,18 +80,18 @@ SKAMDocument
 
 ### Mark Types (v0.1)
 
-| type | 用途 |
-|------|------|
-| `kaeri` | 返り点（レ、一二、上下、甲乙） |
-| `okurigana` | 送り仮名 |
-| `yomigana` | 読み仮名（ルビ） |
-| `okiji` | 助字・テニヲハ |
-| `kutoten` | 句読点 |
-| `saidoku` | 再読文字（forms[] で複数回の読みを表現） |
-| `okototen` | ヲコト点（glyph-grid 座標系で位置指定） |
-| `tateten` | たて点（熟語境界） |
-| `emphasis` | 傍点・圏点 |
-| `note` | 注釈 |
+| type        | 用途                                     |
+| ----------- | ---------------------------------------- |
+| `kaeri`     | 返り点（レ、一二、上下、甲乙）           |
+| `okurigana` | 送り仮名                                 |
+| `yomigana`  | 読み仮名（ルビ）                         |
+| `okiji`     | 助字・テニヲハ                           |
+| `kutoten`   | 句読点                                   |
+| `saidoku`   | 再読文字（forms[] で複数回の読みを表現） |
+| `okototen`  | ヲコト点（glyph-grid 座標系で位置指定）  |
+| `tateten`   | たて点（熟語境界）                       |
+| `emphasis`  | 傍点・圏点                               |
+| `note`      | 注釈                                     |
 
 ### 仕様書
 

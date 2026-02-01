@@ -163,10 +163,7 @@ function escapeHtml(text: string): string {
 /**
  * Token IDから Markを取得
  */
-function getMarksForToken(
-  tokenId: string,
-  marks: Mark[]
-): Map<Mark['type'], Mark[]> {
+function getMarksForToken(tokenId: string, marks: Mark[]): Map<Mark['type'], Mark[]> {
   const result = new Map<Mark['type'], Mark[]>();
 
   for (const mark of marks) {
@@ -183,13 +180,8 @@ function getMarksForToken(
 /**
  * TatetenMarkの範囲に含まれるTokenを特定
  */
-function getTatetenGroups(
-  tokens: Token[],
-  marks: Mark[]
-): Map<string, TatetenMark> {
-  const tatetenMarks = marks.filter(
-    (m): m is TatetenMark => m.type === 'tateten'
-  );
+function getTatetenGroups(tokens: Token[], marks: Mark[]): Map<string, TatetenMark> {
+  const tatetenMarks = marks.filter((m): m is TatetenMark => m.type === 'tateten');
   const tokenIdToGroup = new Map<string, TatetenMark>();
 
   for (const tateten of tatetenMarks) {
@@ -308,10 +300,7 @@ function renderSaidokuToken(
 /**
  * ヲコト点を生成
  */
-function renderOkototen(
-  okototenMark: OkototenMark,
-  prefix: string
-): string {
+function renderOkototen(okototenMark: OkototenMark, prefix: string): string {
   const { position, shape } = okototenMark;
   const gridSize = parseInt(position.grid.split('x')[0] ?? '5', 10);
 
@@ -360,10 +349,7 @@ function renderToken(
   const kutoten =
     profile.kutoten && kutotenMarks.length > 0
       ? kutotenMarks
-          .map(
-            (m) =>
-              `<span class="${prefix}-kutoten">${escapeHtml(m.value)}</span>`
-          )
+          .map((m) => `<span class="${prefix}-kutoten">${escapeHtml(m.value)}</span>`)
           .join('')
       : '';
 
@@ -382,9 +368,7 @@ function renderToken(
   // ヲコト点追加
   let okototenHtml = '';
   if (hasOkototen) {
-    okototenHtml = okototenMarks
-      .map((m) => renderOkototen(m, prefix))
-      .join('');
+    okototenHtml = okototenMarks.map((m) => renderOkototen(m, prefix)).join('');
   }
 
   // クラス名構築
@@ -410,10 +394,7 @@ function renderToken(
 /**
  * 読み層のHTMLを生成
  */
-function renderReadingLayer(
-  readings: Reading[],
-  prefix: string
-): string {
+function renderReadingLayer(readings: Reading[], prefix: string): string {
   const yomiage = readings.find((r) => r.kind === 'yomiage');
   const kakikudashi = readings.find((r) => r.kind === 'kakikudashi');
 
@@ -429,11 +410,7 @@ function renderReadingLayer(
 /**
  * 注釈のHTMLを生成
  */
-function renderNotes(
-  marks: Mark[],
-  prefix: string,
-  profile: RenderProfile
-): string {
+function renderNotes(marks: Mark[], prefix: string, profile: RenderProfile): string {
   if (!profile.notes) {
     return '';
   }
@@ -457,11 +434,7 @@ function renderNotes(
 /**
  * Display層のHTMLを生成
  */
-function renderDisplayLayer(
-  doc: SKAMDocument,
-  prefix: string,
-  profile: RenderProfile
-): string {
+function renderDisplayLayer(doc: SKAMDocument, prefix: string, profile: RenderProfile): string {
   const { tokens, marks } = doc;
   const ctx = { prefix, profile };
 
@@ -521,10 +494,7 @@ function renderDisplayLayer(
 /**
  * SKAMドキュメントをHTMLにレンダリング
  */
-export function render(
-  doc: SKAMDocument,
-  options: RenderOptions = {}
-): RenderResult {
+export function render(doc: SKAMDocument, options: RenderOptions = {}): RenderResult {
   const profile: RenderProfile = { ...FULL_PROFILE, ...options.profile };
   const writingMode = options.writingMode ?? 'vertical';
   const prefix = options.classPrefix ?? 'skam';
@@ -534,9 +504,7 @@ export function render(
   const displayHtml = renderDisplayLayer(doc, prefix, profile);
 
   // 読み層
-  const readingHtml = includeReadingLayer
-    ? renderReadingLayer(doc.readings, prefix)
-    : '';
+  const readingHtml = includeReadingLayer ? renderReadingLayer(doc.readings, prefix) : '';
 
   // 注釈
   const notesHtml = renderNotes(doc.marks, prefix, profile);

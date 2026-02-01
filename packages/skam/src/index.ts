@@ -83,7 +83,17 @@ export type Coord = GlyphGridCoord | PageCoord;
 // ============================================================================
 
 /** 注記種別（v0.1） */
-export type MarkType = 'kaeri' | 'okurigana' | 'yomigana' | 'okiji' | 'kutoten' | 'emphasis' | 'note' | 'saidoku' | 'okototen' | 'tateten';
+export type MarkType =
+  | 'kaeri'
+  | 'okurigana'
+  | 'yomigana'
+  | 'okiji'
+  | 'kutoten'
+  | 'emphasis'
+  | 'note'
+  | 'saidoku'
+  | 'okototen'
+  | 'tateten';
 
 /**
  * 注記の基底構造
@@ -296,8 +306,4 @@ export {
   createValidationError,
 } from './errors.js';
 
-export {
-  validateSKAMDocument,
-  isSKAMDocument,
-  assertSKAMDocument,
-} from './validator.js';
+export { validateSKAMDocument, isSKAMDocument, assertSKAMDocument } from './validator.js';

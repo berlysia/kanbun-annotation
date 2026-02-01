@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SKAM Playground - 漢文アノテーション</title>
+    <link rel="stylesheet" href="/src/styles.css" />
+  </head>
+  <body>
+    <header class="header">
+      <h1>SKAM Playground</h1>
+      <p class="description">
+        SKAM-ML/XMLを入力して、パース結果とHTMLレンダリングを確認できます
+      </p>
+    </header>
+
+    <main class="main">
+      <section class="primary-section">
+        <div class="panel input-panel">
+          <div class="panel-header">
+            <h2>SKAM-ML/XML</h2>
+            <div class="samples">
+              <label for="sample-select">サンプル:</label>
+              <select id="sample-select">
+                <option value="">-- 選択 --</option>
+              </select>
+            </div>
+          </div>
+          <textarea id="xml-input" placeholder="SKAM-ML/XMLを入力..."></textarea>
+          <button id="parse-btn" type="button">パース &amp; レンダリング</button>
+          <div id="error-message" class="error-message"></div>
+        </div>
+
+        <div class="panel render-panel">
+          <div class="panel-header">
+            <h2>レンダリング結果</h2>
+            <div class="render-options">
+              <label>
+                <input
+                  type="radio"
+                  name="writing-mode"
+                  value="vertical"
+                  checked
+                />
+                縦書き
+              </label>
+              <label>
+                <input type="radio" name="writing-mode" value="horizontal" />
+                横書き
+              </label>
+            </div>
+          </div>
+          <div id="render-output"></div>
+        </div>
+      </section>
+
+      <details class="details-panel">
+        <summary>SKAM JSON を表示</summary>
+        <div class="panel json-panel">
+          <div class="panel-header">
+            <h2>SKAM JSON</h2>
+            <button id="copy-json-btn" type="button" class="copy-btn">
+              コピー
+            </button>
+          </div>
+          <pre id="json-output"><code></code></pre>
+        </div>
+      </details>
+
+      <details class="details-panel">
+        <summary>生成HTML を表示</summary>
+        <div class="panel html-panel">
+          <div class="panel-header">
+            <h2>生成HTML</h2>
+            <button id="copy-html-btn" type="button" class="copy-btn">
+              コピー
+            </button>
+          </div>
+          <pre id="html-output"><code></code></pre>
+        </div>
+      </details>
+    </main>
+
+    <footer class="footer">
+      <p>
+        <a
+          href="https://github.com/berlysia/kanbun-annotation"
+          target="_blank"
+          rel="noopener noreferrer"
+          >GitHub</a
+        >
+        | SKAM (Stand-off Kanbun Annotation Model)
+      </p>
+    </footer>
+
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

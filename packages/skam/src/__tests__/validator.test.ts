@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  validateSKAMDocument,
-  isSKAMDocument,
-  assertSKAMDocument,
-} from '../validator.js';
+import { validateSKAMDocument, isSKAMDocument, assertSKAMDocument } from '../validator.js';
 import { SKAMValidationError } from '../errors.js';
 import type { SKAMDocument } from '../index.js';
 
@@ -28,12 +24,8 @@ const validCompleteDocument: SKAMDocument = {
     { type: 'okurigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'びて' },
     { type: 'kaeri', id: 'm2', anchor: { from: 't2', to: 't2' }, value: 'レ' },
   ],
-  derivations: [
-    { kind: 'readingOrder', method: 'manual', result: ['t1', 't2'] },
-  ],
-  readings: [
-    { kind: 'kakikudashi', text: '学びて' },
-  ],
+  derivations: [{ kind: 'readingOrder', method: 'manual', result: ['t1', 't2'] }],
+  readings: [{ kind: 'kakikudashi', text: '学びて' }],
 };
 
 // ============================================================================
@@ -400,11 +392,13 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '國' }],
-        marks: [{
-          type: 'okototen',
-          anchor: { from: 't1', to: 't1' },
-          position: { system: 'glyph-grid', grid: '5x5', x: 0, y: 0 },
-        }],
+        marks: [
+          {
+            type: 'okototen',
+            anchor: { from: 't1', to: 't1' },
+            position: { system: 'glyph-grid', grid: '5x5', x: 0, y: 0 },
+          },
+        ],
         readings: [],
       };
 
@@ -419,12 +413,14 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '國' }],
-        marks: [{
-          type: 'okototen',
-          anchor: { from: 't1', to: 't1' },
-          position: { system: 'glyph-grid', grid: 'invalid', x: 0, y: 0 },
-          shape: 'dot',
-        }],
+        marks: [
+          {
+            type: 'okototen',
+            anchor: { from: 't1', to: 't1' },
+            position: { system: 'glyph-grid', grid: 'invalid', x: 0, y: 0 },
+            shape: 'dot',
+          },
+        ],
         readings: [],
       };
 
@@ -457,7 +453,9 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'kutoten', anchor: { from: 't1', to: 't1' }, value: '。', kind: 'invalid' }],
+        marks: [
+          { type: 'kutoten', anchor: { from: 't1', to: 't1' }, value: '。', kind: 'invalid' },
+        ],
         readings: [],
       };
 

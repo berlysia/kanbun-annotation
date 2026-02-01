@@ -154,7 +154,9 @@ function processKaeri(element: Element, state: ParserState, precedingTokenId: st
   const kind = getRequiredAttr(element, 'kind', 'skam:kaeri');
 
   if (!VALID_KAERI_KINDS.includes(kind as KaeriKind)) {
-    throw new SKAMXMLParseError(`Invalid kaeri kind '${kind}'. Valid kinds: ${VALID_KAERI_KINDS.join(', ')}`);
+    throw new SKAMXMLParseError(
+      `Invalid kaeri kind '${kind}'. Valid kinds: ${VALID_KAERI_KINDS.join(', ')}`
+    );
   }
 
   if (!precedingTokenId) {
@@ -229,7 +231,11 @@ function processYomigana(element: Element, state: ParserState): string[] {
   return tokenIds;
 }
 
-function processKutoten(element: Element, state: ParserState, precedingTokenId: string | null): void {
+function processKutoten(
+  element: Element,
+  state: ParserState,
+  precedingTokenId: string | null
+): void {
   const value = getRequiredAttr(element, 'value', 'skam:kutoten');
   const kind = getAttr(element, 'kind') as 'ku' | 'ten' | 'other' | null;
 
@@ -261,7 +267,9 @@ function processOkototen(element: Element, state: ParserState): string[] {
 
   // Validate grid format
   if (!/^\d+x\d+$/.test(grid)) {
-    throw new SKAMXMLParseError(`Invalid grid format '${grid}'. Expected format: NxN (e.g., '5x5')`);
+    throw new SKAMXMLParseError(
+      `Invalid grid format '${grid}'. Expected format: NxN (e.g., '5x5')`
+    );
   }
 
   const x = parseInt(xStr, 10);
@@ -464,7 +472,8 @@ function processRef(element: Element, state: ParserState, precedingTokenId: stri
 
 function processBlockChildren(element: Element, state: ParserState): string[] {
   const allTokenIds: string[] = [];
-  let lastTokenId: string | null = state.tokens.length > 0 ? state.tokens[state.tokens.length - 1]!.id : null;
+  let lastTokenId: string | null =
+    state.tokens.length > 0 ? state.tokens[state.tokens.length - 1]!.id : null;
 
   for (let i = 0; i < element.childNodes.length; i++) {
     const child = element.childNodes[i];

@@ -245,6 +245,25 @@ function convertKaeriToUnicode(value: string): string {
 }
 
 /**
+ * 縦中横を適用すべきかを判定
+ *
+ * 以下の条件で縦中横を適用:
+ * - 括弧で囲まれた1文字（例: "(A)", "(1)"）
+ * - または2文字以下の半角文字
+ */
+function shouldApplyTateChuYoko(text: string): boolean {
+  // 括弧で囲まれた1文字の場合
+  if (/^\([A-Za-z0-9]\)$/.test(text)) {
+    return true;
+  }
+  // 2文字以下の半角文字の場合
+  if (/^[\x00-\x7F]{1,2}$/.test(text)) {
+    return true;
+  }
+  return false;
+}
+
+/**
  * インデックスをフォーマットに従って文字列化
  */
 function formatLabelIndex(index: number, format: LabelMark['format']): string {
@@ -609,6 +628,54 @@ function renderDisplayLayer(doc: SKAMDocument, prefix: string, profile: RenderPr
   // ラベル値を事前計算
   const labelValues = profile.label ? resolveLabelValues(marks) : new Map();
 
+  // underlineグループ内に読み仮名があるかを判定するヘルパー
+  const hasYomiganaInUnderline = (underline: UnderlineMark): boolean => {
+    const fromIndex = tokens.findIndex((t) => t.id === underline.anchor.from);
+    const toIndex = tokens.findIndex((t) => t.id === underline.anchor.to);
+
+    if (fromIndex !== -1 && toIndex !== -1) {
+      for (let j = fromIndex; j <= toIndex; j++) {
+        const t = tokens[j];
+        if (t) {
+          const tMarks = getMarksForToken(t.id, marks);
+          if ((tMarks.get('yomigana') ?? []).length > 0) {
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  };
+
+  // underlineグループ内のラベルを収集するヘルパー
+  const collectLabelsForUnderline = (underline: UnderlineMark): string => {
+    if (!profile.label) return '';
+
+    const labelsInGroup: string[] = [];
+    const fromIndex = tokens.findIndex((t) => t.id === underline.anchor.from);
+    const toIndex = tokens.findIndex((t) => t.id === underline.anchor.to);
+
+    if (fromIndex !== -1 && toIndex !== -1) {
+      for (let j = fromIndex; j <= toIndex; j++) {
+        const t = tokens[j];
+        if (t) {
+          const tMarks = getMarksForToken(t.id, marks);
+          const tLabelMarks = (tMarks.get('label') ?? []) as LabelMark[];
+          for (const m of tLabelMarks) {
+            const labelText = labelValues.get(m) ?? m.value ?? '';
+            const dataAttrs = m.format ? ` data-format="${m.format}"` : '';
+            const halfWidthClass = shouldApplyTateChuYoko(labelText) ? ` ${prefix}-label--half-width` : '';
+            labelsInGroup.push(
+              `<span class="${prefix}-label${halfWidthClass}"${dataAttrs}>${escapeHtml(labelText)}</span>`
+            );
+          }
+        }
+      }
+    }
+
+    return labelsInGroup.join('');
+  };
+
   // トークンをグループ化してレンダリング
   const renderedTokens: string[] = [];
   let currentTatetenGroup: TatetenMark | undefined;
@@ -622,8 +689,8 @@ function renderDisplayLayer(doc: SKAMDocument, prefix: string, profile: RenderPr
     const underlineGroup = underlineGroups.get(token.id);
     let tokenHtml = renderToken(token, marks, ctx);
 
-    // ラベルを追加（このトークンに紐づくラベル）
-    if (profile.label) {
+    // ラベルを追加（傍線グループ外のトークンに紐づくラベルのみ）
+    if (profile.label && !underlineGroup) {
       const tokenMarks = getMarksForToken(token.id, marks);
       const tokenLabelMarks = (tokenMarks.get('label') ?? []) as LabelMark[];
       if (tokenLabelMarks.length > 0) {
@@ -631,7 +698,8 @@ function renderDisplayLayer(doc: SKAMDocument, prefix: string, profile: RenderPr
           .map((m) => {
             const labelText = labelValues.get(m) ?? m.value ?? '';
             const dataAttrs = m.format ? ` data-format="${m.format}"` : '';
-            return `<span class="${prefix}-label"${dataAttrs}>${escapeHtml(labelText)}</span>`;
+            const halfWidthClass = shouldApplyTateChuYoko(labelText) ? ` ${prefix}-label--half-width` : '';
+            return `<span class="${prefix}-label${halfWidthClass}"${dataAttrs}>${escapeHtml(labelText)}</span>`;
           })
           .join('');
         tokenHtml += labelHtml;
@@ -644,8 +712,11 @@ function renderDisplayLayer(doc: SKAMDocument, prefix: string, profile: RenderPr
         // 新しい傍線グループ開始（前のグループがあれば閉じる）
         if (currentUnderlineGroup && underlineTokens.length > 0) {
           const style = currentUnderlineGroup.style ?? 'solid';
+          const labelsHtml = collectLabelsForUnderline(currentUnderlineGroup);
+          const hasRuby = hasYomiganaInUnderline(currentUnderlineGroup);
+          const rubyClass = hasRuby ? ` ${prefix}-underline--has-ruby` : '';
           renderedTokens.push(
-            `<span class="${prefix}-underline" data-style="${style}">${underlineTokens.join('')}</span>`
+            `<span class="${prefix}-underline${rubyClass}" data-style="${style}">${underlineTokens.join('')}${labelsHtml}</span>`
           );
           underlineTokens = [];
         }
@@ -686,8 +757,11 @@ function renderDisplayLayer(doc: SKAMDocument, prefix: string, profile: RenderPr
           currentTatetenGroup = undefined;
         }
         const style = currentUnderlineGroup.style ?? 'solid';
+        const labelsHtml = collectLabelsForUnderline(currentUnderlineGroup);
+        const hasRuby = hasYomiganaInUnderline(currentUnderlineGroup);
+        const rubyClass = hasRuby ? ` ${prefix}-underline--has-ruby` : '';
         renderedTokens.push(
-          `<span class="${prefix}-underline" data-style="${style}">${underlineTokens.join('')}</span>`
+          `<span class="${prefix}-underline${rubyClass}" data-style="${style}">${underlineTokens.join('')}${labelsHtml}</span>`
         );
         underlineTokens = [];
         currentUnderlineGroup = undefined;
@@ -733,8 +807,11 @@ function renderDisplayLayer(doc: SKAMDocument, prefix: string, profile: RenderPr
 
   if (currentUnderlineGroup && underlineTokens.length > 0) {
     const style = currentUnderlineGroup.style ?? 'solid';
+    const labelsHtml = collectLabelsForUnderline(currentUnderlineGroup);
+    const hasRuby = hasYomiganaInUnderline(currentUnderlineGroup);
+    const rubyClass = hasRuby ? ` ${prefix}-underline--has-ruby` : '';
     renderedTokens.push(
-      `<span class="${prefix}-underline" data-style="${style}">${underlineTokens.join('')}</span>`
+      `<span class="${prefix}-underline${rubyClass}" data-style="${style}">${underlineTokens.join('')}${labelsHtml}</span>`
     );
   }
 

@@ -215,47 +215,104 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
 /*
  * Underline (傍線) - 教育用途
  *
- * text-decoration を使用して傍線を表示。
- * 縦書きでは右側（text-underline-position: right）に表示。
- * これは漢文の傍線部が従来右側に引かれる慣習に従う。
- * 横書きでは下側に表示される。
+ * box-shadow を使用して傍線を表示。
+ * text-decoration は display: inline-block の子要素には伝播しないため、
+ * box-shadow で代替実装。inset を使用し、spread で線の太さを制御。
+ *
+ * 縦書きでは右側に表示（漢文の傍線部が従来右側に引かれる慣習に従う）。
+ * 横書きでは下側に表示。
  */
 .${prefix}-underline {
-  text-decoration: underline;
-  text-decoration-thickness: 1px;
-  text-underline-offset: 0.1em;
-  ${isVertical ? 'text-underline-position: right;' : ''}
+  position: relative;
+  ${isVertical ? 'box-shadow: inset -1px 0 0 0 currentColor;' : 'box-shadow: inset 0 -1px 0 0 currentColor;'}
+  ${isVertical ? 'padding-right: 0.25em;' : 'padding-bottom: 0.1em;'}
+}
+
+/* 読み仮名がある場合はpadding-rightを広げる */
+.${prefix}-underline--has-ruby {
+  ${isVertical ? 'padding-right: 0.5em;' : ''}
 }
 
 .${prefix}-underline[data-style="solid"] {
-  text-decoration-style: solid;
+  /* Default solid line - no change needed */
 }
 
 .${prefix}-underline[data-style="dotted"] {
-  text-decoration-style: dotted;
+  ${isVertical
+      ? 'box-shadow: none; background-image: linear-gradient(to bottom, currentColor 2px, transparent 2px); background-size: 1px 4px; background-repeat: repeat-y; background-position: right;'
+      : 'box-shadow: none; background-image: linear-gradient(to right, currentColor 2px, transparent 2px); background-size: 4px 1px; background-repeat: repeat-x; background-position: bottom;'}
 }
 
 .${prefix}-underline[data-style="dashed"] {
-  text-decoration-style: dashed;
+  ${isVertical
+      ? 'box-shadow: none; background-image: linear-gradient(to bottom, currentColor 4px, transparent 4px); background-size: 1px 8px; background-repeat: repeat-y; background-position: right;'
+      : 'box-shadow: none; background-image: linear-gradient(to right, currentColor 4px, transparent 4px); background-size: 8px 1px; background-repeat: repeat-x; background-position: bottom;'}
 }
 
 .${prefix}-underline[data-style="wavy"] {
-  text-decoration-style: wavy;
+  /*
+   * Wavy line using repeating SVG pattern
+   * SVG内でcurrentColorは効かないため、黒色を直接指定。
+   * 縦書き: 右側に縦方向の波線（幅4px、周期8px）
+   * 横書き: 下側に横方向の波線（周期8px、高さ4px）
+   */
+  ${isVertical
+      ? `box-shadow: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='8' viewBox='0 0 4 8'%3E%3Cpath d='M3 0 Q0 4 3 8' stroke='%23333' fill='none' stroke-width='1'/%3E%3C/svg%3E"); background-size: 4px 8px; background-repeat: repeat-y; background-position: right;`
+      : `box-shadow: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='4' viewBox='0 0 8 4'%3E%3Cpath d='M0 3 Q4 0 8 3' stroke='%23333' fill='none' stroke-width='1'/%3E%3C/svg%3E"); background-size: 8px 4px; background-repeat: repeat-x; background-position: bottom;`}
 }
 
 .${prefix}-underline[data-style="double"] {
-  text-decoration-style: double;
+  box-shadow: none;
+  ${isVertical ? 'padding-right: 0.5em;' : 'padding-bottom: 0.3em;'}
+}
+
+.${prefix}-underline[data-style="double"]::before,
+.${prefix}-underline[data-style="double"]::after {
+  content: '';
+  position: absolute;
+  background-color: currentColor;
+  ${isVertical
+    ? 'top: 0; bottom: 0; width: 1px;'
+    : 'left: 0; right: 0; height: 1px;'}
+}
+
+.${prefix}-underline[data-style="double"]::before {
+  ${isVertical ? 'right: 0;' : 'bottom: 0;'}
+}
+
+.${prefix}-underline[data-style="double"]::after {
+  ${isVertical ? 'right: 3px;' : 'bottom: 3px;'}
+}
+
+.${prefix}-underline--has-ruby[data-style="double"] {
+  ${isVertical ? 'padding-right: 0.7em;' : ''}
 }
 
 /*
  * Label (番号振り) - 教育用途
  *
  * 傍線部の識別子や注番号として表示。
- * 上付き文字として配置。
+ * underline要素内では絶対配置で傍線の末尾外側に配置。
+ * 縦書きで半角文字の場合は縦中横を適用。
  */
 .${prefix}-label {
   font-size: 0.7em;
   vertical-align: super;
+}
+
+/* underline内のラベルは絶対配置（傍線の開始位置に配置） */
+.${prefix}-underline .${prefix}-label {
+  position: absolute;
+  ${isVertical
+      ? 'inset-inline-start: 0; inset-block-start: -1.5em;'
+      : 'inset-inline-start: 0; inset-block-end: -1.5em;'}
+  vertical-align: baseline;
+  white-space: nowrap;
+}
+
+/* 縦書きで半角文字の場合は縦中横 */
+.${prefix}-label--half-width {
+  ${isVertical ? 'text-combine-upright: all;' : ''}
 }
 `.trim();
 }

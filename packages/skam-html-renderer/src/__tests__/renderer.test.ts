@@ -86,12 +86,12 @@ describe('render', () => {
 
       expect(result.html).toContain('skam-okuri');
       expect(result.html).toContain('びて');
-      // Yomigana should be in rt, okurigana should be in suffix-kana (no kaeriten)
+      // Yomigana should be in rt, okurigana should be in suffix-right (within suffix-row grid)
       expect(result.html).toMatch(/<rt class="skam-ruby">まな<\/rt>/);
-      expect(result.html).toContain('skam-suffix-kana');
+      expect(result.html).toContain('skam-suffix-right');
     });
 
-    it('should render soegana in suffix-kana container', () => {
+    it('should render soegana in suffix-right container', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '之' }],
@@ -109,7 +109,7 @@ describe('render', () => {
 
       expect(result.html).toContain('skam-soegana');
       expect(result.html).toContain('を');
-      expect(result.html).toContain('skam-suffix-kana');
+      expect(result.html).toContain('skam-suffix-right');
       // No ruby element when only soegana is present
       expect(result.html).not.toContain('<ruby>');
     });
@@ -134,7 +134,7 @@ describe('render', () => {
       expect(result.html).not.toContain('<ruby>');
       expect(result.html).toContain('skam-okuri');
       expect(result.html).toContain('ふ');
-      expect(result.html).toContain('skam-suffix-kana');
+      expect(result.html).toContain('skam-suffix-right');
     });
   });
 
@@ -265,10 +265,10 @@ describe('render', () => {
       expect(result.html).toMatch(
         /<rt class="skam-ruby skam-saidoku-under" data-saidoku-n="2"><\/rt>/
       );
-      // First reading okuri should be on right side (suffix-kana or suffix-right)
-      expect(result.html).toMatch(/<span class="skam-okuri" data-saidoku-n="1">に<\/span>/);
-      // Second reading okuri should be on left side (suffix-left, same position as kaeriten)
-      expect(result.html).toMatch(/<span class="skam-okuri" data-saidoku-n="2">す<\/span>/);
+      // First reading okuri should be in suffix-right (right column of suffix-row)
+      expect(result.html).toMatch(/<span class="skam-suffix-right"><span class="skam-okuri" data-saidoku-n="1">に<\/span><\/span>/);
+      // Second reading okuri should be in suffix-left (left column of suffix-row)
+      expect(result.html).toMatch(/<span class="skam-suffix-left"><span class="skam-okuri" data-saidoku-n="2">す<\/span><\/span>/);
       // Both okuri should be in suffix-row structure
       expect(result.html).toMatch(/<span class="skam-suffix-row">/);
       // Should have nested ruby structure with inner and outer ruby classes

@@ -556,18 +556,24 @@ function renderToken(
           .join('')
       : '';
 
-  // suffix-row: 送り仮名・添え仮名（右）と返り点・第2読み送り仮名（左）を同じ行に配置するコンテナ
-  // 再読文字の場合: 第1読み送り仮名は右側、第2読み送り仮名は左側（返り点と同じ位置）
-  const suffixKanaRight = saidokuOkuri1 || okurigana + soegana;  // 右側: 第1読み送り仮名 or 通常の送り仮名・添え仮名
-  const suffixKanaLeft = saidokuOkuri2 + kaeriten;              // 左側: 第2読み送り仮名 + 返り点
-  const hasBothSuffixes = suffixKanaRight && suffixKanaLeft;
-  const suffixRow = hasBothSuffixes
-    ? `<span class="${prefix}-suffix-row"><span class="${prefix}-suffix-left">${suffixKanaLeft}</span><span class="${prefix}-suffix-right">${suffixKanaRight}</span></span>`
-    : suffixKanaRight
-      ? `<span class="${prefix}-suffix-kana">${suffixKanaRight}</span>`
-      : suffixKanaLeft
-        ? `<span class="${prefix}-kaeriten-only">${suffixKanaLeft}</span>`
-        : '';
+  // suffix-row: 3列グリッドで送り仮名・返り点・再読2回目送り仮名を配置
+  // col1(右): 送り仮名・添え仮名、再読1回目送り仮名
+  // col2(中央): 返り点
+  // col3(左): 再読2回目送り仮名
+  const suffixRight = saidokuOkuri1 || okurigana + soegana;  // 右列
+  const suffixCenter = kaeriten;                              // 中央列
+  const suffixLeft = saidokuOkuri2;                           // 左列
+
+  const hasSuffix = suffixRight || suffixCenter || suffixLeft;
+  const suffixRowHtml = hasSuffix
+    ? `<span class="${prefix}-suffix-row">${
+        suffixRight ? `<span class="${prefix}-suffix-right">${suffixRight}</span>` : ''
+      }${
+        suffixCenter ? `<span class="${prefix}-suffix-center">${suffixCenter}</span>` : ''
+      }${
+        suffixLeft ? `<span class="${prefix}-suffix-left">${suffixLeft}</span>` : ''
+      }</span>`
+    : '';
 
   // 句読点
   const kutotenMarks = (tokenMarks.get('kutoten') ?? []) as KutotenMark[];
@@ -619,7 +625,7 @@ function renderToken(
     classes.push(`${prefix}-joji`);
   }
 
-  return `<span class="${classes.join(' ')}" data-token-id="${escapeHtml(token.id)}">${baseHtml}${okototenHtml}${suffixRow}</span>${kutoten}`;
+  return `<span class="${classes.join(' ')}" data-token-id="${escapeHtml(token.id)}">${baseHtml}${okototenHtml}${suffixRowHtml}</span>${kutoten}`;
 }
 
 // ============================================================================

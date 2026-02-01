@@ -82,29 +82,6 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
   font-size: 0.5em;
 }
 
-/*
- * Suffix Row (送り仮名・添え仮名・返り点の配置コンテナ)
- *
- * 送り仮名・添え仮名（右）と返り点（左）を同じ行に配置。
- * フロー内に留まりつつ、開始位置を揃える。
- */
-.${prefix}-suffix-row {
-  display: inline-grid;
-  font-size: 0.5em;
-  vertical-align: top;
-  ${isVertical ? 'grid-template-rows: auto auto; grid-template-areas: "right" "left";' : 'grid-template-columns: auto auto; grid-template-areas: "left right";'}
-}
-
-/* Suffix Left (返り点を左側に配置) */
-.${prefix}-suffix-left {
-  grid-area: left;
-}
-
-/* Suffix Right (送り仮名・添え仮名を右側に配置) */
-.${prefix}-suffix-right {
-  grid-area: right;
-}
-
 /* Okurigana (送り仮名) */
 .${prefix}-okuri {
   display: inline;
@@ -125,21 +102,49 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
   /* デフォルトでは特別なスタイルなし（必要に応じてカスタマイズ可能） */
 }
 
-/* Kaeriten (返り点) - suffix-row内で左側に配置 */
+/*
+ * Suffix Row (送り仮名・返り点の配置コンテナ)
+ *
+ * font-size: 0.5em 環境内なので、元の 0.5em → 1em, 元の 1em → 2em
+ *
+ * grid-template-rowsで3行配置（縦書き時は横方向、横書き時は縦方向）
+ *   row1: 送り仮名（縦書き時は右、横書き時は上）
+ *   row2: 返り点（中央）
+ *   row3: 再読2送り（縦書き時は左、横書き時は下）
+ */
+.${prefix}-suffix-row {
+  display: inline-grid;
+  font-size: 0.5em;
+  grid-template-rows: 1em 2em 1em;
+  line-height: 1;
+  vertical-align: top;
+}
+
+/* Suffix Right (送り仮名・添え仮名) */
+.${prefix}-suffix-right {
+  grid-row: 1;
+}
+
+/* Suffix Center (返り点) - 縦書き時は左寄せ、横書き時は下寄せ */
+.${prefix}-suffix-center {
+  grid-row: 2;
+  align-self: end;
+}
+
+/* Suffix Left (再読文字2回目の送り仮名) */
+.${prefix}-suffix-left {
+  grid-row: 3;
+}
+
+/* Kaeriten (返り点) */
 .${prefix}-kaeriten {
   color: inherit;
 }
 
-/* Suffix Kana (送り仮名・添え仮名のみの場合) - 右側に配置 */
+/* Suffix Kana (送り仮名・添え仮名のみの場合) */
 .${prefix}-suffix-kana {
   font-size: 0.5em;
   vertical-align: top;
-}
-
-/* Kaeriten Only (返り点のみの場合) - 左下に配置 */
-.${prefix}-kaeriten-only {
-  font-size: 0.5em;
-  vertical-align: bottom;
 }
 
 /* Kutoten (句読点) */
@@ -290,8 +295,8 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
   position: absolute;
   background-color: currentColor;
   ${isVertical
-    ? 'top: 0; bottom: 0; width: 1px;'
-    : 'left: 0; right: 0; height: 1px;'}
+      ? 'top: 0; bottom: 0; width: 1px;'
+      : 'left: 0; right: 0; height: 1px;'}
 }
 
 .${prefix}-underline[data-style="double"]::before {

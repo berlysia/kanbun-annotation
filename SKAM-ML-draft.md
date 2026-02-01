@@ -193,7 +193,7 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 
 ```xml
 <skam:block>
-  <skam:kun reading="まな" okuri="びて">學</skam:kun>而
+  <skam:kun yomi="まな" okuri="びて">學</skam:kun>而
   <skam:kun okuri="に">時</skam:kun>
   <skam:kun okuri="ふ">習</skam:kun>
   <skam:kun soe="を">之</skam:kun>
@@ -202,11 +202,11 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 
 #### 属性
 
-| 属性      | 必須 | 説明                         |
-| --------- | ---- | ---------------------------- |
-| `reading` | 任意 | 読み仮名（漢字の読み）       |
-| `okuri`   | 任意 | 送り仮名（活用語尾）         |
-| `soe`     | 任意 | 添え仮名（テニヲハ等の助詞） |
+| 属性    | 必須 | 説明                         |
+| ------- | ---- | ---------------------------- |
+| `yomi`  | 任意 | 読み仮名（漢字の読み）       |
+| `okuri` | 任意 | 送り仮名（活用語尾）         |
+| `soe`   | 任意 | 添え仮名（テニヲハ等の助詞） |
 
 ※ 全て省略可。少なくとも一方を指定することを推奨。
 
@@ -214,7 +214,7 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 
 SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soegana` に分離される。
 
-- `reading` 属性がある場合: `marks.type = "yomigana"`, `value = reading属性`
+- `yomi` 属性がある場合: `marks.type = "yomigana"`, `value = yomi属性`
 - `okuri` 属性がある場合: `marks.type = "okurigana"`, `value = okuri属性`
 - `soe` 属性がある場合: `marks.type = "soegana"`, `value = soe属性`
 - 複数ある場合: 複数の mark が生成される（同一 anchor を共有）
@@ -412,7 +412,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 <skam:block>
   <skam:saidoku>
     <skam:base>將</skam:base>
-    <skam:kunform n="1" reading="まさ" okuri="に"/>
+    <skam:kunform n="1" yomi="まさ" okuri="に"/>
     <skam:kunform n="2" okuri="す"/>
   </skam:saidoku>
   死
@@ -430,11 +430,11 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 
 #### `skam:kunform` の属性
 
-| 属性      | 必須 | 説明                     |
-| --------- | ---- | ------------------------ |
-| `n`       | 任意 | 読み順（省略時は出現順） |
-| `reading` | 任意 | 読み仮名                 |
-| `okuri`   | 任意 | 送り仮名                 |
+| 属性    | 必須 | 説明                     |
+| ------- | ---- | ------------------------ |
+| `n`     | 任意 | 読み順（省略時は出現順） |
+| `yomi`  | 任意 | 読み仮名                 |
+| `okuri` | 任意 | 送り仮名                 |
 
 ※ `kunform` は `kun` の1回分に相当する。
 
@@ -571,7 +571,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 
   <skam:body>
     <skam:block>
-      <skam:kun reading="まな" okuri="びて">學</skam:kun>
+      <skam:kun yomi="まな" okuri="びて">學</skam:kun>
       而
       <skam:kun okuri="に">時</skam:kun>
       <skam:kun soe="を">之</skam:kun>
@@ -601,10 +601,10 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
     <skam:block>
       <skam:saidoku>
         <skam:base>將</skam:base>
-        <skam:kunform n="1" reading="まさ" okuri="に"/>
+        <skam:kunform n="1" yomi="まさ" okuri="に"/>
         <skam:kunform n="2" okuri="す"/>
       </skam:saidoku>
-      <skam:kun reading="し" okuri="な">死</skam:kun>
+      <skam:kun yomi="し" okuri="な">死</skam:kun>
       <skam:kaeri kind="re"/>
     </skam:block>
   </skam:body>
@@ -633,7 +633,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      <skam:kun reading="まな" okuri="びて">學</skam:kun>
+      <skam:kun yomi="まな" okuri="びて">學</skam:kun>
       而時
       <skam:kun okuri="に">之</skam:kun>
       <skam:kaeri kind="re"/>
@@ -653,7 +653,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
   <skam:body>
     <skam:block>
       <skam:underline style="solid" group="a">
-        <skam:kun reading="まな" okuri="びて">學</skam:kun>
+        <skam:kun yomi="まな" okuri="びて">學</skam:kun>
         而
         <skam:kun okuri="に">時</skam:kun>
         <skam:kun okuri="ふ">習</skam:kun>
@@ -677,7 +677,7 @@ SKAM-ML/XMLはHTMLに依存しない純XML語彙とし、本文構造は`skam:bl
 | SKAM-ML/XML 要素              | SKAM JSON marks.type |
 | ----------------------------- | -------------------- |
 | `skam:kaeri`                  | `kaeri`              |
-| `skam:kun` (reading属性)      | `yomigana`           |
+| `skam:kun` (yomi属性)         | `yomigana`           |
 | `skam:kun` (okuri属性)        | `okurigana`          |
 | `skam:yomigana`               | `yomigana`           |
 | `skam:kutoten`                | `kutoten`            |

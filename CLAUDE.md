@@ -57,13 +57,24 @@ if (result.valid) {
 }
 ```
 
-### @kanbun/skam-xml 主要 API
+### @kanbun/skam-xml-parser 主要 API
 
 ```typescript
-import { parse } from '@kanbun/skam-xml';
+import { parse } from '@kanbun/skam-xml-parser';
 
 // XML → SKAM JSON
 const doc = parse(xmlString);
+```
+
+### @kanbun/skam-html-renderer 主要 API
+
+```typescript
+import { render, getDefaultStyles, PROFILES } from '@kanbun/skam-html-renderer';
+
+// SKAM → HTML（縦書きがデフォルト）
+const { html, css } = render(doc);
+// 横書き: render(doc, { writingMode: 'horizontal' })
+// プロファイル: PROFILES.full | PROFILES.learningBasic | PROFILES.learningHint
 ```
 
 ### SKAM データモデル

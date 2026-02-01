@@ -13,20 +13,35 @@ SKAM は、漢文本文と訓点・注記・読みを**分離して保持**し�
 - **読み層の分離**: 表示用と読み上げ用を独立した層として保持
 - **拡張性**: `ext` コンテナ方式による安全な拡張と round-trip 保持
 
+## Playground
+
+SKAM-ML/XML を試せるインタラクティブなデモ: https://berlysia.github.io/kanbun-annotation/
+
 ## パッケージ構成
 
-| パッケージ         | 説明                      | 状態   |
-| ------------------ | ------------------------- | ------ |
-| `@kanbun/skam`     | SKAM 型定義（TypeScript） | v0.1.0 |
-| `@kanbun/skam-xml` | SKAM-ML/XML パーサー      | 開発中 |
+| パッケージ                  | 説明                       | 状態   |
+| --------------------------- | -------------------------- | ------ |
+| `@kanbun/skam`              | SKAM 型定義（TypeScript）  | v0.1.0 |
+| `@kanbun/skam-xml-parser`   | SKAM-ML/XML パーサー       | v0.1.0 |
+| `@kanbun/skam-html-renderer`| SKAM → HTML レンダラー     | v0.1.0 |
+| `@kanbun/playground`        | インタラクティブデモ       | -      |
 
 ## インストール
 
 ```bash
+# 型定義のみ
 pnpm add @kanbun/skam
+
+# XML パーサー（@kanbun/skam を含む）
+pnpm add @kanbun/skam-xml-parser
+
+# HTML レンダラー（@kanbun/skam を含む）
+pnpm add @kanbun/skam-html-renderer
 ```
 
 ## 使い方
+
+### SKAM ドキュメントを直接作成
 
 ```typescript
 import type { SKAMDocument } from '@kanbun/skam';
@@ -41,17 +56,41 @@ const doc: SKAMDocument = {
     { id: 't5', text: '之' },
   ],
   marks: [
-    { type: 'okurigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'びて' },
-    { type: 'okurigana', id: 'm2', anchor: { from: 't3', to: 't3' }, value: 'に' },
-    { type: 'soegana', id: 'm3', anchor: { from: 't5', to: 't5' }, value: 'を' },
-    { type: 'okurigana', id: 'm4', anchor: { from: 't4', to: 't4' }, value: 'ふ' },
-    { type: 'kaeri', id: 'm5', anchor: { from: 't5', to: 't5' }, value: 'レ' },
+    { type: 'yomigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'まな' },
+    { type: 'okurigana', id: 'm2', anchor: { from: 't1', to: 't1' }, value: 'びて' },
+    { type: 'okurigana', id: 'm3', anchor: { from: 't3', to: 't3' }, value: 'に' },
+    { type: 'soegana', id: 'm4', anchor: { from: 't5', to: 't5' }, value: 'を' },
+    { type: 'okurigana', id: 'm5', anchor: { from: 't4', to: 't4' }, value: 'ふ' },
+    { type: 'kaeri', id: 'm6', anchor: { from: 't5', to: 't5' }, value: 'レ' },
   ],
-  readings: [
-    { kind: 'kakikudashi', text: '学びて時に之を習ふ' },
-    { kind: 'yomiage', text: 'まなびてときにこれをならう' },
-  ],
+  readings: [{ kind: 'kakikudashi', text: '学びて時に之を習ふ' }],
 };
+```
+
+### SKAM-ML/XML からパース
+
+```typescript
+import { parse } from '@kanbun/skam-xml-parser';
+
+const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:kun yomi="まな" okuri="びて">學</skam:kun>而時<skam:kun okuri="に">習</skam:kun><skam:kaeri kind="re"/><skam:kun soe="を">之</skam:kun>
+    </skam:block>
+  </skam:body>
+</skam:doc>`;
+
+const doc = parse(xml);
+```
+
+### HTML へレンダリング
+
+```typescript
+import { render, getDefaultStyles } from '@kanbun/skam-html-renderer';
+
+const { html, css } = render(doc); // 縦書き（デフォルト）
+// または横書き: render(doc, { writingMode: 'horizontal' })
 ```
 
 ## 仕様書

@@ -302,8 +302,8 @@ function generateCommonStyles(prefix: string, vp: string): string {
   vertical-align: middle;
 }
 
-/* Note (注釈) */
-:where(.${prefix}-note-ref) {
+/* Ref (参照ラベル) */
+:where(.${prefix}-ref) {
   font-size: 0.7em;
   vertical-align: super;
   color: inherit;

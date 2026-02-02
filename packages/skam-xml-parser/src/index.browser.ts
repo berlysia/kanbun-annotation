@@ -1,12 +1,12 @@
 /**
- * SKAM-ML/XML Parser (Node.js)
+ * SKAM-ML/XML Parser (Browser)
  *
  * SKAMドキュメントのXML形式デシリアライズ
  */
 
 import type { SKAMDocument } from '@kanbun/skam';
 import { parseFromDocument, SKAMXMLParseError, type ParseOptions } from './parser-core.js';
-import { parseXML } from './xml-parser.js';
+import { parseXML } from './xml-parser.browser.js';
 
 export type { SKAMDocument } from '@kanbun/skam';
 export { SKAMXMLParseError, type ParseOptions } from './parser-core.js';

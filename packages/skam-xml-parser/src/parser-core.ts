@@ -1,10 +1,9 @@
 /**
- * SKAM-ML/XML Parser
+ * SKAM-ML/XML Parser Core
  *
- * XML → SKAM JSON 変換
+ * Document → SKAM JSON 変換（環境非依存の共通ロジック）
  */
 
-import { DOMParser } from '@xmldom/xmldom';
 import type {
   SKAMDocument,
   Token,
@@ -848,7 +847,7 @@ function resolveContentReferences(state: ParserState): void {
 }
 
 // ============================================================================
-// Main Parse Function
+// Main Parse Function (from Document)
 // ============================================================================
 
 export interface ParseOptions {
@@ -857,31 +856,15 @@ export interface ParseOptions {
 }
 
 /**
- * Parse SKAM-ML/XML string to SKAMDocument
+ * Parse SKAM-ML Document to SKAMDocument
  *
- * @param xml XML string
+ * @param doc Parsed XML Document
  * @param options Parse options
  * @returns SKAMDocument
  * @throws SKAMXMLParseError if parsing fails
  */
-export function parse(xml: string, options: ParseOptions = {}): SKAMDocument {
+export function parseFromDocument(doc: Document, options: ParseOptions = {}): SKAMDocument {
   const { validate: _validate = true } = options;
-
-  // Parse XML
-  const errors: string[] = [];
-  const parser = new DOMParser({
-    errorHandler: {
-      warning: () => {},
-      error: (msg) => errors.push(msg),
-      fatalError: (msg) => errors.push(msg),
-    },
-  });
-
-  const doc = parser.parseFromString(xml, 'application/xml');
-
-  if (errors.length > 0) {
-    throw new SKAMXMLParseError(`XML parse error: ${errors[0]}`);
-  }
 
   // Get root element
   const root = doc.documentElement;

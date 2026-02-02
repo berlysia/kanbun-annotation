@@ -5,8 +5,14 @@
   "type": "module",
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "browser": {
+        "import": "./dist/index.browser.js",
+        "types": "./dist/index.browser.d.ts"
+      },
+      "default": {
+        "import": "./dist/index.js",
+        "types": "./dist/index.d.ts"
+      }
     }
   },
   "files": [

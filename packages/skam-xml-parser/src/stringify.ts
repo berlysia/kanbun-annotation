@@ -33,7 +33,6 @@ import type {
   OkototenMark,
   SaidokuMark,
   EmphasisMark,
-  TatetenMark,
   RegionMark,
   RefMark,
 } from '@kanbun/skam';

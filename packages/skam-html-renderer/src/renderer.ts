@@ -711,7 +711,8 @@ function renderToken(
   marks: Mark[],
   ctx: Omit<TokenRenderContext, 'tokenMarks'>,
   rangeCtx?: RangeMarkContext,
-  refValueMap?: Map<RefMark, string>
+  refValueMap?: Map<RefMark, string>,
+  regionRefIds?: Set<string>
 ): string {
   const { prefix, profile } = ctx;
   const tokenMarks = getMarksForToken(token.id, marks);
@@ -858,11 +859,13 @@ function renderToken(
   }
 
   // ref 参照（本文中のマーカー）
+  // regionから参照されているrefはregion終端で出力するのでここではスキップ
   let refHtml = '';
   if (profile.ref && refValueMap) {
     const refMarks = (tokenMarks.get('ref') ?? []) as RefMark[];
     if (refMarks.length > 0) {
       refHtml = refMarks
+        .filter((m) => !regionRefIds || !m.id || !regionRefIds.has(m.id))
         .map((m) => {
           const refText = refValueMap.get(m) ?? '';
           if (refText) {
@@ -985,6 +988,17 @@ function renderDisplayLayer(
 
   // 領域グループを特定
   const regionGroups = profile.region ? getRegionGroups(tokens, marks) : new Map();
+
+  // regionから参照されているrefのIDを収集（renderToken内でスキップ用）
+  const regionRefIds = new Set<string>();
+  if (profile.region) {
+    const regionMarks = marks.filter((m): m is RegionMark => m.type === 'region');
+    for (const region of regionMarks) {
+      if (region.ref) {
+        regionRefIds.add(region.ref);
+      }
+    }
+  }
 
   // 範囲yomiganaグループを特定（熟語ルビ対応）
   const yomiganaRangeGroups = profile.yomigana
@@ -1125,7 +1139,7 @@ function renderDisplayLayer(
         }
       }
 
-      let tokenHtml = renderToken(token, marks, ctx, rangeCtx, refValueMap);
+      let tokenHtml = renderToken(token, marks, ctx, rangeCtx, refValueMap, regionRefIds);
 
       // region グループ処理
       if (profile.region && regionGroup) {

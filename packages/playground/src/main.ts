@@ -949,7 +949,11 @@ function updateUnderlineStyleButtons(): void {
   );
   for (const btn of buttons) {
     const style = btn.dataset['style'] as UnderlineStyle;
-    btn.classList.toggle('active', style === currentUnderlineStyle);
+    // Only show active state if underline exists
+    btn.classList.toggle(
+      'active',
+      currentUnderlineMarkId !== null && style === currentUnderlineStyle
+    );
   }
 }
 
@@ -1941,11 +1945,13 @@ selectionUnderlineStyles.addEventListener('click', (e) => {
   if (!style) return;
 
   currentUnderlineStyle = style;
-  updateUnderlineStyleButtons();
 
-  // If underline already exists, update it immediately
   if (currentUnderlineMarkId) {
+    // If underline already exists, update it immediately
     updateExistingUnderline();
+  } else {
+    // If no underline exists, add one with the selected style
+    handleUnderlineToggle();
   }
 });
 

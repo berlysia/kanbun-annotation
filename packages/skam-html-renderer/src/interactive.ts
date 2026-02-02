@@ -72,8 +72,16 @@ const SELECTION_CLASSES = {
 /**
  * 要素からトークンIDを取得
  * data-token-id 属性を持つ最も近い祖先要素を探す
+ *
+ * @param element 対象要素
+ * @param mousePosition マウス位置（範囲マーク上でfrom/toを判定するため）
+ * @param isVertical 縦書きモードかどうか
  */
-function getTokenIdFromElement(element: Element | null): string | null {
+function getTokenIdFromElement(
+  element: Element | null,
+  mousePosition?: { x: number; y: number },
+  isVertical?: boolean
+): string | null {
   if (!element) return null;
 
   // data-token-id を持つ要素を探す（自身または祖先）
@@ -82,10 +90,29 @@ function getTokenIdFromElement(element: Element | null): string | null {
     return tokenElement.getAttribute('data-token-id');
   }
 
-  // 範囲マーク（data-token-from/to）の場合は from を返す
+  // 範囲マーク（data-token-from/to）の場合
   const rangeElement = element.closest('[data-token-from]');
   if (rangeElement) {
-    return rangeElement.getAttribute('data-token-from');
+    const fromId = rangeElement.getAttribute('data-token-from');
+    const toId = rangeElement.getAttribute('data-token-to');
+
+    // マウス位置がない場合、または from/to が同じ場合は from を返す
+    if (!mousePosition || !toId || fromId === toId) {
+      return fromId;
+    }
+
+    // マウス位置と要素の中心点を比較して、from か to を返す
+    const rect = rangeElement.getBoundingClientRect();
+    const centerX = rect.left + rect.width / 2;
+    const centerY = rect.top + rect.height / 2;
+
+    if (isVertical) {
+      // 縦書き: マウスが中心より上なら from、下なら to
+      return mousePosition.y < centerY ? fromId : toId;
+    } else {
+      // 横書き: マウスが中心より左なら from、右なら to
+      return mousePosition.x < centerX ? fromId : toId;
+    }
   }
 
   return null;
@@ -252,7 +279,8 @@ export function attachInteractiveHandlers(
    */
   const handleMouseDown = (event: MouseEvent): void => {
     const target = event.target as Element | null;
-    const tokenId = getTokenIdFromElement(target);
+    const mousePos = { x: event.clientX, y: event.clientY };
+    const tokenId = getTokenIdFromElement(target, mousePos, isVertical);
 
     if (!tokenId) return;
 
@@ -275,7 +303,8 @@ export function attachInteractiveHandlers(
     if (!state.isDragging || !state.startTokenId) return;
 
     const target = event.target as Element | null;
-    const currentTokenId = getTokenIdFromElement(target);
+    const mousePos = { x: event.clientX, y: event.clientY };
+    const currentTokenId = getTokenIdFromElement(target, mousePos, isVertical);
 
     if (!currentTokenId || currentTokenId === state.currentEndTokenId) return;
 
@@ -296,7 +325,8 @@ export function attachInteractiveHandlers(
     }
 
     const target = event.target as Element | null;
-    const endTokenId = getTokenIdFromElement(target) ?? state.currentEndTokenId;
+    const mousePos = { x: event.clientX, y: event.clientY };
+    const endTokenId = getTokenIdFromElement(target, mousePos, isVertical) ?? state.currentEndTokenId;
 
     if (!endTokenId) {
       state.isDragging = false;

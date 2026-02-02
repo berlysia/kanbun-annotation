@@ -5,7 +5,7 @@
  * allowing users to add or edit various annotations.
  */
 
-import type { Mark, KaeriMark } from '@kanbun/skam';
+import type { Mark, KaeriMark, OkuriganaMark, YomiganaMark, SoeganaMark } from '@kanbun/skam';
 
 /** Kana mark types supported by this popup */
 export type KanaMarkType = 'okurigana' | 'yomigana' | 'soegana';
@@ -26,10 +26,13 @@ export type KaeriSelectCallback = (
 
 /** Labels for kana mark types */
 const KANA_TYPE_LABELS: Record<KanaMarkType, string> = {
-  okurigana: '送り仮名',
   yomigana: '読み仮名',
+  okurigana: '送り仮名',
   soegana: '添え仮名',
 };
+
+/** Ordered list of kana types for UI display */
+const KANA_TYPE_ORDER: KanaMarkType[] = ['yomigana', 'okurigana', 'soegana'];
 
 // ============================================================================
 // Kaeri (返り点) Configuration
@@ -111,6 +114,13 @@ function validateKanaInput(value: string): { valid: boolean; warning?: string } 
 /**
  * MarkPopup class for managing kana and kaeri input popup UI
  */
+/** Existing kana marks by type for unified popup */
+export interface ExistingKanaMarks {
+  okurigana?: OkuriganaMark;
+  yomigana?: YomiganaMark;
+  soegana?: SoeganaMark;
+}
+
 export class MarkPopup {
   private container: HTMLElement;
   private popup: HTMLElement | null = null;
@@ -123,6 +133,8 @@ export class MarkPopup {
   private keydownHandler: ((e: KeyboardEvent) => void) | null = null;
   /** Element that had focus before popup opened */
   private previousFocusElement: HTMLElement | null = null;
+  /** Existing kana marks by type (for unified popup) */
+  private existingKanaMarks: ExistingKanaMarks = {};
 
   constructor(container: HTMLElement) {
     this.container = container;
@@ -365,6 +377,50 @@ export class MarkPopup {
         white-space: nowrap;
         border: 0;
       }
+
+      /* Tab styles for unified popup */
+      .mark-popup-tabs {
+        display: flex;
+        gap: 0;
+        margin-bottom: 12px;
+        border-bottom: 1px solid var(--editor-border, #dadce0);
+      }
+
+      .mark-popup-tab {
+        flex: 1;
+        padding: 8px 16px;
+        border: none;
+        background: transparent;
+        color: var(--editor-text-secondary, #5f6368);
+        font-size: 14px;
+        font-weight: 500;
+        cursor: pointer;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+        transition: color 0.15s, border-color 0.15s;
+      }
+
+      .mark-popup-tab:hover {
+        color: var(--editor-text, #202124);
+      }
+
+      .mark-popup-tab.active {
+        color: var(--editor-primary, #4285f4);
+        border-bottom-color: var(--editor-primary, #4285f4);
+      }
+
+      .mark-popup-tab:focus {
+        outline: 2px solid var(--editor-primary, #4285f4);
+        outline-offset: -2px;
+      }
+
+      .mark-popup-tab-content {
+        display: none;
+      }
+
+      .mark-popup-tab-content.active {
+        display: block;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -429,8 +485,7 @@ export class MarkPopup {
       <fieldset class="mark-popup-section mark-popup-fieldset">
         <legend class="mark-popup-section-label">種別を選択</legend>
         <div class="mark-popup-radio-group" role="radiogroup" aria-label="仮名の種別">
-          ${(Object.keys(KANA_TYPE_LABELS) as KanaMarkType[])
-            .map(
+          ${KANA_TYPE_ORDER.map(
               (type) => `
             <label>
               <input type="radio" name="kana-type" value="${type}" ${type === existingType ? 'checked' : ''}>
@@ -444,7 +499,7 @@ export class MarkPopup {
 
       <div class="mark-popup-section">
         <label for="${kanaInputId}" class="mark-popup-section-label">仮名を入力</label>
-        <input type="text" id="${kanaInputId}" class="mark-popup-input" placeholder="仮名を入力" value="${this.escapeHtml(existingValue)}" aria-describedby="${kanaHintId}">
+        <input type="text" id="${kanaInputId}" class="mark-popup-input" placeholder="仮名を入力" value="${this.escapeHtml(existingValue)}" aria-describedby="${kanaHintId}" autocomplete="off" data-1p-ignore data-lpignore="true">
         <span id="${kanaHintId}" class="visually-hidden">ひらがなまたはカタカナで入力してください</span>
         <div class="mark-popup-warning" role="alert" aria-live="polite"></div>
       </div>
@@ -989,6 +1044,555 @@ export class MarkPopup {
     for (const callback of this.kaeriCallbacks) {
       callback(tokenId, kind);
     }
+  }
+
+  // ============================================================================
+  // Unified Popup Methods (タブ切り替え式)
+  // ============================================================================
+
+  /**
+   * Show unified popup with tabs for both kaeri and kana marks
+   *
+   * @param position Screen position for the popup
+   * @param fromTokenId Starting token ID
+   * @param toTokenId Ending token ID (same as fromTokenId for single selection)
+   * @param defaultTab Default tab to show ('kaeri' or 'kana')
+   * @param existingKaeriMark Optional existing kaeri mark to edit
+   * @param existingKanaMarks Optional existing kana marks by type
+   */
+  showUnifiedPopup(
+    position: { x: number; y: number },
+    fromTokenId: string,
+    toTokenId: string,
+    defaultTab: 'kaeri' | 'kana' = 'kaeri',
+    existingKaeriMark?: Mark,
+    existingKanaMarks?: ExistingKanaMarks
+  ): void {
+    // Store currently focused element
+    this.previousFocusElement = document.activeElement as HTMLElement | null;
+
+    // Close any existing popup
+    this.hide();
+
+    // Re-store after hide() cleared it
+    this.previousFocusElement = document.activeElement as HTMLElement | null;
+
+    this.currentFromTokenId = fromTokenId;
+    this.currentToTokenId = toTokenId;
+    this.existingKanaMarks = existingKanaMarks ?? {};
+
+    // Determine which mark is being edited based on default tab
+    const firstKanaMark = existingKanaMarks?.okurigana ?? existingKanaMarks?.yomigana ?? existingKanaMarks?.soegana;
+    this.currentMarkId = existingKaeriMark?.id ?? firstKanaMark?.id ?? null;
+
+    // Create popup element
+    this.popup = document.createElement('div');
+    this.popup.className = 'mark-popup';
+    this.popup.setAttribute('role', 'dialog');
+    this.popup.setAttribute('aria-label', 'マークを追加・編集');
+    this.popup.setAttribute('aria-modal', 'true');
+
+    // Build popup content with tabs
+    this.popup.appendChild(
+      this.buildUnifiedPopupContent(defaultTab, existingKaeriMark, existingKanaMarks)
+    );
+
+    // Position the popup
+    this.popup.style.left = `${position.x}px`;
+    this.popup.style.top = `${position.y}px`;
+
+    // Add to container
+    this.container.appendChild(this.popup);
+
+    // Adjust position if popup goes off-screen
+    this.adjustPosition();
+
+    // Setup tab switching
+    this.setupTabSwitching();
+
+    // Setup event listeners for both tabs
+    this.setupUnifiedEventListeners(existingKaeriMark);
+
+    // Setup keyboard handlers
+    this.setupKeyboardHandlers();
+
+    // Focus the first element in the active tab
+    this.focusFirstElementInActiveTab();
+  }
+
+  /**
+   * Build unified popup content with tabs
+   */
+  private buildUnifiedPopupContent(
+    defaultTab: 'kaeri' | 'kana',
+    existingKaeriMark?: Mark,
+    existingKanaMarks?: ExistingKanaMarks
+  ): DocumentFragment {
+    const fragment = document.createDocumentFragment();
+
+    // Tabs
+    const tabsDiv = document.createElement('div');
+    tabsDiv.className = 'mark-popup-tabs';
+    tabsDiv.setAttribute('role', 'tablist');
+
+    const kaeriTab = document.createElement('button');
+    kaeriTab.className = `mark-popup-tab${defaultTab === 'kaeri' ? ' active' : ''}`;
+    kaeriTab.textContent = '返り点';
+    kaeriTab.type = 'button';
+    kaeriTab.setAttribute('role', 'tab');
+    kaeriTab.setAttribute('aria-selected', defaultTab === 'kaeri' ? 'true' : 'false');
+    kaeriTab.setAttribute('aria-controls', 'kaeri-tab-content');
+    kaeriTab.dataset['tab'] = 'kaeri';
+    tabsDiv.appendChild(kaeriTab);
+
+    const kanaTab = document.createElement('button');
+    kanaTab.className = `mark-popup-tab${defaultTab === 'kana' ? ' active' : ''}`;
+    kanaTab.textContent = '仮名';
+    kanaTab.type = 'button';
+    kanaTab.setAttribute('role', 'tab');
+    kanaTab.setAttribute('aria-selected', defaultTab === 'kana' ? 'true' : 'false');
+    kanaTab.setAttribute('aria-controls', 'kana-tab-content');
+    kanaTab.dataset['tab'] = 'kana';
+    tabsDiv.appendChild(kanaTab);
+
+    fragment.appendChild(tabsDiv);
+
+    // Kaeri tab content
+    const kaeriContent = document.createElement('div');
+    kaeriContent.id = 'kaeri-tab-content';
+    kaeriContent.className = `mark-popup-tab-content${defaultTab === 'kaeri' ? ' active' : ''}`;
+    kaeriContent.setAttribute('role', 'tabpanel');
+    kaeriContent.setAttribute('aria-labelledby', 'kaeri-tab');
+    kaeriContent.appendChild(this.buildKaeriTabContent(existingKaeriMark));
+    fragment.appendChild(kaeriContent);
+
+    // Kana tab content
+    const kanaContent = document.createElement('div');
+    kanaContent.id = 'kana-tab-content';
+    kanaContent.className = `mark-popup-tab-content${defaultTab === 'kana' ? ' active' : ''}`;
+    kanaContent.setAttribute('role', 'tabpanel');
+    kanaContent.setAttribute('aria-labelledby', 'kana-tab');
+    kanaContent.appendChild(this.buildKanaTabContent(existingKanaMarks));
+    fragment.appendChild(kanaContent);
+
+    return fragment;
+  }
+
+  /**
+   * Build kaeri tab content (without title, used in unified popup)
+   */
+  private buildKaeriTabContent(existingMark?: Mark): DocumentFragment {
+    const fragment = document.createDocumentFragment();
+
+    // Get existing value for highlighting
+    const existingValue = existingMark?.type === 'kaeri' ? (existingMark as KaeriMark).value : null;
+
+    // Single kaeri groups
+    for (const group of KAERI_SINGLE_GROUPS) {
+      const buttonsDiv = document.createElement('div');
+      buttonsDiv.className = 'mark-popup-buttons';
+      for (const item of group) {
+        const btn = this.createKaeriButton(item, existingValue);
+        buttonsDiv.appendChild(btn);
+      }
+      fragment.appendChild(buttonsDiv);
+    }
+
+    // Separator
+    const separator1 = document.createElement('div');
+    separator1.className = 'mark-popup-separator';
+    fragment.appendChild(separator1);
+
+    // Compound group label
+    const compoundLabel = document.createElement('div');
+    compoundLabel.className = 'mark-popup-group-label';
+    compoundLabel.textContent = '複合:';
+    fragment.appendChild(compoundLabel);
+
+    // Compound kaeri buttons
+    const compoundButtonsDiv = document.createElement('div');
+    compoundButtonsDiv.className = 'mark-popup-buttons';
+    for (const item of KAERI_COMPOUND_GROUP) {
+      const btn = this.createKaeriButton(item, existingValue);
+      compoundButtonsDiv.appendChild(btn);
+    }
+    fragment.appendChild(compoundButtonsDiv);
+
+    // Action buttons (only delete if editing)
+    if (existingMark) {
+      const separator2 = document.createElement('div');
+      separator2.className = 'mark-popup-separator';
+      fragment.appendChild(separator2);
+
+      const actionsDiv = document.createElement('div');
+      actionsDiv.className = 'mark-popup-actions';
+      actionsDiv.style.justifyContent = 'flex-start';
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'mark-popup-btn mark-popup-btn--delete';
+      deleteBtn.textContent = '削除';
+      deleteBtn.type = 'button';
+      deleteBtn.tabIndex = 0;
+      deleteBtn.dataset['action'] = 'delete-kaeri';
+      deleteBtn.setAttribute('aria-label', 'この返り点を削除');
+      actionsDiv.appendChild(deleteBtn);
+
+      fragment.appendChild(actionsDiv);
+    }
+
+    return fragment;
+  }
+
+  /**
+   * Build kana tab content (without header, used in unified popup)
+   */
+  private buildKanaTabContent(existingMarks?: ExistingKanaMarks): DocumentFragment {
+    const fragment = document.createDocumentFragment();
+
+    // Determine initial type and value based on existing marks
+    // Prefer yomigana, then okurigana, then soegana (matches UI order)
+    let initialType: KanaMarkType = 'yomigana';
+    let initialValue = '';
+
+    if (existingMarks) {
+      if (existingMarks.yomigana) {
+        initialType = 'yomigana';
+        initialValue = existingMarks.yomigana.value;
+      } else if (existingMarks.okurigana) {
+        initialType = 'okurigana';
+        initialValue = existingMarks.okurigana.value;
+      } else if (existingMarks.soegana) {
+        initialType = 'soegana';
+        initialValue = existingMarks.soegana.value;
+      }
+    }
+
+    // Generate unique IDs for accessibility
+    const kanaInputId = `kana-input-unified-${Date.now()}`;
+    const kanaHintId = `kana-hint-unified-${Date.now()}`;
+
+    // Type selection
+    const typeSection = document.createElement('fieldset');
+    typeSection.className = 'mark-popup-section mark-popup-fieldset';
+
+    const typeLegend = document.createElement('legend');
+    typeLegend.className = 'mark-popup-section-label';
+    typeLegend.textContent = '種別を選択';
+    typeSection.appendChild(typeLegend);
+
+    const radioGroup = document.createElement('div');
+    radioGroup.className = 'mark-popup-radio-group';
+    radioGroup.setAttribute('role', 'radiogroup');
+    radioGroup.setAttribute('aria-label', '仮名の種別');
+
+    for (const type of KANA_TYPE_ORDER) {
+      const label = document.createElement('label');
+
+      const radio = document.createElement('input');
+      radio.type = 'radio';
+      radio.name = 'kana-type-unified';
+      radio.value = type;
+      if (type === initialType) {
+        radio.checked = true;
+      }
+      // Store the existing value for this type in a data attribute
+      const existingMark = existingMarks?.[type];
+      if (existingMark) {
+        radio.dataset['existingValue'] = existingMark.value;
+      }
+
+      label.appendChild(radio);
+      label.appendChild(document.createTextNode(KANA_TYPE_LABELS[type]));
+      radioGroup.appendChild(label);
+    }
+
+    typeSection.appendChild(radioGroup);
+    fragment.appendChild(typeSection);
+
+    // Input section
+    const inputSection = document.createElement('div');
+    inputSection.className = 'mark-popup-section';
+
+    const inputLabel = document.createElement('label');
+    inputLabel.htmlFor = kanaInputId;
+    inputLabel.className = 'mark-popup-section-label';
+    inputLabel.textContent = '仮名を入力';
+    inputSection.appendChild(inputLabel);
+
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.id = kanaInputId;
+    input.className = 'mark-popup-input mark-popup-kana-input';
+    input.placeholder = '仮名を入力';
+    input.value = initialValue;
+    input.setAttribute('aria-describedby', kanaHintId);
+    // Prevent password managers from interfering
+    input.autocomplete = 'off';
+    input.dataset['1pIgnore'] = '';
+    input.dataset['lpignore'] = 'true';
+    inputSection.appendChild(input);
+
+    const hint = document.createElement('span');
+    hint.id = kanaHintId;
+    hint.className = 'visually-hidden';
+    hint.textContent = 'ひらがなまたはカタカナで入力してください';
+    inputSection.appendChild(hint);
+
+    const warning = document.createElement('div');
+    warning.className = 'mark-popup-warning';
+    warning.setAttribute('role', 'alert');
+    warning.setAttribute('aria-live', 'polite');
+    inputSection.appendChild(warning);
+
+    fragment.appendChild(inputSection);
+
+    // Action buttons
+    const actionsDiv = document.createElement('div');
+    actionsDiv.className = 'mark-popup-actions';
+
+    // Show delete button if any existing kana mark exists
+    const hasExistingMark = existingMarks?.okurigana || existingMarks?.yomigana || existingMarks?.soegana;
+    if (hasExistingMark) {
+      const deleteBtn = document.createElement('button');
+      deleteBtn.className = 'mark-popup-btn mark-popup-btn-danger';
+      deleteBtn.textContent = '削除';
+      deleteBtn.type = 'button';
+      deleteBtn.tabIndex = 0;
+      deleteBtn.dataset['action'] = 'delete-kana';
+      deleteBtn.setAttribute('aria-label', 'この仮名を削除');
+      actionsDiv.appendChild(deleteBtn);
+    }
+
+    const applyBtn = document.createElement('button');
+    applyBtn.className = 'mark-popup-btn mark-popup-btn-primary';
+    applyBtn.textContent = '適用';
+    applyBtn.type = 'button';
+    applyBtn.tabIndex = 0;
+    applyBtn.disabled = !initialValue.trim();
+    applyBtn.dataset['action'] = 'apply-kana';
+    applyBtn.setAttribute('aria-label', '仮名を適用');
+    actionsDiv.appendChild(applyBtn);
+
+    fragment.appendChild(actionsDiv);
+
+    return fragment;
+  }
+
+  /**
+   * Setup tab switching behavior
+   */
+  private setupTabSwitching(): void {
+    if (!this.popup) return;
+
+    const tabs = this.popup.querySelectorAll('.mark-popup-tab');
+    tabs.forEach((tab) => {
+      tab.addEventListener('click', (e) => {
+        const target = e.target as HTMLElement;
+        const tabName = target.dataset['tab'];
+        if (tabName) {
+          this.switchTab(tabName as 'kaeri' | 'kana');
+        }
+      });
+    });
+  }
+
+  /**
+   * Switch to the specified tab
+   */
+  private switchTab(tabName: 'kaeri' | 'kana'): void {
+    if (!this.popup) return;
+
+    // Update tab buttons
+    const tabs = this.popup.querySelectorAll('.mark-popup-tab');
+    tabs.forEach((tab) => {
+      const isActive = (tab as HTMLElement).dataset['tab'] === tabName;
+      tab.classList.toggle('active', isActive);
+      tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
+    });
+
+    // Update tab content
+    const contents = this.popup.querySelectorAll('.mark-popup-tab-content');
+    contents.forEach((content) => {
+      const isKaeri = content.id === 'kaeri-tab-content';
+      const isActive = (tabName === 'kaeri' && isKaeri) || (tabName === 'kana' && !isKaeri);
+      content.classList.toggle('active', isActive);
+    });
+
+    // Focus first element in newly active tab
+    this.focusFirstElementInActiveTab();
+  }
+
+  /**
+   * Focus the first focusable element in the active tab
+   */
+  private focusFirstElementInActiveTab(): void {
+    if (!this.popup) return;
+
+    const activeContent = this.popup.querySelector('.mark-popup-tab-content.active');
+    if (!activeContent) return;
+
+    // For kana tab, prefer the input field
+    const input = activeContent.querySelector('.mark-popup-kana-input') as HTMLInputElement;
+    if (input) {
+      input.focus();
+      input.select();
+      return;
+    }
+
+    // For kaeri tab, focus the first button
+    const firstButton = activeContent.querySelector('button:not([disabled])') as HTMLButtonElement;
+    if (firstButton) {
+      firstButton.focus();
+    }
+  }
+
+  /**
+   * Setup event listeners for unified popup
+   */
+  private setupUnifiedEventListeners(_existingKaeriMark?: Mark): void {
+    if (!this.popup) return;
+
+    // Kaeri buttons (in kaeri tab)
+    const kaeriContent = this.popup.querySelector('#kaeri-tab-content');
+    if (kaeriContent) {
+      const kaeriButtons = kaeriContent.querySelectorAll('.mark-popup-buttons .mark-popup-btn');
+      kaeriButtons.forEach((btn) => {
+        btn.addEventListener('click', (e) => {
+          const target = e.target as HTMLElement;
+          const kind = target.dataset['kind'];
+          if (kind && this.currentFromTokenId) {
+            // Toggle: if already selected, remove the mark
+            const isSelected = target.classList.contains('mark-popup-btn--selected');
+            this.notifyKaeriCallbacks(this.currentFromTokenId, isSelected ? null : kind);
+            this.hide();
+          }
+        });
+      });
+
+      // Delete kaeri button
+      const deleteKaeriBtn = kaeriContent.querySelector('[data-action="delete-kaeri"]');
+      if (deleteKaeriBtn) {
+        deleteKaeriBtn.addEventListener('click', () => {
+          if (this.currentFromTokenId) {
+            this.notifyKaeriCallbacks(this.currentFromTokenId, null);
+            this.hide();
+          }
+        });
+      }
+    }
+
+    // Kana input and buttons (in kana tab)
+    const kanaContent = this.popup.querySelector('#kana-tab-content');
+    if (kanaContent) {
+      const input = kanaContent.querySelector('.mark-popup-kana-input') as HTMLInputElement;
+      const warning = kanaContent.querySelector('.mark-popup-warning') as HTMLDivElement;
+      const applyBtn = kanaContent.querySelector('[data-action="apply-kana"]') as HTMLButtonElement;
+      const deleteBtn = kanaContent.querySelector('[data-action="delete-kana"]') as HTMLButtonElement | null;
+
+      if (input && applyBtn) {
+        // Input validation
+        const validateInput = (): void => {
+          const value = input.value;
+          const validation = validateKanaInput(value);
+
+          applyBtn.disabled = !validation.valid;
+
+          if (validation.warning) {
+            input.classList.add('has-warning');
+            if (warning) {
+              warning.textContent = validation.warning;
+              warning.classList.add('visible');
+            }
+          } else {
+            input.classList.remove('has-warning');
+            if (warning) {
+              warning.classList.remove('visible');
+            }
+          }
+        };
+
+        // Radio button change: update input value to existing mark value for selected type
+        const radios = kanaContent.querySelectorAll<HTMLInputElement>('input[name="kana-type-unified"]');
+        radios.forEach((radio) => {
+          radio.addEventListener('change', () => {
+            if (radio.checked) {
+              const existingValue = radio.dataset['existingValue'];
+              if (existingValue !== undefined) {
+                input.value = existingValue;
+              } else {
+                // No existing mark for this type, clear the input
+                input.value = '';
+              }
+              validateInput();
+            }
+          });
+        });
+
+        input.addEventListener('input', validateInput);
+        validateInput(); // Initial validation
+
+        // Apply button
+        applyBtn.addEventListener('click', () => {
+          this.applyKanaFromUnified();
+        });
+
+        // Enter key to apply
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' && !applyBtn.disabled) {
+            e.preventDefault();
+            this.applyKanaFromUnified();
+          }
+        });
+      }
+
+      // Delete kana button
+      if (deleteBtn) {
+        deleteBtn.addEventListener('click', () => {
+          if (this.currentFromTokenId && this.currentToTokenId) {
+            // Get currently selected type to delete only that type
+            const selectedRadio = kanaContent.querySelector(
+              'input[name="kana-type-unified"]:checked'
+            ) as HTMLInputElement | null;
+            const type = selectedRadio?.value as KanaMarkType | undefined;
+
+            for (const callback of this.callbacks) {
+              callback(this.currentFromTokenId, this.currentToTokenId, type ?? null, '');
+            }
+            this.hide();
+          }
+        });
+      }
+    }
+
+    // Click outside to close
+    document.addEventListener('mousedown', this.handleOutsideClick);
+  }
+
+  /**
+   * Apply kana selection from unified popup
+   */
+  private applyKanaFromUnified(): void {
+    if (!this.popup || !this.currentFromTokenId || !this.currentToTokenId) return;
+
+    const kanaContent = this.popup.querySelector('#kana-tab-content');
+    if (!kanaContent) return;
+
+    const input = kanaContent.querySelector('.mark-popup-kana-input') as HTMLInputElement;
+    const selectedRadio = kanaContent.querySelector(
+      'input[name="kana-type-unified"]:checked'
+    ) as HTMLInputElement;
+
+    if (!selectedRadio || !input.value.trim()) return;
+
+    const type = selectedRadio.value as KanaMarkType;
+    const value = input.value.trim();
+
+    // Notify callbacks
+    for (const callback of this.callbacks) {
+      callback(this.currentFromTokenId, this.currentToTokenId, type, value);
+    }
+
+    this.hide();
   }
 }
 

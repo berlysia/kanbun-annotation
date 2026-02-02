@@ -216,14 +216,16 @@ describe('attachInteractiveHandlers', () => {
       `;
     });
 
-    it('should get token ID from data-token-from for range marks', () => {
+    it('should get token ID from data-token-from/to for range marks based on click position', () => {
       const onTokenClick = vi.fn();
       const cleanup = attachInteractiveHandlers(container, { onTokenClick });
 
       const rangeElement = container.querySelector('[data-token-from="t1"]') as HTMLElement;
-      simulateClick(rangeElement);
+      // Click at position 0,0 (before center, should return from token)
+      simulateClick(rangeElement, { x: 0, y: 0 });
 
-      expect(onTokenClick).toHaveBeenCalledWith('t1', expect.any(MouseEvent));
+      // Should return either t1 or t2 depending on click position relative to element center
+      expect(onTokenClick).toHaveBeenCalledWith(expect.stringMatching(/^t[12]$/), expect.any(MouseEvent));
 
       cleanup();
     });

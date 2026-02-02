@@ -8,7 +8,7 @@ import type { SKAMDocument } from '@kanbun/skam';
 import { SAMPLES } from './samples.js';
 import { ErrorPanel, type ParseError } from './editor/error-panel.js';
 import { XmlEditor } from './editor/xml-editor.js';
-import { MarkPopup, getKaeriValueFromKind } from './editor/mark-popup.js';
+import { MarkPopup, getKaeriValueFromKind, type ExistingKanaMarks } from './editor/mark-popup.js';
 import { addMark, removeMark, getMarksForToken } from './editor/document-operations.js';
 
 // ============================================================================
@@ -96,7 +96,7 @@ const DEFAULT_CUSTOMIZE_STATE: CustomizeState = {
   colorRuby: '#000000',
   colorEmphasis: '#000000',
   fontFamily: "'Noto Serif JP', serif",
-  glyphSize: '1',
+  glyphSize: '2',
   rubyRatio: '0.5',
   lineHeight: '2',
 };
@@ -314,23 +314,44 @@ function renderDocument(doc: SKAMDocument): void {
       onTokenClick: (tokenId, event) => {
         if (!currentDocument) return;
 
-        // Find existing kaeri mark for this token
-        const existingKaeri = getMarksForToken(currentDocument, tokenId).find(
-          (m) => m.type === 'kaeri'
-        );
+        // Find existing marks for this token
+        const marks = getMarksForToken(currentDocument, tokenId);
+        const existingKaeri = marks.find((m) => m.type === 'kaeri');
 
-        markPopup.showKaeriPopup({ x: event.clientX, y: event.clientY }, tokenId, existingKaeri);
+        // Collect existing kana marks by type
+        const existingKanaMarks: ExistingKanaMarks = {};
+        for (const mark of marks) {
+          if (mark.type === 'okurigana') existingKanaMarks.okurigana = mark;
+          if (mark.type === 'yomigana') existingKanaMarks.yomigana = mark;
+          if (mark.type === 'soegana') existingKanaMarks.soegana = mark;
+        }
+
+        // Show unified popup with kaeri tab as default for single click
+        markPopup.showUnifiedPopup(
+          { x: event.clientX, y: event.clientY },
+          tokenId,
+          tokenId,
+          'kaeri',
+          existingKaeri,
+          existingKanaMarks
+        );
       },
       onTokenSelect: (fromId, toId) => {
         if (!currentDocument) return;
 
-        // Find existing kana mark for the range
-        const existingKana = getMarksForToken(currentDocument, fromId).find((m) =>
-          ['okurigana', 'yomigana', 'soegana'].includes(m.type)
-        );
+        // Find existing marks for the first token
+        const marks = getMarksForToken(currentDocument, fromId);
+        const existingKaeri = marks.find((m) => m.type === 'kaeri');
+
+        // Collect existing kana marks by type
+        const existingKanaMarks: ExistingKanaMarks = {};
+        for (const mark of marks) {
+          if (mark.type === 'okurigana') existingKanaMarks.okurigana = mark;
+          if (mark.type === 'yomigana') existingKanaMarks.yomigana = mark;
+          if (mark.type === 'soegana') existingKanaMarks.soegana = mark;
+        }
 
         // Calculate position: use the center of the selection range
-        // For simplicity, we'll use the position of the first token element
         const tokenElement = renderOutput.querySelector(`[data-token-id="${fromId}"]`);
         let position = { x: 0, y: 0 };
         if (tokenElement) {
@@ -338,7 +359,8 @@ function renderDocument(doc: SKAMDocument): void {
           position = { x: rect.left + rect.width / 2, y: rect.bottom + 5 };
         }
 
-        markPopup.showKanaPopup(position, fromId, toId, existingKana);
+        // Show unified popup with kana tab as default for range selection
+        markPopup.showUnifiedPopup(position, fromId, toId, 'kana', existingKaeri, existingKanaMarks);
       },
     });
   }
@@ -824,13 +846,15 @@ markPopup.onKanaSelect((fromId, toId, type, value) => {
 
   let newDoc = currentDocument;
 
-  // Find and remove existing kana marks in the range
-  const existingMark = getMarksForToken(currentDocument, fromId).find((m) =>
-    ['okurigana', 'yomigana', 'soegana'].includes(m.type)
-  );
-  if (existingMark?.id) {
-    newDoc = removeMark(newDoc, existingMark.id);
+  // Find and remove existing mark of the SAME type only
+  // This preserves other kana types (e.g., when adding yomigana, keep okurigana)
+  if (type) {
+    const existingMark = getMarksForToken(currentDocument, fromId).find((m) => m.type === type);
+    if (existingMark?.id) {
+      newDoc = removeMark(newDoc, existingMark.id);
+    }
   }
+  // Note: if type is null/undefined without value, nothing is deleted (no-op)
 
   // Add new mark if type is provided (not a delete operation)
   if (type && value) {

@@ -1015,25 +1015,6 @@ function renderDisplayLayer(
     ? getRangeMarkGroups(tokens, marks, 'soegana')
     : new Map();
 
-  // regionグループ内に読み仮名があるかを判定するヘルパー
-  const hasYomiganaInRegion = (region: RegionMark): boolean => {
-    const fromIndex = tokens.findIndex((t) => t.id === region.anchor.from);
-    const toIndex = tokens.findIndex((t) => t.id === region.anchor.to);
-
-    if (fromIndex !== -1 && toIndex !== -1) {
-      for (let j = fromIndex; j <= toIndex; j++) {
-        const t = tokens[j];
-        if (t) {
-          const tMarks = getMarksForToken(t.id, marks);
-          if ((tMarks.get('yomigana') ?? []).length > 0) {
-            return true;
-          }
-        }
-      }
-    }
-    return false;
-  };
-
   // regionのrefを解決して表示用テキストを取得するヘルパー
   const getRefTextForRegion = (region: RegionMark): string => {
     if (!profile.ref || !region.ref) return '';
@@ -1148,11 +1129,9 @@ function renderDisplayLayer(
           if (currentRegionGroup && regionTokens.length > 0) {
             const style = currentRegionGroup.style ?? 'none';
             const refHtml = getRefTextForRegion(currentRegionGroup);
-            const hasRuby = hasYomiganaInRegion(currentRegionGroup);
-            const rubyClass = hasRuby ? ` ${prefix}-region--has-ruby` : '';
             const styleClass = style !== 'none' ? ` ${prefix}-region--${style}` : '';
             renderedTokens.push(
-              `<span class="${prefix}-region${rubyClass}${styleClass}" data-style="${style}">${regionTokens.join('')}${refHtml}</span>`
+              `<span class="${prefix}-region${styleClass}" data-style="${style}">${regionTokens.join('')}${refHtml}</span>`
             );
             regionTokens = [];
           }
@@ -1194,11 +1173,9 @@ function renderDisplayLayer(
           }
           const style = currentRegionGroup.style ?? 'none';
           const refHtml = getRefTextForRegion(currentRegionGroup);
-          const hasRuby = hasYomiganaInRegion(currentRegionGroup);
-          const rubyClass = hasRuby ? ` ${prefix}-region--has-ruby` : '';
           const styleClass = style !== 'none' ? ` ${prefix}-region--${style}` : '';
           renderedTokens.push(
-            `<span class="${prefix}-region${rubyClass}${styleClass}" data-style="${style}">${regionTokens.join('')}${refHtml}</span>`
+            `<span class="${prefix}-region${styleClass}" data-style="${style}">${regionTokens.join('')}${refHtml}</span>`
           );
           regionTokens = [];
           currentRegionGroup = undefined;
@@ -1245,11 +1222,9 @@ function renderDisplayLayer(
     if (currentRegionGroup && regionTokens.length > 0) {
       const style = currentRegionGroup.style ?? 'none';
       const refHtml = getRefTextForRegion(currentRegionGroup);
-      const hasRuby = hasYomiganaInRegion(currentRegionGroup);
-      const rubyClass = hasRuby ? ` ${prefix}-region--has-ruby` : '';
       const styleClass = style !== 'none' ? ` ${prefix}-region--${style}` : '';
       renderedTokens.push(
-        `<span class="${prefix}-region${rubyClass}${styleClass}" data-style="${style}">${regionTokens.join('')}${refHtml}</span>`
+        `<span class="${prefix}-region${styleClass}" data-style="${style}">${regionTokens.join('')}${refHtml}</span>`
       );
     }
 

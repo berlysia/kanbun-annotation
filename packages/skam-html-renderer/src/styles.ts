@@ -433,11 +433,6 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
 /* Region (傍線部) - 縦書き: 右側に表示 */
 :where(.${prefix}-region) {
   box-shadow: inset -1px 0 0 0 currentColor;
-  padding-right: 0.25em;
-}
-
-/* 読み仮名がある場合はpadding-rightを広げる */
-:where(.${prefix}-region--has-ruby) {
   padding-right: 0.5em;
 }
 
@@ -472,7 +467,7 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
 
 :where(.${prefix}-region[data-style="double"]) {
   box-shadow: none;
-  padding-right: 0.5em;
+  padding-right: 0.7em;
 }
 
 :where(.${prefix}-region[data-style="double"])::before,
@@ -491,10 +486,6 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
 
 :where(.${prefix}-region[data-style="double"])::after {
   right: 3px;
-}
-
-:where(.${prefix}-region--has-ruby[data-style="double"]) {
-  padding-right: 0.7em;
 }
 
 /* Label - 縦書き: 傍線の開始位置（上）に配置 */
@@ -529,11 +520,6 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
 :where(.${prefix}-region) {
   box-shadow: inset 0 -1px 0 0 currentColor;
   padding-bottom: 0.1em;
-}
-
-/* 読み仮名がある場合 - 横書きでは特別な調整なし */
-:where(.${prefix}-region--has-ruby) {
-  /* No additional padding needed for horizontal */
 }
 
 :where(.${prefix}-region[data-style="dotted"]) {
@@ -586,10 +572,6 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
 
 :where(.${prefix}-region[data-style="double"])::after {
   bottom: 3px;
-}
-
-:where(.${prefix}-region--has-ruby[data-style="double"]) {
-  /* No additional padding needed for horizontal */
 }
 
 /* Label - 横書き: 傍線の開始位置（下）に配置 */

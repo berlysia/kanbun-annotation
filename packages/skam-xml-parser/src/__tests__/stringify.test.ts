@@ -6,6 +6,15 @@ import type {
   OkuriganaMark,
   YomiganaMark,
   SoeganaMark,
+  KutotenMark,
+  OkimojiMark,
+  JojiMark,
+  OkototenMark,
+  SaidokuMark,
+  EmphasisMark,
+  TatetenMark,
+  RegionMark,
+  RefMark,
 } from '@kanbun/skam';
 
 // ============================================================================
@@ -363,6 +372,615 @@ describe('stringify - round-trip', () => {
 
     expect(okurigana).toBeDefined();
     expect((okurigana as OkuriganaMark).value).toBe('びて');
+  });
+});
+
+// ============================================================================
+// Kutoten Tests
+// ============================================================================
+
+describe('stringify - kutoten', () => {
+  it('should stringify kutoten', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '學', ext: { blockId: 'b1' } },
+        { id: 't2', text: '而', ext: { blockId: 'b1' } },
+      ],
+      marks: [
+        {
+          type: 'kutoten',
+          id: 'm1',
+          anchor: { from: 't2', to: 't2' },
+          value: '。',
+        } as KutotenMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(doc);
+
+    expect(xml).toContain('學而<skam:kutoten value="。"');
+  });
+
+  it('should stringify kutoten with kind', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      marks: [
+        {
+          type: 'kutoten',
+          id: 'm1',
+          anchor: { from: 't1', to: 't1' },
+          value: '、',
+          kind: 'ten',
+        } as KutotenMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(doc);
+
+    expect(xml).toContain('value="、"');
+    expect(xml).toContain('kind="ten"');
+  });
+});
+
+// ============================================================================
+// Okimoji Tests
+// ============================================================================
+
+describe('stringify - okimoji', () => {
+  it('should stringify okimoji', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '學', ext: { blockId: 'b1' } },
+        { id: 't2', text: '而', ext: { blockId: 'b1' } },
+      ],
+      marks: [
+        {
+          type: 'okimoji',
+          id: 'm1',
+          anchor: { from: 't2', to: 't2' },
+        } as OkimojiMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(doc);
+
+    expect(xml).toContain('學<skam:okimoji>而</skam:okimoji>');
+  });
+});
+
+// ============================================================================
+// Joji Tests
+// ============================================================================
+
+describe('stringify - joji', () => {
+  it('should stringify joji', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '學', ext: { blockId: 'b1' } },
+        { id: 't2', text: '之', ext: { blockId: 'b1' } },
+      ],
+      marks: [
+        {
+          type: 'joji',
+          id: 'm1',
+          anchor: { from: 't2', to: 't2' },
+        } as JojiMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(doc);
+
+    expect(xml).toContain('學<skam:joji>之</skam:joji>');
+  });
+});
+
+// ============================================================================
+// Okototen Tests
+// ============================================================================
+
+describe('stringify - okototen', () => {
+  it('should stringify okototen', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      marks: [
+        {
+          type: 'okototen',
+          id: 'm1',
+          anchor: { from: 't1', to: 't1' },
+          position: { system: 'glyph-grid', grid: '5x5', x: 4, y: 4 },
+          shape: 'dot',
+          sound: 'り',
+        } as OkototenMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(doc);
+
+    expect(xml).toContain('<skam:okototen');
+    expect(xml).toContain('grid="5x5"');
+    expect(xml).toContain('x="4"');
+    expect(xml).toContain('y="4"');
+    expect(xml).toContain('shape="dot"');
+    expect(xml).toContain('sound="り"');
+    expect(xml).toContain('>學</skam:okototen>');
+  });
+});
+
+// ============================================================================
+// Saidoku Tests
+// ============================================================================
+
+describe('stringify - saidoku', () => {
+  it('should stringify saidoku', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '將', ext: { blockId: 'b1' } }],
+      marks: [
+        {
+          type: 'saidoku',
+          id: 'm1',
+          anchor: { from: 't1', to: 't1' },
+          forms: [
+            { n: 1, yomi: 'まさ', okuri: 'に' },
+            { n: 2, okuri: 'す' },
+          ],
+        } as SaidokuMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(doc);
+
+    expect(xml).toContain('<skam:saidoku>');
+    expect(xml).toContain('<skam:base>將</skam:base>');
+    expect(xml).toContain('<skam:kunform n="1" yomi="まさ" okuri="に"/>');
+    expect(xml).toContain('<skam:kunform n="2" okuri="す"/>');
+    expect(xml).toContain('</skam:saidoku>');
+  });
+});
+
+// ============================================================================
+// Emphasis Tests
+// ============================================================================
+
+describe('stringify - emphasis', () => {
+  it('should stringify emphasis (single token)', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '學', ext: { blockId: 'b1' } },
+        { id: 't2', text: '而', ext: { blockId: 'b1' } },
+      ],
+      marks: [
+        {
+          type: 'emphasis',
+          id: 'm1',
+          anchor: { from: 't1', to: 't1' },
+        } as EmphasisMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(doc);
+
+    expect(xml).toContain('<skam:span type="emphasis">學</skam:span>而');
+  });
+
+  it('should stringify emphasis (multiple tokens)', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '學', ext: { blockId: 'b1' } },
+        { id: 't2', text: '而', ext: { blockId: 'b1' } },
+        { id: 't3', text: '時', ext: { blockId: 'b1' } },
+      ],
+      marks: [
+        {
+          type: 'emphasis',
+          id: 'm1',
+          anchor: { from: 't1', to: 't2' },
+        } as EmphasisMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(doc);
+
+    expect(xml).toContain('<skam:span type="emphasis">學而</skam:span>時');
+  });
+
+  it('should stringify emphasis with kind', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      marks: [
+        {
+          type: 'emphasis',
+          id: 'm1',
+          anchor: { from: 't1', to: 't1' },
+          value: 'dot',
+        } as EmphasisMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(doc);
+
+    expect(xml).toContain('type="emphasis"');
+    expect(xml).toContain('kind="dot"');
+  });
+});
+
+// ============================================================================
+// Tateten Tests
+// ============================================================================
+
+describe('stringify - tateten', () => {
+  it('should stringify tateten', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '國', ext: { blockId: 'b1' } },
+        { id: 't2', text: '家', ext: { blockId: 'b1' } },
+        { id: 't3', text: '之', ext: { blockId: 'b1' } },
+      ],
+      marks: [
+        {
+          type: 'tateten',
+          id: 'm1',
+          anchor: { from: 't1', to: 't2' },
+        } as TatetenMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(doc);
+
+    expect(xml).toContain('<skam:tateten>國家</skam:tateten>之');
+  });
+});
+
+// ============================================================================
+// Region Tests
+// ============================================================================
+
+describe('stringify - region', () => {
+  it('should stringify region', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '學', ext: { blockId: 'b1' } },
+        { id: 't2', text: '而', ext: { blockId: 'b1' } },
+        { id: 't3', text: '時', ext: { blockId: 'b1' } },
+      ],
+      marks: [
+        {
+          type: 'region',
+          id: 'm1',
+          anchor: { from: 't1', to: 't2' },
+          style: 'solid',
+        } as RegionMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(doc);
+
+    expect(xml).toContain('<skam:region style="solid">學而</skam:region>時');
+  });
+
+  it('should stringify region with ref', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '學', ext: { blockId: 'b1' } },
+        { id: 't2', text: '而', ext: { blockId: 'b1' } },
+      ],
+      marks: [
+        {
+          type: 'region',
+          id: 'm1',
+          anchor: { from: 't1', to: 't2' },
+          style: 'solid',
+          ref: 'ref-1',
+        } as RegionMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(doc);
+
+    expect(xml).toContain('style="solid"');
+    expect(xml).toContain('ref="ref-1"');
+  });
+});
+
+// ============================================================================
+// Ref Tests
+// ============================================================================
+
+describe('stringify - ref', () => {
+  it('should stringify ref with format (empty element)', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      marks: [
+        {
+          type: 'ref',
+          id: 'ref-1',
+          anchor: { from: 't1', to: 't1' },
+          format: 'iroha-katakana',
+        } as RefMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(doc);
+
+    expect(xml).toContain('學<skam:ref xml:id="ref-1" format="iroha-katakana"/>');
+  });
+
+  it('should stringify ref with label', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      marks: [
+        {
+          type: 'ref',
+          id: 'ref-1',
+          anchor: { from: 't1', to: 't1' },
+          label: '(※)',
+        } as RefMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(doc);
+
+    expect(xml).toContain('label="(※)"');
+  });
+});
+
+// ============================================================================
+// Nested Range Marks Tests
+// ============================================================================
+
+describe('stringify - nested range marks', () => {
+  it('should stringify nested emphasis and tateten', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '國', ext: { blockId: 'b1' } },
+        { id: 't2', text: '家', ext: { blockId: 'b1' } },
+        { id: 't3', text: '之', ext: { blockId: 'b1' } },
+      ],
+      marks: [
+        {
+          type: 'emphasis',
+          id: 'm1',
+          anchor: { from: 't1', to: 't3' },
+        } as EmphasisMark,
+        {
+          type: 'tateten',
+          id: 'm2',
+          anchor: { from: 't1', to: 't2' },
+        } as TatetenMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(doc);
+
+    // emphasis が外側、tateten が内側
+    expect(xml).toContain('<skam:span type="emphasis"><skam:tateten>國家</skam:tateten>之</skam:span>');
+  });
+});
+
+// ============================================================================
+// Round-trip Tests (New Marks)
+// ============================================================================
+
+describe('stringify - round-trip (new marks)', () => {
+  it('should round-trip kutoten', () => {
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      marks: [
+        {
+          type: 'kutoten',
+          id: 'm1',
+          anchor: { from: 't1', to: 't1' },
+          value: '。',
+        } as KutotenMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+    const reparsedDoc = parse(xml);
+
+    const kutoten = reparsedDoc.marks.find((m) => m.type === 'kutoten');
+    expect(kutoten).toBeDefined();
+    expect((kutoten as KutotenMark).value).toBe('。');
+  });
+
+  it('should round-trip emphasis', () => {
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '學', ext: { blockId: 'b1' } },
+        { id: 't2', text: '而', ext: { blockId: 'b1' } },
+      ],
+      marks: [
+        {
+          type: 'emphasis',
+          id: 'm1',
+          anchor: { from: 't1', to: 't2' },
+        } as EmphasisMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+    const reparsedDoc = parse(xml);
+
+    const emphasis = reparsedDoc.marks.find((m) => m.type === 'emphasis');
+    expect(emphasis).toBeDefined();
+    expect(emphasis!.anchor.from).not.toBe(emphasis!.anchor.to);
+  });
+
+  it('should round-trip region', () => {
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '學', ext: { blockId: 'b1' } },
+        { id: 't2', text: '而', ext: { blockId: 'b1' } },
+      ],
+      marks: [
+        {
+          type: 'region',
+          id: 'm1',
+          anchor: { from: 't1', to: 't2' },
+          style: 'solid',
+        } as RegionMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+    const reparsedDoc = parse(xml);
+
+    const region = reparsedDoc.marks.find((m) => m.type === 'region');
+    expect(region).toBeDefined();
+    expect((region as RegionMark).style).toBe('solid');
+  });
+
+  it('should round-trip tateten', () => {
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '國', ext: { blockId: 'b1' } },
+        { id: 't2', text: '家', ext: { blockId: 'b1' } },
+      ],
+      marks: [
+        {
+          type: 'tateten',
+          id: 'm1',
+          anchor: { from: 't1', to: 't2' },
+        } as TatetenMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+    const reparsedDoc = parse(xml);
+
+    const tateten = reparsedDoc.marks.find((m) => m.type === 'tateten');
+    expect(tateten).toBeDefined();
+  });
+
+  it('should round-trip okimoji', () => {
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '而', ext: { blockId: 'b1' } }],
+      marks: [
+        {
+          type: 'okimoji',
+          id: 'm1',
+          anchor: { from: 't1', to: 't1' },
+        } as OkimojiMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+    const reparsedDoc = parse(xml);
+
+    const okimoji = reparsedDoc.marks.find((m) => m.type === 'okimoji');
+    expect(okimoji).toBeDefined();
+  });
+
+  it('should round-trip joji', () => {
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '之', ext: { blockId: 'b1' } }],
+      marks: [
+        {
+          type: 'joji',
+          id: 'm1',
+          anchor: { from: 't1', to: 't1' },
+        } as JojiMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+    const reparsedDoc = parse(xml);
+
+    const joji = reparsedDoc.marks.find((m) => m.type === 'joji');
+    expect(joji).toBeDefined();
+  });
+
+  it('should round-trip saidoku', () => {
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '將', ext: { blockId: 'b1' } }],
+      marks: [
+        {
+          type: 'saidoku',
+          id: 'm1',
+          anchor: { from: 't1', to: 't1' },
+          forms: [
+            { n: 1, yomi: 'まさ', okuri: 'に' },
+            { n: 2, okuri: 'す' },
+          ],
+        } as SaidokuMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+    const reparsedDoc = parse(xml);
+
+    const saidoku = reparsedDoc.marks.find((m) => m.type === 'saidoku');
+    expect(saidoku).toBeDefined();
+    expect((saidoku as SaidokuMark).forms).toHaveLength(2);
+  });
+
+  it('should round-trip okototen', () => {
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      marks: [
+        {
+          type: 'okototen',
+          id: 'm1',
+          anchor: { from: 't1', to: 't1' },
+          position: { system: 'glyph-grid', grid: '5x5', x: 4, y: 4 },
+          shape: 'dot',
+          sound: 'り',
+        } as OkototenMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+    const reparsedDoc = parse(xml);
+
+    const okototen = reparsedDoc.marks.find((m) => m.type === 'okototen');
+    expect(okototen).toBeDefined();
+    expect((okototen as OkototenMark).position.grid).toBe('5x5');
+    expect((okototen as OkototenMark).shape).toBe('dot');
   });
 });
 

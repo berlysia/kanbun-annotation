@@ -8,6 +8,15 @@
  * - okurigana（送り仮名）
  * - yomigana（読み仮名）
  * - soegana（添え仮名）
+ * - kutoten（句読点）
+ * - okimoji（置字）
+ * - joji（助字）
+ * - okototen（ヲコト点）
+ * - saidoku（再読文字）
+ * - emphasis（傍点）
+ * - tateten（たて点）
+ * - region（領域指定）
+ * - ref（参照）
  */
 
 import type {
@@ -18,6 +27,15 @@ import type {
   OkuriganaMark,
   YomiganaMark,
   SoeganaMark,
+  KutotenMark,
+  OkimojiMark,
+  JojiMark,
+  OkototenMark,
+  SaidokuMark,
+  EmphasisMark,
+  TatetenMark,
+  RegionMark,
+  RefMark,
 } from '@kanbun/skam';
 
 // ============================================================================
@@ -54,7 +72,7 @@ export interface StringifyOptions {
   xmlDeclaration?: boolean;
 }
 
-// Token に付随する mark 情報
+// Token に付随する mark 情報（単一トークン用）
 interface TokenAnnotation {
   /** 読み仮名 */
   yomi?: string;
@@ -64,6 +82,42 @@ interface TokenAnnotation {
   soe?: string;
   /** 直後に配置する返り点 */
   kaeriAfter?: KaeriMark[];
+  /** 直後に配置する句読点 */
+  kutotenAfter?: KutotenMark[];
+  /** 直後に配置する ref（空要素） */
+  refAfter?: RefMark[];
+  /** 包囲要素（単一トークン用） */
+  wrappers?: SingleTokenWrapper[];
+}
+
+// 単一トークンを包む要素
+type SingleTokenWrapper =
+  | { type: 'okimoji'; mark: OkimojiMark }
+  | { type: 'joji'; mark: JojiMark }
+  | { type: 'okototen'; mark: OkototenMark }
+  | { type: 'saidoku'; mark: SaidokuMark };
+
+// 範囲マーク情報
+interface RangeMark {
+  mark: Mark;
+  startIndex: number;
+  endIndex: number;
+}
+
+// コンテンツノード（木構造用）
+type ContentNode = TextNode | ElementNode;
+
+interface TextNode {
+  type: 'text';
+  tokenId: string;
+  text: string;
+  annotation: TokenAnnotation;
+}
+
+interface ElementNode {
+  type: 'element';
+  mark: Mark;
+  children: ContentNode[];
 }
 
 // ============================================================================
@@ -79,7 +133,7 @@ function escapeXml(text: string): string {
     .replace(/'/g, '&apos;');
 }
 
-function indent(level: number, size: number): string {
+function indentStr(level: number, size: number): string {
   return ' '.repeat(level * size);
 }
 
@@ -119,15 +173,35 @@ function kaeriValueToKind(value: string): string {
 }
 
 // ============================================================================
+// Token Index Map
+// ============================================================================
+
+/**
+ * トークンID → インデックスのマップを構築
+ */
+function buildTokenIndexMap(tokens: Token[]): Map<string, number> {
+  const map = new Map<string, number>();
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (token) {
+      map.set(token.id, i);
+    }
+  }
+  return map;
+}
+
+// ============================================================================
 // Annotation Collection
 // ============================================================================
 
 /**
- * Token ごとの annotation を収集
- *
- * 複数の token にまたがる mark は現在サポート外
+ * Token ごとの annotation を収集（単一トークンマーク用）
  */
-function collectTokenAnnotations(tokens: Token[], marks: Mark[]): Map<string, TokenAnnotation> {
+function collectTokenAnnotations(
+  tokens: Token[],
+  marks: Mark[],
+  tokenIndexMap: Map<string, number>
+): Map<string, TokenAnnotation> {
   const annotations = new Map<string, TokenAnnotation>();
 
   // 各 token の annotation を初期化
@@ -139,7 +213,7 @@ function collectTokenAnnotations(tokens: Token[], marks: Mark[]): Map<string, To
   for (const mark of marks) {
     // 単一 token を参照する mark のみ処理
     if (mark.anchor.from !== mark.anchor.to) {
-      // 複数 token にまたがる mark は現在スキップ
+      // 複数 token にまたがる mark は別途処理
       continue;
     }
 
@@ -165,10 +239,225 @@ function collectTokenAnnotations(tokens: Token[], marks: Mark[]): Map<string, To
         }
         annotation.kaeriAfter.push(mark as KaeriMark);
         break;
+      case 'kutoten':
+        if (!annotation.kutotenAfter) {
+          annotation.kutotenAfter = [];
+        }
+        annotation.kutotenAfter.push(mark as KutotenMark);
+        break;
+      case 'okimoji':
+        if (!annotation.wrappers) {
+          annotation.wrappers = [];
+        }
+        annotation.wrappers.push({ type: 'okimoji', mark: mark as OkimojiMark });
+        break;
+      case 'joji':
+        if (!annotation.wrappers) {
+          annotation.wrappers = [];
+        }
+        annotation.wrappers.push({ type: 'joji', mark: mark as JojiMark });
+        break;
+      case 'okototen':
+        if (!annotation.wrappers) {
+          annotation.wrappers = [];
+        }
+        annotation.wrappers.push({ type: 'okototen', mark: mark as OkototenMark });
+        break;
+      case 'saidoku':
+        if (!annotation.wrappers) {
+          annotation.wrappers = [];
+        }
+        annotation.wrappers.push({ type: 'saidoku', mark: mark as SaidokuMark });
+        break;
+      case 'ref': {
+        // 空要素 ref（anchor.from === anchor.to かつ content なし）
+        const refMark = mark as RefMark;
+        if (!refMark.content) {
+          if (!annotation.refAfter) {
+            annotation.refAfter = [];
+          }
+          annotation.refAfter.push(refMark);
+        }
+        break;
+      }
     }
   }
 
   return annotations;
+}
+
+/**
+ * 範囲マークを収集（包囲要素として出力すべきマーク用）
+ *
+ * emphasis, tateten, region は単一トークンでも包囲要素として出力する。
+ */
+function collectRangeMarks(marks: Mark[], tokenIndexMap: Map<string, number>): RangeMark[] {
+  const rangeMarks: RangeMark[] = [];
+
+  for (const mark of marks) {
+    // 包囲要素として出力すべきマークタイプ
+    const isRangeElementType =
+      mark.type === 'emphasis' || mark.type === 'tateten' || mark.type === 'region';
+
+    // ref は content がある場合のみ包囲要素
+    const isContentRef = mark.type === 'ref' && (mark as RefMark).content;
+
+    if (!isRangeElementType && !isContentRef) {
+      continue;
+    }
+
+    const startIndex = tokenIndexMap.get(mark.anchor.from);
+    const endIndex = tokenIndexMap.get(mark.anchor.to);
+
+    if (startIndex === undefined || endIndex === undefined) {
+      continue;
+    }
+
+    rangeMarks.push({
+      mark,
+      startIndex,
+      endIndex,
+    });
+  }
+
+  // ソート：開始位置昇順、同一開始なら終了位置降順（外側が先）
+  rangeMarks.sort((a, b) => {
+    if (a.startIndex !== b.startIndex) {
+      return a.startIndex - b.startIndex;
+    }
+    return b.endIndex - a.endIndex;
+  });
+
+  return rangeMarks;
+}
+
+/**
+ * 部分重複するマークを検出してフィルタリング
+ */
+function filterPartialOverlaps(rangeMarks: RangeMark[]): RangeMark[] {
+  const valid: RangeMark[] = [];
+
+  for (const mark of rangeMarks) {
+    let hasPartialOverlap = false;
+
+    for (const existing of valid) {
+      // 部分重複の検出：
+      // mark が existing の途中で開始し、existing より後で終了
+      // または mark が existing より前で開始し、existing の途中で終了
+      const markStart = mark.startIndex;
+      const markEnd = mark.endIndex;
+      const existStart = existing.startIndex;
+      const existEnd = existing.endIndex;
+
+      // 完全に含まれる or 完全に含む は OK
+      const contained = markStart >= existStart && markEnd <= existEnd;
+      const contains = markStart <= existStart && markEnd >= existEnd;
+      const disjoint = markEnd < existStart || markStart > existEnd;
+
+      if (!contained && !contains && !disjoint) {
+        // 部分重複
+        hasPartialOverlap = true;
+        console.warn(
+          `Skipping mark ${mark.mark.id ?? mark.mark.type} due to partial overlap with ${existing.mark.id ?? existing.mark.type}`
+        );
+        break;
+      }
+    }
+
+    if (!hasPartialOverlap) {
+      valid.push(mark);
+    }
+  }
+
+  return valid;
+}
+
+// ============================================================================
+// Content Tree Building
+// ============================================================================
+
+/**
+ * コンテンツの木構造を構築
+ */
+function buildContentTree(
+  blockTokens: Token[],
+  annotations: Map<string, TokenAnnotation>,
+  allRangeMarks: RangeMark[],
+  blockStartIndex: number,
+  blockEndIndex: number
+): ContentNode[] {
+  // このブロックに関係する範囲マークをフィルタ
+  const blockRangeMarks = allRangeMarks.filter(
+    (rm) => rm.startIndex >= blockStartIndex && rm.endIndex <= blockEndIndex
+  );
+
+  // 部分重複をフィルタリング
+  const validRangeMarks = filterPartialOverlaps(blockRangeMarks);
+
+  const result: ContentNode[] = [];
+  const activeRanges: { mark: Mark; endIndex: number; children: ContentNode[] }[] = [];
+
+  for (let i = 0; i < blockTokens.length; i++) {
+    const token = blockTokens[i];
+    if (!token) continue;
+
+    const globalIndex = blockStartIndex + i;
+
+    // この位置で開始する範囲マークを処理
+    for (const rangeMark of validRangeMarks) {
+      if (rangeMark.startIndex === globalIndex) {
+        activeRanges.push({
+          mark: rangeMark.mark,
+          endIndex: rangeMark.endIndex,
+          children: [],
+        });
+      }
+    }
+
+    // トークンノードを作成
+    const tokenNode: TextNode = {
+      type: 'text',
+      tokenId: token.id,
+      text: token.text,
+      annotation: annotations.get(token.id) ?? {},
+    };
+
+    // 最も内側のアクティブ範囲に追加
+    if (activeRanges.length > 0) {
+      const innermost = activeRanges[activeRanges.length - 1];
+      if (innermost) {
+        innermost.children.push(tokenNode);
+      }
+    } else {
+      result.push(tokenNode);
+    }
+
+    // この位置で終了する範囲マークを処理（内側から）
+    while (
+      activeRanges.length > 0 &&
+      activeRanges[activeRanges.length - 1]?.endIndex === globalIndex
+    ) {
+      const completed = activeRanges.pop();
+      if (!completed) break;
+
+      const elementNode: ElementNode = {
+        type: 'element',
+        mark: completed.mark,
+        children: completed.children,
+      };
+
+      if (activeRanges.length > 0) {
+        const parent = activeRanges[activeRanges.length - 1];
+        if (parent) {
+          parent.children.push(elementNode);
+        }
+      } else {
+        result.push(elementNode);
+      }
+    }
+  }
+
+  return result;
 }
 
 // ============================================================================
@@ -176,10 +465,10 @@ function collectTokenAnnotations(tokens: Token[], marks: Mark[]): Map<string, To
 // ============================================================================
 
 /**
- * Token と annotation から XML 要素を生成
+ * 単一トークンの XML を生成（wrapper なし、annotation のみ）
  */
-function tokenToXml(token: Token, annotation: TokenAnnotation): string {
-  const { yomi, okuri, soe, kaeriAfter } = annotation;
+function tokenContentToXml(text: string, annotation: TokenAnnotation): string {
+  const { yomi, okuri, soe, kaeriAfter, kutotenAfter, refAfter } = annotation;
   const hasKunAttrs = yomi || okuri || soe;
 
   let xml = '';
@@ -197,10 +486,10 @@ function tokenToXml(token: Token, annotation: TokenAnnotation): string {
       attrs.push(`soe="${escapeXml(soe)}"`);
     }
 
-    xml += `<skam:kun ${attrs.join(' ')}>${escapeXml(token.text)}</skam:kun>`;
+    xml += `<skam:kun ${attrs.join(' ')}>${escapeXml(text)}</skam:kun>`;
   } else {
     // プレーンテキスト
-    xml += escapeXml(token.text);
+    xml += escapeXml(text);
   }
 
   // 返り点を追加
@@ -211,27 +500,207 @@ function tokenToXml(token: Token, annotation: TokenAnnotation): string {
     }
   }
 
+  // 句読点を追加
+  if (kutotenAfter) {
+    for (const kutoten of kutotenAfter) {
+      let attrs = `value="${escapeXml(kutoten.value)}"`;
+      if (kutoten.kind) {
+        attrs += ` kind="${kutoten.kind}"`;
+      }
+      xml += `<skam:kutoten ${attrs}/>`;
+    }
+  }
+
+  // 空要素 ref を追加
+  if (refAfter) {
+    for (const ref of refAfter) {
+      xml += refMarkToXml(ref, true);
+    }
+  }
+
   return xml;
+}
+
+/**
+ * wrapper を適用してトークン XML を生成
+ */
+function applyWrappers(innerXml: string, wrappers: SingleTokenWrapper[] | undefined): string {
+  if (!wrappers || wrappers.length === 0) {
+    return innerXml;
+  }
+
+  let xml = innerXml;
+
+  // wrapper を外側から適用（配列の逆順）
+  for (let i = wrappers.length - 1; i >= 0; i--) {
+    const wrapper = wrappers[i];
+    if (!wrapper) continue;
+
+    switch (wrapper.type) {
+      case 'okimoji':
+        xml = `<skam:okimoji>${xml}</skam:okimoji>`;
+        break;
+      case 'joji':
+        xml = `<skam:joji>${xml}</skam:joji>`;
+        break;
+      case 'okototen': {
+        const oto = wrapper.mark;
+        let attrs = `grid="${escapeXml(oto.position.grid)}" x="${oto.position.x}" y="${oto.position.y}" shape="${escapeXml(oto.shape)}"`;
+        if (oto.sound) {
+          attrs += ` sound="${escapeXml(oto.sound)}"`;
+        }
+        if (oto.color) {
+          attrs += ` color="${escapeXml(oto.color)}"`;
+        }
+        xml = `<skam:okototen ${attrs}>${xml}</skam:okototen>`;
+        break;
+      }
+      case 'saidoku': {
+        const sai = wrapper.mark;
+        let formsXml = '';
+        for (const form of sai.forms) {
+          let formAttrs = '';
+          if (form.n !== undefined) {
+            formAttrs += ` n="${form.n}"`;
+          }
+          if (form.yomi) {
+            formAttrs += ` yomi="${escapeXml(form.yomi)}"`;
+          }
+          if (form.okuri) {
+            formAttrs += ` okuri="${escapeXml(form.okuri)}"`;
+          }
+          formsXml += `<skam:kunform${formAttrs}/>`;
+        }
+        xml = `<skam:saidoku><skam:base>${xml}</skam:base>${formsXml}</skam:saidoku>`;
+        break;
+      }
+    }
+  }
+
+  return xml;
+}
+
+/**
+ * ref マークを XML に変換
+ */
+function refMarkToXml(ref: RefMark, isEmpty: boolean): string {
+  let attrs = '';
+
+  if (ref.id) {
+    attrs += ` xml:id="${escapeXml(ref.id)}"`;
+  }
+
+  if (ref.label) {
+    attrs += ` label="${escapeXml(ref.label)}"`;
+  } else if (ref.format) {
+    attrs += ` format="${escapeXml(ref.format)}"`;
+  }
+
+  if (isEmpty || !ref.content) {
+    return `<skam:ref${attrs}/>`;
+  } else {
+    return `<skam:ref${attrs}>${escapeXml(ref.content)}</skam:ref>`;
+  }
+}
+
+/**
+ * コンテンツノードを XML に変換
+ */
+function contentNodeToXml(node: ContentNode): string {
+  if (node.type === 'text') {
+    // テキストノード：annotation を適用
+    const innerXml = tokenContentToXml(node.text, node.annotation);
+    return applyWrappers(innerXml, node.annotation.wrappers);
+  } else {
+    // 要素ノード：子を再帰的に処理
+    const childrenXml = node.children.map(contentNodeToXml).join('');
+
+    switch (node.mark.type) {
+      case 'emphasis': {
+        const emp = node.mark as EmphasisMark;
+        let attrs = 'type="emphasis"';
+        if (emp.value) {
+          attrs += ` kind="${escapeXml(emp.value)}"`;
+        }
+        return `<skam:span ${attrs}>${childrenXml}</skam:span>`;
+      }
+      case 'tateten':
+        return `<skam:tateten>${childrenXml}</skam:tateten>`;
+      case 'region': {
+        const reg = node.mark as RegionMark;
+        let attrs = '';
+        if (reg.style) {
+          attrs += ` style="${reg.style}"`;
+        }
+        if (reg.ref) {
+          attrs += ` ref="${escapeXml(reg.ref)}"`;
+        }
+        return `<skam:region${attrs}>${childrenXml}</skam:region>`;
+      }
+      case 'ref': {
+        const ref = node.mark as RefMark;
+        return refMarkToXml(ref, false);
+      }
+      default:
+        return childrenXml;
+    }
+  }
 }
 
 /**
  * ブロックの XML を生成
  */
 function blockToXml(
-  tokens: Token[],
+  blockTokens: Token[],
   annotations: Map<string, TokenAnnotation>,
+  rangeMarks: RangeMark[],
+  blockStartIndex: number,
   indentLevel: number,
   indentSize: number
 ): string {
-  const ind = indent(indentLevel, indentSize);
-  let content = '';
+  const ind = indentStr(indentLevel, indentSize);
 
-  for (const token of tokens) {
-    const annotation = annotations.get(token.id) ?? {};
-    content += tokenToXml(token, annotation);
-  }
+  // 木構造を構築
+  const contentTree = buildContentTree(
+    blockTokens,
+    annotations,
+    rangeMarks,
+    blockStartIndex,
+    blockStartIndex + blockTokens.length - 1
+  );
+
+  // XML に変換
+  const content = contentTree.map(contentNodeToXml).join('');
 
   return `${ind}<skam:block>${content}</skam:block>`;
+}
+
+/**
+ * 分離定義の注釈（skam:notes）を生成
+ */
+function stringifyNotes(marks: Mark[], indentSize: number): string[] {
+  // content を持つ ref マークを収集
+  const notesRefs = marks.filter(
+    (m) => m.type === 'ref' && (m as RefMark).content && (m as RefMark).id
+  ) as RefMark[];
+
+  if (notesRefs.length === 0) {
+    return [];
+  }
+
+  const lines: string[] = [];
+  lines.push(`${indentStr(1, indentSize)}<skam:notes>`);
+
+  for (const ref of notesRefs) {
+    if (ref.content && ref.id) {
+      lines.push(
+        `${indentStr(2, indentSize)}<skam:note ref="${escapeXml(ref.id)}">${escapeXml(ref.content)}</skam:note>`
+      );
+    }
+  }
+
+  lines.push(`${indentStr(1, indentSize)}</skam:notes>`);
+  return lines;
 }
 
 // ============================================================================
@@ -248,30 +717,45 @@ function blockToXml(
 export function stringify(doc: SKAMDocument, options: StringifyOptions = {}): string {
   const { indent: indentSize = 2, xmlDeclaration = true } = options;
 
+  // トークンインデックスマップを構築
+  const tokenIndexMap = buildTokenIndexMap(doc.tokens);
+
   // Annotation を収集
-  const annotations = collectTokenAnnotations(doc.tokens, doc.marks);
+  const annotations = collectTokenAnnotations(doc.tokens, doc.marks, tokenIndexMap);
+
+  // 範囲マークを収集
+  const rangeMarks = collectRangeMarks(doc.marks, tokenIndexMap);
 
   // Token をブロックごとにグループ化
-  const blocks: Token[][] = [];
+  interface BlockInfo {
+    tokens: Token[];
+    startIndex: number;
+  }
+  const blocks: BlockInfo[] = [];
   let currentBlock: Token[] = [];
   let currentBlockId: string | undefined;
+  let currentBlockStartIndex = 0;
 
-  for (const token of doc.tokens) {
+  for (let i = 0; i < doc.tokens.length; i++) {
+    const token = doc.tokens[i];
+    if (!token) continue;
+
     const blockId = getBlockId(token);
 
     if (blockId !== currentBlockId) {
       if (currentBlock.length > 0) {
-        blocks.push(currentBlock);
+        blocks.push({ tokens: currentBlock, startIndex: currentBlockStartIndex });
       }
       currentBlock = [];
       currentBlockId = blockId;
+      currentBlockStartIndex = i;
     }
 
     currentBlock.push(token);
   }
 
   if (currentBlock.length > 0) {
-    blocks.push(currentBlock);
+    blocks.push({ tokens: currentBlock, startIndex: currentBlockStartIndex });
   }
 
   // XML を構築
@@ -286,18 +770,25 @@ export function stringify(doc: SKAMDocument, options: StringifyOptions = {}): st
   lines.push(`<skam:doc xmlns:skam="${SKAM_NS}">`);
 
   // meta 要素（常に char tokenization）
-  lines.push(`${indent(1, indentSize)}<skam:meta>`);
-  lines.push(`${indent(2, indentSize)}<skam:tokenize strategy="char"/>`);
-  lines.push(`${indent(1, indentSize)}</skam:meta>`);
+  lines.push(`${indentStr(1, indentSize)}<skam:meta>`);
+  lines.push(`${indentStr(2, indentSize)}<skam:tokenize strategy="char"/>`);
+  lines.push(`${indentStr(1, indentSize)}</skam:meta>`);
 
   // body 要素
-  lines.push(`${indent(1, indentSize)}<skam:body>`);
+  lines.push(`${indentStr(1, indentSize)}<skam:body>`);
 
-  for (const blockTokens of blocks) {
-    lines.push(blockToXml(blockTokens, annotations, 2, indentSize));
+  for (const block of blocks) {
+    lines.push(blockToXml(block.tokens, annotations, rangeMarks, block.startIndex, 2, indentSize));
   }
 
-  lines.push(`${indent(1, indentSize)}</skam:body>`);
+  lines.push(`${indentStr(1, indentSize)}</skam:body>`);
+
+  // notes 要素（分離定義の注釈がある場合）
+  const notesLines = stringifyNotes(doc.marks, indentSize);
+  if (notesLines.length > 0) {
+    lines.push('');
+    lines.push(...notesLines);
+  }
 
   // ルート要素終了
   lines.push('</skam:doc>');

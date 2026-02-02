@@ -980,7 +980,7 @@ function renderToken(
   }
 
   return {
-    html: `<span class="${classes.join(' ')}"${tokenIdAttr}${emphasisInlineStyle}>${baseHtml}${okototenHtml}${suffixRowHtml}</span>${refHtml}`,
+    html: `${refHtml}<span class="${classes.join(' ')}"${tokenIdAttr}${emphasisInlineStyle}>${baseHtml}${okototenHtml}${suffixRowHtml}</span>`,
     kutotenHtml: kutoten,
   };
 }
@@ -1313,7 +1313,7 @@ function renderDisplayLayer(
             const refHtml = getRefTextForHighlight(currentHighlightGroup);
             const styleClass = ` ${prefix}-highlight--${style}`;
             renderedTokens.push(
-              `<span class="${prefix}-highlight${styleClass}" data-style="${style}">${highlightTokens.join('')}${refHtml}</span>${pendingHighlightKutoten}`
+              `${refHtml}<span class="${prefix}-highlight${styleClass}" data-style="${style}">${highlightTokens.join('')}</span>${pendingHighlightKutoten}`
             );
             highlightTokens = [];
             pendingHighlightKutoten = '';
@@ -1377,7 +1377,7 @@ function renderDisplayLayer(
           const refHtml = getRefTextForHighlight(currentHighlightGroup);
           const styleClass = ` ${prefix}-highlight--${style}`;
           renderedTokens.push(
-            `<span class="${prefix}-highlight${styleClass}" data-style="${style}">${highlightTokens.join('')}${refHtml}</span>${pendingHighlightKutoten}`
+            `${refHtml}<span class="${prefix}-highlight${styleClass}" data-style="${style}">${highlightTokens.join('')}</span>${pendingHighlightKutoten}`
           );
           highlightTokens = [];
           pendingHighlightKutoten = '';
@@ -1427,7 +1427,7 @@ function renderDisplayLayer(
       const refHtml = getRefTextForHighlight(currentHighlightGroup);
       const styleClass = ` ${prefix}-highlight--${style}`;
       renderedTokens.push(
-        `<span class="${prefix}-highlight${styleClass}" data-style="${style}">${highlightTokens.join('')}${refHtml}</span>${pendingHighlightKutoten}`
+        `${refHtml}<span class="${prefix}-highlight${styleClass}" data-style="${style}">${highlightTokens.join('')}</span>${pendingHighlightKutoten}`
       );
     }
 

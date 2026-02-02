@@ -486,14 +486,13 @@ export class MarkPopup {
         <legend class="mark-popup-section-label">種別を選択</legend>
         <div class="mark-popup-radio-group" role="radiogroup" aria-label="仮名の種別">
           ${KANA_TYPE_ORDER.map(
-              (type) => `
+            (type) => `
             <label>
               <input type="radio" name="kana-type" value="${type}" ${type === existingType ? 'checked' : ''}>
               ${KANA_TYPE_LABELS[type]}
             </label>
           `
-            )
-            .join('')}
+          ).join('')}
         </div>
       </fieldset>
 
@@ -1082,7 +1081,8 @@ export class MarkPopup {
     this.existingKanaMarks = existingKanaMarks ?? {};
 
     // Determine which mark is being edited based on default tab
-    const firstKanaMark = existingKanaMarks?.okurigana ?? existingKanaMarks?.yomigana ?? existingKanaMarks?.soegana;
+    const firstKanaMark =
+      existingKanaMarks?.okurigana ?? existingKanaMarks?.yomigana ?? existingKanaMarks?.soegana;
     this.currentMarkId = existingKaeriMark?.id ?? firstKanaMark?.id ?? null;
 
     // Create popup element
@@ -1351,7 +1351,8 @@ export class MarkPopup {
     actionsDiv.className = 'mark-popup-actions';
 
     // Show delete button if any existing kana mark exists
-    const hasExistingMark = existingMarks?.okurigana || existingMarks?.yomigana || existingMarks?.soegana;
+    const hasExistingMark =
+      existingMarks?.okurigana || existingMarks?.yomigana || existingMarks?.soegana;
     if (hasExistingMark) {
       const deleteBtn = document.createElement('button');
       deleteBtn.className = 'mark-popup-btn mark-popup-btn-danger';
@@ -1487,7 +1488,9 @@ export class MarkPopup {
       const input = kanaContent.querySelector('.mark-popup-kana-input') as HTMLInputElement;
       const warning = kanaContent.querySelector('.mark-popup-warning') as HTMLDivElement;
       const applyBtn = kanaContent.querySelector('[data-action="apply-kana"]') as HTMLButtonElement;
-      const deleteBtn = kanaContent.querySelector('[data-action="delete-kana"]') as HTMLButtonElement | null;
+      const deleteBtn = kanaContent.querySelector(
+        '[data-action="delete-kana"]'
+      ) as HTMLButtonElement | null;
 
       if (input && applyBtn) {
         // Input validation
@@ -1512,7 +1515,9 @@ export class MarkPopup {
         };
 
         // Radio button change: update input value to existing mark value for selected type
-        const radios = kanaContent.querySelectorAll<HTMLInputElement>('input[name="kana-type-unified"]');
+        const radios = kanaContent.querySelectorAll<HTMLInputElement>(
+          'input[name="kana-type-unified"]'
+        );
         radios.forEach((radio) => {
           radio.addEventListener('change', () => {
             if (radio.checked) {

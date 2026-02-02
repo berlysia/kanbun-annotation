@@ -782,7 +782,9 @@ describe('stringify - nested range marks', () => {
     const xml = stringify(doc);
 
     // emphasis が外側、tateten が内側
-    expect(xml).toContain('<skam:span type="emphasis"><skam:tateten>國家</skam:tateten>之</skam:span>');
+    expect(xml).toContain(
+      '<skam:span type="emphasis"><skam:tateten>國家</skam:tateten>之</skam:span>'
+    );
   });
 });
 

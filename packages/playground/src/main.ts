@@ -14,7 +14,12 @@ import type { SKAMDocument, RefFormat } from '@kanbun/skam';
 import { SAMPLES } from './samples.js';
 import { ErrorPanel, type ParseError } from './editor/error-panel.js';
 import { XmlEditor } from './editor/xml-editor.js';
-import { addMark, removeMark, replaceMark, getMarksForToken } from './editor/document-operations.js';
+import {
+  addMark,
+  removeMark,
+  replaceMark,
+  getMarksForToken,
+} from './editor/document-operations.js';
 
 // ============================================================================
 // DOM Elements
@@ -48,10 +53,18 @@ const selectionInfo = document.getElementById('selection-info') as HTMLDivElemen
 const selectionActions = document.getElementById('selection-actions') as HTMLDivElement;
 const selectionTatetenBtn = document.getElementById('selection-tateten-btn') as HTMLButtonElement;
 const selectionEmphasisBtn = document.getElementById('selection-emphasis-btn') as HTMLButtonElement;
-const selectionUnderlineStyles = document.getElementById('selection-underline-styles') as HTMLDivElement;
-const selectionUnderlineRefInput = document.getElementById('selection-underline-ref') as HTMLInputElement;
-const selectionUnderlineFormatSelect = document.getElementById('selection-underline-format') as HTMLSelectElement;
-const selectionUnderlineBtn = document.getElementById('selection-underline-btn') as HTMLButtonElement;
+const selectionUnderlineStyles = document.getElementById(
+  'selection-underline-styles'
+) as HTMLDivElement;
+const selectionUnderlineRefInput = document.getElementById(
+  'selection-underline-ref'
+) as HTMLInputElement;
+const selectionUnderlineFormatSelect = document.getElementById(
+  'selection-underline-format'
+) as HTMLSelectElement;
+const selectionUnderlineBtn = document.getElementById(
+  'selection-underline-btn'
+) as HTMLButtonElement;
 const selectionKaeriButtons = document.getElementById('selection-kaeri-buttons') as HTMLDivElement;
 const selectionKanaTypes = document.getElementById('selection-kana-types') as HTMLDivElement;
 const selectionKanaInput = document.getElementById('selection-kana-input') as HTMLInputElement;
@@ -483,7 +496,13 @@ function findRegionForSelection(
   doc: SKAMDocument,
   fromId: string,
   toId: string
-): { markId: string; style: UnderlineStyle | undefined; ref: string | undefined; refFormat: RefFormat | undefined; refMarkId: string | undefined } | null {
+): {
+  markId: string;
+  style: UnderlineStyle | undefined;
+  ref: string | undefined;
+  refFormat: RefFormat | undefined;
+  refMarkId: string | undefined;
+} | null {
   const tokens = doc.tokens;
   const fromIndex = tokens.findIndex((t) => t.id === fromId);
   const toIndex = tokens.findIndex((t) => t.id === toId);
@@ -678,7 +697,9 @@ function updateSelectionPanel(fromId: string, toId: string): void {
  * Update kana type buttons state
  */
 function updateKanaTypeButtons(): void {
-  const buttons = selectionKanaTypes.querySelectorAll<HTMLButtonElement>('.selection-kana-type-btn');
+  const buttons = selectionKanaTypes.querySelectorAll<HTMLButtonElement>(
+    '.selection-kana-type-btn'
+  );
   for (const btn of buttons) {
     const type = btn.dataset['type'] as 'yomigana' | 'okurigana' | 'soegana';
     btn.classList.toggle('active', type === currentSelectedKanaType);
@@ -856,7 +877,12 @@ function handleTatetenToggle(): void {
     // Remove existing tateten
     // Also remove any kaeri attached to this tateten range
     for (const mark of currentDocument.marks) {
-      if (mark.type === 'kaeri' && mark.anchor.from === normalizedFromId && mark.anchor.to === normalizedToId && mark.id) {
+      if (
+        mark.type === 'kaeri' &&
+        mark.anchor.from === normalizedFromId &&
+        mark.anchor.to === normalizedToId &&
+        mark.id
+      ) {
         newDoc = removeMark(newDoc, mark.id);
         break;
       }
@@ -935,7 +961,9 @@ function handleEmphasisToggle(): void {
  * Update underline style buttons state
  */
 function updateUnderlineStyleButtons(): void {
-  const buttons = selectionUnderlineStyles.querySelectorAll<HTMLButtonElement>('.selection-underline-style-btn');
+  const buttons = selectionUnderlineStyles.querySelectorAll<HTMLButtonElement>(
+    '.selection-underline-style-btn'
+  );
   for (const btn of buttons) {
     const style = btn.dataset['style'] as UnderlineStyle;
     btn.classList.toggle('active', style === currentUnderlineStyle);
@@ -968,7 +996,13 @@ function updateUnderlineButton(): void {
  * Update existing underline with current style/ref/format settings
  */
 function updateExistingUnderline(): void {
-  if (!currentDocument || !currentSelectionFromId || !currentSelectionToId || !currentUnderlineMarkId) return;
+  if (
+    !currentDocument ||
+    !currentSelectionFromId ||
+    !currentSelectionToId ||
+    !currentUnderlineMarkId
+  )
+    return;
 
   let newDoc = currentDocument;
 
@@ -1012,8 +1046,12 @@ function updateExistingUnderline(): void {
     newDoc = addMark(newDoc, refMark);
     // Find the newly added ref mark to get its generated ID
     const addedRefMark = newDoc.marks.find(
-      (m) => m.type === 'ref' && 'format' in m && m.format === formatValue &&
-      m.anchor.from === normalizedFromId && m.anchor.to === normalizedToId
+      (m) =>
+        m.type === 'ref' &&
+        'format' in m &&
+        m.format === formatValue &&
+        m.anchor.from === normalizedFromId &&
+        m.anchor.to === normalizedToId
     );
     if (addedRefMark?.id) {
       refId = addedRefMark.id;
@@ -1112,8 +1150,12 @@ function handleUnderlineToggle(): void {
       // Update refId to match the generated mark ID (addMark generates new IDs)
       // We need to find the newly added ref mark
       const addedRefMark = newDoc.marks.find(
-        (m) => m.type === 'ref' && 'format' in m && m.format === formatValue &&
-        m.anchor.from === normalizedFromId && m.anchor.to === normalizedToId
+        (m) =>
+          m.type === 'ref' &&
+          'format' in m &&
+          m.format === formatValue &&
+          m.anchor.from === normalizedFromId &&
+          m.anchor.to === normalizedToId
       );
       if (addedRefMark?.id) {
         refId = addedRefMark.id;
@@ -1172,7 +1214,12 @@ function applyKaeriValue(value: string | null): void {
 
   // Find and remove existing kaeri mark for this range
   for (const mark of currentDocument.marks) {
-    if (mark.type === 'kaeri' && mark.anchor.from === anchorFrom && mark.anchor.to === anchorTo && mark.id) {
+    if (
+      mark.type === 'kaeri' &&
+      mark.anchor.from === anchorFrom &&
+      mark.anchor.to === anchorTo &&
+      mark.id
+    ) {
       newDoc = removeMark(newDoc, mark.id);
       break;
     }

@@ -88,31 +88,88 @@
               <div class="selection-info" id="selection-info">
                 <p class="selection-empty">文字をクリックまたはドラッグで選択</p>
               </div>
-              <div class="selection-actions" id="selection-actions" style="display: none;">
+              <div class="selection-actions" id="selection-actions" style="display: none">
                 <div class="selection-action-group">
                   <label class="selection-action-label">竪点</label>
                   <div class="selection-tateten-row" id="selection-tateten-row">
-                    <button type="button" class="selection-tateten-btn" id="selection-tateten-btn" disabled>熟語にする</button>
+                    <button
+                      type="button"
+                      class="selection-tateten-btn"
+                      id="selection-tateten-btn"
+                      disabled
+                    >
+                      熟語にする
+                    </button>
                   </div>
                 </div>
                 <div class="selection-action-group">
                   <label class="selection-action-label">傍点</label>
                   <div class="selection-emphasis-row" id="selection-emphasis-row">
-                    <button type="button" class="selection-emphasis-btn" id="selection-emphasis-btn">傍点をつける</button>
+                    <button
+                      type="button"
+                      class="selection-emphasis-btn"
+                      id="selection-emphasis-btn"
+                    >
+                      傍点をつける
+                    </button>
                   </div>
                 </div>
                 <div class="selection-action-group">
                   <label class="selection-action-label">傍線</label>
                   <div class="selection-underline-styles" id="selection-underline-styles">
-                    <button type="button" class="selection-underline-style-btn active" data-style="solid" title="実線">─</button>
-                    <button type="button" class="selection-underline-style-btn" data-style="dotted" title="点線">┄</button>
-                    <button type="button" class="selection-underline-style-btn" data-style="dashed" title="破線">╌</button>
-                    <button type="button" class="selection-underline-style-btn" data-style="wavy" title="波線">〜</button>
-                    <button type="button" class="selection-underline-style-btn" data-style="double" title="二重線">═</button>
+                    <button
+                      type="button"
+                      class="selection-underline-style-btn active"
+                      data-style="solid"
+                      title="実線"
+                    >
+                      ─
+                    </button>
+                    <button
+                      type="button"
+                      class="selection-underline-style-btn"
+                      data-style="dotted"
+                      title="点線"
+                    >
+                      ┄
+                    </button>
+                    <button
+                      type="button"
+                      class="selection-underline-style-btn"
+                      data-style="dashed"
+                      title="破線"
+                    >
+                      ╌
+                    </button>
+                    <button
+                      type="button"
+                      class="selection-underline-style-btn"
+                      data-style="wavy"
+                      title="波線"
+                    >
+                      〜
+                    </button>
+                    <button
+                      type="button"
+                      class="selection-underline-style-btn"
+                      data-style="double"
+                      title="二重線"
+                    >
+                      ═
+                    </button>
                   </div>
                   <div class="selection-underline-ref-row">
-                    <input type="text" id="selection-underline-ref" class="selection-underline-ref-input" placeholder="ref ID (任意)" autocomplete="off" />
-                    <select id="selection-underline-format" class="selection-underline-format-select">
+                    <input
+                      type="text"
+                      id="selection-underline-ref"
+                      class="selection-underline-ref-input"
+                      placeholder="ref ID (任意)"
+                      autocomplete="off"
+                    />
+                    <select
+                      id="selection-underline-format"
+                      class="selection-underline-format-select"
+                    >
                       <option value="">書式なし</option>
                       <option value="iroha-katakana">イ, ロ, ハ...</option>
                       <option value="iroha-hiragana">い, ろ, は...</option>
@@ -127,7 +184,13 @@
                     </select>
                   </div>
                   <div class="selection-underline-row" id="selection-underline-row">
-                    <button type="button" class="selection-underline-btn" id="selection-underline-btn">傍線を引く</button>
+                    <button
+                      type="button"
+                      class="selection-underline-btn"
+                      id="selection-underline-btn"
+                    >
+                      傍線を引く
+                    </button>
                   </div>
                 </div>
                 <div class="selection-action-group">
@@ -137,13 +200,36 @@
                 <div class="selection-action-group">
                   <label class="selection-action-label">仮名</label>
                   <div class="selection-kana-types" id="selection-kana-types">
-                    <button type="button" class="selection-kana-type-btn active" data-type="yomigana">読み</button>
-                    <button type="button" class="selection-kana-type-btn" data-type="okurigana">送り</button>
-                    <button type="button" class="selection-kana-type-btn" data-type="soegana">添え</button>
+                    <button
+                      type="button"
+                      class="selection-kana-type-btn active"
+                      data-type="yomigana"
+                    >
+                      読み
+                    </button>
+                    <button type="button" class="selection-kana-type-btn" data-type="okurigana">
+                      送り
+                    </button>
+                    <button type="button" class="selection-kana-type-btn" data-type="soegana">
+                      添え
+                    </button>
                   </div>
                   <div class="selection-kana-row">
-                    <input type="text" id="selection-kana-input" class="selection-kana-input" placeholder="仮名" autocomplete="off" />
-                    <button type="button" id="selection-kana-apply" class="selection-btn-apply" disabled>適用</button>
+                    <input
+                      type="text"
+                      id="selection-kana-input"
+                      class="selection-kana-input"
+                      placeholder="仮名"
+                      autocomplete="off"
+                    />
+                    <button
+                      type="button"
+                      id="selection-kana-apply"
+                      class="selection-btn-apply"
+                      disabled
+                    >
+                      適用
+                    </button>
                   </div>
                 </div>
               </div>

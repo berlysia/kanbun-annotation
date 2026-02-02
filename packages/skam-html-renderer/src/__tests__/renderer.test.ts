@@ -825,7 +825,9 @@ describe('region', () => {
     expect(html).toMatch(/<\/span><span class="[^"]*skam-kutoten[^"]*">。<\/span>/);
 
     // 「、」はregion span内にあることを確認
-    expect(html).toMatch(/skam-region[^>]*>.*<span class="[^"]*skam-kutoten[^"]*">、<\/span>.*<\/span><span class="[^"]*skam-kutoten[^"]*">。/);
+    expect(html).toMatch(
+      /skam-region[^>]*>.*<span class="[^"]*skam-kutoten[^"]*">、<\/span>.*<\/span><span class="[^"]*skam-kutoten[^"]*">。/
+    );
   });
 });
 

@@ -570,7 +570,9 @@
     background-color: var(--editor-bg);
     color: var(--editor-text);
     cursor: pointer;
-    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+    transition:
+      background-color var(--transition-fast),
+      border-color var(--transition-fast);
   }
 
   .selection-kaeri-btn:hover {
@@ -614,7 +616,9 @@
     background-color: var(--editor-bg-secondary);
     color: var(--editor-text);
     cursor: pointer;
-    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+    transition:
+      background-color var(--transition-fast),
+      border-color var(--transition-fast);
   }
 
   .selection-tateten-btn:hover:not(:disabled) {
@@ -652,7 +656,9 @@
     background-color: var(--editor-bg-secondary);
     color: var(--editor-text);
     cursor: pointer;
-    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+    transition:
+      background-color var(--transition-fast),
+      border-color var(--transition-fast);
   }
 
   .selection-emphasis-btn:hover:not(:disabled) {
@@ -691,7 +697,9 @@
     background-color: var(--editor-bg-secondary);
     color: var(--editor-text);
     cursor: pointer;
-    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+    transition:
+      background-color var(--transition-fast),
+      border-color var(--transition-fast);
   }
 
   .selection-underline-style-btn:hover {
@@ -758,7 +766,9 @@
     background-color: var(--editor-bg-secondary);
     color: var(--editor-text);
     cursor: pointer;
-    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+    transition:
+      background-color var(--transition-fast),
+      border-color var(--transition-fast);
   }
 
   .selection-underline-btn:hover:not(:disabled) {
@@ -796,7 +806,9 @@
     background-color: var(--editor-bg-secondary);
     color: var(--editor-text);
     cursor: pointer;
-    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+    transition:
+      background-color var(--transition-fast),
+      border-color var(--transition-fast);
   }
 
   .selection-kana-type-btn:hover {

@@ -238,7 +238,9 @@ function getTokenElementsInRange(
   const result: HTMLElement[] = [];
 
   // .skam-token[data-token-id] を持つ要素のみを対象
-  const tokenElements = Array.from(container.querySelectorAll<HTMLElement>('.skam-token[data-token-id]'));
+  const tokenElements = Array.from(
+    container.querySelectorAll<HTMLElement>('.skam-token[data-token-id]')
+  );
   for (const el of tokenElements) {
     const tokenId = el.getAttribute('data-token-id');
     if (tokenId && tokenIdsInRange.has(tokenId)) {
@@ -254,8 +256,12 @@ function getTokenElementsInRange(
  */
 function clearSelectionClasses(container: HTMLElement): void {
   // .skam-token[data-token-id] と [data-token-from][data-token-to] を対象にする
-  const tokenElements = Array.from(container.querySelectorAll<HTMLElement>('.skam-token[data-token-id]'));
-  const rangeElements = Array.from(container.querySelectorAll<HTMLElement>('[data-token-from][data-token-to]'));
+  const tokenElements = Array.from(
+    container.querySelectorAll<HTMLElement>('.skam-token[data-token-id]')
+  );
+  const rangeElements = Array.from(
+    container.querySelectorAll<HTMLElement>('[data-token-from][data-token-to]')
+  );
 
   for (const el of tokenElements) {
     el.classList.remove(SELECTION_CLASSES.selected);
@@ -295,7 +301,9 @@ function normalizeSelectionRange(
   // 熟語の範囲マーク要素をチェックして、部分的に含まれる場合は全体を追加
   // 注意: 連鎖的な拡張を防ぐため、元のIDセットのみをチェックに使用
   const expandedTokenIds = new Set(originalTokenIds);
-  const rangeElements = Array.from(container.querySelectorAll<HTMLElement>('[data-token-from][data-token-to]'));
+  const rangeElements = Array.from(
+    container.querySelectorAll<HTMLElement>('[data-token-from][data-token-to]')
+  );
 
   for (const el of rangeElements) {
     const tokenFrom = el.getAttribute('data-token-from');
@@ -451,7 +459,8 @@ export function attachInteractiveHandlers(
 
     const target = event.target as Element | null;
     const mousePos = { x: event.clientX, y: event.clientY };
-    const endTokenId = getTokenIdFromElement(target, mousePos, isVertical) ?? state.currentEndTokenId;
+    const endTokenId =
+      getTokenIdFromElement(target, mousePos, isVertical) ?? state.currentEndTokenId;
 
     if (!endTokenId) {
       state.isDragging = false;

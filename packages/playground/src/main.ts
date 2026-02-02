@@ -10,11 +10,11 @@ import {
   clearSelection,
   PROFILES,
 } from '@kanbun/skam-html-renderer';
-import type { SKAMDocument } from '@kanbun/skam';
+import type { SKAMDocument, RefFormat } from '@kanbun/skam';
 import { SAMPLES } from './samples.js';
 import { ErrorPanel, type ParseError } from './editor/error-panel.js';
 import { XmlEditor } from './editor/xml-editor.js';
-import { addMark, removeMark, getMarksForToken } from './editor/document-operations.js';
+import { addMark, removeMark, replaceMark, getMarksForToken } from './editor/document-operations.js';
 
 // ============================================================================
 // DOM Elements
@@ -46,10 +46,19 @@ const previewPane = document.querySelector('.preview-pane') as HTMLDivElement;
 // Selection panel elements
 const selectionInfo = document.getElementById('selection-info') as HTMLDivElement;
 const selectionActions = document.getElementById('selection-actions') as HTMLDivElement;
+const selectionTatetenBtn = document.getElementById('selection-tateten-btn') as HTMLButtonElement;
+const selectionEmphasisBtn = document.getElementById('selection-emphasis-btn') as HTMLButtonElement;
+const selectionUnderlineStyles = document.getElementById('selection-underline-styles') as HTMLDivElement;
+const selectionUnderlineRefInput = document.getElementById('selection-underline-ref') as HTMLInputElement;
+const selectionUnderlineFormatSelect = document.getElementById('selection-underline-format') as HTMLSelectElement;
+const selectionUnderlineBtn = document.getElementById('selection-underline-btn') as HTMLButtonElement;
 const selectionKaeriButtons = document.getElementById('selection-kaeri-buttons') as HTMLDivElement;
 const selectionKanaTypes = document.getElementById('selection-kana-types') as HTMLDivElement;
 const selectionKanaInput = document.getElementById('selection-kana-input') as HTMLInputElement;
 const selectionKanaApply = document.getElementById('selection-kana-apply') as HTMLButtonElement;
+
+// Marks list panel elements
+const marksList = document.getElementById('marks-list') as HTMLDivElement;
 
 const colorKaeritenInput = document.getElementById('color-kaeriten') as HTMLInputElement;
 const colorRubyInput = document.getElementById('color-ruby') as HTMLInputElement;
@@ -126,6 +135,37 @@ const KAERI_GROUPS: Array<{ group: string; values: Array<{ label: string; value:
 // レ点 can coexist with one value from other groups
 let currentKaeriRe: boolean = false;
 let currentKaeriOther: string | null = null; // value from number/joge/kouotsu/tenchijin
+
+// Current tateten (竪点) state
+// - null: no tateten for current selection
+// - string: mark ID of existing tateten that matches selection range
+let currentTatetenMarkId: string | null = null;
+
+// Current emphasis (傍点) state
+// - null: no emphasis for current selection
+// - string: mark ID of existing emphasis that matches selection range
+let currentEmphasisMarkId: string | null = null;
+
+// Current underline/region (傍線) state
+// - null: no underline for current selection
+// - string: mark ID of existing region that matches selection range
+let currentUnderlineMarkId: string | null = null;
+
+// Selected underline style
+type UnderlineStyle = 'solid' | 'dotted' | 'dashed' | 'wavy' | 'double';
+let currentUnderlineStyle: UnderlineStyle = 'solid';
+
+// Current underline ref value (from existing mark or empty for new)
+let currentUnderlineRef: string = '';
+
+// Current underline ref format
+let currentUnderlineFormat: RefFormat | '' = '';
+
+// Selection mode: determines what controls are available
+// - 'single': single character selected - kaeri enabled, tateten disabled
+// - 'multi': multiple characters selected without tateten - kaeri disabled, tateten enabled
+// - 'tateten': selection matches a tateten range - kaeri enabled, tateten shows "解除"
+let currentSelectionMode: 'single' | 'multi' | 'tateten' = 'single';
 
 // Flag to prevent double updates when GUI operation triggers XML update
 // which would trigger parseAndRender again
@@ -339,6 +379,167 @@ function getProfile(): ProfileName {
 }
 
 /**
+ * Find a tateten mark that exactly matches the given selection range
+ */
+function findTatetenForSelection(
+  doc: SKAMDocument,
+  fromId: string,
+  toId: string
+): { markId: string; kaeriValue: string | null } | null {
+  const tokens = doc.tokens;
+  const fromIndex = tokens.findIndex((t) => t.id === fromId);
+  const toIndex = tokens.findIndex((t) => t.id === toId);
+  if (fromIndex === -1 || toIndex === -1) return null;
+
+  const selStartIndex = Math.min(fromIndex, toIndex);
+  const selEndIndex = Math.max(fromIndex, toIndex);
+  const selStartId = tokens[selStartIndex]?.id;
+  const selEndId = tokens[selEndIndex]?.id;
+
+  for (const mark of doc.marks) {
+    if (mark.type !== 'tateten') continue;
+    if (!mark.id) continue; // Skip marks without ID
+
+    const markFromIndex = tokens.findIndex((t) => t.id === mark.anchor.from);
+    const markToIndex = tokens.findIndex((t) => t.id === mark.anchor.to);
+    if (markFromIndex === -1 || markToIndex === -1) continue;
+
+    const markStartIndex = Math.min(markFromIndex, markToIndex);
+    const markEndIndex = Math.max(markFromIndex, markToIndex);
+    const markStartToken = tokens[markStartIndex];
+    const markEndToken = tokens[markEndIndex];
+    if (!markStartToken || !markEndToken) continue;
+
+    const markStartId = markStartToken.id;
+    const markEndId = markEndToken.id;
+
+    // Check if selection exactly matches tateten range
+    if (selStartId === markStartId && selEndId === markEndId) {
+      // Find kaeri mark attached to this tateten range
+      let kaeriValue: string | null = null;
+      for (const m of doc.marks) {
+        if (m.type === 'kaeri' && m.anchor.from === markStartId && m.anchor.to === markEndId) {
+          if ('value' in m) {
+            kaeriValue = String(m.value);
+          }
+          break;
+        }
+      }
+      return { markId: mark.id, kaeriValue };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Find an emphasis mark that exactly matches the given selection range
+ */
+function findEmphasisForSelection(
+  doc: SKAMDocument,
+  fromId: string,
+  toId: string
+): { markId: string } | null {
+  const tokens = doc.tokens;
+  const fromIndex = tokens.findIndex((t) => t.id === fromId);
+  const toIndex = tokens.findIndex((t) => t.id === toId);
+  if (fromIndex === -1 || toIndex === -1) return null;
+
+  const selStartIndex = Math.min(fromIndex, toIndex);
+  const selEndIndex = Math.max(fromIndex, toIndex);
+  const selStartId = tokens[selStartIndex]?.id;
+  const selEndId = tokens[selEndIndex]?.id;
+
+  for (const mark of doc.marks) {
+    if (mark.type !== 'emphasis') continue;
+    if (!mark.id) continue;
+
+    const markFromIndex = tokens.findIndex((t) => t.id === mark.anchor.from);
+    const markToIndex = tokens.findIndex((t) => t.id === mark.anchor.to);
+    if (markFromIndex === -1 || markToIndex === -1) continue;
+
+    const markStartIndex = Math.min(markFromIndex, markToIndex);
+    const markEndIndex = Math.max(markFromIndex, markToIndex);
+    const markStartToken = tokens[markStartIndex];
+    const markEndToken = tokens[markEndIndex];
+    if (!markStartToken || !markEndToken) continue;
+
+    const markStartId = markStartToken.id;
+    const markEndId = markEndToken.id;
+
+    // Check if selection exactly matches emphasis range
+    if (selStartId === markStartId && selEndId === markEndId) {
+      return { markId: mark.id };
+    }
+  }
+
+  return null;
+}
+
+/**
+ * Find a region (underline) mark that exactly matches the given selection range
+ */
+function findRegionForSelection(
+  doc: SKAMDocument,
+  fromId: string,
+  toId: string
+): { markId: string; style: UnderlineStyle | undefined; ref: string | undefined; refFormat: RefFormat | undefined; refMarkId: string | undefined } | null {
+  const tokens = doc.tokens;
+  const fromIndex = tokens.findIndex((t) => t.id === fromId);
+  const toIndex = tokens.findIndex((t) => t.id === toId);
+  if (fromIndex === -1 || toIndex === -1) return null;
+
+  const selStartIndex = Math.min(fromIndex, toIndex);
+  const selEndIndex = Math.max(fromIndex, toIndex);
+  const selStartId = tokens[selStartIndex]?.id;
+  const selEndId = tokens[selEndIndex]?.id;
+
+  for (const mark of doc.marks) {
+    if (mark.type !== 'region') continue;
+    if (!mark.id) continue;
+
+    const markFromIndex = tokens.findIndex((t) => t.id === mark.anchor.from);
+    const markToIndex = tokens.findIndex((t) => t.id === mark.anchor.to);
+    if (markFromIndex === -1 || markToIndex === -1) continue;
+
+    const markStartIndex = Math.min(markFromIndex, markToIndex);
+    const markEndIndex = Math.max(markFromIndex, markToIndex);
+    const markStartToken = tokens[markStartIndex];
+    const markEndToken = tokens[markEndIndex];
+    if (!markStartToken || !markEndToken) continue;
+
+    const markStartId = markStartToken.id;
+    const markEndId = markEndToken.id;
+
+    // Check if selection exactly matches region range
+    if (selStartId === markStartId && selEndId === markEndId) {
+      // Extract style and ref from the mark
+      const style = 'style' in mark ? (mark.style as UnderlineStyle | undefined) : undefined;
+      const ref = 'ref' in mark ? (mark.ref as string | undefined) : undefined;
+
+      // Find associated ref mark and its format
+      let refFormat: RefFormat | undefined;
+      let refMarkId: string | undefined;
+      if (ref) {
+        for (const refMark of doc.marks) {
+          if (refMark.type === 'ref' && refMark.id === ref) {
+            refMarkId = refMark.id;
+            if ('format' in refMark) {
+              refFormat = refMark.format as RefFormat | undefined;
+            }
+            break;
+          }
+        }
+      }
+
+      return { markId: mark.id, style, ref, refFormat, refMarkId };
+    }
+  }
+
+  return null;
+}
+
+/**
  * Update selection panel with current selection info
  */
 function updateSelectionPanel(fromId: string, toId: string): void {
@@ -367,43 +568,65 @@ function updateSelectionPanel(fromId: string, toId: string): void {
   const count = selectedTokens.length;
   const chars = selectedTokens.map((t) => t.text).join('');
 
-  // Get marks for selected tokens
-  const allMarks: Array<{ tokenChar: string; type: string; value: string }> = [];
-  let currentKaeriValue: string | null = null;
-  let currentKanaType: 'yomigana' | 'okurigana' | 'soegana' = 'yomigana';
+  // Normalize selection to start/end order
+  const normalizedFromId = tokens[startIndex]!.id;
+  const normalizedToId = tokens[endIndex]!.id;
 
-  // Reset kana values for new selection
+  // Determine selection mode and tateten state
+  const tatetenInfo = findTatetenForSelection(currentDocument, normalizedFromId, normalizedToId);
+  currentTatetenMarkId = tatetenInfo?.markId ?? null;
+
+  // Determine emphasis state
+  const emphasisInfo = findEmphasisForSelection(currentDocument, normalizedFromId, normalizedToId);
+  currentEmphasisMarkId = emphasisInfo?.markId ?? null;
+
+  // Determine underline/region state
+  const regionInfo = findRegionForSelection(currentDocument, normalizedFromId, normalizedToId);
+  currentUnderlineMarkId = regionInfo?.markId ?? null;
+  // If existing region found, use its style, ref and format; otherwise reset to defaults
+  if (regionInfo) {
+    currentUnderlineStyle = regionInfo.style ?? 'solid';
+    currentUnderlineRef = regionInfo.ref ?? '';
+    currentUnderlineFormat = regionInfo.refFormat ?? '';
+  } else {
+    currentUnderlineStyle = 'solid';
+    currentUnderlineRef = '';
+    currentUnderlineFormat = '';
+  }
+
+  if (count === 1) {
+    currentSelectionMode = 'single';
+  } else if (tatetenInfo) {
+    currentSelectionMode = 'tateten';
+  } else {
+    currentSelectionMode = 'multi';
+  }
+
+  // Get kaeri value based on selection mode
+  let currentKaeriValue: string | null = null;
+  if (currentSelectionMode === 'tateten') {
+    // For tateten range, use the kaeri attached to the tateten
+    currentKaeriValue = tatetenInfo?.kaeriValue ?? null;
+  } else if (currentSelectionMode === 'single') {
+    // For single selection, get kaeri from that token
+    const firstTokenMarks = getMarksForToken(currentDocument, fromId);
+    for (const mark of firstTokenMarks) {
+      if (mark.type === 'kaeri' && 'value' in mark) {
+        currentKaeriValue = String(mark.value);
+        break;
+      }
+    }
+  }
+
+  // Get kana marks for first token
+  let currentKanaType: 'yomigana' | 'okurigana' | 'soegana' = 'yomigana';
   currentKanaValues = { yomigana: '', okurigana: '', soegana: '' };
 
-  for (const token of selectedTokens) {
-    const marks = getMarksForToken(currentDocument, token.id);
-    for (const mark of marks) {
-      let value = '';
-      if (mark.type === 'kaeri' && 'value' in mark) {
-        value = String(mark.value);
-        // Only use first token's kaeri for panel
-        if (token.id === fromId) {
-          currentKaeriValue = value;
-        }
-      } else if ('value' in mark && typeof mark.value === 'string') {
-        value = mark.value;
-        // Use first token's kana for panel - collect all types
-        if (token.id === fromId) {
-          if (mark.type === 'yomigana' || mark.type === 'okurigana' || mark.type === 'soegana') {
-            currentKanaValues[mark.type] = value;
-            // Set initial type to first found kana type
-            if (currentKanaType === 'yomigana' && !currentKanaValues.yomigana) {
-              currentKanaType = mark.type;
-            }
-          }
-        }
-      }
-      if (value) {
-        allMarks.push({
-          tokenChar: token.text,
-          type: mark.type,
-          value,
-        });
+  const firstTokenMarks = getMarksForToken(currentDocument, fromId);
+  for (const mark of firstTokenMarks) {
+    if ('value' in mark && typeof mark.value === 'string') {
+      if (mark.type === 'yomigana' || mark.type === 'okurigana' || mark.type === 'soegana') {
+        currentKanaValues[mark.type] = mark.value;
       }
     }
   }
@@ -419,33 +642,24 @@ function updateSelectionPanel(fromId: string, toId: string): void {
     currentKanaType = 'yomigana';
   }
 
-  // Build HTML
-  let html = `
+  // Build HTML - only selection summary, marks are shown in the marks list panel
+  const html = `
     <div class="selection-summary">
       <div class="selection-count">${count}文字選択</div>
       <div class="selection-chars">${chars}</div>
     </div>
   `;
 
-  if (allMarks.length > 0) {
-    html += `
-      <div class="selection-marks">
-        <div class="selection-marks-title">マーク情報</div>
-        ${allMarks
-          .map(
-            (m) => `
-          <div class="selection-mark-item">
-            <span class="selection-mark-type">${m.tokenChar}: ${getMarkTypeLabel(m.type)}</span>
-            <span class="selection-mark-value">${m.value}</span>
-          </div>
-        `
-          )
-          .join('')}
-      </div>
-    `;
-  }
-
   selectionInfo.innerHTML = html;
+
+  // Update tateten button
+  updateTatetenButton();
+
+  // Update emphasis button
+  updateEmphasisButton();
+
+  // Update underline button
+  updateUnderlineButton();
 
   // Update kaeriten buttons
   updateKaeriButtons(currentKaeriValue);
@@ -469,6 +683,32 @@ function updateKanaTypeButtons(): void {
     const type = btn.dataset['type'] as 'yomigana' | 'okurigana' | 'soegana';
     btn.classList.toggle('active', type === currentSelectedKanaType);
     btn.classList.toggle('has-value', Boolean(currentKanaValues[type]));
+  }
+}
+
+/**
+ * Update tateten button based on selection mode
+ */
+function updateTatetenButton(): void {
+  switch (currentSelectionMode) {
+    case 'single':
+      // Single character: tateten disabled
+      selectionTatetenBtn.disabled = true;
+      selectionTatetenBtn.textContent = '熟語にする';
+      selectionTatetenBtn.classList.remove('active');
+      break;
+    case 'multi':
+      // Multiple characters without tateten: can add tateten
+      selectionTatetenBtn.disabled = false;
+      selectionTatetenBtn.textContent = '熟語にする';
+      selectionTatetenBtn.classList.remove('active');
+      break;
+    case 'tateten':
+      // Selection matches tateten: can remove tateten
+      selectionTatetenBtn.disabled = false;
+      selectionTatetenBtn.textContent = '熟語を解除';
+      selectionTatetenBtn.classList.add('active');
+      break;
   }
 }
 
@@ -511,6 +751,18 @@ function findKaeriGroup(value: string): string | null {
 
 function updateKaeriButtons(currentValue: string | null): void {
   selectionKaeriButtons.innerHTML = '';
+
+  // In 'multi' mode (multiple chars without tateten), kaeri is disabled
+  const isDisabled = currentSelectionMode === 'multi';
+
+  if (isDisabled) {
+    // Show disabled message
+    const msg = document.createElement('span');
+    msg.className = 'selection-kaeri-disabled-msg';
+    msg.textContent = '竪点をつけると返り点が使えます';
+    selectionKaeriButtons.appendChild(msg);
+    return;
+  }
 
   // Parse current value into components
   const { re, other } = parseKaeriValue(currentValue);
@@ -582,19 +834,348 @@ function handleKaeriToggle(value: string, group: string): void {
 }
 
 /**
- * Apply kaeri value to document
+ * Handle tateten button click - add or remove tateten
  */
-function applyKaeriValue(value: string | null): void {
-  if (!currentDocument || !currentSelectionFromId) return;
+function handleTatetenToggle(): void {
+  if (!currentDocument || !currentSelectionFromId || !currentSelectionToId) return;
 
   let newDoc = currentDocument;
 
-  // Find and remove existing kaeri mark
-  const existingMark = getMarksForToken(currentDocument, currentSelectionFromId).find(
-    (m) => m.type === 'kaeri'
-  );
-  if (existingMark?.id) {
-    newDoc = removeMark(newDoc, existingMark.id);
+  // Normalize selection range
+  const tokens = currentDocument.tokens;
+  const fromIndex = tokens.findIndex((t) => t.id === currentSelectionFromId);
+  const toIndex = tokens.findIndex((t) => t.id === currentSelectionToId);
+  if (fromIndex === -1 || toIndex === -1) return;
+
+  const startIndex = Math.min(fromIndex, toIndex);
+  const endIndex = Math.max(fromIndex, toIndex);
+  const normalizedFromId = tokens[startIndex]!.id;
+  const normalizedToId = tokens[endIndex]!.id;
+
+  if (currentSelectionMode === 'tateten' && currentTatetenMarkId) {
+    // Remove existing tateten
+    // Also remove any kaeri attached to this tateten range
+    for (const mark of currentDocument.marks) {
+      if (mark.type === 'kaeri' && mark.anchor.from === normalizedFromId && mark.anchor.to === normalizedToId && mark.id) {
+        newDoc = removeMark(newDoc, mark.id);
+        break;
+      }
+    }
+    newDoc = removeMark(newDoc, currentTatetenMarkId);
+  } else if (currentSelectionMode === 'multi') {
+    // Add new tateten
+    newDoc = addMark(newDoc, {
+      type: 'tateten',
+      anchor: { from: normalizedFromId, to: normalizedToId },
+    });
+  }
+
+  updateXmlFromDocument(newDoc);
+
+  // Re-update selection panel
+  if (currentSelectionFromId && currentSelectionToId) {
+    updateSelectionPanel(currentSelectionFromId, currentSelectionToId);
+  }
+}
+
+/**
+ * Update emphasis button based on current selection state
+ */
+function updateEmphasisButton(): void {
+  if (currentEmphasisMarkId) {
+    // Emphasis exists for this selection: show "解除" state
+    selectionEmphasisBtn.textContent = '傍点を解除';
+    selectionEmphasisBtn.classList.add('active');
+  } else {
+    // No emphasis: show "つける" state
+    selectionEmphasisBtn.textContent = '傍点をつける';
+    selectionEmphasisBtn.classList.remove('active');
+  }
+}
+
+/**
+ * Handle emphasis button click - add or remove emphasis
+ */
+function handleEmphasisToggle(): void {
+  if (!currentDocument || !currentSelectionFromId || !currentSelectionToId) return;
+
+  let newDoc = currentDocument;
+
+  // Normalize selection range
+  const tokens = currentDocument.tokens;
+  const fromIndex = tokens.findIndex((t) => t.id === currentSelectionFromId);
+  const toIndex = tokens.findIndex((t) => t.id === currentSelectionToId);
+  if (fromIndex === -1 || toIndex === -1) return;
+
+  const startIndex = Math.min(fromIndex, toIndex);
+  const endIndex = Math.max(fromIndex, toIndex);
+  const normalizedFromId = tokens[startIndex]!.id;
+  const normalizedToId = tokens[endIndex]!.id;
+
+  if (currentEmphasisMarkId) {
+    // Remove existing emphasis
+    newDoc = removeMark(newDoc, currentEmphasisMarkId);
+  } else {
+    // Add new emphasis
+    newDoc = addMark(newDoc, {
+      type: 'emphasis',
+      anchor: { from: normalizedFromId, to: normalizedToId },
+    });
+  }
+
+  updateXmlFromDocument(newDoc);
+
+  // Re-update selection panel
+  if (currentSelectionFromId && currentSelectionToId) {
+    updateSelectionPanel(currentSelectionFromId, currentSelectionToId);
+  }
+}
+
+/**
+ * Update underline style buttons state
+ */
+function updateUnderlineStyleButtons(): void {
+  const buttons = selectionUnderlineStyles.querySelectorAll<HTMLButtonElement>('.selection-underline-style-btn');
+  for (const btn of buttons) {
+    const style = btn.dataset['style'] as UnderlineStyle;
+    btn.classList.toggle('active', style === currentUnderlineStyle);
+  }
+}
+
+/**
+ * Update underline button based on current selection state
+ */
+function updateUnderlineButton(): void {
+  // Update style buttons
+  updateUnderlineStyleButtons();
+
+  // Update ref input and format select
+  selectionUnderlineRefInput.value = currentUnderlineRef;
+  selectionUnderlineFormatSelect.value = currentUnderlineFormat;
+
+  if (currentUnderlineMarkId) {
+    // Underline exists for this selection: show "解除" state
+    selectionUnderlineBtn.textContent = '傍線を解除';
+    selectionUnderlineBtn.classList.add('active');
+  } else {
+    // No underline: show "引く" state
+    selectionUnderlineBtn.textContent = '傍線を引く';
+    selectionUnderlineBtn.classList.remove('active');
+  }
+}
+
+/**
+ * Update existing underline with current style/ref/format settings
+ */
+function updateExistingUnderline(): void {
+  if (!currentDocument || !currentSelectionFromId || !currentSelectionToId || !currentUnderlineMarkId) return;
+
+  let newDoc = currentDocument;
+
+  // Normalize selection range
+  const tokens = currentDocument.tokens;
+  const fromIndex = tokens.findIndex((t) => t.id === currentSelectionFromId);
+  const toIndex = tokens.findIndex((t) => t.id === currentSelectionToId);
+  if (fromIndex === -1 || toIndex === -1) return;
+
+  const startIndex = Math.min(fromIndex, toIndex);
+  const endIndex = Math.max(fromIndex, toIndex);
+  const normalizedFromId = tokens[startIndex]!.id;
+  const normalizedToId = tokens[endIndex]!.id;
+
+  // Remove existing underline and associated ref mark
+  const regionInfo = findRegionForSelection(newDoc, normalizedFromId, normalizedToId);
+  if (regionInfo?.refMarkId) {
+    newDoc = removeMark(newDoc, regionInfo.refMarkId);
+  }
+  newDoc = removeMark(newDoc, currentUnderlineMarkId);
+
+  // Add new underline with current settings
+  const refInputValue = selectionUnderlineRefInput.value.trim();
+  const formatValue = selectionUnderlineFormatSelect.value as RefFormat | '';
+
+  // If format is specified, create a ref mark
+  let refId: string | undefined;
+  if (formatValue) {
+    refId = refInputValue || generateRefId(newDoc);
+    const refMark: {
+      type: 'ref';
+      id?: string;
+      format: RefFormat;
+      anchor: { from: string; to: string };
+    } = {
+      type: 'ref',
+      id: refId,
+      format: formatValue,
+      anchor: { from: normalizedFromId, to: normalizedToId },
+    };
+    newDoc = addMark(newDoc, refMark);
+    // Find the newly added ref mark to get its generated ID
+    const addedRefMark = newDoc.marks.find(
+      (m) => m.type === 'ref' && 'format' in m && m.format === formatValue &&
+      m.anchor.from === normalizedFromId && m.anchor.to === normalizedToId
+    );
+    if (addedRefMark?.id) {
+      refId = addedRefMark.id;
+    }
+  } else if (refInputValue) {
+    refId = refInputValue;
+  }
+
+  const regionMark: {
+    type: 'region';
+    style: UnderlineStyle;
+    anchor: { from: string; to: string };
+    ref?: string;
+  } = {
+    type: 'region',
+    style: currentUnderlineStyle,
+    anchor: { from: normalizedFromId, to: normalizedToId },
+  };
+  if (refId) {
+    regionMark.ref = refId;
+  }
+  newDoc = addMark(newDoc, regionMark);
+
+  updateXmlFromDocument(newDoc);
+
+  // Re-update selection panel
+  if (currentSelectionFromId && currentSelectionToId) {
+    updateSelectionPanel(currentSelectionFromId, currentSelectionToId);
+  }
+}
+
+/**
+ * Generate a unique ref ID based on existing marks
+ */
+function generateRefId(doc: SKAMDocument): string {
+  let maxNum = 0;
+  for (const mark of doc.marks) {
+    if (mark.type === 'ref' && mark.id) {
+      const match = /^ref-(\d+)$/.exec(mark.id);
+      if (match?.[1]) {
+        const num = parseInt(match[1], 10);
+        if (num > maxNum) maxNum = num;
+      }
+    }
+  }
+  return `ref-${maxNum + 1}`;
+}
+
+/**
+ * Handle underline button click - add or remove underline (region)
+ */
+function handleUnderlineToggle(): void {
+  if (!currentDocument || !currentSelectionFromId || !currentSelectionToId) return;
+
+  let newDoc = currentDocument;
+
+  // Normalize selection range
+  const tokens = currentDocument.tokens;
+  const fromIndex = tokens.findIndex((t) => t.id === currentSelectionFromId);
+  const toIndex = tokens.findIndex((t) => t.id === currentSelectionToId);
+  if (fromIndex === -1 || toIndex === -1) return;
+
+  const startIndex = Math.min(fromIndex, toIndex);
+  const endIndex = Math.max(fromIndex, toIndex);
+  const normalizedFromId = tokens[startIndex]!.id;
+  const normalizedToId = tokens[endIndex]!.id;
+
+  if (currentUnderlineMarkId) {
+    // Remove existing underline and associated ref mark
+    const regionInfo = findRegionForSelection(newDoc, normalizedFromId, normalizedToId);
+    if (regionInfo?.refMarkId) {
+      newDoc = removeMark(newDoc, regionInfo.refMarkId);
+    }
+    newDoc = removeMark(newDoc, currentUnderlineMarkId);
+  } else {
+    // Add new underline (region with selected style and optional ref)
+    const refInputValue = selectionUnderlineRefInput.value.trim();
+    const formatValue = selectionUnderlineFormatSelect.value as RefFormat | '';
+
+    // If format is specified, create a ref mark
+    let refId: string | undefined;
+    if (formatValue) {
+      refId = refInputValue || generateRefId(newDoc);
+      const refMark: {
+        type: 'ref';
+        id?: string;
+        format: RefFormat;
+        anchor: { from: string; to: string };
+      } = {
+        type: 'ref',
+        id: refId,
+        format: formatValue,
+        anchor: { from: normalizedFromId, to: normalizedToId },
+      };
+      newDoc = addMark(newDoc, refMark);
+      // Update refId to match the generated mark ID (addMark generates new IDs)
+      // We need to find the newly added ref mark
+      const addedRefMark = newDoc.marks.find(
+        (m) => m.type === 'ref' && 'format' in m && m.format === formatValue &&
+        m.anchor.from === normalizedFromId && m.anchor.to === normalizedToId
+      );
+      if (addedRefMark?.id) {
+        refId = addedRefMark.id;
+      }
+    } else if (refInputValue) {
+      // Just use the ref ID without creating a ref mark
+      refId = refInputValue;
+    }
+
+    const regionMark: {
+      type: 'region';
+      style: UnderlineStyle;
+      anchor: { from: string; to: string };
+      ref?: string;
+    } = {
+      type: 'region',
+      style: currentUnderlineStyle,
+      anchor: { from: normalizedFromId, to: normalizedToId },
+    };
+    if (refId) {
+      regionMark.ref = refId;
+    }
+    newDoc = addMark(newDoc, regionMark);
+  }
+
+  updateXmlFromDocument(newDoc);
+
+  // Re-update selection panel
+  if (currentSelectionFromId && currentSelectionToId) {
+    updateSelectionPanel(currentSelectionFromId, currentSelectionToId);
+  }
+}
+
+/**
+ * Apply kaeri value to document
+ */
+function applyKaeriValue(value: string | null): void {
+  if (!currentDocument || !currentSelectionFromId || !currentSelectionToId) return;
+
+  let newDoc = currentDocument;
+
+  // Normalize selection range
+  const tokens = currentDocument.tokens;
+  const fromIndex = tokens.findIndex((t) => t.id === currentSelectionFromId);
+  const toIndex = tokens.findIndex((t) => t.id === currentSelectionToId);
+  if (fromIndex === -1 || toIndex === -1) return;
+
+  const startIndex = Math.min(fromIndex, toIndex);
+  const endIndex = Math.max(fromIndex, toIndex);
+  const normalizedFromId = tokens[startIndex]!.id;
+  const normalizedToId = tokens[endIndex]!.id;
+
+  // For single selection or tateten range, apply kaeri to the full range
+  const anchorFrom = currentSelectionMode === 'single' ? normalizedFromId : normalizedFromId;
+  const anchorTo = currentSelectionMode === 'single' ? normalizedFromId : normalizedToId;
+
+  // Find and remove existing kaeri mark for this range
+  for (const mark of currentDocument.marks) {
+    if (mark.type === 'kaeri' && mark.anchor.from === anchorFrom && mark.anchor.to === anchorTo && mark.id) {
+      newDoc = removeMark(newDoc, mark.id);
+      break;
+    }
   }
 
   // Add new mark if value is provided
@@ -602,7 +1183,7 @@ function applyKaeriValue(value: string | null): void {
     newDoc = addMark(newDoc, {
       type: 'kaeri',
       value: value,
-      anchor: { from: currentSelectionFromId, to: currentSelectionFromId },
+      anchor: { from: anchorFrom, to: anchorTo },
     });
   }
 
@@ -658,9 +1239,26 @@ function clearSelectionPanel(): void {
   currentSelectedKanaType = 'yomigana';
   currentKaeriRe = false;
   currentKaeriOther = null;
+  currentTatetenMarkId = null;
+  currentEmphasisMarkId = null;
+  currentUnderlineMarkId = null;
+  currentSelectionMode = 'single';
   selectionInfo.innerHTML = '<p class="selection-empty">文字をクリックまたはドラッグで選択</p>';
   selectionActions.style.display = 'none';
   selectionKaeriButtons.innerHTML = '';
+  selectionTatetenBtn.disabled = true;
+  selectionTatetenBtn.textContent = '熟語にする';
+  selectionTatetenBtn.classList.remove('active');
+  selectionEmphasisBtn.textContent = '傍点をつける';
+  selectionEmphasisBtn.classList.remove('active');
+  selectionUnderlineBtn.textContent = '傍線を引く';
+  selectionUnderlineBtn.classList.remove('active');
+  currentUnderlineStyle = 'solid';
+  currentUnderlineRef = '';
+  currentUnderlineFormat = '';
+  updateUnderlineStyleButtons();
+  selectionUnderlineRefInput.value = '';
+  selectionUnderlineFormatSelect.value = '';
   updateKanaTypeButtons();
   selectionKanaInput.value = '';
   selectionKanaApply.disabled = true;
@@ -682,9 +1280,63 @@ function getMarkTypeLabel(type: string): string {
     okototen: 'ヲコト点',
     tateten: 'たて点',
     emphasis: '傍点',
+    region: '傍線',
+    ref: '参照',
     note: '注釈',
   };
   return labels[type] ?? type;
+}
+
+/**
+ * Update marks list panel with all marks from the document
+ */
+function updateMarksList(doc: SKAMDocument | null): void {
+  if (!doc || doc.marks.length === 0) {
+    marksList.innerHTML = '<p class="marks-list-empty">マークがありません</p>';
+    return;
+  }
+
+  // Sort marks by their anchor position in the document (appearance order)
+  const sortedMarks = [...doc.marks].sort((a, b) => {
+    const aFromIndex = doc.tokens.findIndex((t) => t.id === a.anchor.from);
+    const bFromIndex = doc.tokens.findIndex((t) => t.id === b.anchor.from);
+    return aFromIndex - bFromIndex;
+  });
+
+  // Build HTML - display in appearance order with type inline
+  let html = '';
+  for (const mark of sortedMarks) {
+    const anchorFrom = mark.anchor.from;
+    const anchorTo = mark.anchor.to;
+
+    // Get text for the anchor range
+    let anchorText = '';
+    const fromIndex = doc.tokens.findIndex((t) => t.id === anchorFrom);
+    const toIndex = doc.tokens.findIndex((t) => t.id === anchorTo);
+    if (fromIndex !== -1 && toIndex !== -1) {
+      const startIdx = Math.min(fromIndex, toIndex);
+      const endIdx = Math.max(fromIndex, toIndex);
+      anchorText = doc.tokens
+        .slice(startIdx, endIdx + 1)
+        .map((t) => t.text)
+        .join('');
+    }
+
+    let value = '';
+    if ('value' in mark && mark.value !== undefined) {
+      value = String(mark.value);
+    }
+
+    html += `
+      <div class="marks-list-item">
+        <span class="marks-list-anchor">${anchorText}</span>
+        <span class="marks-list-type">${getMarkTypeLabel(mark.type)}</span>
+        ${value ? `<span class="marks-list-value">${value}</span>` : ''}
+      </div>
+    `;
+  }
+
+  marksList.innerHTML = html;
 }
 
 function renderDocument(doc: SKAMDocument, preserveSelection = false): void {
@@ -702,6 +1354,9 @@ function renderDocument(doc: SKAMDocument, preserveSelection = false): void {
   if (!preserveSelection) {
     clearSelectionPanel();
   }
+
+  // Update marks list panel
+  updateMarksList(doc);
 
   // JSON output
   jsonOutput.textContent = JSON.stringify(doc, null, 2);
@@ -1240,6 +1895,48 @@ selectionKanaInput.addEventListener('keydown', (e) => {
 });
 
 selectionKanaApply.addEventListener('click', handleKanaApply);
+
+// Selection panel tateten button
+selectionTatetenBtn.addEventListener('click', handleTatetenToggle);
+
+// Selection panel emphasis button
+selectionEmphasisBtn.addEventListener('click', handleEmphasisToggle);
+
+// Selection panel underline style buttons
+selectionUnderlineStyles.addEventListener('click', (e) => {
+  const target = e.target as HTMLElement;
+  if (!target.classList.contains('selection-underline-style-btn')) return;
+
+  const style = target.dataset['style'] as UnderlineStyle | undefined;
+  if (!style) return;
+
+  currentUnderlineStyle = style;
+  updateUnderlineStyleButtons();
+
+  // If underline already exists, update it immediately
+  if (currentUnderlineMarkId) {
+    updateExistingUnderline();
+  }
+});
+
+// Selection panel underline ref input change
+selectionUnderlineRefInput.addEventListener('change', () => {
+  // If underline already exists, update it immediately
+  if (currentUnderlineMarkId) {
+    updateExistingUnderline();
+  }
+});
+
+// Selection panel underline format change
+selectionUnderlineFormatSelect.addEventListener('change', () => {
+  // If underline already exists, update it immediately
+  if (currentUnderlineMarkId) {
+    updateExistingUnderline();
+  }
+});
+
+// Selection panel underline button
+selectionUnderlineBtn.addEventListener('click', handleUnderlineToggle);
 
 // ============================================================================
 // Initialize

@@ -58,6 +58,8 @@ interface SelectionState {
   startPosition: { x: number; y: number } | null;
   /** 現在の選択終了トークンID */
   currentEndTokenId: string | null;
+  /** 最後に選択されたトークンID（Shift+クリック用） */
+  lastSelectedTokenId: string | null;
 }
 
 // ============================================================================
@@ -66,9 +68,6 @@ interface SelectionState {
 
 const SELECTION_CLASSES = {
   selected: 'skam-selected',
-  start: 'skam-selection-start',
-  end: 'skam-selection-end',
-  middle: 'skam-selection-middle',
 } as const;
 
 // ============================================================================
@@ -90,13 +89,8 @@ function getTokenIdFromElement(
 ): string | null {
   if (!element) return null;
 
-  // data-token-id を持つ要素を探す（自身または祖先）
-  const tokenElement = element.closest('[data-token-id]');
-  if (tokenElement) {
-    return tokenElement.getAttribute('data-token-id');
-  }
-
-  // 範囲マーク（data-token-from/to）の場合
+  // 範囲マーク（data-token-from/to）を先にチェック（熟語ルビなど）
+  // 親要素にdata-token-idがあっても、範囲マーク内では範囲マークを優先
   const rangeElement = element.closest('[data-token-from]');
   if (rangeElement) {
     const fromId = rangeElement.getAttribute('data-token-from');
@@ -107,18 +101,31 @@ function getTokenIdFromElement(
       return fromId;
     }
 
-    // マウス位置と要素の中心点を比較して、from か to を返す
+    // 要素を50/50で分割してfrom/toを判定（中間トークンは選択不可）
+    // textContentには送り仮名等が含まれる場合があるため、文字数ではなく位置で判定
     const rect = rangeElement.getBoundingClientRect();
-    const centerX = rect.left + rect.width / 2;
-    const centerY = rect.top + rect.height / 2;
 
-    if (isVertical) {
-      // 縦書き: マウスが中心より上なら from、下なら to
-      return mousePosition.y < centerY ? fromId : toId;
+    // 要素自体の書字方向を確認（コンテナではなく実際の要素で判定）
+    const elementWritingMode = getComputedStyle(rangeElement).writingMode;
+    const elementIsVertical = elementWritingMode.includes('vertical');
+
+    if (elementIsVertical) {
+      // 縦書き: 上から下にテキストが流れる
+      // 上半分 = from、下半分 = to
+      const relativeY = mousePosition.y - rect.top;
+      return relativeY < rect.height / 2 ? fromId : toId;
     } else {
-      // 横書き: マウスが中心より左なら from、右なら to
-      return mousePosition.x < centerX ? fromId : toId;
+      // 横書き: 左から右にテキストが流れる
+      // 左半分 = from、右半分 = to
+      const relativeX = mousePosition.x - rect.left;
+      return relativeX < rect.width / 2 ? fromId : toId;
     }
+  }
+
+  // data-token-id を持つ要素を探す（自身または祖先）
+  const tokenElement = element.closest('[data-token-id]');
+  if (tokenElement) {
+    return tokenElement.getAttribute('data-token-id');
   }
 
   return null;
@@ -160,53 +167,101 @@ function getAllTokenElements(container: HTMLElement): HTMLElement[] {
 }
 
 /**
- * 選択されたトークン要素を順序付きで取得
+ * DOM出現順でユニークなトークンIDリストを取得
+ */
+function getOrderedTokenIds(container: HTMLElement): string[] {
+  const allElements = getAllTokenElements(container);
+  const seen = new Set<string>();
+  const orderedIds: string[] = [];
+
+  for (const el of allElements) {
+    const tokenId = el.getAttribute('data-token-id');
+    const tokenFrom = el.getAttribute('data-token-from');
+    const tokenTo = el.getAttribute('data-token-to');
+
+    // 単一トークン要素
+    if (tokenId && !seen.has(tokenId)) {
+      seen.add(tokenId);
+      orderedIds.push(tokenId);
+    }
+
+    // 範囲マーク要素（from と to の両方を追加）
+    if (tokenFrom && !seen.has(tokenFrom)) {
+      seen.add(tokenFrom);
+      orderedIds.push(tokenFrom);
+    }
+    if (tokenTo && !seen.has(tokenTo)) {
+      seen.add(tokenTo);
+      orderedIds.push(tokenTo);
+    }
+  }
+
+  return orderedIds;
+}
+
+/**
+ * 指定されたトークンIDの範囲内にあるトークンIDのセットを取得
+ */
+function getTokenIdsInRange(container: HTMLElement, fromId: string, toId: string): Set<string> {
+  const orderedIds = getOrderedTokenIds(container);
+
+  const fromIndex = orderedIds.indexOf(fromId);
+  const toIndex = orderedIds.indexOf(toId);
+
+  if (fromIndex === -1 || toIndex === -1) {
+    return new Set();
+  }
+
+  const startIndex = Math.min(fromIndex, toIndex);
+  const endIndex = Math.max(fromIndex, toIndex);
+
+  return new Set(orderedIds.slice(startIndex, endIndex + 1));
+}
+
+/**
+ * 選択されたトークン要素を取得（トークンIDベース）
+ *
+ * 対象: .skam-token[data-token-id] のみ
+ * 熟語の場合、親の.skam-token要素にのみ選択クラスをつける
  */
 function getTokenElementsInRange(
   container: HTMLElement,
   fromId: string,
   toId: string
 ): HTMLElement[] {
-  const allTokens = getAllTokenElements(container);
+  const tokenIdsInRange = getTokenIdsInRange(container, fromId, toId);
 
-  // fromId と toId のインデックスを見つける
-  let fromIndex = -1;
-  let toIndex = -1;
-
-  for (let i = 0; i < allTokens.length; i++) {
-    const el = allTokens[i]!;
-    const tokenId = el.getAttribute('data-token-id') ?? el.getAttribute('data-token-from');
-    if (tokenId === fromId) {
-      fromIndex = i;
-    }
-    if (tokenId === toId) {
-      toIndex = i;
-    }
-  }
-
-  if (fromIndex === -1 || toIndex === -1) {
+  if (tokenIdsInRange.size === 0) {
     return [];
   }
 
-  // 順序を正規化
-  const startIndex = Math.min(fromIndex, toIndex);
-  const endIndex = Math.max(fromIndex, toIndex);
+  const result: HTMLElement[] = [];
 
-  return allTokens.slice(startIndex, endIndex + 1);
+  // .skam-token[data-token-id] を持つ要素のみを対象
+  const tokenElements = Array.from(container.querySelectorAll<HTMLElement>('.skam-token[data-token-id]'));
+  for (const el of tokenElements) {
+    const tokenId = el.getAttribute('data-token-id');
+    if (tokenId && tokenIdsInRange.has(tokenId)) {
+      result.push(el);
+    }
+  }
+
+  return result;
 }
 
 /**
  * 選択状態のCSSクラスをすべて削除
  */
 function clearSelectionClasses(container: HTMLElement): void {
-  const allTokens = getAllTokenElements(container);
-  for (const el of allTokens) {
-    el.classList.remove(
-      SELECTION_CLASSES.selected,
-      SELECTION_CLASSES.start,
-      SELECTION_CLASSES.end,
-      SELECTION_CLASSES.middle
-    );
+  // .skam-token[data-token-id] と [data-token-from][data-token-to] を対象にする
+  const tokenElements = Array.from(container.querySelectorAll<HTMLElement>('.skam-token[data-token-id]'));
+  const rangeElements = Array.from(container.querySelectorAll<HTMLElement>('[data-token-from][data-token-to]'));
+
+  for (const el of tokenElements) {
+    el.classList.remove(SELECTION_CLASSES.selected);
+  }
+  for (const el of rangeElements) {
+    el.classList.remove(SELECTION_CLASSES.selected);
   }
 }
 
@@ -216,24 +271,62 @@ function clearSelectionClasses(container: HTMLElement): void {
 function applySelectionClasses(container: HTMLElement, fromId: string, toId: string): void {
   const elements = getTokenElementsInRange(container, fromId, toId);
 
-  if (elements.length === 0) return;
+  for (const el of elements) {
+    el.classList.add(SELECTION_CLASSES.selected);
+  }
+}
 
-  if (elements.length === 1) {
-    // 単一選択
-    elements[0]!.classList.add(SELECTION_CLASSES.selected);
-  } else {
-    // 範囲選択
-    for (let i = 0; i < elements.length; i++) {
-      const el = elements[i]!;
-      if (i === 0) {
-        el.classList.add(SELECTION_CLASSES.start);
-      } else if (i === elements.length - 1) {
-        el.classList.add(SELECTION_CLASSES.end);
-      } else {
-        el.classList.add(SELECTION_CLASSES.middle);
-      }
+/**
+ * 選択範囲を正規化（熟語が部分的に含まれる場合は熟語全体を含める）
+ *
+ * @returns [normalizedFromId, normalizedToId] 正規化された選択範囲
+ */
+function normalizeSelectionRange(
+  container: HTMLElement,
+  fromId: string,
+  toId: string
+): [string, string] {
+  const originalTokenIds = getTokenIdsInRange(container, fromId, toId);
+
+  if (originalTokenIds.size === 0) {
+    return [fromId, toId];
+  }
+
+  // 熟語の範囲マーク要素をチェックして、部分的に含まれる場合は全体を追加
+  // 注意: 連鎖的な拡張を防ぐため、元のIDセットのみをチェックに使用
+  const expandedTokenIds = new Set(originalTokenIds);
+  const rangeElements = Array.from(container.querySelectorAll<HTMLElement>('[data-token-from][data-token-to]'));
+
+  for (const el of rangeElements) {
+    const tokenFrom = el.getAttribute('data-token-from');
+    const tokenTo = el.getAttribute('data-token-to');
+
+    if (!tokenFrom || !tokenTo) continue;
+
+    // 元の選択範囲に含まれる場合のみ、熟語全体を追加（連鎖防止）
+    if (originalTokenIds.has(tokenFrom) || originalTokenIds.has(tokenTo)) {
+      expandedTokenIds.add(tokenFrom);
+      expandedTokenIds.add(tokenTo);
     }
   }
+
+  // 正規化されたトークンIDセットから、DOM順で最初と最後のIDを取得
+  const orderedIds = getOrderedTokenIds(container);
+  let normalizedFromIndex = Infinity;
+  let normalizedToIndex = -1;
+
+  for (let i = 0; i < orderedIds.length; i++) {
+    const id = orderedIds[i];
+    if (id && expandedTokenIds.has(id)) {
+      if (i < normalizedFromIndex) normalizedFromIndex = i;
+      if (i > normalizedToIndex) normalizedToIndex = i;
+    }
+  }
+
+  const normalizedFromId = orderedIds[normalizedFromIndex] ?? fromId;
+  const normalizedToId = orderedIds[normalizedToIndex] ?? toId;
+
+  return [normalizedFromId, normalizedToId];
 }
 
 // ============================================================================
@@ -275,13 +368,14 @@ export function attachInteractiveHandlers(
     startTokenId: null,
     startPosition: null,
     currentEndTokenId: null,
+    lastSelectedTokenId: null,
   };
 
   // 書字方向の判定
   const isVertical = isVerticalWritingMode(container);
 
   /**
-   * マウスダウン: ドラッグ開始
+   * マウスダウン: ドラッグ開始またはShift+クリックによる範囲選択
    */
   const handleMouseDown = (event: MouseEvent): void => {
     const target = event.target as Element | null;
@@ -291,7 +385,27 @@ export function attachInteractiveHandlers(
     if (!tokenId) {
       // トークン以外の場所をクリックした場合は選択をクリア
       clearSelectionClasses(container);
+      state.lastSelectedTokenId = null;
       callbacks.onEmptyClick?.(event);
+      return;
+    }
+
+    // Shift+クリック: 前回選択したトークンからの範囲選択
+    if (event.shiftKey && state.lastSelectedTokenId) {
+      event.preventDefault();
+      clearSelectionClasses(container);
+
+      // 選択範囲を正規化（熟語が部分的に含まれる場合は熟語全体を含める）
+      const [normalizedFrom, normalizedTo] = normalizeSelectionRange(
+        container,
+        state.lastSelectedTokenId,
+        tokenId
+      );
+
+      // 範囲選択のコールバックを呼び出し
+      callbacks.onTokenSelect?.(normalizedFrom, normalizedTo);
+
+      // lastSelectedTokenIdは更新しない（連続してShift+クリックで範囲を調整できるように）
       return;
     }
 
@@ -364,13 +478,20 @@ export function attachInteractiveHandlers(
       }
     }
 
+    // 選択範囲を正規化（熟語が部分的に含まれる場合は熟語全体を含める）
+    const [normalizedFrom, normalizedTo] = normalizeSelectionRange(container, fromId, toId);
+
     // コールバック呼び出し
-    if (fromId === toId) {
-      // 単一クリック
-      callbacks.onTokenClick?.(fromId, event);
+    if (normalizedFrom === normalizedTo) {
+      // 単一クリック（熟語の一部をクリックしても単一トークンとして扱う）
+      callbacks.onTokenClick?.(normalizedFrom, event);
+      // 単一選択の場合、Shift+クリックの起点として記録
+      state.lastSelectedTokenId = normalizedFrom;
     } else {
       // 範囲選択
-      callbacks.onTokenSelect?.(fromId, toId);
+      callbacks.onTokenSelect?.(normalizedFrom, normalizedTo);
+      // 範囲選択の場合、終点をShift+クリックの起点として記録
+      state.lastSelectedTokenId = normalizedTo;
     }
 
     // 状態リセット

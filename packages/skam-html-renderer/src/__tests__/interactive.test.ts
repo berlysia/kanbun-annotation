@@ -170,17 +170,17 @@ describe('attachInteractiveHandlers', () => {
       const mousemove = new MouseEvent('mousemove', { bubbles: true, clientX: 10, clientY: 100 });
       token3.dispatchEvent(mousemove);
 
-      expect(token1.classList.contains('skam-selection-start')).toBe(true);
-      expect(token2.classList.contains('skam-selection-middle')).toBe(true);
-      expect(token3.classList.contains('skam-selection-end')).toBe(true);
+      expect(token1.classList.contains('skam-selected')).toBe(true);
+      expect(token2.classList.contains('skam-selected')).toBe(true);
+      expect(token3.classList.contains('skam-selected')).toBe(true);
 
       // mouseup時にクリアされる
       const mouseup = new MouseEvent('mouseup', { bubbles: true, clientX: 10, clientY: 100 });
       token3.dispatchEvent(mouseup);
 
-      expect(token1.classList.contains('skam-selection-start')).toBe(false);
-      expect(token2.classList.contains('skam-selection-middle')).toBe(false);
-      expect(token3.classList.contains('skam-selection-end')).toBe(false);
+      expect(token1.classList.contains('skam-selected')).toBe(false);
+      expect(token2.classList.contains('skam-selected')).toBe(false);
+      expect(token3.classList.contains('skam-selected')).toBe(false);
 
       cleanup();
     });
@@ -216,16 +216,16 @@ describe('attachInteractiveHandlers', () => {
       `;
     });
 
-    it('should get token ID from data-token-from/to for range marks based on click position', () => {
-      const onTokenClick = vi.fn();
-      const cleanup = attachInteractiveHandlers(container, { onTokenClick });
+    it('should call onTokenSelect with both tokens when clicking on range mark (compound word)', () => {
+      const onTokenSelect = vi.fn();
+      const cleanup = attachInteractiveHandlers(container, { onTokenSelect });
 
       const rangeElement = container.querySelector('[data-token-from="t1"]') as HTMLElement;
-      // Click at position 0,0 (before center, should return from token)
+      // Click on the compound word element
       simulateClick(rangeElement, { x: 0, y: 0 });
 
-      // Should return either t1 or t2 depending on click position relative to element center
-      expect(onTokenClick).toHaveBeenCalledWith(expect.stringMatching(/^t[12]$/), expect.any(MouseEvent));
+      // Clicking on a compound word should select the entire range (t1 to t2)
+      expect(onTokenSelect).toHaveBeenCalledWith('t1', 't2');
 
       cleanup();
     });
@@ -263,9 +263,9 @@ describe('setSelectionClasses', () => {
     const token2 = container.querySelector('[data-token-id="t2"]') as HTMLElement;
     const token3 = container.querySelector('[data-token-id="t3"]') as HTMLElement;
 
-    expect(token1.classList.contains('skam-selection-start')).toBe(true);
-    expect(token2.classList.contains('skam-selection-middle')).toBe(true);
-    expect(token3.classList.contains('skam-selection-end')).toBe(true);
+    expect(token1.classList.contains('skam-selected')).toBe(true);
+    expect(token2.classList.contains('skam-selected')).toBe(true);
+    expect(token3.classList.contains('skam-selected')).toBe(true);
   });
 });
 
@@ -275,9 +275,9 @@ describe('clearSelection', () => {
   beforeEach(() => {
     container = document.createElement('div');
     container.innerHTML = `
-      <span class="skam-token skam-selection-start" data-token-id="t1"><span class="skam-base">學</span></span>
-      <span class="skam-token skam-selection-middle" data-token-id="t2"><span class="skam-base">而</span></span>
-      <span class="skam-token skam-selection-end" data-token-id="t3"><span class="skam-base">時</span></span>
+      <span class="skam-token skam-selected" data-token-id="t1"><span class="skam-base">學</span></span>
+      <span class="skam-token skam-selected" data-token-id="t2"><span class="skam-base">而</span></span>
+      <span class="skam-token skam-selected" data-token-id="t3"><span class="skam-base">時</span></span>
     `;
     document.body.appendChild(container);
   });
@@ -293,9 +293,9 @@ describe('clearSelection', () => {
     const token2 = container.querySelector('[data-token-id="t2"]') as HTMLElement;
     const token3 = container.querySelector('[data-token-id="t3"]') as HTMLElement;
 
-    expect(token1.classList.contains('skam-selection-start')).toBe(false);
-    expect(token2.classList.contains('skam-selection-middle')).toBe(false);
-    expect(token3.classList.contains('skam-selection-end')).toBe(false);
+    expect(token1.classList.contains('skam-selected')).toBe(false);
+    expect(token2.classList.contains('skam-selected')).toBe(false);
+    expect(token3.classList.contains('skam-selected')).toBe(false);
   });
 });
 

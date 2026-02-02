@@ -90,6 +90,47 @@
               </div>
               <div class="selection-actions" id="selection-actions" style="display: none;">
                 <div class="selection-action-group">
+                  <label class="selection-action-label">竪点</label>
+                  <div class="selection-tateten-row" id="selection-tateten-row">
+                    <button type="button" class="selection-tateten-btn" id="selection-tateten-btn" disabled>熟語にする</button>
+                  </div>
+                </div>
+                <div class="selection-action-group">
+                  <label class="selection-action-label">傍点</label>
+                  <div class="selection-emphasis-row" id="selection-emphasis-row">
+                    <button type="button" class="selection-emphasis-btn" id="selection-emphasis-btn">傍点をつける</button>
+                  </div>
+                </div>
+                <div class="selection-action-group">
+                  <label class="selection-action-label">傍線</label>
+                  <div class="selection-underline-styles" id="selection-underline-styles">
+                    <button type="button" class="selection-underline-style-btn active" data-style="solid" title="実線">─</button>
+                    <button type="button" class="selection-underline-style-btn" data-style="dotted" title="点線">┄</button>
+                    <button type="button" class="selection-underline-style-btn" data-style="dashed" title="破線">╌</button>
+                    <button type="button" class="selection-underline-style-btn" data-style="wavy" title="波線">〜</button>
+                    <button type="button" class="selection-underline-style-btn" data-style="double" title="二重線">═</button>
+                  </div>
+                  <div class="selection-underline-ref-row">
+                    <input type="text" id="selection-underline-ref" class="selection-underline-ref-input" placeholder="ref ID (任意)" autocomplete="off" />
+                    <select id="selection-underline-format" class="selection-underline-format-select">
+                      <option value="">書式なし</option>
+                      <option value="iroha-katakana">イ, ロ, ハ...</option>
+                      <option value="iroha-hiragana">い, ろ, は...</option>
+                      <option value="kanji-numeric">一, 二, 三...</option>
+                      <option value="numeric-circled">①, ②, ③...</option>
+                      <option value="numeric-paren">(1), (2)...</option>
+                      <option value="numeric-bracket">[1], [2]...</option>
+                      <option value="alpha-upper">A, B, C...</option>
+                      <option value="alpha-lower">a, b, c...</option>
+                      <option value="roman-upper">Ⅰ, Ⅱ, Ⅲ...</option>
+                      <option value="roman-lower">ⅰ, ⅱ, ⅲ...</option>
+                    </select>
+                  </div>
+                  <div class="selection-underline-row" id="selection-underline-row">
+                    <button type="button" class="selection-underline-btn" id="selection-underline-btn">傍線を引く</button>
+                  </div>
+                </div>
+                <div class="selection-action-group">
                   <label class="selection-action-label">返り点</label>
                   <div class="selection-kaeri-buttons" id="selection-kaeri-buttons"></div>
                 </div>
@@ -106,6 +147,12 @@
                   </div>
                 </div>
               </div>
+              <details class="marks-list-panel" id="marks-list-panel">
+                <summary>マーク一覧</summary>
+                <div class="marks-list" id="marks-list">
+                  <p class="marks-list-empty">マークがありません</p>
+                </div>
+              </details>
             </aside>
           </div>
           <details class="customize-panel">

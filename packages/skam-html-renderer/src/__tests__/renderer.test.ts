@@ -750,6 +750,83 @@ describe('region', () => {
 
     expect(result.html).not.toContain('skam-region');
   });
+
+  it('should render kutoten outside region span (at region end)', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '學' },
+        { id: 't2', text: '而' },
+        { id: 't3', text: '時' },
+        { id: 't4', text: '習' },
+        { id: 't5', text: '之' },
+      ],
+      marks: [
+        {
+          type: 'region',
+          anchor: { from: 't1', to: 't5' },
+          style: 'solid',
+        },
+        {
+          type: 'kutoten',
+          anchor: { from: 't5', to: 't5' },
+          value: '。',
+        },
+      ],
+      readings: [],
+    };
+
+    const result = render(doc);
+
+    // 傍線spanの外に句読点が出力されることを確認
+    // 期待: <span class="...region...">...之...</span></span><span class="skam-kutoten">。</span>
+    // region spanが閉じた直後に kutoten spanが来る
+    expect(result.html).toMatch(/<\/span><\/span><span class="skam-kutoten">。<\/span>/);
+  });
+
+  it('should keep kutoten inside region when not at region end', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '不' },
+        { id: 't2', text: '亦' },
+        { id: 't3', text: '説' },
+        { id: 't4', text: '乎' },
+      ],
+      marks: [
+        {
+          type: 'region',
+          anchor: { from: 't1', to: 't4' },
+          style: 'solid',
+        },
+        {
+          type: 'kutoten',
+          anchor: { from: 't1', to: 't1' },
+          value: '、',
+          kind: 'ten',
+        },
+        {
+          type: 'kutoten',
+          anchor: { from: 't4', to: 't4' },
+          value: '。',
+          kind: 'ku',
+        },
+      ],
+      readings: [],
+    };
+
+    const result = render(doc);
+
+    // 中間のkutoten（「、」）はregion内に、終端のkutoten（「。」）はregion外に
+    // HTML構造: <span class="region">不<span class="kutoten">、</span>亦説乎</span><span class="kutoten">。</span>
+    const html = result.html;
+
+    // region spanが閉じた後に「。」が来ることを確認
+    expect(html).toMatch(/<\/span><span class="[^"]*skam-kutoten[^"]*">。<\/span>/);
+
+    // 「、」はregion span内にあることを確認
+    expect(html).toMatch(/skam-region[^>]*>.*<span class="[^"]*skam-kutoten[^"]*">、<\/span>.*<\/span><span class="[^"]*skam-kutoten[^"]*">。/);
+  });
 });
 
 describe('ref (label)', () => {
@@ -1412,8 +1489,6 @@ describe('CSS variables options', () => {
       // Selection CSS variables
       '--skam-selection-bg',
       '--skam-selection-border',
-      '--skam-selection-start-bg',
-      '--skam-selection-end-bg',
     ];
 
     for (const variable of expectedVariables) {
@@ -1424,15 +1499,8 @@ describe('CSS variables options', () => {
   it('should include selection state classes', () => {
     const css = getDefaultStyles();
 
-    // Selection state classes
+    // Selection state class
     expect(css).toContain(':where(.skam-selected)');
-    expect(css).toContain(':where(.skam-selection-start)');
-    expect(css).toContain(':where(.skam-selection-end)');
-    expect(css).toContain(':where(.skam-selection-middle)');
-
-    // border-inline properties for writing-mode agnostic styling
-    expect(css).toContain('border-inline-start: 2px solid var(--skam-selection-border)');
-    expect(css).toContain('border-inline-end: 2px solid var(--skam-selection-border)');
   });
 });
 

@@ -93,6 +93,32 @@ export function updateMark(doc: SKAMDocument, markId: string, updates: MarkUpdat
 }
 
 /**
+ * マークを完全に置き換える
+ *
+ * イミュータブルに新しいドキュメントを返す。
+ * 指定されたmarkIdが見つからない場合は元のドキュメントをそのまま返す。
+ * 新しいマークには元のIDが保持される（配列内の位置も維持）。
+ */
+export function replaceMark(doc: SKAMDocument, markId: string, newMark: MarkInput): SKAMDocument {
+  const markIndex = doc.marks.findIndex((m) => m.id === markId);
+
+  if (markIndex === -1) {
+    return doc;
+  }
+
+  // 元のIDを保持
+  const replacedMark = { ...newMark, id: markId };
+
+  const newMarks = [...doc.marks];
+  newMarks[markIndex] = replacedMark;
+
+  return {
+    ...doc,
+    marks: newMarks,
+  };
+}
+
+/**
  * マークを削除
  *
  * イミュータブルに新しいドキュメントを返す。

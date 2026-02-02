@@ -453,6 +453,9 @@
     justify-content: center;
     align-items: flex-start;
     background-color: var(--editor-bg);
+    /* Disable default text selection to enable custom range selection */
+    user-select: none;
+    -webkit-user-select: none;
   }
 
   /* Selection Panel (Right sidebar) */
@@ -510,37 +513,6 @@
     font-family: var(--font-serif);
     font-size: 1.25rem;
     letter-spacing: 0.1em;
-  }
-
-  .selection-marks {
-    font-size: 0.75rem;
-  }
-
-  .selection-marks-title {
-    font-weight: 600;
-    color: var(--editor-text-secondary);
-    margin-bottom: 0.5rem;
-  }
-
-  .selection-mark-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 0.25rem 0;
-    border-bottom: 1px dashed var(--editor-border);
-  }
-
-  .selection-mark-item:last-child {
-    border-bottom: none;
-  }
-
-  .selection-mark-type {
-    color: var(--editor-text-secondary);
-  }
-
-  .selection-mark-value {
-    font-weight: 500;
-    font-family: var(--font-serif);
   }
 
   /* Selection Actions */
@@ -621,6 +593,194 @@
     background-color: var(--editor-error-bg);
   }
 
+  .selection-kaeri-disabled-msg {
+    font-size: 0.6875rem;
+    color: var(--editor-text-secondary);
+    font-style: italic;
+  }
+
+  /* Tateten controls */
+  .selection-tateten-row {
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  .selection-tateten-btn {
+    flex: 1;
+    padding: 0.375rem 0.5rem;
+    font-size: 0.75rem;
+    border: 1px solid var(--editor-border);
+    border-radius: var(--radius-sm);
+    background-color: var(--editor-bg-secondary);
+    color: var(--editor-text);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+  }
+
+  .selection-tateten-btn:hover:not(:disabled) {
+    background-color: var(--editor-primary-light);
+    border-color: var(--editor-primary);
+  }
+
+  .selection-tateten-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .selection-tateten-btn.active {
+    background-color: var(--editor-primary);
+    border-color: var(--editor-primary);
+    color: white;
+  }
+
+  .selection-tateten-btn.active:hover:not(:disabled) {
+    background-color: var(--editor-primary-hover);
+  }
+
+  /* Emphasis controls */
+  .selection-emphasis-row {
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  .selection-emphasis-btn {
+    flex: 1;
+    padding: 0.375rem 0.5rem;
+    font-size: 0.75rem;
+    border: 1px solid var(--editor-border);
+    border-radius: var(--radius-sm);
+    background-color: var(--editor-bg-secondary);
+    color: var(--editor-text);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+  }
+
+  .selection-emphasis-btn:hover:not(:disabled) {
+    background-color: var(--editor-primary-light);
+    border-color: var(--editor-primary);
+  }
+
+  .selection-emphasis-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .selection-emphasis-btn.active {
+    background-color: var(--editor-primary);
+    border-color: var(--editor-primary);
+    color: white;
+  }
+
+  .selection-emphasis-btn.active:hover:not(:disabled) {
+    background-color: var(--editor-primary-hover);
+  }
+
+  /* Underline controls */
+  .selection-underline-styles {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 0.375rem;
+  }
+
+  .selection-underline-style-btn {
+    flex: 1;
+    padding: 0.25rem 0.25rem;
+    font-size: 0.875rem;
+    border: 1px solid var(--editor-border);
+    border-radius: var(--radius-sm);
+    background-color: var(--editor-bg-secondary);
+    color: var(--editor-text);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+  }
+
+  .selection-underline-style-btn:hover {
+    background-color: var(--editor-primary-light);
+    border-color: var(--editor-primary);
+  }
+
+  .selection-underline-style-btn.active {
+    background-color: var(--editor-primary);
+    border-color: var(--editor-primary);
+    color: white;
+  }
+
+  .selection-underline-ref-row {
+    display: flex;
+    gap: 0.25rem;
+    margin-bottom: 0.375rem;
+  }
+
+  .selection-underline-ref-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    border: 1px solid var(--editor-border);
+    border-radius: var(--radius-sm);
+    background-color: var(--editor-bg);
+    color: var(--editor-text);
+  }
+
+  .selection-underline-ref-input:focus {
+    outline: none;
+    border-color: var(--editor-primary);
+  }
+
+  .selection-underline-format-select {
+    flex: 1;
+    min-width: 0;
+    padding: 0.25rem 0.25rem;
+    font-size: 0.6875rem;
+    border: 1px solid var(--editor-border);
+    border-radius: var(--radius-sm);
+    background-color: var(--editor-bg);
+    color: var(--editor-text);
+    cursor: pointer;
+  }
+
+  .selection-underline-format-select:focus {
+    outline: none;
+    border-color: var(--editor-primary);
+  }
+
+  .selection-underline-row {
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  .selection-underline-btn {
+    flex: 1;
+    padding: 0.375rem 0.5rem;
+    font-size: 0.75rem;
+    border: 1px solid var(--editor-border);
+    border-radius: var(--radius-sm);
+    background-color: var(--editor-bg-secondary);
+    color: var(--editor-text);
+    cursor: pointer;
+    transition: background-color var(--transition-fast), border-color var(--transition-fast);
+  }
+
+  .selection-underline-btn:hover:not(:disabled) {
+    background-color: var(--editor-primary-light);
+    border-color: var(--editor-primary);
+  }
+
+  .selection-underline-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  .selection-underline-btn.active {
+    background-color: var(--editor-primary);
+    border-color: var(--editor-primary);
+    color: white;
+  }
+
+  .selection-underline-btn.active:hover:not(:disabled) {
+    background-color: var(--editor-primary-hover);
+  }
+
   .selection-kana-types {
     display: flex;
     gap: 0.25rem;
@@ -695,6 +855,76 @@
   .selection-btn-apply:disabled {
     opacity: 0.5;
     cursor: not-allowed;
+  }
+
+  /* Marks List Panel */
+  .marks-list-panel {
+    border-top: 1px solid var(--editor-border);
+  }
+
+  .marks-list-panel > summary {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.6875rem;
+    font-weight: 600;
+    color: var(--editor-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .marks-list-panel > summary:hover {
+    background-color: var(--editor-bg-secondary);
+  }
+
+  .marks-list-panel[open] > summary {
+    border-bottom: 1px solid var(--editor-border);
+  }
+
+  .marks-list {
+    font-size: 0.75rem;
+    max-height: 200px;
+    overflow-y: auto;
+    padding: 0.5rem 0.75rem;
+  }
+
+  .marks-list-empty {
+    color: var(--editor-text-secondary);
+    font-style: italic;
+    margin: 0;
+  }
+
+  .marks-list-item {
+    display: flex;
+    align-items: center;
+    gap: 0.375rem;
+    padding: 0.25rem 0;
+    border-bottom: 1px dashed var(--editor-border);
+  }
+
+  .marks-list-item:last-child {
+    border-bottom: none;
+  }
+
+  .marks-list-anchor {
+    font-family: var(--font-serif);
+    color: var(--editor-text);
+    font-weight: 500;
+  }
+
+  .marks-list-type {
+    font-size: 0.625rem;
+    color: var(--editor-text-secondary);
+    background-color: var(--editor-bg-secondary);
+    padding: 0.125rem 0.25rem;
+    border-radius: var(--radius-sm);
+    white-space: nowrap;
+  }
+
+  .marks-list-value {
+    font-family: var(--font-serif);
+    color: var(--editor-primary);
+    margin-left: auto;
   }
 
   /* Inline mode demo display */

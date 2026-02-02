@@ -99,6 +99,16 @@ export interface RenderResult {
 }
 
 /**
+ * Token レンダリング結果（kutoten分離用）
+ */
+interface TokenRenderResult {
+  /** Token本体のHTML（kutoten除く） */
+  html: string;
+  /** 句読点のHTML（region終端で外に出す用） */
+  kutotenHtml: string;
+}
+
+/**
  * HTMLのみ生成オプション
  */
 export interface RenderHTMLOptions {
@@ -509,20 +519,39 @@ function formatRefIndex(index: number, format: RefFormat): string {
  * 同一性判定:
  * - 同じ label 値を持つ ref は同一
  * - 同じ format + 同じ ext.value を持つ ref は同一
+ *
+ * 番号付けは文書内での登場順（anchor.fromのtoken位置）に基づく
  */
-function resolveRefValues(marks: Mark[]): Map<RefMark, string> {
+function resolveRefValues(tokens: Token[], marks: Mark[]): Map<RefMark, string> {
   const refMarks = marks.filter((m): m is RefMark => m.type === 'ref');
+
+  // token位置のインデックスマップを作成
+  const tokenIndexMap = new Map<string, number>();
+  for (let i = 0; i < tokens.length; i++) {
+    const token = tokens[i];
+    if (token) {
+      tokenIndexMap.set(token.id, i);
+    }
+  }
+
+  // anchor.fromのtoken位置でソート（文書内の登場順）
+  const sortedRefMarks = [...refMarks].sort((a, b) => {
+    const aIndex = tokenIndexMap.get(a.anchor.from) ?? Infinity;
+    const bIndex = tokenIndexMap.get(b.anchor.from) ?? Infinity;
+    return aIndex - bIndex;
+  });
+
   const result = new Map<RefMark, string>();
 
   // label指定ありのrefをlabel値でグループ化
   const labelToIndex = new Map<string, number>();
 
-  // format指定ありのrefをフォーマット別にグループ化
+  // format指定ありのrefをフォーマット別にグループ化（登場順を維持）
   const formatGroups = new Map<string, RefMark[]>();
 
   let nextLabelIndex = 0;
 
-  for (const ref of refMarks) {
+  for (const ref of sortedRefMarks) {
     if (ref.label) {
       // labelあり: 同一labelは同一インデックス
       let index = labelToIndex.get(ref.label);
@@ -543,7 +572,7 @@ function resolveRefValues(marks: Mark[]): Map<RefMark, string> {
     }
   }
 
-  // 各フォーマットグループ内でインデックスを割り当て
+  // 各フォーマットグループ内でインデックスを割り当て（既に登場順でソート済み）
   for (const [format, refs] of formatGroups) {
     const valueToIndex = new Map<string, number>();
     let nextIndex = 0;
@@ -751,6 +780,8 @@ interface RangeMarkContext {
 
 /**
  * 単一TokenのHTMLを生成
+ *
+ * @returns TokenRenderResult - html（token本体）とkutotenHtml（句読点）を分離して返す
  */
 function renderToken(
   token: Token,
@@ -759,7 +790,7 @@ function renderToken(
   rangeCtx?: RangeMarkContext,
   refValueMap?: Map<RefMark, string>,
   regionRefIds?: Set<string>
-): string {
+): TokenRenderResult {
   const { prefix, profile } = ctx;
   const tokenMarks = getMarksForToken(token.id, marks);
 
@@ -936,7 +967,10 @@ function renderToken(
   // data-token-id属性（interactiveモードの場合のみ）
   const tokenIdAttr = ctx.interactive ? ` data-token-id="${escapeHtml(token.id)}"` : '';
 
-  return `<span class="${classes.join(' ')}"${tokenIdAttr}>${baseHtml}${okototenHtml}${suffixRowHtml}</span>${kutoten}${refHtml}`;
+  return {
+    html: `<span class="${classes.join(' ')}"${tokenIdAttr}>${baseHtml}${okototenHtml}${suffixRowHtml}</span>${refHtml}`,
+    kutotenHtml: kutoten,
+  };
 }
 
 // ============================================================================
@@ -1035,7 +1069,7 @@ function renderDisplayLayer(
   const ctx = { prefix, profile, interactive };
 
   // refマークの値を事前計算
-  const refValueMap = profile.ref ? resolveRefValues(marks) : new Map();
+  const refValueMap = profile.ref ? resolveRefValues(tokens, marks) : new Map();
 
   // たて点グループを特定
   const tatetenGroups = getTatetenGroups(tokens, marks);
@@ -1099,6 +1133,7 @@ function renderDisplayLayer(
     let currentRegionGroup: RegionMark | undefined;
     let groupTokens: string[] = [];
     let regionTokens: string[] = [];
+    let pendingRegionKutoten = ''; // region終端のkutoten（region spanの外に出す）
 
     // 処理済みトークンを追跡（範囲グループのスキップ用）
     const processedTokenIds = new Set<string>();
@@ -1247,23 +1282,49 @@ function renderDisplayLayer(
         };
       }
 
-      let tokenHtml = renderToken(token, marks, ctx, rangeCtx, refValueMap, regionRefIds);
+      const tokenResult = renderToken(token, marks, ctx, rangeCtx, refValueMap, regionRefIds);
 
       // region グループ処理
       if (profile.region && regionGroup) {
         if (currentRegionGroup !== regionGroup) {
           // 新しい region グループ開始（前のグループがあれば閉じる）
           if (currentRegionGroup && regionTokens.length > 0) {
+            // たて点グループも閉じる
+            if (currentTatetenGroup && groupTokens.length > 0) {
+              regionTokens.push(
+                `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
+              );
+              groupTokens = [];
+              currentTatetenGroup = undefined;
+            }
             const style = currentRegionGroup.style ?? 'none';
             const refHtml = getRefTextForRegion(currentRegionGroup);
             const styleClass = style !== 'none' ? ` ${prefix}-region--${style}` : '';
             renderedTokens.push(
-              `<span class="${prefix}-region${styleClass}" data-style="${style}">${regionTokens.join('')}${refHtml}</span>`
+              `<span class="${prefix}-region${styleClass}" data-style="${style}">${regionTokens.join('')}${refHtml}</span>${pendingRegionKutoten}`
             );
             regionTokens = [];
+            pendingRegionKutoten = '';
           }
           currentRegionGroup = regionGroup;
         }
+
+        // 次のtokenが同じregion内かどうかを判定（region終端のkutotenを外に出すため）
+        const nextToken = blockTokens[i + 1];
+        const nextRegionGroup = nextToken ? regionGroups.get(nextToken.id) : undefined;
+        const isLastInRegion = nextRegionGroup !== regionGroup;
+
+        // region 内のトークンを蓄積する HTML を決定
+        // 終端token以外はkutotenを含める、終端tokenのkutotenは外に出す
+        const tokenHtmlForRegion = isLastInRegion
+          ? tokenResult.html
+          : tokenResult.html + tokenResult.kutotenHtml;
+
+        if (isLastInRegion) {
+          // region終端のkutotenを保存（region spanの外に出す）
+          pendingRegionKutoten = tokenResult.kutotenHtml;
+        }
+
         // region グループ内のトークンを蓄積（たて点処理も考慮）
         if (profile.tateten && tokenGroup) {
           if (currentTatetenGroup !== tokenGroup) {
@@ -1275,7 +1336,7 @@ function renderDisplayLayer(
             }
             currentTatetenGroup = tokenGroup;
           }
-          groupTokens.push(tokenHtml);
+          groupTokens.push(tokenHtmlForRegion);
         } else {
           if (currentTatetenGroup && groupTokens.length > 0) {
             regionTokens.push(
@@ -1284,10 +1345,12 @@ function renderDisplayLayer(
             groupTokens = [];
             currentTatetenGroup = undefined;
           }
-          regionTokens.push(tokenHtml);
+          regionTokens.push(tokenHtmlForRegion);
         }
       } else {
         // region グループ外
+        const tokenHtml = tokenResult.html + tokenResult.kutotenHtml;
+
         // 前の region グループを閉じる
         if (currentRegionGroup && regionTokens.length > 0) {
           // たて点グループも閉じる
@@ -1302,9 +1365,10 @@ function renderDisplayLayer(
           const refHtml = getRefTextForRegion(currentRegionGroup);
           const styleClass = style !== 'none' ? ` ${prefix}-region--${style}` : '';
           renderedTokens.push(
-            `<span class="${prefix}-region${styleClass}" data-style="${style}">${regionTokens.join('')}${refHtml}</span>`
+            `<span class="${prefix}-region${styleClass}" data-style="${style}">${regionTokens.join('')}${refHtml}</span>${pendingRegionKutoten}`
           );
           regionTokens = [];
+          pendingRegionKutoten = '';
           currentRegionGroup = undefined;
         }
 
@@ -1351,7 +1415,7 @@ function renderDisplayLayer(
       const refHtml = getRefTextForRegion(currentRegionGroup);
       const styleClass = style !== 'none' ? ` ${prefix}-region--${style}` : '';
       renderedTokens.push(
-        `<span class="${prefix}-region${styleClass}" data-style="${style}">${regionTokens.join('')}${refHtml}</span>`
+        `<span class="${prefix}-region${styleClass}" data-style="${style}">${regionTokens.join('')}${refHtml}</span>${pendingRegionKutoten}`
       );
     }
 
@@ -1395,7 +1459,7 @@ export function render(doc: SKAMDocument, options: RenderOptions = {}): RenderRe
   const readingHtml = includeReadingLayer ? renderReadingLayer(doc.readings, prefix, inline) : '';
 
   // refマークの値を事前計算（注釈出力用）
-  const refValueMap = profile.ref ? resolveRefValues(doc.marks) : new Map();
+  const refValueMap = profile.ref ? resolveRefValues(doc.tokens, doc.marks) : new Map();
 
   // 注釈（インラインモードでは出力しない）
   const notesHtml = inline ? '' : renderRefNotes(doc.marks, prefix, profile, refValueMap);
@@ -1464,7 +1528,7 @@ export function renderHTML(doc: SKAMDocument, options: RenderHTMLOptions = {}): 
   const readingHtml = includeReadingLayer ? renderReadingLayer(doc.readings, prefix, inline) : '';
 
   // refマークの値を事前計算（注釈出力用）
-  const refValueMap = profile.ref ? resolveRefValues(doc.marks) : new Map();
+  const refValueMap = profile.ref ? resolveRefValues(doc.tokens, doc.marks) : new Map();
 
   // 注釈（インラインモードでは出力しない）
   const notesHtml = inline ? '' : renderRefNotes(doc.marks, prefix, profile, refValueMap);

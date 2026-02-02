@@ -564,7 +564,11 @@ function processRegion(element: Element, state: ParserState): string[] {
  * - Element with content for inline annotation
  * - xml:id for separated note content (note references this ref)
  */
-function processRef(element: Element, state: ParserState, precedingTokenId: string | null): string[] {
+function processRef(
+  element: Element,
+  state: ParserState,
+  precedingTokenId: string | null
+): string[] {
   const labelAttr = getAttr(element, 'label');
   const formatAttr = getAttr(element, 'format');
   // xml:id attribute takes precedence for explicit id assignment
@@ -590,12 +594,16 @@ function processRef(element: Element, state: ParserState, precedingTokenId: stri
 
   // Validate: label and format are mutually exclusive
   if (labelAttr && formatAttr) {
-    throw new SKAMXMLParseError('<skam:ref> cannot have both label and format (mutually exclusive)');
+    throw new SKAMXMLParseError(
+      '<skam:ref> cannot have both label and format (mutually exclusive)'
+    );
   }
 
   // Validate: at least one of label, format, content, or xml:id (for separated definition) must be present
   if (!labelAttr && !formatAttr && !content && !xmlIdAttr) {
-    throw new SKAMXMLParseError('<skam:ref> requires at least one of: label, format, content, or xml:id');
+    throw new SKAMXMLParseError(
+      '<skam:ref> requires at least one of: label, format, content, or xml:id'
+    );
   }
 
   // Validate format value

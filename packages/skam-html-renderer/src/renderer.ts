@@ -907,7 +907,12 @@ function renderReadingLayer(readings: Reading[], prefix: string, inline: boolean
 /**
  * 注釈のHTMLを生成（contentを持つrefマークから生成）
  */
-function renderRefNotes(marks: Mark[], prefix: string, profile: RenderProfile, refValueMap: Map<RefMark, string>): string {
+function renderRefNotes(
+  marks: Mark[],
+  prefix: string,
+  profile: RenderProfile,
+  refValueMap: Map<RefMark, string>
+): string {
   if (!profile.ref) {
     return '';
   }
@@ -1024,9 +1029,7 @@ function renderDisplayLayer(
     if (refMark) {
       const refText = refValueMap.get(refMark) ?? '';
       if (refText) {
-        const halfWidthClass = shouldApplyTateChuYoko(refText)
-          ? ` ${prefix}-ref--half-width`
-          : '';
+        const halfWidthClass = shouldApplyTateChuYoko(refText) ? ` ${prefix}-ref--half-width` : '';
         return `<span class="${prefix}-ref${halfWidthClass}">${escapeHtml(refText)}</span>`;
       }
     }

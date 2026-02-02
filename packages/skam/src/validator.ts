@@ -503,7 +503,12 @@ function validateMark(mark: unknown, index: number, errors: ValidationError[]): 
           valid = false;
         }
         // label and format are mutually exclusive
-        if ('label' in mark && mark['label'] !== undefined && 'format' in mark && mark['format'] !== undefined) {
+        if (
+          'label' in mark &&
+          mark['label'] !== undefined &&
+          'format' in mark &&
+          mark['format'] !== undefined
+        ) {
           errors.push(
             createValidationError(
               'INVALID_VALUE',

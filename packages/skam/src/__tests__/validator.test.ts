@@ -604,7 +604,7 @@ describe('validateSKAMDocument', () => {
       expect(result.valid).toBe(false);
       if (!result.valid) {
         expect(result.errors.some((e) => e.message.includes('label, format, or content'))).toBe(
-          true,
+          true
         );
       }
     });

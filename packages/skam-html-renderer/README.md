@@ -69,9 +69,9 @@ import { render, getDefaultStyles, generateCSS } from '@kanbun/skam-html-rendere
 
 // CSS 生成オプション
 const css = generateCSS({
-  writingMode: 'vertical',  // 'vertical' | 'horizontal' | 'both'
-  inline: false,            // インラインモード
-  useLayer: true,           // @layer でラップ（デフォルト: true）
+  writingMode: 'vertical', // 'vertical' | 'horizontal' | 'both'
+  inline: false, // インラインモード
+  useLayer: true, // @layer でラップ（デフォルト: true）
   layerName: 'skam-kanbun', // レイヤー名（デフォルト: 'skam-kanbun'）
 });
 
@@ -89,24 +89,24 @@ const result = render(doc, { writingMode: 'vertical' });
   --skam-color-fg: #333;
   --skam-color-kaeriten: #c00;
   --skam-color-ruby: #666;
-  --skam-font-family: "游明朝", serif;
+  --skam-font-family: '游明朝', serif;
 }
 ```
 
 #### 公開 CSS Variables 一覧
 
-| カテゴリ | 変数名 | デフォルト値 | 用途 |
-|---------|--------|-------------|------|
-| **色** | `--skam-color-fg` | `currentColor` | 前景色（テキスト、傍線等） |
-| | `--skam-color-kaeriten` | `currentColor` | 返り点の色 |
-| | `--skam-color-ruby` | `currentColor` | ルビ・送り仮名の色 |
-| | `--skam-color-emphasis` | `currentColor` | 傍点の色 |
-| **フォント** | `--skam-font-family` | `inherit` | 本文フォント |
-| | `--skam-font-family-ruby` | `inherit` | ルビ・送り仮名フォント |
-| **サイズ** | `--skam-glyph-size` | `1em` | 基準グリフサイズ |
-| | `--skam-ruby-font-size` | `0.5em` | ルビ・送り仮名サイズ |
-| **余白・間隔** | `--skam-line-height` | `2` | 行間 |
-| | `--skam-letter-spacing` | `0` | 字間 |
+| カテゴリ       | 変数名                    | デフォルト値   | 用途                       |
+| -------------- | ------------------------- | -------------- | -------------------------- |
+| **色**         | `--skam-color-fg`         | `currentColor` | 前景色（テキスト、傍線等） |
+|                | `--skam-color-kaeriten`   | `currentColor` | 返り点の色                 |
+|                | `--skam-color-ruby`       | `currentColor` | ルビ・送り仮名の色         |
+|                | `--skam-color-emphasis`   | `currentColor` | 傍点の色                   |
+| **フォント**   | `--skam-font-family`      | `inherit`      | 本文フォント               |
+|                | `--skam-font-family-ruby` | `inherit`      | ルビ・送り仮名フォント     |
+| **サイズ**     | `--skam-glyph-size`       | `1em`          | 基準グリフサイズ           |
+|                | `--skam-ruby-font-size`   | `0.5em`        | ルビ・送り仮名サイズ       |
+| **余白・間隔** | `--skam-line-height`      | `2`            | 行間                       |
+|                | `--skam-letter-spacing`   | `0`            | 字間                       |
 
 ### コピー可能範囲の制御
 
@@ -148,14 +148,14 @@ const result = render(doc, { copyable: 'all' });
 
 #### 指定可能な値
 
-| 値 | 対象 |
-|----|------|
-| `ruby` | 読み仮名（ルビ） |
-| `okurigana` | 送り仮名 |
-| `soegana` | 添え仮名 |
-| `kaeriten` | 返り点 |
-| `okototen` | ヲコト点 |
-| `all` | 全ての注記要素 |
+| 値          | 対象             |
+| ----------- | ---------------- |
+| `ruby`      | 読み仮名（ルビ） |
+| `okurigana` | 送り仮名         |
+| `soegana`   | 添え仮名         |
+| `kaeriten`  | 返り点           |
+| `okototen`  | ヲコト点         |
+| `all`       | 全ての注記要素   |
 
 **Note:** `data-copyable` 属性は CSS で制御されるため、HTML を直接編集して属性を変更することで、ビルド後でも動的に切り替えられます。
 

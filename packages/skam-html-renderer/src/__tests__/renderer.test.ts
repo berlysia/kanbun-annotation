@@ -912,9 +912,9 @@ describe('ref (label)', () => {
 
     const result = render(doc);
 
-    expect(result.html).toContain('(イ)');
-    expect(result.html).toContain('(ロ)');
-    expect(result.html).toContain('(ハ)');
+    expect(result.html).toContain('（イ）');
+    expect(result.html).toContain('（ロ）');
+    expect(result.html).toContain('（ハ）');
   });
 
   it('should render ref with numeric-circled format', () => {

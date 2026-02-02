@@ -468,11 +468,13 @@ function convertKaeriToUnicode(value: string): string {
  * 縦中横を適用すべきかを判定
  *
  * 以下の条件で縦中横を適用:
- * - 括弧で囲まれた1文字（例: "(A)", "(1)", "[1]"）
+ * - 半角括弧で囲まれた1文字（例: "(A)", "(1)", "[1]"）
  * - または2文字以下の半角文字
+ *
+ * 全角括弧で囲まれた全角文字（例: "（イ）"）は縦中横不要
  */
 function shouldApplyTateChuYoko(text: string): boolean {
-  // 丸括弧または角括弧で囲まれた1文字の場合
+  // 半角丸括弧または角括弧で囲まれた1文字の場合
   if (/^[([][A-Za-z0-9][)\]]$/.test(text)) {
     return true;
   }
@@ -499,15 +501,15 @@ function formatRefIndex(index: number, format: RefFormat): string {
     case 'numeric-circled':
       return CIRCLED_NUMBERS[index] ?? `(${index + 1})`;
     case 'iroha-katakana':
-      return `(${IROHA_SEQUENCE[index] ?? String(index + 1)})`;
+      return `（${IROHA_SEQUENCE[index] ?? String(index + 1)}）`;
     case 'iroha-hiragana':
-      return `(${IROHA_HIRAGANA_SEQUENCE[index] ?? String(index + 1)})`;
+      return `（${IROHA_HIRAGANA_SEQUENCE[index] ?? String(index + 1)}）`;
     case 'gojuon-katakana':
-      return `(${GOJUON_SEQUENCE[index] ?? String(index + 1)})`;
+      return `（${GOJUON_SEQUENCE[index] ?? String(index + 1)}）`;
     case 'gojuon-hiragana':
-      return `(${GOJUON_HIRAGANA_SEQUENCE[index] ?? String(index + 1)})`;
+      return `（${GOJUON_HIRAGANA_SEQUENCE[index] ?? String(index + 1)}）`;
     case 'kanji-numeric':
-      return `(${KANJI_NUMBERS[index] ?? String(index + 1)})`;
+      return `（${KANJI_NUMBERS[index] ?? String(index + 1)}）`;
     default:
       return `(${index + 1})`;
   }

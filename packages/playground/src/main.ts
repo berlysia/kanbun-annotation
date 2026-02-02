@@ -2,18 +2,25 @@
  * SKAM Playground
  */
 
-import { parse, SKAMXMLParseError } from '@kanbun/skam-xml-parser';
-import { render } from '@kanbun/skam-html-renderer';
+import { parse, stringify, SKAMXMLParseError } from '@kanbun/skam-xml-parser';
+import { render, attachInteractiveHandlers, PROFILES } from '@kanbun/skam-html-renderer';
 import type { SKAMDocument } from '@kanbun/skam';
 import { SAMPLES } from './samples.js';
+import { ErrorPanel, type ParseError } from './editor/error-panel.js';
+import { XmlEditor } from './editor/xml-editor.js';
+import { MarkPopup, getKaeriValueFromKind } from './editor/mark-popup.js';
+import { addMark, removeMark, getMarksForToken } from './editor/document-operations.js';
 
 // ============================================================================
 // DOM Elements
 // ============================================================================
 
-const xmlInput = document.getElementById('xml-input') as HTMLTextAreaElement;
+const xmlEditorWrapper = document.querySelector('.xml-editor-wrapper') as HTMLDivElement;
 const parseBtn = document.getElementById('parse-btn') as HTMLButtonElement;
-const errorMessage = document.getElementById('error-message') as HTMLDivElement;
+const errorPanelContainer = document.getElementById('error-panel') as HTMLDivElement;
+const fileUpload = document.getElementById('file-upload') as HTMLInputElement;
+const uploadBtn = document.getElementById('upload-btn') as HTMLButtonElement;
+const downloadBtn = document.getElementById('download-btn') as HTMLButtonElement;
 const jsonOutput = document.getElementById('json-output')?.querySelector('code') as HTMLElement;
 const renderOutput = document.getElementById('render-output') as HTMLDivElement;
 const htmlOutput = document.getElementById('html-output')?.querySelector('code') as HTMLElement;
@@ -22,6 +29,13 @@ const copyJsonBtn = document.getElementById('copy-json-btn') as HTMLButtonElemen
 const copyHtmlBtn = document.getElementById('copy-html-btn') as HTMLButtonElement;
 const writingModeRadios = document.querySelectorAll<HTMLInputElement>('input[name="writing-mode"]');
 const inlineModeCheckbox = document.getElementById('inline-mode') as HTMLInputElement;
+const profileSelect = document.getElementById('profile-select') as HTMLSelectElement;
+
+// 2-pane layout elements
+const editorContainer = document.querySelector('.editor-container') as HTMLDivElement;
+const xmlPane = document.querySelector('.xml-pane') as HTMLDivElement;
+const divider = document.getElementById('divider') as HTMLDivElement;
+const previewPane = document.querySelector('.preview-pane') as HTMLDivElement;
 
 // CSS Customize elements
 const colorKaeritenInput = document.getElementById('color-kaeriten') as HTMLInputElement;
@@ -41,6 +55,30 @@ const resetCustomizeBtn = document.getElementById('reset-customize-btn') as HTML
 // ============================================================================
 
 let currentDocument: SKAMDocument | null = null;
+
+// Flag to prevent double updates when GUI operation triggers XML update
+// which would trigger parseAndRender again
+let isUpdatingFromGui = false;
+
+// Cleanup function for interactive handlers
+let cleanupInteractiveHandlers: (() => void) | null = null;
+
+// Mark Popup instance for adding/editing marks
+const markPopup = new MarkPopup(document.body);
+
+// Initialize XML Editor with syntax highlighting
+const xmlEditor = new XmlEditor(xmlEditorWrapper, {
+  debounceMs: 300,
+  showLineNumbers: true,
+});
+
+// Error Panel instance
+const errorPanel = new ErrorPanel(errorPanelContainer);
+
+// Setup error click callback to scroll to error line in editor
+errorPanel.onErrorClick((line, _column) => {
+  xmlEditor.scrollToLine(line);
+});
 
 // CSS Customize state
 interface CustomizeState {
@@ -67,10 +105,13 @@ const DEFAULT_CUSTOMIZE_STATE: CustomizeState = {
 // URL State Management
 // ============================================================================
 
+type ProfileName = keyof typeof PROFILES;
+
 interface URLState {
   sample: number;
   mode: 'vertical' | 'horizontal';
   inline: boolean;
+  profile: ProfileName;
 }
 
 function getStateFromURL(): URLState {
@@ -91,7 +132,11 @@ function getStateFromURL(): URLState {
   const inlineStr = params.get('inline');
   const inline = inlineStr === '1';
 
-  return { sample, mode, inline };
+  const profileStr = params.get('profile');
+  const profile: ProfileName =
+    profileStr === 'learningBasic' || profileStr === 'learningHint' ? profileStr : 'full';
+
+  return { sample, mode, inline, profile };
 }
 
 function updateURL(state: Partial<URLState>): void {
@@ -121,6 +166,14 @@ function updateURL(state: Partial<URLState>): void {
     }
   }
 
+  if (state.profile !== undefined) {
+    if (state.profile === 'full') {
+      params.delete('profile');
+    } else {
+      params.set('profile', state.profile);
+    }
+  }
+
   const queryString = params.toString();
   const newURL = queryString
     ? `${window.location.pathname}?${queryString}`
@@ -133,13 +186,12 @@ function updateURL(state: Partial<URLState>): void {
 // Functions
 // ============================================================================
 
-function showError(message: string): void {
-  errorMessage.textContent = message;
-  errorMessage.classList.add('visible');
+function showErrors(errors: ParseError[]): void {
+  errorPanel.setErrors(errors);
 }
 
-function hideError(): void {
-  errorMessage.classList.remove('visible');
+function hideErrors(): void {
+  errorPanel.clear();
 }
 
 function getCustomizeState(): CustomizeState {
@@ -210,16 +262,30 @@ function getInlineMode(): boolean {
   return inlineModeCheckbox.checked;
 }
 
+function getProfile(): ProfileName {
+  const value = profileSelect.value;
+  if (value === 'learningBasic' || value === 'learningHint') {
+    return value;
+  }
+  return 'full';
+}
+
 function renderDocument(doc: SKAMDocument): void {
   currentDocument = doc;
+
+  // Cleanup previous interactive handlers
+  cleanupInteractiveHandlers?.();
+  cleanupInteractiveHandlers = null;
 
   // JSON output
   jsonOutput.textContent = JSON.stringify(doc, null, 2);
 
-  // HTML render
+  // HTML render with interactive mode enabled
   const writingMode = getWritingMode();
   const inline = getInlineMode();
-  const result = render(doc, { writingMode, inline });
+  const profileName = getProfile();
+  const profile = PROFILES[profileName];
+  const result = render(doc, { writingMode, inline, profile, interactive: true });
 
   // Apply CSS and HTML
   const styleId = 'skam-playground-styles';
@@ -231,7 +297,7 @@ function renderDocument(doc: SKAMDocument): void {
   }
   styleEl.textContent = result.css;
 
-  // インラインモードの場合は前後にテキストを追加
+  // If inline mode, add surrounding text
   if (inline) {
     const writingModeClass = writingMode === 'vertical' ? ' inline-demo--vertical' : '';
     renderOutput.innerHTML = `<p class="inline-demo${writingModeClass}">本文中に「${result.html}」のように漢文を埋め込める。</p>`;
@@ -241,14 +307,49 @@ function renderDocument(doc: SKAMDocument): void {
 
   // HTML source output
   htmlOutput.textContent = result.html;
+
+  // Setup interactive event handlers (not in inline mode)
+  if (!inline) {
+    cleanupInteractiveHandlers = attachInteractiveHandlers(renderOutput, {
+      onTokenClick: (tokenId, event) => {
+        if (!currentDocument) return;
+
+        // Find existing kaeri mark for this token
+        const existingKaeri = getMarksForToken(currentDocument, tokenId).find(
+          (m) => m.type === 'kaeri'
+        );
+
+        markPopup.showKaeriPopup({ x: event.clientX, y: event.clientY }, tokenId, existingKaeri);
+      },
+      onTokenSelect: (fromId, toId) => {
+        if (!currentDocument) return;
+
+        // Find existing kana mark for the range
+        const existingKana = getMarksForToken(currentDocument, fromId).find((m) =>
+          ['okurigana', 'yomigana', 'soegana'].includes(m.type)
+        );
+
+        // Calculate position: use the center of the selection range
+        // For simplicity, we'll use the position of the first token element
+        const tokenElement = renderOutput.querySelector(`[data-token-id="${fromId}"]`);
+        let position = { x: 0, y: 0 };
+        if (tokenElement) {
+          const rect = tokenElement.getBoundingClientRect();
+          position = { x: rect.left + rect.width / 2, y: rect.bottom + 5 };
+        }
+
+        markPopup.showKanaPopup(position, fromId, toId, existingKana);
+      },
+    });
+  }
 }
 
 function parseAndRender(): void {
-  hideError();
+  hideErrors();
 
-  const xmlText = xmlInput.value.trim();
+  const xmlText = xmlEditor.getValue().trim();
   if (!xmlText) {
-    showError('XMLを入力してください');
+    showErrors([{ message: 'XMLを入力してください' }]);
     return;
   }
 
@@ -257,11 +358,18 @@ function parseAndRender(): void {
     renderDocument(doc);
   } catch (err) {
     if (err instanceof SKAMXMLParseError) {
-      showError(`パースエラー: ${err.message}`);
+      const parseError: ParseError = { message: err.message };
+      if (err.line !== undefined) {
+        parseError.line = err.line;
+      }
+      if (err.column !== undefined) {
+        parseError.column = err.column;
+      }
+      showErrors([parseError]);
     } else if (err instanceof Error) {
-      showError(`エラー: ${err.message}`);
+      showErrors([{ message: err.message }]);
     } else {
-      showError('不明なエラーが発生しました');
+      showErrors([{ message: '不明なエラーが発生しました' }]);
     }
     jsonOutput.textContent = '';
     renderOutput.innerHTML = '';
@@ -273,7 +381,7 @@ function parseAndRender(): void {
 function loadSample(index: number, updateUrlState = true): void {
   const sample = SAMPLES[index];
   if (sample) {
-    xmlInput.value = sample.xml;
+    xmlEditor.setValue(sample.xml);
     sampleSelect.value = String(index);
     if (updateUrlState) {
       updateURL({ sample: index });
@@ -294,13 +402,307 @@ function copyToClipboard(text: string): void {
   });
 }
 
+function downloadXml(): void {
+  const xml = xmlEditor.getValue();
+  if (!xml.trim()) {
+    alert('保存するXMLがありません');
+    return;
+  }
+
+  const filename = prompt('ファイル名を入力', 'document.skam.xml');
+  if (!filename) return;
+
+  // Ensure .xml extension
+  const finalFilename = filename.endsWith('.xml') ? filename : `${filename}.xml`;
+
+  const blob = new Blob([xml], { type: 'application/xml; charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = finalFilename;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  URL.revokeObjectURL(url);
+}
+
+/**
+ * Update XML editor from a SKAMDocument (GUI operation -> XML sync)
+ *
+ * This function is called when GUI operations modify the document.
+ * It converts the document back to XML and updates the editor,
+ * while preventing the change from triggering a re-parse.
+ *
+ * @param doc The updated SKAMDocument
+ */
+function updateXmlFromDocument(doc: SKAMDocument): void {
+  isUpdatingFromGui = true;
+  try {
+    currentDocument = doc;
+    const xml = stringify(doc);
+    xmlEditor.setValue(xml);
+    renderDocument(doc);
+    hideErrors();
+  } finally {
+    isUpdatingFromGui = false;
+  }
+}
+
+// Export updateXmlFromDocument to window for console testing and future GUI operations
+declare global {
+  interface Window {
+    updateXmlFromDocument: (doc: SKAMDocument) => void;
+    currentDocument: SKAMDocument | null;
+  }
+}
+window.updateXmlFromDocument = updateXmlFromDocument;
+// Also expose currentDocument for testing purposes
+Object.defineProperty(window, 'currentDocument', {
+  get: () => currentDocument,
+});
+
+// ============================================================================
+// Resizable Divider
+// ============================================================================
+
+function setupResizableDivider(): void {
+  let isDragging = false;
+  let startX = 0;
+  let startY = 0;
+  let startXmlPaneWidth = 0;
+  let startXmlPaneHeight = 0;
+
+  function isVerticalLayout(): boolean {
+    return window.innerWidth <= 768;
+  }
+
+  function onMouseDown(e: MouseEvent): void {
+    isDragging = true;
+    startX = e.clientX;
+    startY = e.clientY;
+
+    const xmlPaneRect = xmlPane.getBoundingClientRect();
+    startXmlPaneWidth = xmlPaneRect.width;
+    startXmlPaneHeight = xmlPaneRect.height;
+
+    divider.classList.add('dragging');
+    document.body.classList.add('resizing');
+    e.preventDefault();
+  }
+
+  function onMouseMove(e: MouseEvent): void {
+    if (!isDragging) return;
+
+    const containerRect = editorContainer.getBoundingClientRect();
+
+    if (isVerticalLayout()) {
+      // Vertical layout: resize height
+      const deltaY = e.clientY - startY;
+      const newHeight = startXmlPaneHeight + deltaY;
+      const minHeight = 150;
+      const maxHeight = containerRect.height - 150 - divider.offsetHeight;
+
+      if (newHeight >= minHeight && newHeight <= maxHeight) {
+        const heightPercent = (newHeight / containerRect.height) * 100;
+        xmlPane.style.flex = 'none';
+        xmlPane.style.height = `${heightPercent}%`;
+        previewPane.style.flex = '1';
+        previewPane.style.height = 'auto';
+      }
+    } else {
+      // Horizontal layout: resize width
+      const deltaX = e.clientX - startX;
+      const newWidth = startXmlPaneWidth + deltaX;
+      const minWidth = 300;
+      const maxWidth = containerRect.width - 300 - divider.offsetWidth;
+
+      if (newWidth >= minWidth && newWidth <= maxWidth) {
+        const widthPercent = (newWidth / containerRect.width) * 100;
+        xmlPane.style.flex = 'none';
+        xmlPane.style.width = `${widthPercent}%`;
+        previewPane.style.flex = '1';
+        previewPane.style.width = 'auto';
+      }
+    }
+  }
+
+  function onMouseUp(): void {
+    if (isDragging) {
+      isDragging = false;
+      divider.classList.remove('dragging');
+      document.body.classList.remove('resizing');
+    }
+  }
+
+  // Touch support
+  function onTouchStart(e: TouchEvent): void {
+    const touch = e.touches[0];
+    if (touch) {
+      isDragging = true;
+      startX = touch.clientX;
+      startY = touch.clientY;
+
+      const xmlPaneRect = xmlPane.getBoundingClientRect();
+      startXmlPaneWidth = xmlPaneRect.width;
+      startXmlPaneHeight = xmlPaneRect.height;
+
+      divider.classList.add('dragging');
+      document.body.classList.add('resizing');
+      e.preventDefault();
+    }
+  }
+
+  function onTouchMove(e: TouchEvent): void {
+    if (!isDragging) return;
+
+    const touch = e.touches[0];
+    if (!touch) return;
+
+    const containerRect = editorContainer.getBoundingClientRect();
+
+    if (isVerticalLayout()) {
+      const deltaY = touch.clientY - startY;
+      const newHeight = startXmlPaneHeight + deltaY;
+      const minHeight = 150;
+      const maxHeight = containerRect.height - 150 - divider.offsetHeight;
+
+      if (newHeight >= minHeight && newHeight <= maxHeight) {
+        const heightPercent = (newHeight / containerRect.height) * 100;
+        xmlPane.style.flex = 'none';
+        xmlPane.style.height = `${heightPercent}%`;
+        previewPane.style.flex = '1';
+        previewPane.style.height = 'auto';
+      }
+    } else {
+      const deltaX = touch.clientX - startX;
+      const newWidth = startXmlPaneWidth + deltaX;
+      const minWidth = 300;
+      const maxWidth = containerRect.width - 300 - divider.offsetWidth;
+
+      if (newWidth >= minWidth && newWidth <= maxWidth) {
+        const widthPercent = (newWidth / containerRect.width) * 100;
+        xmlPane.style.flex = 'none';
+        xmlPane.style.width = `${widthPercent}%`;
+        previewPane.style.flex = '1';
+        previewPane.style.width = 'auto';
+      }
+    }
+  }
+
+  function onTouchEnd(): void {
+    if (isDragging) {
+      isDragging = false;
+      divider.classList.remove('dragging');
+      document.body.classList.remove('resizing');
+    }
+  }
+
+  // Reset pane sizes on layout change (responsive)
+  function onResize(): void {
+    // Reset inline styles when layout changes
+    xmlPane.style.flex = '';
+    xmlPane.style.width = '';
+    xmlPane.style.height = '';
+    previewPane.style.flex = '';
+    previewPane.style.width = '';
+    previewPane.style.height = '';
+  }
+
+  // Event listeners
+  divider.addEventListener('mousedown', onMouseDown);
+  document.addEventListener('mousemove', onMouseMove);
+  document.addEventListener('mouseup', onMouseUp);
+
+  divider.addEventListener('touchstart', onTouchStart, { passive: false });
+  document.addEventListener('touchmove', onTouchMove, { passive: false });
+  document.addEventListener('touchend', onTouchEnd);
+
+  // Debounced resize handler
+  let resizeTimeout: number | undefined;
+  window.addEventListener('resize', () => {
+    clearTimeout(resizeTimeout);
+    resizeTimeout = window.setTimeout(onResize, 150);
+  });
+}
+
 // ============================================================================
 // Event Listeners
 // ============================================================================
 
 parseBtn.addEventListener('click', parseAndRender);
 
-xmlInput.addEventListener('keydown', (e) => {
+// File upload
+uploadBtn.addEventListener('click', () => {
+  fileUpload.click();
+});
+
+fileUpload.addEventListener('change', async () => {
+  const file = fileUpload.files?.[0];
+  if (file) {
+    try {
+      const text = await file.text();
+      xmlEditor.setValue(text);
+      // Clear sample select when loading external file
+      sampleSelect.value = '';
+      updateURL({ sample: 0 });
+      parseAndRender();
+      console.log(`Loaded: ${file.name}`);
+    } catch (e) {
+      console.error('Failed to read file:', e);
+      showErrors([{ message: `ファイルの読み込みに失敗しました: ${file.name}` }]);
+    }
+  }
+  // Reset to allow selecting the same file again
+  fileUpload.value = '';
+});
+
+// Drag and drop file support
+xmlPane.addEventListener('dragover', (e) => {
+  e.preventDefault();
+  xmlPane.classList.add('drag-over');
+});
+
+xmlPane.addEventListener('dragleave', (e) => {
+  // Only remove class if leaving the pane entirely
+  if (!xmlPane.contains(e.relatedTarget as Node)) {
+    xmlPane.classList.remove('drag-over');
+  }
+});
+
+xmlPane.addEventListener('drop', async (e) => {
+  e.preventDefault();
+  xmlPane.classList.remove('drag-over');
+  const file = e.dataTransfer?.files[0];
+  if (file && (file.name.endsWith('.xml') || file.name.endsWith('.skam.xml'))) {
+    try {
+      const text = await file.text();
+      xmlEditor.setValue(text);
+      // Clear sample select when loading external file
+      sampleSelect.value = '';
+      updateURL({ sample: 0 });
+      parseAndRender();
+      console.log(`Loaded: ${file.name}`);
+    } catch (err) {
+      console.error('Failed to read file:', err);
+      showErrors([{ message: `ファイルの読み込みに失敗しました: ${file.name}` }]);
+    }
+  } else if (file) {
+    showErrors([{ message: `XMLファイル (.xml, .skam.xml) を選択してください` }]);
+  }
+});
+
+// Register debounced content change callback from XmlEditor
+// This enables auto-parse on content change (after debounce)
+xmlEditor.onContentChange(() => {
+  // Skip if this change was triggered by GUI operation (updateXmlFromDocument)
+  if (isUpdatingFromGui) return;
+
+  // Auto-parse on content change
+  parseAndRender();
+});
+
+// Ctrl/Cmd+Enter to parse
+xmlEditor.getTextareaElement().addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();
     parseAndRender();
@@ -338,6 +740,17 @@ copyHtmlBtn.addEventListener('click', () => {
   }
 });
 
+// Download button
+downloadBtn.addEventListener('click', downloadXml);
+
+// Ctrl/Cmd+S to download
+document.addEventListener('keydown', (e) => {
+  if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+    e.preventDefault();
+    downloadXml();
+  }
+});
+
 // Writing mode change
 for (const radio of writingModeRadios) {
   radio.addEventListener('change', () => {
@@ -356,6 +769,14 @@ inlineModeCheckbox.addEventListener('change', () => {
   }
 });
 
+// Profile change
+profileSelect.addEventListener('change', () => {
+  updateURL({ profile: getProfile() });
+  if (currentDocument) {
+    renderDocument(currentDocument);
+  }
+});
+
 // CSS Customize
 colorKaeritenInput.addEventListener('input', applyCustomStyles);
 colorRubyInput.addEventListener('input', applyCustomStyles);
@@ -367,8 +788,68 @@ lineHeightInput.addEventListener('input', applyCustomStyles);
 resetCustomizeBtn.addEventListener('click', resetCustomize);
 
 // ============================================================================
+// Mark Popup Callbacks
+// ============================================================================
+
+// Kaeri (返り点) selection callback
+markPopup.onKaeriSelect((tokenId, kind) => {
+  if (!currentDocument) return;
+
+  let newDoc = currentDocument;
+
+  // Find and remove existing kaeri mark for this token
+  const existingMark = getMarksForToken(currentDocument, tokenId).find((m) => m.type === 'kaeri');
+  if (existingMark?.id) {
+    newDoc = removeMark(newDoc, existingMark.id);
+  }
+
+  // Add new mark if kind is provided (not a delete operation)
+  if (kind) {
+    const kaeriValue = getKaeriValueFromKind(kind);
+    if (kaeriValue) {
+      newDoc = addMark(newDoc, {
+        type: 'kaeri',
+        value: kaeriValue,
+        anchor: { from: tokenId, to: tokenId },
+      });
+    }
+  }
+
+  updateXmlFromDocument(newDoc);
+});
+
+// Kana (送り仮名/読み仮名/添え仮名) selection callback
+markPopup.onKanaSelect((fromId, toId, type, value) => {
+  if (!currentDocument) return;
+
+  let newDoc = currentDocument;
+
+  // Find and remove existing kana marks in the range
+  const existingMark = getMarksForToken(currentDocument, fromId).find((m) =>
+    ['okurigana', 'yomigana', 'soegana'].includes(m.type)
+  );
+  if (existingMark?.id) {
+    newDoc = removeMark(newDoc, existingMark.id);
+  }
+
+  // Add new mark if type is provided (not a delete operation)
+  if (type && value) {
+    newDoc = addMark(newDoc, {
+      type,
+      value,
+      anchor: { from: fromId, to: toId },
+    });
+  }
+
+  updateXmlFromDocument(newDoc);
+});
+
+// ============================================================================
 // Initialize
 // ============================================================================
+
+// Setup resizable divider
+setupResizableDivider();
 
 // Restore state from URL
 const initialState = getStateFromURL();
@@ -380,6 +861,9 @@ for (const radio of writingModeRadios) {
 
 // Set inline mode
 inlineModeCheckbox.checked = initialState.inline;
+
+// Set profile
+profileSelect.value = initialState.profile;
 
 // Load sample (without updating URL since we're restoring from URL)
 loadSample(initialState.sample, false);

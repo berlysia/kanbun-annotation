@@ -82,6 +82,12 @@ export interface RenderOptions {
    * - CopyableElement[]: 指定した要素をコピー可能
    */
   copyable?: CopyableElement[] | 'all';
+  /**
+   * インタラクティブモード（default: false）
+   *
+   * trueの場合、data-token-id / data-token-from / data-token-to 属性を出力する
+   */
+  interactive?: boolean;
 }
 
 /**
@@ -114,6 +120,12 @@ export interface RenderHTMLOptions {
    * - CopyableElement[]: 指定した要素をコピー可能
    */
   copyable?: CopyableElement[] | 'all';
+  /**
+   * インタラクティブモード（default: false）
+   *
+   * trueの場合、data-token-id / data-token-from / data-token-to 属性を出力する
+   */
+  interactive?: boolean;
 }
 
 /**
@@ -595,6 +607,15 @@ interface TokenRenderContext {
   prefix: string;
   profile: RenderProfile;
   tokenMarks: Map<Mark['type'], Mark[]>;
+  interactive: boolean;
+}
+
+/**
+ * 範囲マーク情報（data-token-from/to属性用）
+ */
+interface RangeTokenInfo {
+  from: string;
+  to: string;
 }
 
 /**
@@ -604,8 +625,13 @@ interface TokenRenderContext {
  * - 送り仮名・添え仮名はrenderTokenで返り点と一緒にsuffix-lineコンテナにまとめる
  * - 熟語ルビ（範囲yomigana）の場合はbaseTextを使用
  */
-function renderTokenWithRuby(token: Token, ctx: TokenRenderContext, baseText?: string): string {
-  const { prefix, profile, tokenMarks } = ctx;
+function renderTokenWithRuby(
+  token: Token,
+  ctx: TokenRenderContext,
+  baseText?: string,
+  rangeInfo?: RangeTokenInfo
+): string {
+  const { prefix, profile, tokenMarks, interactive } = ctx;
 
   // 読み仮名（ruby要素のrt内に配置、中央揃え）
   const yomiganaMarks = (tokenMarks.get('yomigana') ?? []) as YomiganaMark[];
@@ -614,13 +640,22 @@ function renderTokenWithRuby(token: Token, ctx: TokenRenderContext, baseText?: s
       ? yomiganaMarks.map((m) => escapeHtml(m.value)).join('')
       : '';
 
+  // data属性の構築（interactiveモードの場合のみ）
+  // 熟語ルビ（範囲マーク）の場合はdata-token-from/toを使用、単一トークンの場合はdata-token-idを使用
+  let dataAttrs = '';
+  if (interactive) {
+    dataAttrs = rangeInfo
+      ? ` data-token-from="${escapeHtml(rangeInfo.from)}" data-token-to="${escapeHtml(rangeInfo.to)}"`
+      : ` data-token-id="${escapeHtml(token.id)}"`;
+  }
+
   // ルビ（読み仮名）が必要な場合はruby要素を使用
   // 熟語ルビの場合はbaseTextを使用
   const displayText = baseText ?? token.text;
   if (yomigana) {
-    return `<ruby><rb class="${prefix}-base">${escapeHtml(displayText)}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>`;
+    return `<ruby><rb class="${prefix}-base"${dataAttrs}>${escapeHtml(displayText)}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>`;
   } else {
-    return `<span class="${prefix}-base">${escapeHtml(displayText)}</span>`;
+    return `<span class="${prefix}-base"${dataAttrs}>${escapeHtml(displayText)}</span>`;
   }
 }
 
@@ -642,10 +677,13 @@ function renderSaidokuToken(
   saidokuMark: SaidokuMark,
   ctx: TokenRenderContext
 ): string {
-  const { prefix, profile } = ctx;
+  const { prefix, profile, interactive } = ctx;
+
+  // data-token-id属性（interactiveモードの場合のみ）
+  const tokenIdAttr = interactive ? ` data-token-id="${escapeHtml(token.id)}"` : '';
 
   if (!profile.saidoku) {
-    return `<span class="${prefix}-base">${escapeHtml(token.text)}</span>`;
+    return `<span class="${prefix}-base"${tokenIdAttr}>${escapeHtml(token.text)}</span>`;
   }
 
   const forms = saidokuMark.forms;
@@ -660,8 +698,8 @@ function renderSaidokuToken(
     firstRt = `<rt class="${prefix}-ruby" data-saidoku-n="${n}">${yomi}</rt>`;
   }
 
-  // 内側ruby（第1読み）
-  const innerRuby = `<ruby class="${prefix}-saidoku-inner"><rb class="${prefix}-base">${escapeHtml(token.text)}</rb>${firstRt}</ruby>`;
+  // 内側ruby（第1読み）- rb要素にdata-token-idを付与
+  const innerRuby = `<ruby class="${prefix}-saidoku-inner"><rb class="${prefix}-base"${tokenIdAttr}>${escapeHtml(token.text)}</rb>${firstRt}</ruby>`;
 
   // 第2読みがなければ内側rubyのみ返す
   if (!secondForm) {
@@ -707,6 +745,8 @@ interface RangeMarkContext {
   trailingKutotenMarks?: KutotenMark[];
   /** 範囲グループ内の後続トークンに付いているrefマーク */
   trailingRefMarks?: RefMark[];
+  /** 範囲のトークンID情報（熟語ルビ等でdata-token-from/to出力用） */
+  rangeTokenInfo?: RangeTokenInfo;
 }
 
 /**
@@ -838,8 +878,8 @@ function renderToken(
   if (saidokuMark) {
     baseHtml = renderSaidokuToken(token, saidokuMark, fullCtx);
   } else {
-    // 範囲グループがある場合は熟語全体のテキストを使用
-    baseHtml = renderTokenWithRuby(token, fullCtx, rangeBaseText);
+    // 範囲グループがある場合は熟語全体のテキストを使用し、範囲情報も渡す
+    baseHtml = renderTokenWithRuby(token, fullCtx, rangeBaseText, rangeCtx?.rangeTokenInfo);
   }
 
   // ヲコト点追加
@@ -893,7 +933,10 @@ function renderToken(
     }
   }
 
-  return `<span class="${classes.join(' ')}" data-token-id="${escapeHtml(token.id)}">${baseHtml}${okototenHtml}${suffixRowHtml}</span>${kutoten}${refHtml}`;
+  // data-token-id属性（interactiveモードの場合のみ）
+  const tokenIdAttr = ctx.interactive ? ` data-token-id="${escapeHtml(token.id)}"` : '';
+
+  return `<span class="${classes.join(' ')}"${tokenIdAttr}>${baseHtml}${okototenHtml}${suffixRowHtml}</span>${kutoten}${refHtml}`;
 }
 
 // ============================================================================
@@ -985,10 +1028,11 @@ function renderDisplayLayer(
   doc: SKAMDocument,
   prefix: string,
   profile: RenderProfile,
-  inline: boolean
+  inline: boolean,
+  interactive: boolean
 ): { tokens: string; prefix: string } {
   const { tokens, marks } = doc;
-  const ctx = { prefix, profile };
+  const ctx = { prefix, profile, interactive };
 
   // refマークの値を事前計算
   const refValueMap = profile.ref ? resolveRefValues(marks) : new Map();
@@ -1084,7 +1128,13 @@ function renderDisplayLayer(
             return t?.text ?? '';
           })
           .join('');
-        rangeCtx = { ...rangeCtx, yomiganaBaseText: baseText };
+        const firstTokenId = yomiganaGroup.tokenIds[0];
+        const lastTokenId = yomiganaGroup.tokenIds[yomiganaGroup.tokenIds.length - 1];
+        const rangeTokenInfo: RangeTokenInfo =
+          firstTokenId && lastTokenId
+            ? { from: firstTokenId, to: lastTokenId }
+            : { from: '', to: '' };
+        rangeCtx = { ...rangeCtx, yomiganaBaseText: baseText, rangeTokenInfo };
 
         // グループ内の他のトークンを処理済みとしてマーク
         for (const tid of yomiganaGroup.tokenIds.slice(1)) {
@@ -1101,7 +1151,18 @@ function renderDisplayLayer(
           })
           .join('');
         const okuriganaValue = (okuriganaGroup.mark as OkuriganaMark).value;
-        rangeCtx = { ...rangeCtx, okuriganaBaseText: baseText, okuriganaValue };
+        // rangeTokenInfoがまだ設定されていない場合のみ設定
+        if (!rangeCtx?.rangeTokenInfo) {
+          const firstTokenId = okuriganaGroup.tokenIds[0];
+          const lastTokenId = okuriganaGroup.tokenIds[okuriganaGroup.tokenIds.length - 1];
+          const rangeTokenInfo: RangeTokenInfo =
+            firstTokenId && lastTokenId
+              ? { from: firstTokenId, to: lastTokenId }
+              : { from: '', to: '' };
+          rangeCtx = { ...rangeCtx, okuriganaBaseText: baseText, okuriganaValue, rangeTokenInfo };
+        } else {
+          rangeCtx = { ...rangeCtx, okuriganaBaseText: baseText, okuriganaValue };
+        }
 
         // グループ内の他のトークンを処理済みとしてマーク（yomiganaと重複しなければ）
         for (const tid of okuriganaGroup.tokenIds.slice(1)) {
@@ -1120,7 +1181,18 @@ function renderDisplayLayer(
           })
           .join('');
         const soeganaValue = (soeganaGroup.mark as SoeganaMark).value;
-        rangeCtx = { ...rangeCtx, soeganaBaseText: baseText, soeganaValue };
+        // rangeTokenInfoがまだ設定されていない場合のみ設定
+        if (!rangeCtx?.rangeTokenInfo) {
+          const firstTokenId = soeganaGroup.tokenIds[0];
+          const lastTokenId = soeganaGroup.tokenIds[soeganaGroup.tokenIds.length - 1];
+          const rangeTokenInfo: RangeTokenInfo =
+            firstTokenId && lastTokenId
+              ? { from: firstTokenId, to: lastTokenId }
+              : { from: '', to: '' };
+          rangeCtx = { ...rangeCtx, soeganaBaseText: baseText, soeganaValue, rangeTokenInfo };
+        } else {
+          rangeCtx = { ...rangeCtx, soeganaBaseText: baseText, soeganaValue };
+        }
 
         // グループ内の他のトークンを処理済みとしてマーク（他グループと重複しなければ）
         for (const tid of soeganaGroup.tokenIds.slice(1)) {
@@ -1312,9 +1384,10 @@ export function render(doc: SKAMDocument, options: RenderOptions = {}): RenderRe
   const includeReadingLayer = options.includeReadingLayer ?? true;
   const inline = options.inline ?? false;
   const copyable = options.copyable;
+  const interactive = options.interactive ?? false;
 
   // Display層
-  const displayResult = renderDisplayLayer(doc, prefix, profile, inline);
+  const displayResult = renderDisplayLayer(doc, prefix, profile, inline, interactive);
   const displayTag = inline ? 'span' : 'div';
   const displayHtml = `<${displayTag} class="${prefix}-display" aria-hidden="true">${displayResult.tokens}</${displayTag}>`;
 
@@ -1380,9 +1453,10 @@ export function renderHTML(doc: SKAMDocument, options: RenderHTMLOptions = {}): 
   const includeReadingLayer = options.includeReadingLayer ?? true;
   const inline = options.inline ?? false;
   const copyable = options.copyable;
+  const interactive = options.interactive ?? false;
 
   // Display層
-  const displayResult = renderDisplayLayer(doc, prefix, profile, inline);
+  const displayResult = renderDisplayLayer(doc, prefix, profile, inline, interactive);
   const displayTag = inline ? 'span' : 'div';
   const displayHtml = `<${displayTag} class="${prefix}-display" aria-hidden="true">${displayResult.tokens}</${displayTag}>`;
 

@@ -6,4 +6,8 @@ export default defineConfig({
     outDir: '../../dist-playground',
     emptyOutDir: true,
   },
+  test: {
+    environment: 'happy-dom',
+    exclude: ['e2e/**', 'node_modules/**'],
+  },
 });

@@ -4,7 +4,7 @@ import { render, PROFILES, getDefaultStyles } from '../index.js';
 
 describe('render', () => {
   describe('basic token rendering', () => {
-    it('should render a simple token', () => {
+    it('should render a simple token without data-token-id by default', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
@@ -16,11 +16,24 @@ describe('render', () => {
 
       expect(result.html).toContain('skam-document');
       expect(result.html).toContain('skam-display');
-      expect(result.html).toContain('data-token-id="t1"');
+      expect(result.html).not.toContain('data-token-id');
       expect(result.html).toContain('學');
     });
 
-    it('should render multiple tokens', () => {
+    it('should render data-token-id when interactive: true', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        marks: [],
+        readings: [],
+      };
+
+      const result = render(doc, { interactive: true });
+
+      expect(result.html).toContain('data-token-id="t1"');
+    });
+
+    it('should render multiple tokens without data-token-id by default', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [
@@ -34,6 +47,23 @@ describe('render', () => {
 
       const result = render(doc);
 
+      expect(result.html).not.toContain('data-token-id');
+    });
+
+    it('should render multiple tokens with data-token-id when interactive: true', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [
+          { id: 't1', text: '學' },
+          { id: 't2', text: '而' },
+          { id: 't3', text: '時' },
+        ],
+        marks: [],
+        readings: [],
+      };
+
+      const result = render(doc, { interactive: true });
+
       expect(result.html).toContain('data-token-id="t1"');
       expect(result.html).toContain('data-token-id="t2"');
       expect(result.html).toContain('data-token-id="t3"');
@@ -41,7 +71,7 @@ describe('render', () => {
   });
 
   describe('yomigana and okurigana', () => {
-    it('should render yomigana with ruby element', () => {
+    it('should render yomigana with ruby element (no data-token-id by default)', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
@@ -58,9 +88,32 @@ describe('render', () => {
       const result = render(doc);
 
       expect(result.html).toContain('<ruby>');
+      // rb要素にはdata-token-id属性が付与されない（デフォルト）
       expect(result.html).toContain('<rb class="skam-base">學</rb>');
+      expect(result.html).not.toContain('data-token-id');
       expect(result.html).toContain('skam-ruby');
       expect(result.html).toContain('まな');
+    });
+
+    it('should render yomigana with data-token-id when interactive: true', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        marks: [
+          {
+            type: 'yomigana',
+            anchor: { from: 't1', to: 't1' },
+            value: 'まな',
+          },
+        ],
+        readings: [],
+      };
+
+      const result = render(doc, { interactive: true });
+
+      expect(result.html).toContain('<ruby>');
+      // rb要素にはdata-token-id属性が付与される（interactive: true）
+      expect(result.html).toContain('<rb class="skam-base" data-token-id="t1">學</rb>');
     });
 
     it('should render okurigana within ruby element', () => {
@@ -1089,7 +1142,7 @@ describe('inline mode', () => {
 });
 
 describe('renderHTML', () => {
-  it('should return HTML only without CSS', async () => {
+  it('should return HTML only without CSS (no data-token-id by default)', async () => {
     const { renderHTML } = await import('../index.js');
     const doc: SKAMDocument = {
       format: 'skam@0.1',
@@ -1101,9 +1154,23 @@ describe('renderHTML', () => {
     const html = renderHTML(doc);
 
     expect(html).toContain('skam-document');
-    expect(html).toContain('data-token-id="t1"');
+    expect(html).not.toContain('data-token-id');
     expect(html).toContain('data-writing-mode="vertical"');
     expect(typeof html).toBe('string');
+  });
+
+  it('should return HTML with data-token-id when interactive: true', async () => {
+    const { renderHTML } = await import('../index.js');
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學' }],
+      marks: [],
+      readings: [],
+    };
+
+    const html = renderHTML(doc, { interactive: true });
+
+    expect(html).toContain('data-token-id="t1"');
   });
 
   it('should respect writingMode option', async () => {
@@ -1131,6 +1198,21 @@ describe('renderHTML', () => {
 
     const htmlOnly = renderHTML(doc, { writingMode: 'vertical' });
     const { html } = render(doc, { writingMode: 'vertical' });
+
+    expect(htmlOnly).toBe(html);
+  });
+
+  it('should produce same HTML as render() with interactive: true', async () => {
+    const { renderHTML, render } = await import('../index.js');
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學' }],
+      marks: [],
+      readings: [],
+    };
+
+    const htmlOnly = renderHTML(doc, { writingMode: 'vertical', interactive: true });
+    const { html } = render(doc, { writingMode: 'vertical', interactive: true });
 
     expect(htmlOnly).toBe(html);
   });
@@ -1327,11 +1409,30 @@ describe('CSS variables options', () => {
       '--skam-ruby-font-size',
       '--skam-line-height',
       '--skam-letter-spacing',
+      // Selection CSS variables
+      '--skam-selection-bg',
+      '--skam-selection-border',
+      '--skam-selection-start-bg',
+      '--skam-selection-end-bg',
     ];
 
     for (const variable of expectedVariables) {
       expect(css).toContain(variable);
     }
+  });
+
+  it('should include selection state classes', () => {
+    const css = getDefaultStyles();
+
+    // Selection state classes
+    expect(css).toContain(':where(.skam-selected)');
+    expect(css).toContain(':where(.skam-selection-start)');
+    expect(css).toContain(':where(.skam-selection-end)');
+    expect(css).toContain(':where(.skam-selection-middle)');
+
+    // border-inline properties for writing-mode agnostic styling
+    expect(css).toContain('border-inline-start: 2px solid var(--skam-selection-border)');
+    expect(css).toContain('border-inline-end: 2px solid var(--skam-selection-border)');
   });
 });
 
@@ -1358,5 +1459,155 @@ describe(':where() specificity', () => {
     // But should have :where(.skam-document) {
     const bareSelectors = css.match(/(?<!:where\()\.skam-[\w-]+\s*\{/g);
     expect(bareSelectors).toBeNull();
+  });
+});
+
+describe('data-token-id attributes', () => {
+  it('should render data-token-id on rb element when yomigana is present', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學' }],
+      marks: [
+        {
+          type: 'yomigana',
+          anchor: { from: 't1', to: 't1' },
+          value: 'まな',
+        },
+      ],
+      readings: [],
+    };
+
+    const result = render(doc, { interactive: true });
+
+    // rb要素にdata-token-id属性が付与されている
+    expect(result.html).toContain('data-token-id="t1"');
+    expect(result.html).toContain('<rb class="skam-base" data-token-id="t1">學</rb>');
+  });
+
+  it('should render data-token-id on span when no ruby is needed', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學' }],
+      marks: [],
+      readings: [],
+    };
+
+    const result = render(doc, { interactive: true });
+
+    // span.skam-base要素にdata-token-id属性が付与されている
+    expect(result.html).toContain('<span class="skam-base" data-token-id="t1">學</span>');
+  });
+
+  it('should render data-token-id on saidoku rb element', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '將' }],
+      marks: [
+        {
+          type: 'saidoku',
+          anchor: { from: 't1', to: 't1' },
+          forms: [
+            { n: 1, yomi: 'まさ', okuri: 'に' },
+            { n: 2, okuri: 'す' },
+          ],
+        },
+      ],
+      readings: [],
+    };
+
+    const result = render(doc, { interactive: true });
+
+    // rb要素にdata-token-id属性が付与されている
+    expect(result.html).toContain('<rb class="skam-base" data-token-id="t1">將</rb>');
+  });
+
+  it('should render data-token-from/to on range yomigana (jukugo ruby)', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '朝' },
+        { id: 't2', text: '廷' },
+      ],
+      marks: [
+        {
+          type: 'yomigana',
+          anchor: { from: 't1', to: 't2' },
+          value: 'ちょうてい',
+        },
+      ],
+      readings: [],
+    };
+
+    const result = render(doc, { interactive: true });
+
+    // 範囲マークの場合はdata-token-from/toが使用される
+    expect(result.html).toContain('data-token-from="t1"');
+    expect(result.html).toContain('data-token-to="t2"');
+    // 熟語全体のテキストが表示される
+    expect(result.html).toContain('朝廷');
+    expect(result.html).toContain('ちょうてい');
+  });
+
+  it('should render data-token-from/to on range okurigana when interactive: true', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '自' },
+        { id: 't2', text: '然' },
+      ],
+      marks: [
+        {
+          type: 'okurigana',
+          anchor: { from: 't1', to: 't2' },
+          value: 'と',
+        },
+      ],
+      readings: [],
+    };
+
+    const result = render(doc, { interactive: true });
+
+    // 範囲マークの場合はdata-token-from/toが使用される
+    expect(result.html).toContain('data-token-from="t1"');
+    expect(result.html).toContain('data-token-to="t2"');
+  });
+
+  it('should not render data-token-id by default', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學' }],
+      marks: [],
+      readings: [],
+    };
+
+    const result = render(doc);
+
+    expect(result.html).not.toContain('data-token-id');
+  });
+
+  it('should not render data-token-from/to by default', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '朝' },
+        { id: 't2', text: '廷' },
+      ],
+      marks: [
+        {
+          type: 'yomigana',
+          anchor: { from: 't1', to: 't2' },
+          value: 'ちょうてい',
+        },
+      ],
+      readings: [],
+    };
+
+    const result = render(doc);
+
+    expect(result.html).not.toContain('data-token-from');
+    expect(result.html).not.toContain('data-token-to');
+    // 熟語全体のテキストは表示される
+    expect(result.html).toContain('朝廷');
+    expect(result.html).toContain('ちょうてい');
   });
 });

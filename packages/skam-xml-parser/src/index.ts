@@ -9,7 +9,13 @@ import { parseFromDocument, SKAMXMLParseError, type ParseOptions } from './parse
 import { parseXML } from './xml-parser.js';
 
 export type { SKAMDocument } from '@kanbun/skam';
-export { SKAMXMLParseError, type ParseOptions } from './parser-core.js';
+export {
+  SKAMXMLParseError,
+  type ParseOptions,
+  type PositionInfo,
+  type TokenPosition,
+} from './parser-core.js';
+export { stringify, type StringifyOptions } from './stringify.js';
 
 /**
  * Parse SKAM-ML/XML string to SKAMDocument
@@ -21,7 +27,5 @@ export { SKAMXMLParseError, type ParseOptions } from './parser-core.js';
  */
 export function parse(xml: string, options: ParseOptions = {}): SKAMDocument {
   const doc = parseXML(xml);
-  return parseFromDocument(doc, options);
+  return parseFromDocument(doc, options, xml);
 }
-
-// TODO: stringify function for SKAM JSON → XML serialization

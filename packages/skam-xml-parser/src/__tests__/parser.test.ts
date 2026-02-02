@@ -569,3 +569,168 @@ describe('parse - edge cases', () => {
     expect(ids).toEqual(uniqueIds);
   });
 });
+
+// ============================================================================
+// Position Tracking Tests
+// ============================================================================
+
+describe('parse - position tracking', () => {
+  it('should not include position info when trackPositions is false (default)', () => {
+    const xml = readFixture('valid', 'minimal.xml');
+    const doc = parse(xml);
+
+    expect(doc.tokens[0]?.ext?.['position']).toBeUndefined();
+  });
+
+  it('should include position info when trackPositions is true', () => {
+    const xml = readFixture('valid', 'minimal.xml');
+    const doc = parse(xml, { trackPositions: true });
+
+    const token = doc.tokens[0];
+    expect(token).toBeDefined();
+    expect(token?.text).toBe('學');
+    expect(token?.ext?.['position']).toBeDefined();
+
+    const position = token?.ext?.['position'] as {
+      start: { line: number; column: number; offset: number };
+      end: { line: number; column: number; offset: number };
+    };
+
+    // Position should have valid values
+    expect(position.start.line).toBeGreaterThanOrEqual(1);
+    expect(position.start.column).toBeGreaterThanOrEqual(1);
+    expect(position.start.offset).toBeGreaterThanOrEqual(0);
+    expect(position.end.line).toBeGreaterThanOrEqual(1);
+    expect(position.end.column).toBeGreaterThanOrEqual(1);
+    expect(position.end.offset).toBeGreaterThan(position.start.offset);
+  });
+
+  it('should track positions for multiple characters correctly', () => {
+    const xml = `<?xml version="1.0"?>
+<skam:doc xmlns:skam="urn:skam:1">
+  <skam:body>
+    <skam:block>學而</skam:block>
+  </skam:body>
+</skam:doc>`;
+
+    const doc = parse(xml, { trackPositions: true });
+
+    expect(doc.tokens).toHaveLength(2);
+
+    const token1 = doc.tokens[0]!;
+    const token2 = doc.tokens[1]!;
+
+    expect(token1.text).toBe('學');
+    expect(token2.text).toBe('而');
+
+    const pos1 = token1.ext?.['position'] as {
+      start: { line: number; column: number; offset: number };
+      end: { line: number; column: number; offset: number };
+    };
+    const pos2 = token2.ext?.['position'] as {
+      start: { line: number; column: number; offset: number };
+      end: { line: number; column: number; offset: number };
+    };
+
+    // Second token should start after first token
+    expect(pos2.start.offset).toBeGreaterThanOrEqual(pos1.end.offset);
+    // Both should be on the same line (line 4 in this case)
+    expect(pos1.start.line).toBe(pos2.start.line);
+  });
+
+  it('should handle multi-byte characters (kanji) correctly', () => {
+    const xml = `<?xml version="1.0"?>
+<skam:doc xmlns:skam="urn:skam:1">
+  <skam:body>
+    <skam:block>漢字</skam:block>
+  </skam:body>
+</skam:doc>`;
+
+    const doc = parse(xml, { trackPositions: true });
+
+    expect(doc.tokens).toHaveLength(2);
+
+    const token1 = doc.tokens[0]!;
+    const token2 = doc.tokens[1]!;
+
+    expect(token1.text).toBe('漢');
+    expect(token2.text).toBe('字');
+
+    const pos1 = token1.ext?.['position'] as {
+      start: { line: number; column: number; offset: number };
+      end: { line: number; column: number; offset: number };
+    };
+    const pos2 = token2.ext?.['position'] as {
+      start: { line: number; column: number; offset: number };
+      end: { line: number; column: number; offset: number };
+    };
+
+    // Byte offsets for UTF-8 encoded kanji (3 bytes each)
+    expect(pos1.end.offset - pos1.start.offset).toBe(3);
+    expect(pos2.end.offset - pos2.start.offset).toBe(3);
+  });
+
+  it('should track positions across multiple blocks', () => {
+    const xml = `<?xml version="1.0"?>
+<skam:doc xmlns:skam="urn:skam:1">
+  <skam:body>
+    <skam:block>甲</skam:block>
+    <skam:block>乙</skam:block>
+  </skam:body>
+</skam:doc>`;
+
+    const doc = parse(xml, { trackPositions: true });
+
+    expect(doc.tokens).toHaveLength(2);
+
+    const token1 = doc.tokens[0]!;
+    const token2 = doc.tokens[1]!;
+
+    expect(token1.text).toBe('甲');
+    expect(token2.text).toBe('乙');
+
+    const pos1 = token1.ext?.['position'] as {
+      start: { line: number; column: number; offset: number };
+      end: { line: number; column: number; offset: number };
+    };
+    const pos2 = token2.ext?.['position'] as {
+      start: { line: number; column: number; offset: number };
+      end: { line: number; column: number; offset: number };
+    };
+
+    // Second block should be on a different line
+    expect(pos2.start.line).toBeGreaterThan(pos1.start.line);
+  });
+
+  it('should track positions for tokens inside skam:kun elements', () => {
+    const xml = `<?xml version="1.0"?>
+<skam:doc xmlns:skam="urn:skam:1">
+  <skam:body>
+    <skam:block><skam:kun yomi="まな">學</skam:kun></skam:block>
+  </skam:body>
+</skam:doc>`;
+
+    const doc = parse(xml, { trackPositions: true });
+
+    expect(doc.tokens).toHaveLength(1);
+    const token = doc.tokens[0]!;
+    expect(token.text).toBe('學');
+
+    const pos = token.ext?.['position'] as {
+      start: { line: number; column: number; offset: number };
+      end: { line: number; column: number; offset: number };
+    };
+
+    expect(pos).toBeDefined();
+    expect(pos.start.line).toBeGreaterThanOrEqual(1);
+  });
+
+  it('should preserve blockId in ext alongside position', () => {
+    const xml = readFixture('valid', 'minimal.xml');
+    const doc = parse(xml, { trackPositions: true });
+
+    const token = doc.tokens[0]!;
+    expect(token.ext?.['blockId']).toBe('b1');
+    expect(token.ext?.['position']).toBeDefined();
+  });
+});

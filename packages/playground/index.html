@@ -28,26 +28,44 @@
     </header>
 
     <main class="main">
-      <section class="primary-section">
-        <div class="panel input-panel">
-          <div class="panel-header">
+      <div class="editor-container">
+        <div class="xml-pane" role="region" aria-label="XML編集">
+          <div class="toolbar">
             <h2>SKAM-ML/XML</h2>
-            <div class="samples">
-              <label for="sample-select">サンプル:</label>
-              <select id="sample-select">
-                <option value="">-- 選択 --</option>
-              </select>
+            <div class="toolbar-actions">
+              <input type="file" id="file-upload" accept=".xml,.skam.xml" style="display: none" />
+              <button id="upload-btn" type="button" class="toolbar-btn">開く</button>
+              <button id="download-btn" type="button" class="toolbar-btn">保存</button>
+              <div class="samples">
+                <label for="sample-select">サンプル:</label>
+                <select id="sample-select">
+                  <option value="">-- 選択 --</option>
+                </select>
+              </div>
             </div>
           </div>
-          <textarea id="xml-input" placeholder="SKAM-ML/XMLを入力..."></textarea>
-          <button id="parse-btn" type="button">パース &amp; レンダリング</button>
-          <div id="error-message" class="error-message"></div>
+          <div class="xml-editor-wrapper">
+            <textarea id="xml-input" placeholder="SKAM-ML/XMLを入力..."></textarea>
+          </div>
+          <div class="action-bar">
+            <button id="parse-btn" type="button">パース &amp; レンダリング</button>
+          </div>
+          <div id="error-panel" class="error-panel" role="alert" aria-live="polite"></div>
         </div>
 
-        <div class="panel render-panel">
-          <div class="panel-header">
+        <div class="divider" id="divider"></div>
+
+        <div class="preview-pane" role="region" aria-label="漢文プレビュー">
+          <div class="preview-toolbar">
             <h2>レンダリング結果</h2>
             <div class="render-options">
+              <label for="profile-select">プロファイル:</label>
+              <select id="profile-select">
+                <option value="full">完全表示</option>
+                <option value="learningBasic">学習（基本）</option>
+                <option value="learningHint">学習（ヒント）</option>
+              </select>
+              <span class="option-separator">|</span>
               <label>
                 <input type="radio" name="writing-mode" value="vertical" checked />
                 縦書き
@@ -63,7 +81,7 @@
               </label>
             </div>
           </div>
-          <div id="render-output"></div>
+          <div class="preview-content" id="render-output"></div>
           <details class="customize-panel">
             <summary>CSSカスタマイズ</summary>
             <div class="customize-options">
@@ -114,7 +132,7 @@
             </div>
           </details>
         </div>
-      </section>
+      </div>
 
       <details class="details-panel">
         <summary>SKAM JSON を表示</summary>

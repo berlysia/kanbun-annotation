@@ -122,6 +122,12 @@ function generateCommonStyles(prefix: string, vp: string): string {
   --${vp}-line-height: 2;
   --${vp}-letter-spacing: 0;
 
+  /* Selection CSS Variables */
+  --${vp}-selection-bg: rgba(66, 133, 244, 0.3);
+  --${vp}-selection-border: #4285f4;
+  --${vp}-selection-start-bg: rgba(66, 133, 244, 0.4);
+  --${vp}-selection-end-bg: rgba(66, 133, 244, 0.4);
+
   /* 変数を適用 */
   font-family: var(--${vp}-font-family);
   line-height: var(--${vp}-line-height);
@@ -310,6 +316,39 @@ function generateCommonStyles(prefix: string, vp: string): string {
 
 :where(.${prefix}-okototen[data-shape="line"])::before {
   content: "—";
+}
+
+/*
+ * Selection States (選択状態)
+ *
+ * token選択状態を視覚的に表示するためのクラス。
+ * border-inline-start/end を使用して書字方向に対応。
+ * - 縦書き: inline 方向 = 上下
+ * - 横書き: inline 方向 = 左右
+ */
+
+/* 単一選択 */
+:where(.${prefix}-selected) {
+  background-color: var(--${vp}-selection-bg);
+  outline: 2px solid var(--${vp}-selection-border);
+  outline-offset: -1px;
+}
+
+/* 範囲選択の開始点 */
+:where(.${prefix}-selection-start) {
+  background-color: var(--${vp}-selection-start-bg);
+  border-inline-start: 2px solid var(--${vp}-selection-border);
+}
+
+/* 範囲選択の終了点 */
+:where(.${prefix}-selection-end) {
+  background-color: var(--${vp}-selection-end-bg);
+  border-inline-end: 2px solid var(--${vp}-selection-border);
+}
+
+/* 範囲選択の中間 */
+:where(.${prefix}-selection-middle) {
+  background-color: var(--${vp}-selection-bg);
 }
 
 /* Tateten (たて点) - 共通部分 */

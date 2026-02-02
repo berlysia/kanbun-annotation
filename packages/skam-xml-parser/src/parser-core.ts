@@ -64,6 +64,32 @@ const VALID_REF_FORMATS = [
 ] as const;
 
 // ============================================================================
+// Position Tracking Types
+// ============================================================================
+
+/**
+ * Position information in the source XML
+ */
+export interface PositionInfo {
+  /** 1-based line number */
+  line: number;
+  /** 1-based column number */
+  column: number;
+  /** 0-based byte offset from the start of the source */
+  offset: number;
+}
+
+/**
+ * Token position range in the source XML
+ */
+export interface TokenPosition {
+  /** Start position (inclusive) */
+  start: PositionInfo;
+  /** End position (exclusive) */
+  end: PositionInfo;
+}
+
+// ============================================================================
 // Error Types
 // ============================================================================
 
@@ -79,6 +105,74 @@ export class SKAMXMLParseError extends Error {
 }
 
 // ============================================================================
+// Position Tracker
+// ============================================================================
+
+/**
+ * Tracks positions in the source XML string.
+ * Handles multi-byte characters (like kanji) correctly.
+ */
+class PositionTracker {
+  private readonly source: string;
+  private readonly lineStarts: number[];
+
+  constructor(source: string) {
+    this.source = source;
+    this.lineStarts = this.computeLineStarts(source);
+  }
+
+  private computeLineStarts(source: string): number[] {
+    const starts = [0];
+    for (let i = 0; i < source.length; i++) {
+      if (source[i] === '\n') {
+        starts.push(i + 1);
+      }
+    }
+    return starts;
+  }
+
+  /**
+   * Convert character offset to PositionInfo
+   */
+  offsetToPosition(offset: number): PositionInfo {
+    // Binary search for line number
+    let low = 0;
+    let high = this.lineStarts.length - 1;
+    while (low < high) {
+      const mid = Math.ceil((low + high) / 2);
+      if (this.lineStarts[mid]! <= offset) {
+        low = mid;
+      } else {
+        high = mid - 1;
+      }
+    }
+    const line = low + 1; // 1-based
+    const column = offset - this.lineStarts[low]! + 1; // 1-based
+    return { line, column, offset };
+  }
+
+  /**
+   * Find position of text starting from a given offset
+   */
+  findText(text: string, startOffset: number): number {
+    return this.source.indexOf(text, startOffset);
+  }
+
+  /**
+   * Get byte offset for a character offset (handles multi-byte UTF-8)
+   */
+  getByteOffset(charOffset: number): number {
+    const encoder = new TextEncoder();
+    const bytes = encoder.encode(this.source.slice(0, charOffset));
+    return bytes.length;
+  }
+
+  getSource(): string {
+    return this.source;
+  }
+}
+
+// ============================================================================
 // Parser State
 // ============================================================================
 
@@ -90,9 +184,12 @@ interface ParserState {
   tokenIndex: number;
   blockIndex: number;
   currentBlockId: string | null;
+  positionTracker: PositionTracker | null;
+  /** Current search offset in the source for position tracking */
+  currentSearchOffset: number;
 }
 
-function createParserState(): ParserState {
+function createParserState(source?: string): ParserState {
   return {
     tokens: [],
     marks: [],
@@ -101,6 +198,8 @@ function createParserState(): ParserState {
     tokenIndex: 0,
     blockIndex: 0,
     currentBlockId: null,
+    positionTracker: source ? new PositionTracker(source) : null,
+    currentSearchOffset: 0,
   };
 }
 
@@ -151,14 +250,50 @@ function generateMarkId(state: ParserState): string {
 
 function addTokensFromText(text: string, state: ParserState): string[] {
   const ids: string[] = [];
+  const tracker = state.positionTracker;
+
   // Split by grapheme clusters (simplified: by character)
   for (const char of text) {
-    if (/\s/.test(char)) continue; // Skip whitespace
+    if (/\s/.test(char)) {
+      // Skip whitespace but update search offset if tracking
+      if (tracker) {
+        const pos = tracker.findText(char, state.currentSearchOffset);
+        if (pos !== -1) {
+          state.currentSearchOffset = pos + char.length;
+        }
+      }
+      continue;
+    }
+
     const id = generateTokenId(state);
     const token: Token = { id, text: char };
+
+    // Set blockId in ext if we're in a block
     if (state.currentBlockId) {
       token.ext = { blockId: state.currentBlockId };
     }
+
+    // Add position info if tracking is enabled
+    if (tracker) {
+      const charPos = tracker.findText(char, state.currentSearchOffset);
+      if (charPos !== -1) {
+        const startPos = tracker.offsetToPosition(charPos);
+        const endPos = tracker.offsetToPosition(charPos + char.length);
+
+        // Convert to byte offsets for the offset field
+        const startByteOffset = tracker.getByteOffset(charPos);
+        const endByteOffset = tracker.getByteOffset(charPos + char.length);
+
+        const position: TokenPosition = {
+          start: { ...startPos, offset: startByteOffset },
+          end: { ...endPos, offset: endByteOffset },
+        };
+
+        token.ext = { ...token.ext, position };
+        state.currentSearchOffset = charPos + char.length;
+      }
+    }
+
     state.tokens.push(token);
     ids.push(id);
   }
@@ -853,6 +988,8 @@ function resolveContentReferences(state: ParserState): void {
 export interface ParseOptions {
   /** Validate the resulting document (default: true) */
   validate?: boolean;
+  /** Enable position tracking in token.ext (default: false) */
+  trackPositions?: boolean;
 }
 
 /**
@@ -860,11 +997,16 @@ export interface ParseOptions {
  *
  * @param doc Parsed XML Document
  * @param options Parse options
+ * @param source Original XML source string (required for position tracking)
  * @returns SKAMDocument
  * @throws SKAMXMLParseError if parsing fails
  */
-export function parseFromDocument(doc: Document, options: ParseOptions = {}): SKAMDocument {
-  const { validate: _validate = true } = options;
+export function parseFromDocument(
+  doc: Document,
+  options: ParseOptions = {},
+  source?: string
+): SKAMDocument {
+  const { validate: _validate = true, trackPositions = false } = options;
 
   // Get root element
   const root = doc.documentElement;
@@ -882,8 +1024,8 @@ export function parseFromDocument(doc: Document, options: ParseOptions = {}): SK
     );
   }
 
-  // Initialize state
-  const state = createParserState();
+  // Initialize state (with source for position tracking if enabled)
+  const state = createParserState(trackPositions ? source : undefined);
 
   // Find and process main sections
   let hasBody = false;

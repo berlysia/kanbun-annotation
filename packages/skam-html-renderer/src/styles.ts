@@ -364,6 +364,7 @@ function generateCommonStyles(prefix: string, vp: string): string {
   font-size: 0.7em;
   vertical-align: super;
   color: inherit;
+  text-spacing-trim: trim-start;
 }
 
 :where(.${prefix}-notes) {

@@ -223,9 +223,9 @@ describe('parse - valid fixtures', () => {
       const emphasisMarks = doc.marks.filter((m) => m.type === 'emphasis');
       expect(emphasisMarks.length).toBeGreaterThanOrEqual(1);
 
-      // Check emphasis with kind
-      const withKind = emphasisMarks.find((m) => (m as { value?: string }).value === 'dot');
-      expect(withKind).toBeDefined();
+      // Check emphasis with style
+      const withStyle = emphasisMarks.find((m) => (m as { style?: string }).style === 'dot');
+      expect(withStyle).toBeDefined();
     });
   });
 
@@ -333,28 +333,28 @@ describe('parse - valid fixtures', () => {
     });
   });
 
-  describe('region-basic.xml', () => {
-    it('should parse region element', () => {
-      const xml = readFixture('valid', 'region-basic.xml');
+  describe('highlight-basic.xml', () => {
+    it('should parse highlight element', () => {
+      const xml = readFixture('valid', 'highlight-basic.xml');
       const doc = parse(xml);
 
-      const regionMarks = doc.marks.filter((m) => m.type === 'region');
-      expect(regionMarks).toHaveLength(1);
+      const highlightMarks = doc.marks.filter((m) => m.type === 'highlight');
+      expect(highlightMarks).toHaveLength(1);
 
-      const mark = regionMarks[0]!;
+      const mark = highlightMarks[0]!;
       expect(mark.anchor.from).not.toBe(mark.anchor.to);
     });
   });
 
-  describe('region-style.xml', () => {
-    it('should parse region with style attributes', () => {
-      const xml = readFixture('valid', 'region-style.xml');
+  describe('highlight-style.xml', () => {
+    it('should parse highlight with style attributes', () => {
+      const xml = readFixture('valid', 'highlight-style.xml');
       const doc = parse(xml);
 
-      const regionMarks = doc.marks.filter((m) => m.type === 'region');
-      expect(regionMarks.length).toBeGreaterThanOrEqual(5);
+      const highlightMarks = doc.marks.filter((m) => m.type === 'highlight');
+      expect(highlightMarks.length).toBeGreaterThanOrEqual(5);
 
-      const styles = regionMarks.map((m) => (m as { style?: string }).style);
+      const styles = highlightMarks.map((m) => (m as { style?: string }).style);
       expect(styles).toContain('solid');
       expect(styles).toContain('wavy');
       expect(styles).toContain('double');
@@ -393,22 +393,22 @@ describe('parse - valid fixtures', () => {
     });
   });
 
-  describe('region-ref-combined.xml', () => {
-    it('should parse region with ref reference', () => {
-      const xml = readFixture('valid', 'region-ref-combined.xml');
+  describe('highlight-ref-combined.xml', () => {
+    it('should parse highlight with ref reference', () => {
+      const xml = readFixture('valid', 'highlight-ref-combined.xml');
       const doc = parse(xml);
 
-      const regionMarks = doc.marks.filter((m) => m.type === 'region');
+      const highlightMarks = doc.marks.filter((m) => m.type === 'highlight');
       const refMarks = doc.marks.filter((m) => m.type === 'ref');
 
-      expect(regionMarks).toHaveLength(1);
+      expect(highlightMarks).toHaveLength(1);
       expect(refMarks).toHaveLength(1);
 
-      const region = regionMarks[0]!;
+      const highlight = highlightMarks[0]!;
       const ref = refMarks[0]!;
 
-      // ref has xml:id="ref-1", region has ref="ref-1"
-      expect((region as { ref?: string }).ref).toBe('ref-1');
+      // ref has xml:id="ref-1", highlight has ref="ref-1"
+      expect((highlight as { ref?: string }).ref).toBe('ref-1');
       expect(ref.id).toBe('ref-1');
       expect((ref as { format?: string }).format).toBe('alpha-upper');
     });
@@ -436,11 +436,11 @@ describe('parse - valid fixtures', () => {
       'readings.xml',
       'meta-tokenization.xml',
       'multiple-blocks.xml',
-      'region-basic.xml',
-      'region-style.xml',
+      'highlight-basic.xml',
+      'highlight-style.xml',
       'ref-label.xml',
       'ref-format.xml',
-      'region-ref-combined.xml',
+      'highlight-ref-combined.xml',
       'readme-example.xml',
     ];
 

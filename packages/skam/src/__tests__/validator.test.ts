@@ -72,7 +72,7 @@ describe('validateSKAMDocument', () => {
             shape: 'dot',
           },
           { type: 'tateten', anchor: { from: 't1', to: 't1' } },
-          { type: 'region', anchor: { from: 't1', to: 't1' } },
+          { type: 'highlight', anchor: { from: 't1', to: 't1' } },
           { type: 'ref', anchor: { from: 't1', to: 't1' }, label: '(A)' },
         ],
         readings: [],
@@ -82,11 +82,13 @@ describe('validateSKAMDocument', () => {
       expect(result.valid).toBe(true);
     });
 
-    it('should validate region with all optional fields', () => {
+    it('should validate highlight with all optional fields', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'region', anchor: { from: 't1', to: 't1' }, style: 'wavy', ref: 'ref-1' }],
+        marks: [
+          { type: 'highlight', anchor: { from: 't1', to: 't1' }, style: 'wavy', ref: 'ref-1' },
+        ],
         readings: [],
       };
 
@@ -149,13 +151,13 @@ describe('validateSKAMDocument', () => {
       expect(result.valid).toBe(true);
     });
 
-    it('should validate all region styles', () => {
-      const styles = ['none', 'solid', 'dotted', 'dashed', 'wavy', 'double'] as const;
+    it('should validate all highlight styles', () => {
+      const styles = ['solid', 'dotted', 'dashed', 'wavy', 'double'] as const;
       for (const style of styles) {
         const doc: SKAMDocument = {
           format: 'skam@0.1',
           tokens: [{ id: 't1', text: '學' }],
-          marks: [{ type: 'region', anchor: { from: 't1', to: 't1' }, style }],
+          marks: [{ type: 'highlight', anchor: { from: 't1', to: 't1' }, style }],
           readings: [],
         };
 
@@ -205,13 +207,13 @@ describe('validateSKAMDocument', () => {
       expect(result.valid).toBe(true);
     });
 
-    it('should validate emphasis with optional value', () => {
+    it('should validate emphasis with optional style', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
         marks: [
           { type: 'emphasis', anchor: { from: 't1', to: 't1' } },
-          { type: 'emphasis', anchor: { from: 't1', to: 't1' }, value: '﹅' },
+          { type: 'emphasis', anchor: { from: 't1', to: 't1' }, style: 'sesame' },
         ],
         readings: [],
       };
@@ -577,11 +579,11 @@ describe('validateSKAMDocument', () => {
       }
     });
 
-    it('should reject region with invalid style', () => {
+    it('should reject highlight with invalid style', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'region', anchor: { from: 't1', to: 't1' }, style: 'invalid' }],
+        marks: [{ type: 'highlight', anchor: { from: 't1', to: 't1' }, style: 'invalid' }],
         readings: [],
       };
 

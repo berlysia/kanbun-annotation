@@ -682,8 +682,8 @@ describe('getDefaultStyles', () => {
   });
 });
 
-describe('region', () => {
-  it('should render region mark', () => {
+describe('highlight', () => {
+  it('should render highlight mark', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
@@ -692,7 +692,7 @@ describe('region', () => {
       ],
       marks: [
         {
-          type: 'region',
+          type: 'highlight',
           anchor: { from: 't1', to: 't2' },
           style: 'solid',
         },
@@ -702,11 +702,11 @@ describe('region', () => {
 
     const result = render(doc);
 
-    expect(result.html).toContain('skam-region');
+    expect(result.html).toContain('skam-highlight');
     expect(result.html).toContain('data-style="solid"');
   });
 
-  it('should render region with wavy style', () => {
+  it('should render highlight with wavy style', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
@@ -715,7 +715,7 @@ describe('region', () => {
       ],
       marks: [
         {
-          type: 'region',
+          type: 'highlight',
           anchor: { from: 't1', to: 't2' },
           style: 'wavy',
         },
@@ -725,11 +725,11 @@ describe('region', () => {
 
     const result = render(doc);
 
-    expect(result.html).toContain('skam-region');
+    expect(result.html).toContain('skam-highlight');
     expect(result.html).toContain('data-style="wavy"');
   });
 
-  it('should not render region when profile.region is false', () => {
+  it('should not render highlight when profile.highlight is false', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
@@ -738,7 +738,7 @@ describe('region', () => {
       ],
       marks: [
         {
-          type: 'region',
+          type: 'highlight',
           anchor: { from: 't1', to: 't2' },
           style: 'solid',
         },
@@ -746,12 +746,12 @@ describe('region', () => {
       readings: [],
     };
 
-    const result = render(doc, { profile: { region: false } });
+    const result = render(doc, { profile: { highlight: false } });
 
-    expect(result.html).not.toContain('skam-region');
+    expect(result.html).not.toContain('skam-highlight');
   });
 
-  it('should render kutoten outside region span (at region end)', () => {
+  it('should render kutoten outside highlight span (at highlight end)', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
@@ -763,7 +763,7 @@ describe('region', () => {
       ],
       marks: [
         {
-          type: 'region',
+          type: 'highlight',
           anchor: { from: 't1', to: 't5' },
           style: 'solid',
         },
@@ -779,12 +779,12 @@ describe('region', () => {
     const result = render(doc);
 
     // 傍線spanの外に句読点が出力されることを確認
-    // 期待: <span class="...region...">...之...</span></span><span class="skam-kutoten">。</span>
-    // region spanが閉じた直後に kutoten spanが来る
+    // 期待: <span class="...highlight...">...之...</span></span><span class="skam-kutoten">。</span>
+    // highlight spanが閉じた直後に kutoten spanが来る
     expect(result.html).toMatch(/<\/span><\/span><span class="skam-kutoten">。<\/span>/);
   });
 
-  it('should keep kutoten inside region when not at region end', () => {
+  it('should keep kutoten inside highlight when not at highlight end', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
@@ -795,7 +795,7 @@ describe('region', () => {
       ],
       marks: [
         {
-          type: 'region',
+          type: 'highlight',
           anchor: { from: 't1', to: 't4' },
           style: 'solid',
         },
@@ -817,16 +817,16 @@ describe('region', () => {
 
     const result = render(doc);
 
-    // 中間のkutoten（「、」）はregion内に、終端のkutoten（「。」）はregion外に
-    // HTML構造: <span class="region">不<span class="kutoten">、</span>亦説乎</span><span class="kutoten">。</span>
+    // 中間のkutoten（「、」）はhighlight内に、終端のkutoten（「。」）はhighlight外に
+    // HTML構造: <span class="highlight">不<span class="kutoten">、</span>亦説乎</span><span class="kutoten">。</span>
     const html = result.html;
 
-    // region spanが閉じた後に「。」が来ることを確認
+    // highlight spanが閉じた後に「。」が来ることを確認
     expect(html).toMatch(/<\/span><span class="[^"]*skam-kutoten[^"]*">。<\/span>/);
 
-    // 「、」はregion span内にあることを確認
+    // 「、」はhighlight span内にあることを確認
     expect(html).toMatch(
-      /skam-region[^>]*>.*<span class="[^"]*skam-kutoten[^"]*">、<\/span>.*<\/span><span class="[^"]*skam-kutoten[^"]*">。/
+      /skam-highlight[^>]*>.*<span class="[^"]*skam-kutoten[^"]*">、<\/span>.*<\/span><span class="[^"]*skam-kutoten[^"]*">。/
     );
   });
 });
@@ -1017,7 +1017,7 @@ describe('PROFILES', () => {
     expect(PROFILES.full.okimoji).toBe(true);
     expect(PROFILES.full.joji).toBe(true);
     expect(PROFILES.full.soegana).toBe(true);
-    expect(PROFILES.full.region).toBe(true);
+    expect(PROFILES.full.highlight).toBe(true);
   });
 
   it('should have learningBasic profile with minimal elements', () => {
@@ -1025,7 +1025,7 @@ describe('PROFILES', () => {
     expect(PROFILES.learningBasic.okurigana).toBe(false);
     expect(PROFILES.learningBasic.kaeriten).toBe(true);
     expect(PROFILES.learningBasic.kutoten).toBe(true);
-    expect(PROFILES.learningBasic.region).toBe(true);
+    expect(PROFILES.learningBasic.highlight).toBe(true);
     expect(PROFILES.learningBasic.ref).toBe(true);
   });
 
@@ -1034,7 +1034,7 @@ describe('PROFILES', () => {
     expect(PROFILES.learningHint.okurigana).toBe(true);
     expect(PROFILES.learningHint.kaeriten).toBe(true);
     expect(PROFILES.learningHint.soegana).toBe(true);
-    expect(PROFILES.learningHint.region).toBe(true);
+    expect(PROFILES.learningHint.highlight).toBe(true);
     expect(PROFILES.learningHint.ref).toBe(true);
   });
 });
@@ -1519,7 +1519,7 @@ describe(':where() specificity', () => {
 
   it('should wrap attribute selectors with :where()', () => {
     const css = getDefaultStyles({ useLayer: false });
-    expect(css).toContain(':where(.skam-region[data-style="dotted"])');
+    expect(css).toContain(':where(.skam-highlight[data-style="dotted"])');
     expect(css).toContain(':where(.skam-okototen[data-shape="dot"])');
   });
 

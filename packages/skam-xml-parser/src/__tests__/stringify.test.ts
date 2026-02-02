@@ -13,7 +13,7 @@ import type {
   SaidokuMark,
   EmphasisMark,
   TatetenMark,
-  RegionMark,
+  HighlightMark,
   RefMark,
 } from '@kanbun/skam';
 
@@ -599,7 +599,7 @@ describe('stringify - emphasis', () => {
     expect(xml).toContain('<skam:span type="emphasis">學而</skam:span>時');
   });
 
-  it('should stringify emphasis with kind', () => {
+  it('should stringify emphasis with style', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
@@ -608,7 +608,7 @@ describe('stringify - emphasis', () => {
           type: 'emphasis',
           id: 'm1',
           anchor: { from: 't1', to: 't1' },
-          value: 'dot',
+          style: 'dot',
         } as EmphasisMark,
       ],
       readings: [],
@@ -617,7 +617,7 @@ describe('stringify - emphasis', () => {
     const xml = stringify(doc);
 
     expect(xml).toContain('type="emphasis"');
-    expect(xml).toContain('kind="dot"');
+    expect(xml).toContain('style="dot"');
   });
 });
 
@@ -651,11 +651,11 @@ describe('stringify - tateten', () => {
 });
 
 // ============================================================================
-// Region Tests
+// Highlight Tests
 // ============================================================================
 
-describe('stringify - region', () => {
-  it('should stringify region', () => {
+describe('stringify - highlight', () => {
+  it('should stringify highlight', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
@@ -665,21 +665,21 @@ describe('stringify - region', () => {
       ],
       marks: [
         {
-          type: 'region',
+          type: 'highlight',
           id: 'm1',
           anchor: { from: 't1', to: 't2' },
           style: 'solid',
-        } as RegionMark,
+        } as HighlightMark,
       ],
       readings: [],
     };
 
     const xml = stringify(doc);
 
-    expect(xml).toContain('<skam:region style="solid">學而</skam:region>時');
+    expect(xml).toContain('<skam:span type="highlight" style="solid">學而</skam:span>時');
   });
 
-  it('should stringify region with ref', () => {
+  it('should stringify highlight with ref', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
@@ -688,18 +688,19 @@ describe('stringify - region', () => {
       ],
       marks: [
         {
-          type: 'region',
+          type: 'highlight',
           id: 'm1',
           anchor: { from: 't1', to: 't2' },
           style: 'solid',
           ref: 'ref-1',
-        } as RegionMark,
+        } as HighlightMark,
       ],
       readings: [],
     };
 
     const xml = stringify(doc);
 
+    expect(xml).toContain('type="highlight"');
     expect(xml).toContain('style="solid"');
     expect(xml).toContain('ref="ref-1"');
   });
@@ -841,7 +842,7 @@ describe('stringify - round-trip (new marks)', () => {
     expect(emphasis!.anchor.from).not.toBe(emphasis!.anchor.to);
   });
 
-  it('should round-trip region', () => {
+  it('should round-trip highlight', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
@@ -850,11 +851,11 @@ describe('stringify - round-trip (new marks)', () => {
       ],
       marks: [
         {
-          type: 'region',
+          type: 'highlight',
           id: 'm1',
           anchor: { from: 't1', to: 't2' },
           style: 'solid',
-        } as RegionMark,
+        } as HighlightMark,
       ],
       readings: [],
     };
@@ -862,9 +863,9 @@ describe('stringify - round-trip (new marks)', () => {
     const xml = stringify(originalDoc);
     const reparsedDoc = parse(xml);
 
-    const region = reparsedDoc.marks.find((m) => m.type === 'region');
-    expect(region).toBeDefined();
-    expect((region as RegionMark).style).toBe('solid');
+    const highlight = reparsedDoc.marks.find((m) => m.type === 'highlight');
+    expect(highlight).toBeDefined();
+    expect((highlight as HighlightMark).style).toBe('solid');
   });
 
   it('should round-trip tateten', () => {

@@ -17,7 +17,7 @@ import type {
   GlyphGridCoord,
   SaidokuForm,
   RefFormat,
-  RegionStyle,
+  HighlightStyle,
 } from './index.js';
 import {
   type ValidationError,
@@ -40,11 +40,11 @@ const VALID_MARK_TYPES: MarkType[] = [
   'saidoku',
   'okototen',
   'tateten',
-  'region',
+  'highlight',
   'ref',
 ];
 
-const VALID_REGION_STYLES: RegionStyle[] = ['none', 'solid', 'dotted', 'dashed', 'wavy', 'double'];
+const VALID_HIGHLIGHT_STYLES: HighlightStyle[] = ['solid', 'dotted', 'dashed', 'wavy', 'double'];
 const VALID_REF_FORMATS: RefFormat[] = [
   'alpha-upper',
   'alpha-lower',
@@ -399,15 +399,15 @@ function validateMark(mark: unknown, index: number, errors: ValidationError[]): 
         break;
 
       case 'emphasis':
-        // value is optional
-        if ('value' in mark && mark['value'] !== undefined && !isString(mark['value'])) {
+        // style is optional; CSS text-emphasis-style value (string)
+        if ('style' in mark && mark['style'] !== undefined && !isString(mark['style'])) {
           errors.push(
             createValidationError(
               'INVALID_TYPE',
-              `${path}.value`,
-              'emphasis value must be a string if provided',
+              `${path}.style`,
+              'emphasis style must be a string if provided',
               'string',
-              typeof mark['value']
+              typeof mark['style']
             )
           );
           valid = false;
@@ -457,16 +457,16 @@ function validateMark(mark: unknown, index: number, errors: ValidationError[]): 
         // No additional required fields
         break;
 
-      case 'region':
+      case 'highlight':
         // style is optional but must be valid if present
         if ('style' in mark && mark['style'] !== undefined) {
-          if (!VALID_REGION_STYLES.includes(mark['style'] as RegionStyle)) {
+          if (!VALID_HIGHLIGHT_STYLES.includes(mark['style'] as HighlightStyle)) {
             errors.push(
               createValidationError(
                 'INVALID_VALUE',
                 `${path}.style`,
-                `region style must be one of: ${VALID_REGION_STYLES.join(', ')}`,
-                VALID_REGION_STYLES.join('|'),
+                `highlight style must be one of: ${VALID_HIGHLIGHT_STYLES.join(', ')}`,
+                VALID_HIGHLIGHT_STYLES.join('|'),
                 mark['style']
               )
             );

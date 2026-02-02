@@ -3,7 +3,7 @@
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      <skam:span type="emphasis" kind="dot">學而時</skam:span>習之
+      <skam:span type="emphasis" style="dot">學而時</skam:span>習之
     </skam:block>
     <skam:block>
       不亦<skam:span type="emphasis">説</skam:span>乎

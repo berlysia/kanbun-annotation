@@ -19,7 +19,7 @@ import type {
   SaidokuMark,
   OkototenMark,
   TatetenMark,
-  RegionMark,
+  HighlightMark,
   RefMark,
   RefFormat,
   Reading,
@@ -45,7 +45,7 @@ export interface RenderProfile {
   okimoji: boolean;
   joji: boolean;
   soegana: boolean;
-  region: boolean;
+  highlight: boolean;
   ref: boolean;
 }
 
@@ -104,7 +104,7 @@ export interface RenderResult {
 interface TokenRenderResult {
   /** Token本体のHTML（kutoten除く） */
   html: string;
-  /** 句読点のHTML（region終端で外に出す用） */
+  /** 句読点のHTML（highlight終端で外に出す用） */
   kutotenHtml: string;
 }
 
@@ -173,7 +173,7 @@ const FULL_PROFILE: RenderProfile = {
   okimoji: true,
   joji: true,
   soegana: true,
-  region: true,
+  highlight: true,
   ref: true,
 };
 
@@ -190,7 +190,7 @@ const LEARNING_BASIC_PROFILE: RenderProfile = {
   okimoji: true,
   joji: true,
   soegana: false,
-  region: true,
+  highlight: true,
   ref: true,
 };
 
@@ -207,7 +207,7 @@ const LEARNING_HINT_PROFILE: RenderProfile = {
   okimoji: true,
   joji: true,
   soegana: true,
-  region: true,
+  highlight: true,
   ref: true,
 };
 
@@ -607,21 +607,21 @@ function resolveRefValues(tokens: Token[], marks: Mark[]): Map<RefMark, string> 
 }
 
 /**
- * Region Markの範囲に含まれるTokenを特定
+ * Highlight Markの範囲に含まれるTokenを特定
  */
-function getRegionGroups(tokens: Token[], marks: Mark[]): Map<string, RegionMark> {
-  const regionMarks = marks.filter((m): m is RegionMark => m.type === 'region');
-  const tokenIdToGroup = new Map<string, RegionMark>();
+function getHighlightGroups(tokens: Token[], marks: Mark[]): Map<string, HighlightMark> {
+  const highlightMarks = marks.filter((m): m is HighlightMark => m.type === 'highlight');
+  const tokenIdToGroup = new Map<string, HighlightMark>();
 
-  for (const region of regionMarks) {
-    const fromIndex = tokens.findIndex((t) => t.id === region.anchor.from);
-    const toIndex = tokens.findIndex((t) => t.id === region.anchor.to);
+  for (const highlight of highlightMarks) {
+    const fromIndex = tokens.findIndex((t) => t.id === highlight.anchor.from);
+    const toIndex = tokens.findIndex((t) => t.id === highlight.anchor.to);
 
     if (fromIndex !== -1 && toIndex !== -1) {
       for (let i = fromIndex; i <= toIndex; i++) {
         const token = tokens[i];
         if (token) {
-          tokenIdToGroup.set(token.id, region);
+          tokenIdToGroup.set(token.id, highlight);
         }
       }
     }
@@ -791,7 +791,7 @@ function renderToken(
   ctx: Omit<TokenRenderContext, 'tokenMarks'>,
   rangeCtx?: RangeMarkContext,
   refValueMap?: Map<RefMark, string>,
-  regionRefIds?: Set<string>
+  highlightRefIds?: Set<string>
 ): TokenRenderResult {
   const { prefix, profile } = ctx;
   const tokenMarks = getMarksForToken(token.id, marks);
@@ -948,7 +948,7 @@ function renderToken(
     const allRefMarks = [...refMarks, ...(rangeCtx?.trailingRefMarks ?? [])];
     if (allRefMarks.length > 0) {
       refHtml = allRefMarks
-        .filter((m) => !regionRefIds || !m.id || !regionRefIds.has(m.id))
+        .filter((m) => !highlightRefIds || !m.id || !highlightRefIds.has(m.id))
         .map((m) => {
           const refText = refValueMap.get(m) ?? '';
           if (refText) {
@@ -969,17 +969,15 @@ function renderToken(
   // data-token-id属性（interactiveモードの場合のみ）
   const tokenIdAttr = ctx.interactive ? ` data-token-id="${escapeHtml(token.id)}"` : '';
 
-  // data-emphasis-style属性（傍点種類がある場合）
-  let emphasisStyleAttr = '';
+  // 傍点スタイル（インラインスタイル、デフォルト: filled dot）
+  let emphasisInlineStyle = '';
   if (hasEmphasis) {
-    const emphasisValue = emphasisMarks[0]?.value;
-    if (emphasisValue) {
-      emphasisStyleAttr = ` data-emphasis-style="${escapeHtml(emphasisValue)}"`;
-    }
+    const emphasisStyle = emphasisMarks[0]?.style ?? 'filled dot';
+    emphasisInlineStyle = ` style="text-emphasis-style: ${escapeHtml(emphasisStyle)};"`;
   }
 
   return {
-    html: `<span class="${classes.join(' ')}"${tokenIdAttr}${emphasisStyleAttr}>${baseHtml}${okototenHtml}${suffixRowHtml}</span>${refHtml}`,
+    html: `<span class="${classes.join(' ')}"${tokenIdAttr}${emphasisInlineStyle}>${baseHtml}${okototenHtml}${suffixRowHtml}</span>${refHtml}`,
     kutotenHtml: kutoten,
   };
 }
@@ -1085,16 +1083,16 @@ function renderDisplayLayer(
   // たて点グループを特定
   const tatetenGroups = getTatetenGroups(tokens, marks);
 
-  // 領域グループを特定
-  const regionGroups = profile.region ? getRegionGroups(tokens, marks) : new Map();
+  // 傍線グループを特定
+  const highlightGroups = profile.highlight ? getHighlightGroups(tokens, marks) : new Map();
 
-  // regionから参照されているrefのIDを収集（renderToken内でスキップ用）
-  const regionRefIds = new Set<string>();
-  if (profile.region) {
-    const regionMarks = marks.filter((m): m is RegionMark => m.type === 'region');
-    for (const region of regionMarks) {
-      if (region.ref) {
-        regionRefIds.add(region.ref);
+  // highlightから参照されているrefのIDを収集（renderToken内でスキップ用）
+  const highlightRefIds = new Set<string>();
+  if (profile.highlight) {
+    const highlightMarks = marks.filter((m): m is HighlightMark => m.type === 'highlight');
+    for (const highlight of highlightMarks) {
+      if (highlight.ref) {
+        highlightRefIds.add(highlight.ref);
       }
     }
   }
@@ -1114,12 +1112,12 @@ function renderDisplayLayer(
     ? getRangeMarkGroups(tokens, marks, 'soegana')
     : new Map();
 
-  // regionのrefを解決して表示用テキストを取得するヘルパー
-  const getRefTextForRegion = (region: RegionMark): string => {
-    if (!profile.ref || !region.ref) return '';
+  // highlightのrefを解決して表示用テキストを取得するヘルパー
+  const getRefTextForHighlight = (highlight: HighlightMark): string => {
+    if (!profile.ref || !highlight.ref) return '';
 
-    // region.ref は RefMark の id を参照
-    const refMark = marks.find((m): m is RefMark => m.type === 'ref' && m.id === region.ref);
+    // highlight.ref は RefMark の id を参照
+    const refMark = marks.find((m): m is RefMark => m.type === 'ref' && m.id === highlight.ref);
     if (refMark) {
       const refText = refValueMap.get(refMark) ?? '';
       if (refText) {
@@ -1141,10 +1139,10 @@ function renderDisplayLayer(
     const blockTokens = blockGroup.tokens;
     const renderedTokens: string[] = [];
     let currentTatetenGroup: TatetenMark | undefined;
-    let currentRegionGroup: RegionMark | undefined;
+    let currentHighlightGroup: HighlightMark | undefined;
     let groupTokens: string[] = [];
-    let regionTokens: string[] = [];
-    let pendingRegionKutoten = ''; // region終端のkutoten（region spanの外に出す）
+    let highlightTokens: string[] = [];
+    let pendingHighlightKutoten = ''; // highlight終端のkutoten（highlight spanの外に出す）
 
     // 処理済みトークンを追跡（範囲グループのスキップ用）
     const processedTokenIds = new Set<string>();
@@ -1158,7 +1156,7 @@ function renderDisplayLayer(
       }
 
       const tokenGroup = tatetenGroups.get(token.id);
-      const regionGroup = regionGroups.get(token.id);
+      const highlightGroup = highlightGroups.get(token.id);
 
       // 範囲グループのチェック
       const yomiganaGroup = yomiganaRangeGroups.get(token.id);
@@ -1293,94 +1291,94 @@ function renderDisplayLayer(
         };
       }
 
-      const tokenResult = renderToken(token, marks, ctx, rangeCtx, refValueMap, regionRefIds);
+      const tokenResult = renderToken(token, marks, ctx, rangeCtx, refValueMap, highlightRefIds);
 
-      // region グループ処理
-      if (profile.region && regionGroup) {
-        if (currentRegionGroup !== regionGroup) {
-          // 新しい region グループ開始（前のグループがあれば閉じる）
-          if (currentRegionGroup && regionTokens.length > 0) {
+      // highlight グループ処理
+      if (profile.highlight && highlightGroup) {
+        if (currentHighlightGroup !== highlightGroup) {
+          // 新しい highlight グループ開始（前のグループがあれば閉じる）
+          if (currentHighlightGroup && highlightTokens.length > 0) {
             // たて点グループも閉じる
             if (currentTatetenGroup && groupTokens.length > 0) {
-              regionTokens.push(
+              highlightTokens.push(
                 `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
               );
               groupTokens = [];
               currentTatetenGroup = undefined;
             }
-            const style = currentRegionGroup.style ?? 'none';
-            const refHtml = getRefTextForRegion(currentRegionGroup);
-            const styleClass = style !== 'none' ? ` ${prefix}-region--${style}` : '';
+            const style = currentHighlightGroup.style ?? 'solid';
+            const refHtml = getRefTextForHighlight(currentHighlightGroup);
+            const styleClass = ` ${prefix}-highlight--${style}`;
             renderedTokens.push(
-              `<span class="${prefix}-region${styleClass}" data-style="${style}">${regionTokens.join('')}${refHtml}</span>${pendingRegionKutoten}`
+              `<span class="${prefix}-highlight${styleClass}" data-style="${style}">${highlightTokens.join('')}${refHtml}</span>${pendingHighlightKutoten}`
             );
-            regionTokens = [];
-            pendingRegionKutoten = '';
+            highlightTokens = [];
+            pendingHighlightKutoten = '';
           }
-          currentRegionGroup = regionGroup;
+          currentHighlightGroup = highlightGroup;
         }
 
-        // 次のtokenが同じregion内かどうかを判定（region終端のkutotenを外に出すため）
+        // 次のtokenが同じhighlight内かどうかを判定（highlight終端のkutotenを外に出すため）
         const nextToken = blockTokens[i + 1];
-        const nextRegionGroup = nextToken ? regionGroups.get(nextToken.id) : undefined;
-        const isLastInRegion = nextRegionGroup !== regionGroup;
+        const nextHighlightGroup = nextToken ? highlightGroups.get(nextToken.id) : undefined;
+        const isLastInHighlight = nextHighlightGroup !== highlightGroup;
 
-        // region 内のトークンを蓄積する HTML を決定
+        // highlight 内のトークンを蓄積する HTML を決定
         // 終端token以外はkutotenを含める、終端tokenのkutotenは外に出す
-        const tokenHtmlForRegion = isLastInRegion
+        const tokenHtmlForHighlight = isLastInHighlight
           ? tokenResult.html
           : tokenResult.html + tokenResult.kutotenHtml;
 
-        if (isLastInRegion) {
-          // region終端のkutotenを保存（region spanの外に出す）
-          pendingRegionKutoten = tokenResult.kutotenHtml;
+        if (isLastInHighlight) {
+          // highlight終端のkutotenを保存（highlight spanの外に出す）
+          pendingHighlightKutoten = tokenResult.kutotenHtml;
         }
 
-        // region グループ内のトークンを蓄積（たて点処理も考慮）
+        // highlight グループ内のトークンを蓄積（たて点処理も考慮）
         if (profile.tateten && tokenGroup) {
           if (currentTatetenGroup !== tokenGroup) {
             if (currentTatetenGroup && groupTokens.length > 0) {
-              regionTokens.push(
+              highlightTokens.push(
                 `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
               );
               groupTokens = [];
             }
             currentTatetenGroup = tokenGroup;
           }
-          groupTokens.push(tokenHtmlForRegion);
+          groupTokens.push(tokenHtmlForHighlight);
         } else {
           if (currentTatetenGroup && groupTokens.length > 0) {
-            regionTokens.push(
+            highlightTokens.push(
               `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
             );
             groupTokens = [];
             currentTatetenGroup = undefined;
           }
-          regionTokens.push(tokenHtmlForRegion);
+          highlightTokens.push(tokenHtmlForHighlight);
         }
       } else {
-        // region グループ外
+        // highlight グループ外
         const tokenHtml = tokenResult.html + tokenResult.kutotenHtml;
 
-        // 前の region グループを閉じる
-        if (currentRegionGroup && regionTokens.length > 0) {
+        // 前の highlight グループを閉じる
+        if (currentHighlightGroup && highlightTokens.length > 0) {
           // たて点グループも閉じる
           if (currentTatetenGroup && groupTokens.length > 0) {
-            regionTokens.push(
+            highlightTokens.push(
               `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
             );
             groupTokens = [];
             currentTatetenGroup = undefined;
           }
-          const style = currentRegionGroup.style ?? 'none';
-          const refHtml = getRefTextForRegion(currentRegionGroup);
-          const styleClass = style !== 'none' ? ` ${prefix}-region--${style}` : '';
+          const style = currentHighlightGroup.style ?? 'solid';
+          const refHtml = getRefTextForHighlight(currentHighlightGroup);
+          const styleClass = ` ${prefix}-highlight--${style}`;
           renderedTokens.push(
-            `<span class="${prefix}-region${styleClass}" data-style="${style}">${regionTokens.join('')}${refHtml}</span>${pendingRegionKutoten}`
+            `<span class="${prefix}-highlight${styleClass}" data-style="${style}">${highlightTokens.join('')}${refHtml}</span>${pendingHighlightKutoten}`
           );
-          regionTokens = [];
-          pendingRegionKutoten = '';
-          currentRegionGroup = undefined;
+          highlightTokens = [];
+          pendingHighlightKutoten = '';
+          currentHighlightGroup = undefined;
         }
 
         // たて点グループ処理
@@ -1410,8 +1408,8 @@ function renderDisplayLayer(
 
     // 最後のグループを閉じる
     if (currentTatetenGroup && groupTokens.length > 0) {
-      if (currentRegionGroup) {
-        regionTokens.push(
+      if (currentHighlightGroup) {
+        highlightTokens.push(
           `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
         );
       } else {
@@ -1421,12 +1419,12 @@ function renderDisplayLayer(
       }
     }
 
-    if (currentRegionGroup && regionTokens.length > 0) {
-      const style = currentRegionGroup.style ?? 'none';
-      const refHtml = getRefTextForRegion(currentRegionGroup);
-      const styleClass = style !== 'none' ? ` ${prefix}-region--${style}` : '';
+    if (currentHighlightGroup && highlightTokens.length > 0) {
+      const style = currentHighlightGroup.style ?? 'solid';
+      const refHtml = getRefTextForHighlight(currentHighlightGroup);
+      const styleClass = ` ${prefix}-highlight--${style}`;
       renderedTokens.push(
-        `<span class="${prefix}-region${styleClass}" data-style="${style}">${regionTokens.join('')}${refHtml}</span>${pendingRegionKutoten}`
+        `<span class="${prefix}-highlight${styleClass}" data-style="${style}">${highlightTokens.join('')}${refHtml}</span>${pendingHighlightKutoten}`
       );
     }
 

@@ -157,13 +157,28 @@ let currentTatetenMarkId: string | null = null;
 // - string: mark ID of existing emphasis that matches selection range
 let currentEmphasisMarkId: string | null = null;
 
-// Selected emphasis style
-type EmphasisStyle = 'sesame' | 'open-sesame' | 'circle' | 'open-circle' | 'dot' | 'open-dot';
-let currentEmphasisStyle: EmphasisStyle = 'sesame';
+// Selected emphasis style (CSS text-emphasis-style values)
+type EmphasisStyle =
+  | 'dot'
+  | 'circle'
+  | 'double-circle'
+  | 'triangle'
+  | 'sesame'
+  | 'filled dot'
+  | 'filled circle'
+  | 'filled double-circle'
+  | 'filled triangle'
+  | 'filled sesame'
+  | 'open dot'
+  | 'open circle'
+  | 'open double-circle'
+  | 'open triangle'
+  | 'open sesame';
+let currentEmphasisStyle: EmphasisStyle = 'filled dot'; // CSS default
 
-// Current underline/region (傍線) state
+// Current underline/highlight (傍線) state
 // - null: no underline for current selection
-// - string: mark ID of existing region that matches selection range
+// - string: mark ID of existing highlight that matches selection range
 let currentUnderlineMarkId: string | null = null;
 
 // Selected underline style
@@ -497,9 +512,9 @@ function findEmphasisForSelection(
 }
 
 /**
- * Find a region (underline) mark that exactly matches the given selection range
+ * Find a highlight (underline) mark that exactly matches the given selection range
  */
-function findRegionForSelection(
+function findHighlightForSelection(
   doc: SKAMDocument,
   fromId: string,
   toId: string
@@ -521,7 +536,7 @@ function findRegionForSelection(
   const selEndId = tokens[selEndIndex]?.id;
 
   for (const mark of doc.marks) {
-    if (mark.type !== 'region') continue;
+    if (mark.type !== 'highlight') continue;
     if (!mark.id) continue;
 
     const markFromIndex = tokens.findIndex((t) => t.id === mark.anchor.from);
@@ -537,7 +552,7 @@ function findRegionForSelection(
     const markStartId = markStartToken.id;
     const markEndId = markEndToken.id;
 
-    // Check if selection exactly matches region range
+    // Check if selection exactly matches highlight range
     if (selStartId === markStartId && selEndId === markEndId) {
       // Extract style and ref from the mark
       const style = 'style' in mark ? (mark.style as UnderlineStyle | undefined) : undefined;
@@ -610,14 +625,18 @@ function updateSelectionPanel(fromId: string, toId: string): void {
     currentEmphasisStyle = emphasisInfo.style as EmphasisStyle;
   }
 
-  // Determine underline/region state
-  const regionInfo = findRegionForSelection(currentDocument, normalizedFromId, normalizedToId);
-  currentUnderlineMarkId = regionInfo?.markId ?? null;
-  // If existing region found, use its style, ref and format; otherwise reset to defaults
-  if (regionInfo) {
-    currentUnderlineStyle = regionInfo.style ?? 'solid';
-    currentUnderlineRef = regionInfo.ref ?? '';
-    currentUnderlineFormat = regionInfo.refFormat ?? '';
+  // Determine underline/highlight state
+  const highlightInfo = findHighlightForSelection(
+    currentDocument,
+    normalizedFromId,
+    normalizedToId
+  );
+  currentUnderlineMarkId = highlightInfo?.markId ?? null;
+  // If existing highlight found, use its style, ref and format; otherwise reset to defaults
+  if (highlightInfo) {
+    currentUnderlineStyle = highlightInfo.style ?? 'solid';
+    currentUnderlineRef = highlightInfo.ref ?? '';
+    currentUnderlineFormat = highlightInfo.refFormat ?? '';
   } else {
     currentUnderlineStyle = 'solid';
     currentUnderlineRef = '';
@@ -964,7 +983,7 @@ function handleEmphasisToggle(): void {
     // Add new emphasis with current style
     newDoc = addMark(newDoc, {
       type: 'emphasis',
-      value: currentEmphasisStyle,
+      style: currentEmphasisStyle,
       anchor: { from: normalizedFromId, to: normalizedToId },
     });
   }
@@ -1008,7 +1027,7 @@ function updateExistingEmphasis(): void {
   // Add new emphasis with current style
   newDoc = addMark(newDoc, {
     type: 'emphasis',
-    value: currentEmphasisStyle,
+    style: currentEmphasisStyle,
     anchor: { from: normalizedFromId, to: normalizedToId },
   });
 
@@ -1085,9 +1104,9 @@ function updateExistingUnderline(): void {
   const normalizedToId = tokens[endIndex]!.id;
 
   // Remove existing underline and associated ref mark
-  const regionInfo = findRegionForSelection(newDoc, normalizedFromId, normalizedToId);
-  if (regionInfo?.refMarkId) {
-    newDoc = removeMark(newDoc, regionInfo.refMarkId);
+  const highlightInfo = findHighlightForSelection(newDoc, normalizedFromId, normalizedToId);
+  if (highlightInfo?.refMarkId) {
+    newDoc = removeMark(newDoc, highlightInfo.refMarkId);
   }
   newDoc = removeMark(newDoc, currentUnderlineMarkId);
 
@@ -1127,20 +1146,20 @@ function updateExistingUnderline(): void {
     refId = refInputValue;
   }
 
-  const regionMark: {
-    type: 'region';
+  const highlightMark: {
+    type: 'highlight';
     style: UnderlineStyle;
     anchor: { from: string; to: string };
     ref?: string;
   } = {
-    type: 'region',
+    type: 'highlight',
     style: currentUnderlineStyle,
     anchor: { from: normalizedFromId, to: normalizedToId },
   };
   if (refId) {
-    regionMark.ref = refId;
+    highlightMark.ref = refId;
   }
-  newDoc = addMark(newDoc, regionMark);
+  newDoc = addMark(newDoc, highlightMark);
 
   updateXmlFromDocument(newDoc);
 
@@ -1168,7 +1187,7 @@ function generateRefId(doc: SKAMDocument): string {
 }
 
 /**
- * Handle underline button click - add or remove underline (region)
+ * Handle underline button click - add or remove underline (highlight)
  */
 function handleUnderlineToggle(): void {
   if (!currentDocument || !currentSelectionFromId || !currentSelectionToId) return;
@@ -1188,13 +1207,13 @@ function handleUnderlineToggle(): void {
 
   if (currentUnderlineMarkId) {
     // Remove existing underline and associated ref mark
-    const regionInfo = findRegionForSelection(newDoc, normalizedFromId, normalizedToId);
-    if (regionInfo?.refMarkId) {
-      newDoc = removeMark(newDoc, regionInfo.refMarkId);
+    const highlightInfo = findHighlightForSelection(newDoc, normalizedFromId, normalizedToId);
+    if (highlightInfo?.refMarkId) {
+      newDoc = removeMark(newDoc, highlightInfo.refMarkId);
     }
     newDoc = removeMark(newDoc, currentUnderlineMarkId);
   } else {
-    // Add new underline (region with selected style and optional ref)
+    // Add new underline (highlight with selected style and optional ref)
     const refInputValue = selectionUnderlineRefInput.value.trim();
     const formatValue = selectionUnderlineFormatSelect.value as RefFormat | '';
 
@@ -1232,20 +1251,20 @@ function handleUnderlineToggle(): void {
       refId = refInputValue;
     }
 
-    const regionMark: {
-      type: 'region';
+    const highlightMark: {
+      type: 'highlight';
       style: UnderlineStyle;
       anchor: { from: string; to: string };
       ref?: string;
     } = {
-      type: 'region',
+      type: 'highlight',
       style: currentUnderlineStyle,
       anchor: { from: normalizedFromId, to: normalizedToId },
     };
     if (refId) {
-      regionMark.ref = refId;
+      highlightMark.ref = refId;
     }
-    newDoc = addMark(newDoc, regionMark);
+    newDoc = addMark(newDoc, highlightMark);
   }
 
   updateXmlFromDocument(newDoc);
@@ -1365,7 +1384,7 @@ function clearSelectionPanel(): void {
   selectionTatetenBtn.classList.remove('active');
   selectionEmphasisBtn.textContent = '傍点をつける';
   selectionEmphasisBtn.classList.remove('active');
-  currentEmphasisStyle = 'sesame';
+  currentEmphasisStyle = 'filled dot';
   updateEmphasisStyleButtons();
   selectionUnderlineBtn.textContent = '傍線を引く';
   selectionUnderlineBtn.classList.remove('active');
@@ -1396,7 +1415,7 @@ function getMarkTypeLabel(type: string): string {
     okototen: 'ヲコト点',
     tateten: 'たて点',
     emphasis: '傍点',
-    region: '傍線',
+    highlight: '傍線',
     ref: '参照',
     note: '注釈',
   };

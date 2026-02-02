@@ -95,7 +95,7 @@ export type MarkType =
   | 'saidoku'
   | 'okototen'
   | 'tateten'
-  | 'region'
+  | 'highlight'
   | 'ref';
 
 /**
@@ -169,11 +169,38 @@ export interface KutotenMark extends BaseMark {
   kind?: 'ku' | 'ten' | 'other';
 }
 
-/** 傍点・圏点 */
+/**
+ * 傍点の形状（CSS text-emphasis-style 準拠、キーワード値）
+ *
+ * 形状キーワード: dot, circle, double-circle, triangle, sesame
+ * 修飾子なしの場合は filled がデフォルト
+ */
+export type EmphasisShape = 'dot' | 'circle' | 'double-circle' | 'triangle' | 'sesame';
+
+/**
+ * 傍点スタイル（CSS text-emphasis-style 準拠）
+ *
+ * CSS text-emphasis-style の値をそのまま使用可能:
+ * - 形状キーワード: dot, circle, double-circle, triangle, sesame
+ * - 修飾子付き: filled/open + 形状（例: 'filled sesame', 'open circle'）
+ * - カスタム文字列: 任意の1文字（例: '★', '○'）
+ *
+ * デフォルト値（style 省略時）: 'filled dot'
+ */
+export type EmphasisStyle =
+  | EmphasisShape
+  | `filled ${EmphasisShape}`
+  | `open ${EmphasisShape}`
+  | (string & {}); // カスタム文字列も許可
+
+/** 傍点・圏点（後世の記述） */
 export interface EmphasisMark extends BaseMark {
   type: 'emphasis';
-  /** 傍点の種類（任意） */
-  value?: string;
+  /**
+   * 傍点スタイル（CSS text-emphasis-style 準拠）
+   * 省略時のデフォルト: 'filled dot'
+   */
+  style?: EmphasisStyle;
 }
 
 /** 参照フォーマット（RefFormat） */
@@ -189,14 +216,14 @@ export type RefFormat =
   | 'gojuon-hiragana'
   | 'kanji-numeric';
 
-/** 領域スタイル */
-export type RegionStyle = 'none' | 'solid' | 'dotted' | 'dashed' | 'wavy' | 'double';
+/** 傍線スタイル（CSS text-decoration-style 準拠） */
+export type HighlightStyle = 'solid' | 'dotted' | 'dashed' | 'wavy' | 'double';
 
-/** 領域指定（傍線部等、refを参照） */
-export interface RegionMark extends BaseMark {
-  type: 'region';
-  /** 傍線スタイル（省略または 'none' で不可視） */
-  style?: RegionStyle;
+/** 傍線・ハイライト（後世の記述、refを参照） */
+export interface HighlightMark extends BaseMark {
+  type: 'highlight';
+  /** 傍線スタイル（CSS text-decoration-style 準拠、省略時は solid） */
+  style?: HighlightStyle;
   /** 参照する ref の識別子 */
   ref?: string;
 }
@@ -265,7 +292,7 @@ export type Mark =
   | SaidokuMark
   | OkototenMark
   | TatetenMark
-  | RegionMark
+  | HighlightMark
   | RefMark;
 
 // ============================================================================

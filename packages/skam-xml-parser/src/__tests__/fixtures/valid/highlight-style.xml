@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1">
+  <skam:body>
+    <skam:block>
+      <skam:span type="highlight" style="solid">実線</skam:span>
+      <skam:span type="highlight" style="wavy">波線</skam:span>
+      <skam:span type="highlight" style="double">二重線</skam:span>
+      <skam:span type="highlight" style="dotted">点線</skam:span>
+      <skam:span type="highlight" style="dashed">破線</skam:span>
+    </skam:block>
+  </skam:body>
+</skam:doc>

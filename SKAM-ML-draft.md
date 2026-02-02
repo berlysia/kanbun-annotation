@@ -358,16 +358,58 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 
 ### 7.10 `skam:span`（範囲注記）
 
+傍点・圏点（emphasis）や傍線（highlight）など、後世に付加される視覚的注記を表す汎用要素。
+
+※ 漢文原典にはこれらの注記は存在しない。教育・注釈目的で後世に付加される記述である。
+
 ```xml
+<!-- 傍点 -->
 <skam:block>
-  <skam:span type="emphasis" kind="dot">學而時</skam:span>習之
+  <skam:span type="emphasis" style="dot">學而時</skam:span>習之
+</skam:block>
+
+<!-- 傍線（教育用途） -->
+<skam:block>
+  <skam:span type="highlight" style="solid" ref="ref-1">學而時習</skam:span>之
 </skam:block>
 ```
 
 #### 属性
 
-- `type`（必須）
-- `kind`（任意）
+| 属性    | 必須 | 説明                                        |
+| ------- | ---- | ------------------------------------------- |
+| `type`  | 必須 | 注記の種類（`emphasis` または `highlight`） |
+| `style` | 任意 | スタイル（type により有効な値が異なる）     |
+| `ref`   | 任意 | 参照するrefマークのID（highlight 用）       |
+
+#### type と style の組み合わせ
+
+**`type="emphasis"`（傍点・圏点）** — CSS `text-emphasis-style` 準拠:
+
+- `dot` - 小さい点（• filled / ◦ open）
+- `circle` - 丸（● filled / ○ open）
+- `double-circle` - 二重丸（◉ filled / ◎ open）
+- `triangle` - 三角（▲ filled / △ open）
+- `sesame` - ゴマ点（﹅ filled / ﹆ open）
+- カスタム文字列（任意の1文字、例: `★`, `◆`）
+
+※ `filled`/`open` 修飾子で塗りつぶし/中空を指定可能。省略時は `filled`。
+※ デフォルト値（style省略時）: `filled dot`
+
+**`type="highlight"`（傍線）** — CSS `text-decoration-style` 準拠:
+
+- `solid` - 実線（省略時のデフォルト）
+- `dotted` - 点線
+- `dashed` - 破線
+- `wavy` - 波線
+- `double` - 二重線
+
+#### 正規化
+
+- `type="emphasis"`: `marks.type = "emphasis"`, `style` を保持
+- `type="highlight"`: `marks.type = "highlight"`, `style`, `ref` を保持
+- `anchor = 内容のtoken範囲`
+- `ref` 属性は `type="highlight"` の場合のみ有効。`type="emphasis"` では無視される。
 
 ---
 
@@ -442,41 +484,14 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 
 ---
 
-### 7.13 `skam:region`（領域指定）
-
-教育用途や試験問題等で傍線部を指示するために使用する。`ref`属性でrefマークを参照できる。
-
-```xml
-<skam:block>
-  <skam:region style="solid" ref="ref-1">學而時習</skam:region>之
-</skam:block>
-```
-
-#### 属性
-
-| 属性    | 必須 | 説明                                                                      |
-| ------- | ---- | ------------------------------------------------------------------------- |
-| `style` | 任意 | 傍線スタイル（none, solid, dotted, dashed, wavy, double）。省略時は`none` |
-| `ref`   | 任意 | 参照するrefマークのID                                                     |
-
-※ style の値一覧は SKAM 仕様 5.7節を参照。
-
-#### 正規化
-
-- `marks.type = "region"`
-- `anchor = 内容のtoken範囲`
-- `style`, `ref` を保持
-
----
-
-### 7.14 `skam:ref`（参照識別子・注釈）
+### 7.13 `skam:ref`（参照識別子・注釈）
 
 傍線部の識別子、問題番号、注釈等に使用する。空要素または内容を持つ要素として使用。
 
 ```xml
 <!-- 自動番号（format指定） -->
 <skam:block>
-  <skam:region style="solid" ref="ref-1">學而時習</skam:region>
+  <skam:span type="highlight" style="solid" ref="ref-1">學而時習</skam:span>
   <skam:ref xml:id="ref-1" format="iroha-katakana"/>之
 </skam:block>
 
@@ -511,7 +526,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 | `format` | label/format/内容のいずれか必須 | 自動番号フォーマット（labelと排他）            |
 
 ※ `label` と `format` は排他（併用禁止）
-※ format の値一覧は SKAM 仕様 5.8節を参照。
+※ format の値一覧は SKAM 仕様 5.9節を参照。
 
 #### 正規化
 
@@ -699,18 +714,18 @@ skam:note (content を提供)
 
 ### 11.5 傍線部と参照識別子の例
 
-教育用途での傍線部指示の例（region + ref を使用）：
+教育用途での傍線部指示の例（span type="highlight" + ref を使用）：
 
 ```xml
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      <skam:region style="solid" ref="ref-1">
+      <skam:span type="highlight" style="solid" ref="ref-1">
         <skam:kun yomi="まな" okuri="びて">學</skam:kun>
         而
         <skam:kun okuri="に">時</skam:kun>
         <skam:kun okuri="ふ">習</skam:kun>
-      </skam:region>
+      </skam:span>
       <skam:ref format="iroha-katakana"/>
       <skam:kun soe="を">之</skam:kun>
       <skam:kaeri kind="re"/>
@@ -749,22 +764,22 @@ SKAM-ML/XMLはHTMLに依存しない純XML語彙とし、本文構造は`skam:bl
 
 ### SKAM-ML/XML → SKAM JSON の主な変換対応
 
-| SKAM-ML/XML 要素              | SKAM JSON marks.type |
-| ----------------------------- | -------------------- |
-| `skam:kaeri`                  | `kaeri`              |
-| `skam:kun` (yomi属性)         | `yomigana`           |
-| `skam:kun` (okuri属性)        | `okurigana`          |
-| `skam:kun` (soe属性)          | `soegana`            |
-| `skam:yomigana`               | `yomigana`           |
-| `skam:kutoten`                | `kutoten`            |
-| `skam:okototen`               | `okototen`           |
-| `skam:soegana`                | `soegana`            |
-| `skam:okimoji`                | `okimoji`            |
-| `skam:joji`                   | `joji`               |
-| `skam:span` (type="emphasis") | `emphasis`           |
-| `skam:ref`                    | `ref`                |
-| `skam:region`                 | `region`             |
-| `skam:saidoku`                | `saidoku`            |
-| `skam:tateten`                | `tateten`            |
+| SKAM-ML/XML 要素               | SKAM JSON marks.type |
+| ------------------------------ | -------------------- |
+| `skam:kaeri`                   | `kaeri`              |
+| `skam:kun` (yomi属性)          | `yomigana`           |
+| `skam:kun` (okuri属性)         | `okurigana`          |
+| `skam:kun` (soe属性)           | `soegana`            |
+| `skam:yomigana`                | `yomigana`           |
+| `skam:kutoten`                 | `kutoten`            |
+| `skam:okototen`                | `okototen`           |
+| `skam:soegana`                 | `soegana`            |
+| `skam:okimoji`                 | `okimoji`            |
+| `skam:joji`                    | `joji`               |
+| `skam:span` (type="emphasis")  | `emphasis`           |
+| `skam:span` (type="highlight") | `highlight`          |
+| `skam:ref`                     | `ref`                |
+| `skam:saidoku`                 | `saidoku`            |
+| `skam:tateten`                 | `tateten`            |
 
 ※ `derivations`（読み順等）はコンパイル時に生成される。

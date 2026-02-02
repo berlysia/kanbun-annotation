@@ -22,8 +22,8 @@ import type {
   OkototenMark,
   TatetenMark,
   GlyphGridCoord,
-  RegionMark,
-  RegionStyle,
+  HighlightMark,
+  HighlightStyle,
   RefMark,
   RefFormat,
 } from '@kanbun/skam';
@@ -49,7 +49,7 @@ const KAERI_VALUE_MAP: Record<KaeriKind, string> = {
   otsu: '乙',
 };
 
-const VALID_REGION_STYLES = ['none', 'solid', 'dotted', 'dashed', 'wavy', 'double'] as const;
+const VALID_HIGHLIGHT_STYLES = ['solid', 'dotted', 'dashed', 'wavy', 'double'] as const;
 const VALID_REF_FORMATS = [
   'alpha-upper',
   'alpha-lower',
@@ -545,7 +545,7 @@ function processSoegana(element: Element, state: ParserState): string[] {
 
 function processSpan(element: Element, state: ParserState): string[] {
   const type = getRequiredAttr(element, 'type', 'skam:span');
-  const kind = getAttr(element, 'kind');
+  const styleAttr = getAttr(element, 'style');
 
   // Process children to get tokens
   const tokenIds = processBlockChildren(element, state);
@@ -561,8 +561,32 @@ function processSpan(element: Element, state: ParserState): string[] {
       anchor: createAnchor(tokenIds),
     };
 
-    if (kind) {
-      mark.value = kind;
+    // style は CSS text-emphasis-style の値（任意の文字列も可）
+    if (styleAttr) {
+      mark.style = styleAttr;
+    }
+
+    state.marks.push(mark);
+  } else if (type === 'highlight') {
+    const refAttr = getAttr(element, 'ref');
+
+    const mark: HighlightMark = {
+      type: 'highlight',
+      id: generateMarkId(state),
+      anchor: createAnchor(tokenIds),
+    };
+
+    if (styleAttr) {
+      if (!VALID_HIGHLIGHT_STYLES.includes(styleAttr as (typeof VALID_HIGHLIGHT_STYLES)[number])) {
+        throw new SKAMXMLParseError(
+          `Invalid highlight style '${styleAttr}'. Valid styles: ${VALID_HIGHLIGHT_STYLES.join(', ')}`
+        );
+      }
+      mark.style = styleAttr as HighlightStyle;
+    }
+
+    if (refAttr) {
+      mark.ref = refAttr;
     }
 
     state.marks.push(mark);
@@ -648,43 +672,6 @@ function processSaidoku(element: Element, state: ParserState): string[] {
     anchor: createAnchor(tokenIds),
     forms,
   };
-
-  state.marks.push(mark);
-  return tokenIds;
-}
-
-/**
- * Process skam:region element (replaces underline)
- */
-function processRegion(element: Element, state: ParserState): string[] {
-  const styleAttr = getAttr(element, 'style');
-  const refAttr = getAttr(element, 'ref');
-
-  // Process children to get tokens
-  const tokenIds = processBlockChildren(element, state);
-
-  if (tokenIds.length === 0) {
-    throw new SKAMXMLParseError('<skam:region> must contain content');
-  }
-
-  const mark: RegionMark = {
-    type: 'region',
-    id: generateMarkId(state),
-    anchor: createAnchor(tokenIds),
-  };
-
-  if (styleAttr) {
-    if (!VALID_REGION_STYLES.includes(styleAttr as (typeof VALID_REGION_STYLES)[number])) {
-      throw new SKAMXMLParseError(
-        `Invalid region style '${styleAttr}'. Valid styles: ${VALID_REGION_STYLES.join(', ')}`
-      );
-    }
-    mark.style = styleAttr as RegionStyle;
-  }
-
-  if (refAttr) {
-    mark.ref = refAttr;
-  }
 
   state.marks.push(mark);
   return tokenIds;
@@ -873,12 +860,6 @@ function processBlockChildren(element: Element, state: ParserState): string[] {
         }
         case 'saidoku': {
           const ids = processSaidoku(child, state);
-          allTokenIds.push(...ids);
-          if (ids.length > 0) lastTokenId = ids[ids.length - 1]!;
-          break;
-        }
-        case 'region': {
-          const ids = processRegion(child, state);
           allTokenIds.push(...ids);
           if (ids.length > 0) lastTokenId = ids[ids.length - 1]!;
           break;

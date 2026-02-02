@@ -383,44 +383,33 @@ function generateCommonStyles(prefix: string, vp: string): string {
   margin-right: 0.5em;
 }
 
-/* Emphasis (傍点) - 共通部分 */
+/*
+ * Emphasis (傍点) - CSS text-emphasis-style 準拠
+ *
+ * style 属性は CSS text-emphasis-style の値をそのまま使用。
+ * デフォルト: filled dot
+ * 有効な値: dot, circle, double-circle, triangle, sesame,
+ *           filled/open + 上記形状（例: filled sesame, open circle）
+ *
+ * インラインスタイルで text-emphasis-style を設定するため、
+ * ここでは色のみを指定。
+ */
 :where(.${prefix}-emphasis) {
-  text-emphasis: filled circle;
   text-emphasis-color: var(--${vp}-color-emphasis);
 }
 
-/* Emphasis (傍点) - 種類別スタイル */
-:where(.${prefix}-emphasis[data-emphasis-style="sesame"]) {
-  text-emphasis-style: filled sesame;
-}
-:where(.${prefix}-emphasis[data-emphasis-style="open-sesame"]) {
-  text-emphasis-style: open sesame;
-}
-:where(.${prefix}-emphasis[data-emphasis-style="circle"]) {
-  text-emphasis-style: filled circle;
-}
-:where(.${prefix}-emphasis[data-emphasis-style="open-circle"]) {
-  text-emphasis-style: open circle;
-}
-:where(.${prefix}-emphasis[data-emphasis-style="dot"]) {
-  text-emphasis-style: filled dot;
-}
-:where(.${prefix}-emphasis[data-emphasis-style="open-dot"]) {
-  text-emphasis-style: open dot;
-}
-
 /*
- * Underline (傍線) - 教育用途・共通部分
+ * Highlight (傍線) - 教育用途・共通部分
  *
  * box-shadow を使用して傍線を表示。
  * text-decoration は display: inline-block の子要素には伝播しないため、
  * box-shadow で代替実装。inset を使用し、spread で線の太さを制御。
  */
-:where(.${prefix}-region) {
+:where(.${prefix}-highlight) {
   position: relative;
 }
 
-:where(.${prefix}-region[data-style="solid"]) {
+:where(.${prefix}-highlight[data-style="solid"]) {
   /* Default solid line - スタイルは書字方向依存部分で定義 */
 }
 
@@ -434,8 +423,8 @@ function generateCommonStyles(prefix: string, vp: string): string {
   vertical-align: super;
 }
 
-/* region内のラベル - 共通部分 */
-:where(.${prefix}-region > .${prefix}-ref) {
+/* highlight内のラベル - 共通部分 */
+:where(.${prefix}-highlight > .${prefix}-ref) {
   position: absolute;
   vertical-align: baseline;
   white-space: nowrap;
@@ -508,13 +497,13 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   text-emphasis-position: right;
 }
 
-/* Region (傍線部) - 縦書き: 右側に表示 */
-:where(.${prefix}-region) {
+/* Highlight (傍線部) - 縦書き: 右側に表示 */
+:where(.${prefix}-highlight) {
   box-shadow: inset -1px 0 0 0 currentColor;
   padding-right: 0.5em;
 }
 
-:where(.${prefix}-region[data-style="dotted"]) {
+:where(.${prefix}-highlight[data-style="dotted"]) {
   box-shadow: none;
   background-image: linear-gradient(to bottom, currentColor 2px, transparent 2px);
   background-size: 1px 4px;
@@ -522,7 +511,7 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: right;
 }
 
-:where(.${prefix}-region[data-style="dashed"]) {
+:where(.${prefix}-highlight[data-style="dashed"]) {
   box-shadow: none;
   background-image: linear-gradient(to bottom, currentColor 4px, transparent 4px);
   background-size: 1px 8px;
@@ -530,7 +519,7 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: right;
 }
 
-:where(.${prefix}-region[data-style="wavy"]) {
+:where(.${prefix}-highlight[data-style="wavy"]) {
   /*
    * Wavy line using repeating SVG pattern
    * SVG内でcurrentColorは効かないため、黒色を直接指定。
@@ -543,13 +532,13 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: right;
 }
 
-:where(.${prefix}-region[data-style="double"]) {
+:where(.${prefix}-highlight[data-style="double"]) {
   box-shadow: none;
   padding-right: 0.7em;
 }
 
-:where(.${prefix}-region[data-style="double"])::before,
-:where(.${prefix}-region[data-style="double"])::after {
+:where(.${prefix}-highlight[data-style="double"])::before,
+:where(.${prefix}-highlight[data-style="double"])::after {
   content: '';
   position: absolute;
   background-color: currentColor;
@@ -558,16 +547,16 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   width: 1px;
 }
 
-:where(.${prefix}-region[data-style="double"])::before {
+:where(.${prefix}-highlight[data-style="double"])::before {
   right: 0;
 }
 
-:where(.${prefix}-region[data-style="double"])::after {
+:where(.${prefix}-highlight[data-style="double"])::after {
   right: 3px;
 }
 
 /* Label - 縦書き: 傍線の開始位置（上）に配置 */
-:where(.${prefix}-region > .${prefix}-ref) {
+:where(.${prefix}-highlight > .${prefix}-ref) {
   inset-inline-start: 0;
   inset-block-start: -1.5em;
 }
@@ -594,13 +583,13 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   text-emphasis-position: over;
 }
 
-/* Underline (傍線) - 横書き: 下側に表示 */
-:where(.${prefix}-region) {
+/* Highlight (傍線) - 横書き: 下側に表示 */
+:where(.${prefix}-highlight) {
   box-shadow: inset 0 -1px 0 0 currentColor;
   padding-bottom: 0.1em;
 }
 
-:where(.${prefix}-region[data-style="dotted"]) {
+:where(.${prefix}-highlight[data-style="dotted"]) {
   box-shadow: none;
   background-image: linear-gradient(to right, currentColor 2px, transparent 2px);
   background-size: 4px 1px;
@@ -608,7 +597,7 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: bottom;
 }
 
-:where(.${prefix}-region[data-style="dashed"]) {
+:where(.${prefix}-highlight[data-style="dashed"]) {
   box-shadow: none;
   background-image: linear-gradient(to right, currentColor 4px, transparent 4px);
   background-size: 8px 1px;
@@ -616,7 +605,7 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: bottom;
 }
 
-:where(.${prefix}-region[data-style="wavy"]) {
+:where(.${prefix}-highlight[data-style="wavy"]) {
   /*
    * Wavy line using repeating SVG pattern
    * SVG内でcurrentColorは効かないため、黒色を直接指定。
@@ -629,13 +618,13 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: bottom;
 }
 
-:where(.${prefix}-region[data-style="double"]) {
+:where(.${prefix}-highlight[data-style="double"]) {
   box-shadow: none;
   padding-bottom: 0.3em;
 }
 
-:where(.${prefix}-region[data-style="double"])::before,
-:where(.${prefix}-region[data-style="double"])::after {
+:where(.${prefix}-highlight[data-style="double"])::before,
+:where(.${prefix}-highlight[data-style="double"])::after {
   content: '';
   position: absolute;
   background-color: currentColor;
@@ -644,16 +633,16 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   height: 1px;
 }
 
-:where(.${prefix}-region[data-style="double"])::before {
+:where(.${prefix}-highlight[data-style="double"])::before {
   bottom: 0;
 }
 
-:where(.${prefix}-region[data-style="double"])::after {
+:where(.${prefix}-highlight[data-style="double"])::after {
   bottom: 3px;
 }
 
 /* Label - 横書き: 傍線の開始位置（下）に配置 */
-:where(.${prefix}-region > .${prefix}-ref) {
+:where(.${prefix}-highlight > .${prefix}-ref) {
   inset-inline-start: 0;
   inset-block-end: -1.5em;
 }

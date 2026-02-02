@@ -15,7 +15,7 @@
  * - saidoku（再読文字）
  * - emphasis（傍点）
  * - tateten（たて点）
- * - region（領域指定）
+ * - highlight（傍線）
  * - ref（参照）
  */
 
@@ -33,7 +33,7 @@ import type {
   OkototenMark,
   SaidokuMark,
   EmphasisMark,
-  RegionMark,
+  HighlightMark,
   RefMark,
 } from '@kanbun/skam';
 
@@ -288,7 +288,7 @@ function collectTokenAnnotations(
 /**
  * 範囲マークを収集（包囲要素として出力すべきマーク用）
  *
- * emphasis, tateten, region は単一トークンでも包囲要素として出力する。
+ * emphasis, tateten, highlight は単一トークンでも包囲要素として出力する。
  */
 function collectRangeMarks(marks: Mark[], tokenIndexMap: Map<string, number>): RangeMark[] {
   const rangeMarks: RangeMark[] = [];
@@ -296,7 +296,7 @@ function collectRangeMarks(marks: Mark[], tokenIndexMap: Map<string, number>): R
   for (const mark of marks) {
     // 包囲要素として出力すべきマークタイプ
     const isRangeElementType =
-      mark.type === 'emphasis' || mark.type === 'tateten' || mark.type === 'region';
+      mark.type === 'emphasis' || mark.type === 'tateten' || mark.type === 'highlight';
 
     // ref は content がある場合のみ包囲要素
     const isContentRef = mark.type === 'ref' && (mark as RefMark).content;
@@ -618,23 +618,23 @@ function contentNodeToXml(node: ContentNode): string {
       case 'emphasis': {
         const emp = node.mark as EmphasisMark;
         let attrs = 'type="emphasis"';
-        if (emp.value) {
-          attrs += ` kind="${escapeXml(emp.value)}"`;
+        if (emp.style) {
+          attrs += ` style="${escapeXml(emp.style)}"`;
         }
         return `<skam:span ${attrs}>${childrenXml}</skam:span>`;
       }
       case 'tateten':
         return `<skam:tateten>${childrenXml}</skam:tateten>`;
-      case 'region': {
-        const reg = node.mark as RegionMark;
-        let attrs = '';
-        if (reg.style) {
-          attrs += ` style="${reg.style}"`;
+      case 'highlight': {
+        const hl = node.mark as HighlightMark;
+        let attrs = 'type="highlight"';
+        if (hl.style) {
+          attrs += ` style="${hl.style}"`;
         }
-        if (reg.ref) {
-          attrs += ` ref="${escapeXml(reg.ref)}"`;
+        if (hl.ref) {
+          attrs += ` ref="${escapeXml(hl.ref)}"`;
         }
-        return `<skam:region${attrs}>${childrenXml}</skam:region>`;
+        return `<skam:span ${attrs}>${childrenXml}</skam:span>`;
       }
       case 'ref': {
         const ref = node.mark as RefMark;

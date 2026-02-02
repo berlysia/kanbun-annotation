@@ -2,7 +2,7 @@
 <skam:doc xmlns:skam="urn:skam:1">
   <skam:body>
     <skam:block>
-      <skam:region style="solid">重要語句</skam:region>
+      <skam:span type="highlight" style="solid">重要語句</skam:span>
     </skam:block>
   </skam:body>
 </skam:doc>

@@ -1,8 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<skam:doc xmlns:skam="urn:skam:1">
-  <skam:body>
-    <skam:block>
-      <skam:region style="solid" ref="ref-1">傍線部<skam:ref xml:id="ref-1" format="alpha-upper"/></skam:region>を現代語訳せよ。
-    </skam:block>
-  </skam:body>
-</skam:doc>

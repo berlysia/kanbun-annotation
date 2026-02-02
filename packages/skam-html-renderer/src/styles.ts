@@ -389,6 +389,26 @@ function generateCommonStyles(prefix: string, vp: string): string {
   text-emphasis-color: var(--${vp}-color-emphasis);
 }
 
+/* Emphasis (傍点) - 種類別スタイル */
+:where(.${prefix}-emphasis[data-emphasis-style="sesame"]) {
+  text-emphasis-style: filled sesame;
+}
+:where(.${prefix}-emphasis[data-emphasis-style="open-sesame"]) {
+  text-emphasis-style: open sesame;
+}
+:where(.${prefix}-emphasis[data-emphasis-style="circle"]) {
+  text-emphasis-style: filled circle;
+}
+:where(.${prefix}-emphasis[data-emphasis-style="open-circle"]) {
+  text-emphasis-style: open circle;
+}
+:where(.${prefix}-emphasis[data-emphasis-style="dot"]) {
+  text-emphasis-style: filled dot;
+}
+:where(.${prefix}-emphasis[data-emphasis-style="open-dot"]) {
+  text-emphasis-style: open dot;
+}
+
 /*
  * Underline (傍線) - 教育用途・共通部分
  *

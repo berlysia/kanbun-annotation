@@ -140,7 +140,7 @@ export const SAMPLES: Sample[] = [
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      此乃<skam:span type="emphasis" kind="dot">天命</skam:span>也<skam:kutoten value="。" kind="ku"/>
+      此乃<skam:span type="emphasis" kind="sesame">天命</skam:span>也<skam:kutoten value="。" kind="ku"/>
     </skam:block>
   </skam:body>
   <skam:readings>

@@ -48,6 +48,9 @@ const selectionInfo = document.getElementById('selection-info') as HTMLDivElemen
 const selectionActions = document.getElementById('selection-actions') as HTMLDivElement;
 const selectionTatetenBtn = document.getElementById('selection-tateten-btn') as HTMLButtonElement;
 const selectionEmphasisBtn = document.getElementById('selection-emphasis-btn') as HTMLButtonElement;
+const selectionEmphasisStyles = document.getElementById(
+  'selection-emphasis-styles'
+) as HTMLDivElement;
 const selectionUnderlineStyles = document.getElementById(
   'selection-underline-styles'
 ) as HTMLDivElement;
@@ -153,6 +156,10 @@ let currentTatetenMarkId: string | null = null;
 // - null: no emphasis for current selection
 // - string: mark ID of existing emphasis that matches selection range
 let currentEmphasisMarkId: string | null = null;
+
+// Selected emphasis style
+type EmphasisStyle = 'sesame' | 'open-sesame' | 'circle' | 'open-circle' | 'dot' | 'open-dot';
+let currentEmphasisStyle: EmphasisStyle = 'sesame';
 
 // Current underline/region (傍線) state
 // - null: no underline for current selection
@@ -447,7 +454,7 @@ function findEmphasisForSelection(
   doc: SKAMDocument,
   fromId: string,
   toId: string
-): { markId: string } | null {
+): { markId: string; style?: string } | null {
   const tokens = doc.tokens;
   const fromIndex = tokens.findIndex((t) => t.id === fromId);
   const toIndex = tokens.findIndex((t) => t.id === toId);
@@ -477,6 +484,11 @@ function findEmphasisForSelection(
 
     // Check if selection exactly matches emphasis range
     if (selStartId === markStartId && selEndId === markEndId) {
+      // Extract style from the mark's value
+      const style = 'value' in mark ? (mark.value as string | undefined) : undefined;
+      if (style) {
+        return { markId: mark.id, style };
+      }
       return { markId: mark.id };
     }
   }
@@ -593,6 +605,10 @@ function updateSelectionPanel(fromId: string, toId: string): void {
   // Determine emphasis state
   const emphasisInfo = findEmphasisForSelection(currentDocument, normalizedFromId, normalizedToId);
   currentEmphasisMarkId = emphasisInfo?.markId ?? null;
+  // If existing emphasis found, use its style; otherwise keep current style (default: sesame)
+  if (emphasisInfo?.style) {
+    currentEmphasisStyle = emphasisInfo.style as EmphasisStyle;
+  }
 
   // Determine underline/region state
   const regionInfo = findRegionForSelection(currentDocument, normalizedFromId, normalizedToId);
@@ -888,9 +904,29 @@ function handleTatetenToggle(): void {
 }
 
 /**
+ * Update emphasis style buttons state
+ */
+function updateEmphasisStyleButtons(): void {
+  const buttons = selectionEmphasisStyles.querySelectorAll<HTMLButtonElement>(
+    '.selection-emphasis-style-btn'
+  );
+  for (const btn of buttons) {
+    const style = btn.dataset['style'] as EmphasisStyle;
+    // Only show active state if emphasis exists
+    btn.classList.toggle(
+      'active',
+      currentEmphasisMarkId !== null && style === currentEmphasisStyle
+    );
+  }
+}
+
+/**
  * Update emphasis button based on current selection state
  */
 function updateEmphasisButton(): void {
+  // Update style buttons
+  updateEmphasisStyleButtons();
+
   if (currentEmphasisMarkId) {
     // Emphasis exists for this selection: show "解除" state
     selectionEmphasisBtn.textContent = '傍点を解除';
@@ -925,12 +961,56 @@ function handleEmphasisToggle(): void {
     // Remove existing emphasis
     newDoc = removeMark(newDoc, currentEmphasisMarkId);
   } else {
-    // Add new emphasis
+    // Add new emphasis with current style
     newDoc = addMark(newDoc, {
       type: 'emphasis',
+      value: currentEmphasisStyle,
       anchor: { from: normalizedFromId, to: normalizedToId },
     });
   }
+
+  updateXmlFromDocument(newDoc);
+
+  // Re-update selection panel
+  if (currentSelectionFromId && currentSelectionToId) {
+    updateSelectionPanel(currentSelectionFromId, currentSelectionToId);
+  }
+}
+
+/**
+ * Update existing emphasis with current style settings
+ */
+function updateExistingEmphasis(): void {
+  if (
+    !currentDocument ||
+    !currentSelectionFromId ||
+    !currentSelectionToId ||
+    !currentEmphasisMarkId
+  )
+    return;
+
+  let newDoc = currentDocument;
+
+  // Normalize selection range
+  const tokens = currentDocument.tokens;
+  const fromIndex = tokens.findIndex((t) => t.id === currentSelectionFromId);
+  const toIndex = tokens.findIndex((t) => t.id === currentSelectionToId);
+  if (fromIndex === -1 || toIndex === -1) return;
+
+  const startIndex = Math.min(fromIndex, toIndex);
+  const endIndex = Math.max(fromIndex, toIndex);
+  const normalizedFromId = tokens[startIndex]!.id;
+  const normalizedToId = tokens[endIndex]!.id;
+
+  // Remove existing emphasis
+  newDoc = removeMark(newDoc, currentEmphasisMarkId);
+
+  // Add new emphasis with current style
+  newDoc = addMark(newDoc, {
+    type: 'emphasis',
+    value: currentEmphasisStyle,
+    anchor: { from: normalizedFromId, to: normalizedToId },
+  });
 
   updateXmlFromDocument(newDoc);
 
@@ -1285,6 +1365,8 @@ function clearSelectionPanel(): void {
   selectionTatetenBtn.classList.remove('active');
   selectionEmphasisBtn.textContent = '傍点をつける';
   selectionEmphasisBtn.classList.remove('active');
+  currentEmphasisStyle = 'sesame';
+  updateEmphasisStyleButtons();
   selectionUnderlineBtn.textContent = '傍線を引く';
   selectionUnderlineBtn.classList.remove('active');
   currentUnderlineStyle = 'solid';
@@ -1935,6 +2017,25 @@ selectionTatetenBtn.addEventListener('click', handleTatetenToggle);
 
 // Selection panel emphasis button
 selectionEmphasisBtn.addEventListener('click', handleEmphasisToggle);
+
+// Selection panel emphasis style buttons
+selectionEmphasisStyles.addEventListener('click', (e) => {
+  const target = e.target as HTMLElement;
+  if (!target.classList.contains('selection-emphasis-style-btn')) return;
+
+  const style = target.dataset['style'] as EmphasisStyle | undefined;
+  if (!style) return;
+
+  currentEmphasisStyle = style;
+
+  if (currentEmphasisMarkId) {
+    // If emphasis already exists, update it immediately
+    updateExistingEmphasis();
+  } else {
+    // If no emphasis exists, add one with the selected style
+    handleEmphasisToggle();
+  }
+});
 
 // Selection panel underline style buttons
 selectionUnderlineStyles.addEventListener('click', (e) => {

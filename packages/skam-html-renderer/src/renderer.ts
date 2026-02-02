@@ -969,8 +969,17 @@ function renderToken(
   // data-token-id属性（interactiveモードの場合のみ）
   const tokenIdAttr = ctx.interactive ? ` data-token-id="${escapeHtml(token.id)}"` : '';
 
+  // data-emphasis-style属性（傍点種類がある場合）
+  let emphasisStyleAttr = '';
+  if (hasEmphasis) {
+    const emphasisValue = emphasisMarks[0]?.value;
+    if (emphasisValue) {
+      emphasisStyleAttr = ` data-emphasis-style="${escapeHtml(emphasisValue)}"`;
+    }
+  }
+
   return {
-    html: `<span class="${classes.join(' ')}"${tokenIdAttr}>${baseHtml}${okototenHtml}${suffixRowHtml}</span>${refHtml}`,
+    html: `<span class="${classes.join(' ')}"${tokenIdAttr}${emphasisStyleAttr}>${baseHtml}${okototenHtml}${suffixRowHtml}</span>${refHtml}`,
     kutotenHtml: kutoten,
   };
 }

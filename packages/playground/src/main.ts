@@ -38,6 +38,9 @@ const divider = document.getElementById('divider') as HTMLDivElement;
 const previewPane = document.querySelector('.preview-pane') as HTMLDivElement;
 
 // CSS Customize elements
+// Selection panel elements
+const selectionInfo = document.getElementById('selection-info') as HTMLDivElement;
+
 const colorKaeritenInput = document.getElementById('color-kaeriten') as HTMLInputElement;
 const colorRubyInput = document.getElementById('color-ruby') as HTMLInputElement;
 const colorEmphasisInput = document.getElementById('color-emphasis') as HTMLInputElement;
@@ -270,12 +273,118 @@ function getProfile(): ProfileName {
   return 'full';
 }
 
+/**
+ * Update selection panel with current selection info
+ */
+function updateSelectionPanel(fromId: string, toId: string): void {
+  if (!currentDocument) {
+    clearSelectionPanel();
+    return;
+  }
+
+  // Get tokens in range
+  const tokens = currentDocument.tokens;
+  const fromIndex = tokens.findIndex((t) => t.id === fromId);
+  const toIndex = tokens.findIndex((t) => t.id === toId);
+
+  if (fromIndex === -1 || toIndex === -1) {
+    clearSelectionPanel();
+    return;
+  }
+
+  const startIndex = Math.min(fromIndex, toIndex);
+  const endIndex = Math.max(fromIndex, toIndex);
+  const selectedTokens = tokens.slice(startIndex, endIndex + 1);
+  const count = selectedTokens.length;
+  const chars = selectedTokens.map((t) => t.text).join('');
+
+  // Get marks for selected tokens
+  const allMarks: Array<{ tokenChar: string; type: string; value: string }> = [];
+  for (const token of selectedTokens) {
+    const marks = getMarksForToken(currentDocument, token.id);
+    for (const mark of marks) {
+      let value = '';
+      if (mark.type === 'kaeri' && 'value' in mark) {
+        value = String(mark.value);
+      } else if ('value' in mark && typeof mark.value === 'string') {
+        value = mark.value;
+      }
+      if (value) {
+        allMarks.push({
+          tokenChar: token.text,
+          type: mark.type,
+          value,
+        });
+      }
+    }
+  }
+
+  // Build HTML
+  let html = `
+    <div class="selection-summary">
+      <div class="selection-count">${count}文字選択</div>
+      <div class="selection-chars">${chars}</div>
+    </div>
+  `;
+
+  if (allMarks.length > 0) {
+    html += `
+      <div class="selection-marks">
+        <div class="selection-marks-title">マーク情報</div>
+        ${allMarks
+          .map(
+            (m) => `
+          <div class="selection-mark-item">
+            <span class="selection-mark-type">${m.tokenChar}: ${getMarkTypeLabel(m.type)}</span>
+            <span class="selection-mark-value">${m.value}</span>
+          </div>
+        `
+          )
+          .join('')}
+      </div>
+    `;
+  }
+
+  selectionInfo.innerHTML = html;
+}
+
+/**
+ * Clear selection panel
+ */
+function clearSelectionPanel(): void {
+  selectionInfo.innerHTML = '<p class="selection-empty">文字をクリックまたはドラッグで選択</p>';
+}
+
+/**
+ * Get human-readable label for mark type
+ */
+function getMarkTypeLabel(type: string): string {
+  const labels: Record<string, string> = {
+    kaeri: '返り点',
+    okurigana: '送り仮名',
+    yomigana: '読み仮名',
+    soegana: '添え仮名',
+    okimoji: '置字',
+    joji: '助字',
+    kutoten: '句読点',
+    saidoku: '再読',
+    okototen: 'ヲコト点',
+    tateten: 'たて点',
+    emphasis: '傍点',
+    note: '注釈',
+  };
+  return labels[type] ?? type;
+}
+
 function renderDocument(doc: SKAMDocument): void {
   currentDocument = doc;
 
   // Cleanup previous interactive handlers
   cleanupInteractiveHandlers?.();
   cleanupInteractiveHandlers = null;
+
+  // Clear selection panel
+  clearSelectionPanel();
 
   // JSON output
   jsonOutput.textContent = JSON.stringify(doc, null, 2);
@@ -314,6 +423,9 @@ function renderDocument(doc: SKAMDocument): void {
       onTokenClick: (tokenId, event) => {
         if (!currentDocument) return;
 
+        // Update selection panel
+        updateSelectionPanel(tokenId, tokenId);
+
         // Find existing marks for this token
         const marks = getMarksForToken(currentDocument, tokenId);
         const existingKaeri = marks.find((m) => m.type === 'kaeri');
@@ -338,6 +450,9 @@ function renderDocument(doc: SKAMDocument): void {
       },
       onTokenSelect: (fromId, toId) => {
         if (!currentDocument) return;
+
+        // Update selection panel
+        updateSelectionPanel(fromId, toId);
 
         // Find existing marks for the first token
         const marks = getMarksForToken(currentDocument, fromId);

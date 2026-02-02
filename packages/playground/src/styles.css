@@ -437,6 +437,14 @@
     outline-offset: 2px;
   }
 
+  /* Preview Main Area (contains content + selection panel) */
+  .preview-main {
+    flex: 1;
+    display: flex;
+    overflow: hidden;
+    min-height: 0;
+  }
+
   .preview-content {
     flex: 1;
     padding: 2rem;
@@ -445,6 +453,94 @@
     justify-content: center;
     align-items: flex-start;
     background-color: var(--editor-bg);
+  }
+
+  /* Selection Panel (Right sidebar) */
+  .selection-panel {
+    width: 200px;
+    flex-shrink: 0;
+    border-left: 1px solid var(--editor-border);
+    background-color: var(--editor-bg-secondary);
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    font-family: var(--font-sans);
+  }
+
+  .selection-panel h3 {
+    padding: 0.75rem 1rem;
+    margin: 0;
+    font-size: 0.75rem;
+    font-weight: 600;
+    color: var(--editor-text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    border-bottom: 1px solid var(--editor-border);
+    background-color: var(--editor-bg-tertiary);
+  }
+
+  .selection-info {
+    flex: 1;
+    padding: 0.75rem;
+    overflow-y: auto;
+    font-size: 0.8125rem;
+    color: var(--editor-text);
+  }
+
+  .selection-empty {
+    color: var(--editor-text-secondary);
+    font-size: 0.75rem;
+    text-align: center;
+    padding: 1rem 0.5rem;
+  }
+
+  .selection-summary {
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--editor-border);
+  }
+
+  .selection-count {
+    font-weight: 600;
+    color: var(--editor-primary);
+    margin-bottom: 0.25rem;
+  }
+
+  .selection-chars {
+    font-family: var(--font-serif);
+    font-size: 1.25rem;
+    letter-spacing: 0.1em;
+  }
+
+  .selection-marks {
+    font-size: 0.75rem;
+  }
+
+  .selection-marks-title {
+    font-weight: 600;
+    color: var(--editor-text-secondary);
+    margin-bottom: 0.5rem;
+  }
+
+  .selection-mark-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.25rem 0;
+    border-bottom: 1px dashed var(--editor-border);
+  }
+
+  .selection-mark-item:last-child {
+    border-bottom: none;
+  }
+
+  .selection-mark-type {
+    color: var(--editor-text-secondary);
+  }
+
+  .selection-mark-value {
+    font-weight: 500;
+    font-family: var(--font-serif);
   }
 
   /* Inline mode demo display */
@@ -758,6 +854,17 @@
 
     .render-options {
       flex-wrap: wrap;
+    }
+
+    .preview-main {
+      flex-direction: column;
+    }
+
+    .selection-panel {
+      width: 100%;
+      max-height: 150px;
+      border-left: none;
+      border-top: 1px solid var(--editor-border);
     }
 
     .customize-options {

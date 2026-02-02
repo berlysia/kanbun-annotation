@@ -211,17 +211,36 @@ function generateCommonStyles(prefix: string, vp: string): string {
  *   row2: glyph-size（返り点 = 本文サイズ）
  *   row3: ruby-font-size（再読2送り）
  *
- * NOTE: 本来 vertical-align: 0 で inline-grid ボックス全体が揃うはずだが、
- * Chrome では inline-grid 内のテキストの central baseline でアライメントされる
- * 挙動があるため、vertical-align: top で代用している。
- * Firefox と Safari では vertical-align: 0 で正しく動作する。
+ * NOTE: vertical-align のブラウザ差異対応
+ * - Firefox/Safari: vertical-align: 0 で inline-grid ボックス全体が揃う
+ * - Chrome: inline-grid 内テキストの central baseline でアライメントされるバグあり
+ *           calc() で補正が必要
+ *
+ * 以下のCSSハックで出し分け:
+ * - デフォルト: Chrome 用 calc() 値
+ * - @-moz-document: Firefox 用
+ * - @supports (-webkit-touch-callout: none): Safari 用
  */
 :where(.${prefix}-suffix-row) {
   display: inline-grid;
   grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) 1em calc(var(--${vp}-ruby-ratio) * 1em);
   line-height: 1;
-  vertical-align: top;
-  /* vertical-align: calc(var(--${vp}-ruby-ratio) * 0.5em + 0.5em); */
+  /* Chrome 用（デフォルト） */
+  vertical-align: calc(var(--${vp}-ruby-ratio) * 0.5em + 0.5em);
+}
+
+/* Firefox: vertical-align: 0 で正常動作 */
+@-moz-document url-prefix() {
+  :where(.${prefix}-suffix-row) {
+    vertical-align: 0;
+  }
+}
+
+/* Safari: vertical-align: 0 で正常動作 */
+@supports (-webkit-touch-callout: none) {
+  :where(.${prefix}-suffix-row) {
+    vertical-align: 0;
+  }
 }
 
 /* row1 にプレースホルダーを配置してベースラインを安定させる */

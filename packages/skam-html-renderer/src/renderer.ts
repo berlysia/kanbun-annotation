@@ -701,6 +701,12 @@ interface RangeMarkContext {
   soeganaBaseText?: string;
   /** 範囲soeganaの値 */
   soeganaValue?: string;
+  /** 範囲グループ内の後続トークンに付いている返り点 */
+  trailingKaeriMarks?: KaeriMark[];
+  /** 範囲グループ内の後続トークンに付いている句読点 */
+  trailingKutotenMarks?: KutotenMark[];
+  /** 範囲グループ内の後続トークンに付いているrefマーク */
+  trailingRefMarks?: RefMark[];
 }
 
 /**
@@ -774,11 +780,12 @@ function renderToken(
     }
   }
 
-  // 返り点
+  // 返り点（現在のトークン + 範囲グループ後続トークンの返り点）
   const kaeriMarks = (tokenMarks.get('kaeri') ?? []) as KaeriMark[];
+  const allKaeriMarks = [...kaeriMarks, ...(rangeCtx?.trailingKaeriMarks ?? [])];
   const kaeriten =
-    profile.kaeriten && kaeriMarks.length > 0
-      ? kaeriMarks
+    profile.kaeriten && allKaeriMarks.length > 0
+      ? allKaeriMarks
           .map(
             (m) =>
               `<span class="${prefix}-kaeriten" aria-hidden="true">${convertKaeriToUnicode(m.value)}</span>`
@@ -803,11 +810,12 @@ function renderToken(
       }</span>`
     : '';
 
-  // 句読点
+  // 句読点（現在のトークン + 範囲グループ後続トークンの句読点）
   const kutotenMarks = (tokenMarks.get('kutoten') ?? []) as KutotenMark[];
+  const allKutotenMarks = [...kutotenMarks, ...(rangeCtx?.trailingKutotenMarks ?? [])];
   const kutoten =
-    profile.kutoten && kutotenMarks.length > 0
-      ? kutotenMarks
+    profile.kutoten && allKutotenMarks.length > 0
+      ? allKutotenMarks
           .map((m) => `<span class="${prefix}-kutoten">${escapeHtml(m.value)}</span>`)
           .join('')
       : '';
@@ -860,11 +868,13 @@ function renderToken(
 
   // ref 参照（本文中のマーカー）
   // regionから参照されているrefはregion終端で出力するのでここではスキップ
+  // 範囲グループ後続トークンのrefも含める
   let refHtml = '';
   if (profile.ref && refValueMap) {
     const refMarks = (tokenMarks.get('ref') ?? []) as RefMark[];
-    if (refMarks.length > 0) {
-      refHtml = refMarks
+    const allRefMarks = [...refMarks, ...(rangeCtx?.trailingRefMarks ?? [])];
+    if (allRefMarks.length > 0) {
+      refHtml = allRefMarks
         .filter((m) => !regionRefIds || !m.id || !regionRefIds.has(m.id))
         .map((m) => {
           const refText = refValueMap.get(m) ?? '';
@@ -1118,6 +1128,51 @@ function renderDisplayLayer(
             processedTokenIds.add(tid);
           }
         }
+      }
+
+      // 範囲グループの後続トークンに付いているマーク（返り点、句読点、ref）を収集
+      // rangeCtxに追加してrenderToken内でsuffix-row等にまとめて出力
+      const allRangeTokenIds = new Set<string>();
+      if (yomiganaGroup && yomiganaGroup.tokenIds[0] === token.id) {
+        for (const tid of yomiganaGroup.tokenIds.slice(1)) {
+          allRangeTokenIds.add(tid);
+        }
+      }
+      if (okuriganaGroup && okuriganaGroup.tokenIds[0] === token.id) {
+        for (const tid of okuriganaGroup.tokenIds.slice(1)) {
+          allRangeTokenIds.add(tid);
+        }
+      }
+      if (soeganaGroup && soeganaGroup.tokenIds[0] === token.id) {
+        for (const tid of soeganaGroup.tokenIds.slice(1)) {
+          allRangeTokenIds.add(tid);
+        }
+      }
+      if (allRangeTokenIds.size > 0) {
+        const trailingKaeriMarks: KaeriMark[] = [];
+        const trailingKutotenMarks: KutotenMark[] = [];
+        const trailingRefMarks: RefMark[] = [];
+        for (const tid of allRangeTokenIds) {
+          const trailingTokenMarks = getMarksForToken(tid, marks);
+          if (profile.kaeriten) {
+            const kaeri = trailingTokenMarks.get('kaeri') as KaeriMark[] | undefined;
+            if (kaeri) trailingKaeriMarks.push(...kaeri);
+          }
+          if (profile.kutoten) {
+            const kutoten = trailingTokenMarks.get('kutoten') as KutotenMark[] | undefined;
+            if (kutoten) trailingKutotenMarks.push(...kutoten);
+          }
+          if (profile.ref) {
+            const ref = trailingTokenMarks.get('ref') as RefMark[] | undefined;
+            if (ref) trailingRefMarks.push(...ref);
+          }
+        }
+        rangeCtx = {
+          ...rangeCtx,
+          trailingKaeriMarks,
+          trailingKutotenMarks,
+          trailingRefMarks,
+        };
       }
 
       let tokenHtml = renderToken(token, marks, ctx, rangeCtx, refValueMap, regionRefIds);

@@ -199,19 +199,23 @@ function generateCommonStyles(prefix: string, vp: string): string {
 /*
  * Suffix Row (送り仮名・返り点の配置コンテナ)
  *
- * font-size は親から継承し、grid-template-rows を document 基準の em で計算。
- * 子要素（suffix-right 等）に font-size: ruby-font-size を指定。
+ * font-size 適用後のコンテキストなので 1em = glyph-size
  *
  *   row1: ruby-font-size（送り仮名）
  *   row2: glyph-size（返り点 = 本文サイズ）
  *   row3: ruby-font-size（再読2送り）
+ *
+ * NOTE: 本来 vertical-align: 0 で inline-grid ボックス全体が揃うはずだが、
+ * Chrome では inline-grid 内のテキストの central baseline でアライメントされる
+ * 挙動があるため、vertical-align: top で代用している。
+ * Firefox と Safari では vertical-align: 0 で正しく動作する。
  */
 :where(.${prefix}-suffix-row) {
   display: inline-grid;
-  /* font-size 適用後のコンテキストなので 1em = glyph-size */
   grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) 1em calc(var(--${vp}-ruby-ratio) * 1em);
   line-height: 1;
-  vertical-align: calc(var(--${vp}-ruby-ratio) * 0.5em + 0.5em);
+  vertical-align: top;
+  /* vertical-align: calc(var(--${vp}-ruby-ratio) * 0.5em + 0.5em); */
 }
 
 /* row1 にプレースホルダーを配置してベースラインを安定させる */

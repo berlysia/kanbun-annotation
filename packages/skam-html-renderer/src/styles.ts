@@ -351,13 +351,13 @@ function generateCommonStyles(prefix: string, vp: string): string {
  *
  * 傍線部の識別子や注番号として表示。
  */
-:where(.${prefix}-label) {
+:where(.${prefix}-ref) {
   font-size: 0.7em;
   vertical-align: super;
 }
 
-/* underline内のラベル - 共通部分 */
-:where(.${prefix}-region .${prefix}-label) {
+/* region内のラベル - 共通部分 */
+:where(.${prefix}-region > .${prefix}-ref) {
   position: absolute;
   vertical-align: baseline;
   white-space: nowrap;
@@ -498,14 +498,9 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
 }
 
 /* Label - 縦書き: 傍線の開始位置（上）に配置 */
-:where(.${prefix}-region .${prefix}-label) {
+:where(.${prefix}-region > .${prefix}-ref) {
   inset-inline-start: 0;
   inset-block-start: -1.5em;
-}
-
-/* 縦書きで半角文字の場合は縦中横 */
-:where(.${prefix}-label--half-width) {
-  text-combine-upright: all;
 }
 
 /* Ref (参照ラベル) - 縦中横 */
@@ -598,13 +593,13 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
 }
 
 /* Label - 横書き: 傍線の開始位置（下）に配置 */
-:where(.${prefix}-region .${prefix}-label) {
+:where(.${prefix}-region > .${prefix}-ref) {
   inset-inline-start: 0;
   inset-block-end: -1.5em;
 }
 
 /* 横書きでは縦中横不要 */
-:where(.${prefix}-label--half-width) {
+:where(.${prefix}-ref--half-width) {
   /* No text-combine-upright needed for horizontal */
 }`;
   }

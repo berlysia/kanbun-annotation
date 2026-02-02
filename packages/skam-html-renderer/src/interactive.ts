@@ -85,7 +85,7 @@ const SELECTION_CLASSES = {
 function getTokenIdFromElement(
   element: Element | null,
   mousePosition?: { x: number; y: number },
-  isVertical?: boolean
+  _isVertical?: boolean
 ): string | null {
   if (!element) return null;
 

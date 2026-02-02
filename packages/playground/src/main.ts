@@ -14,12 +14,7 @@ import type { SKAMDocument, RefFormat } from '@kanbun/skam';
 import { SAMPLES } from './samples.js';
 import { ErrorPanel, type ParseError } from './editor/error-panel.js';
 import { XmlEditor } from './editor/xml-editor.js';
-import {
-  addMark,
-  removeMark,
-  replaceMark,
-  getMarksForToken,
-} from './editor/document-operations.js';
+import { addMark, removeMark, getMarksForToken } from './editor/document-operations.js';
 
 // ============================================================================
 // DOM Elements
@@ -756,18 +751,6 @@ function combineKaeriValue(re: boolean, other: string | null): string | null {
   if (re && !other) return 'レ';
   if (!re && other) return other;
   return `${other}レ`;
-}
-
-/**
- * Find which group a kaeri value belongs to
- */
-function findKaeriGroup(value: string): string | null {
-  for (const group of KAERI_GROUPS) {
-    if (group.values.some((v) => v.value === value)) {
-      return group.group;
-    }
-  }
-  return null;
 }
 
 function updateKaeriButtons(currentValue: string | null): void {

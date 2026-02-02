@@ -748,13 +748,8 @@ export class MarkPopup {
         }
       }
 
-      // Enter key: activate focused button (native behavior is usually fine,
-      // but we ensure it works for buttons)
-      if (e.key === 'Enter') {
-        const activeEl = document.activeElement as HTMLElement;
-        // For buttons, let the native click behavior handle it
-        // For input fields in kana popup, applySelection is handled in setupEventListeners
-      }
+      // Enter key: let native click behavior handle button activation
+      // For input fields in kana popup, applySelection is handled in setupEventListeners
     };
 
     this.popup.addEventListener('keydown', this.keydownHandler);

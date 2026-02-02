@@ -199,7 +199,7 @@ function buildTokenIndexMap(tokens: Token[]): Map<string, number> {
 function collectTokenAnnotations(
   tokens: Token[],
   marks: Mark[],
-  tokenIndexMap: Map<string, number>
+  _tokenIndexMap: Map<string, number>
 ): Map<string, TokenAnnotation> {
   const annotations = new Map<string, TokenAnnotation>();
 

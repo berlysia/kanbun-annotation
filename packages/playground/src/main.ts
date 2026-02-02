@@ -7,6 +7,7 @@ import {
   render,
   attachInteractiveHandlers,
   setSelectionClasses,
+  clearSelection,
   PROFILES,
 } from '@kanbun/skam-html-renderer';
 import type { SKAMDocument } from '@kanbun/skam';
@@ -46,7 +47,7 @@ const previewPane = document.querySelector('.preview-pane') as HTMLDivElement;
 const selectionInfo = document.getElementById('selection-info') as HTMLDivElement;
 const selectionActions = document.getElementById('selection-actions') as HTMLDivElement;
 const selectionKaeriButtons = document.getElementById('selection-kaeri-buttons') as HTMLDivElement;
-const selectionKanaType = document.getElementById('selection-kana-type') as HTMLSelectElement;
+const selectionKanaTypes = document.getElementById('selection-kana-types') as HTMLDivElement;
 const selectionKanaInput = document.getElementById('selection-kana-input') as HTMLInputElement;
 const selectionKanaApply = document.getElementById('selection-kana-apply') as HTMLButtonElement;
 
@@ -72,23 +73,59 @@ let currentDocument: SKAMDocument | null = null;
 let currentSelectionFromId: string | null = null;
 let currentSelectionToId: string | null = null;
 
+// Existing kana values by type for the current selection
+let currentKanaValues: Record<'yomigana' | 'okurigana' | 'soegana', string> = {
+  yomigana: '',
+  okurigana: '',
+  soegana: '',
+};
+
+// Currently selected kana type in the panel
+let currentSelectedKanaType: 'yomigana' | 'okurigana' | 'soegana' = 'yomigana';
+
 // Kaeriten definitions for selection panel
-const KAERI_VALUES = [
-  { label: 'レ', value: 'レ' },
-  { label: '一', value: '一' },
-  { label: '二', value: '二' },
-  { label: '三', value: '三' },
-  { label: '四', value: '四' },
-  { label: '上', value: '上' },
-  { label: '中', value: '中' },
-  { label: '下', value: '下' },
-  { label: '甲', value: '甲' },
-  { label: '乙', value: '乙' },
-  { label: '丙', value: '丙' },
-  { label: '天', value: '天' },
-  { label: '地', value: '地' },
-  { label: '人', value: '人' },
+// group: 'レ' can coexist with others, same group values are mutually exclusive
+const KAERI_GROUPS: Array<{ group: string; values: Array<{ label: string; value: string }> }> = [
+  { group: 're', values: [{ label: 'レ', value: 'レ' }] },
+  {
+    group: 'number',
+    values: [
+      { label: '一', value: '一' },
+      { label: '二', value: '二' },
+      { label: '三', value: '三' },
+      { label: '四', value: '四' },
+    ],
+  },
+  {
+    group: 'joge',
+    values: [
+      { label: '上', value: '上' },
+      { label: '中', value: '中' },
+      { label: '下', value: '下' },
+    ],
+  },
+  {
+    group: 'kouotsu',
+    values: [
+      { label: '甲', value: '甲' },
+      { label: '乙', value: '乙' },
+      { label: '丙', value: '丙' },
+    ],
+  },
+  {
+    group: 'tenchijin',
+    values: [
+      { label: '天', value: '天' },
+      { label: '地', value: '地' },
+      { label: '人', value: '人' },
+    ],
+  },
 ];
+
+// Current kaeri selection state (toggle-based)
+// レ点 can coexist with one value from other groups
+let currentKaeriRe: boolean = false;
+let currentKaeriOther: string | null = null; // value from number/joge/kouotsu/tenchijin
 
 // Flag to prevent double updates when GUI operation triggers XML update
 // which would trigger parseAndRender again
@@ -333,8 +370,10 @@ function updateSelectionPanel(fromId: string, toId: string): void {
   // Get marks for selected tokens
   const allMarks: Array<{ tokenChar: string; type: string; value: string }> = [];
   let currentKaeriValue: string | null = null;
-  let currentKanaValue = '';
   let currentKanaType: 'yomigana' | 'okurigana' | 'soegana' = 'yomigana';
+
+  // Reset kana values for new selection
+  currentKanaValues = { yomigana: '', okurigana: '', soegana: '' };
 
   for (const token of selectedTokens) {
     const marks = getMarksForToken(currentDocument, token.id);
@@ -348,11 +387,14 @@ function updateSelectionPanel(fromId: string, toId: string): void {
         }
       } else if ('value' in mark && typeof mark.value === 'string') {
         value = mark.value;
-        // Use first token's kana for panel
+        // Use first token's kana for panel - collect all types
         if (token.id === fromId) {
           if (mark.type === 'yomigana' || mark.type === 'okurigana' || mark.type === 'soegana') {
-            currentKanaType = mark.type;
-            currentKanaValue = value;
+            currentKanaValues[mark.type] = value;
+            // Set initial type to first found kana type
+            if (currentKanaType === 'yomigana' && !currentKanaValues.yomigana) {
+              currentKanaType = mark.type;
+            }
           }
         }
       }
@@ -364,6 +406,17 @@ function updateSelectionPanel(fromId: string, toId: string): void {
         });
       }
     }
+  }
+
+  // Determine initial kana type: prefer type with existing value, else yomigana
+  if (currentKanaValues.yomigana) {
+    currentKanaType = 'yomigana';
+  } else if (currentKanaValues.okurigana) {
+    currentKanaType = 'okurigana';
+  } else if (currentKanaValues.soegana) {
+    currentKanaType = 'soegana';
+  } else {
+    currentKanaType = 'yomigana';
   }
 
   // Build HTML
@@ -397,38 +450,101 @@ function updateSelectionPanel(fromId: string, toId: string): void {
   // Update kaeriten buttons
   updateKaeriButtons(currentKaeriValue);
 
-  // Update kana input
-  selectionKanaType.value = currentKanaType;
-  selectionKanaInput.value = currentKanaValue;
-  selectionKanaApply.disabled = !currentKanaValue.trim();
+  // Update kana type buttons and input
+  currentSelectedKanaType = currentKanaType;
+  updateKanaTypeButtons();
+  selectionKanaInput.value = currentKanaValues[currentKanaType];
+  selectionKanaApply.disabled = !selectionKanaInput.value.trim();
 
   // Show actions panel
   selectionActions.style.display = 'block';
 }
 
 /**
+ * Update kana type buttons state
+ */
+function updateKanaTypeButtons(): void {
+  const buttons = selectionKanaTypes.querySelectorAll<HTMLButtonElement>('.selection-kana-type-btn');
+  for (const btn of buttons) {
+    const type = btn.dataset['type'] as 'yomigana' | 'okurigana' | 'soegana';
+    btn.classList.toggle('active', type === currentSelectedKanaType);
+    btn.classList.toggle('has-value', Boolean(currentKanaValues[type]));
+  }
+}
+
+/**
  * Update kaeriten buttons in selection panel
  */
+/**
+ * Parse existing kaeri value into Re + Other components
+ */
+function parseKaeriValue(value: string | null): { re: boolean; other: string | null } {
+  if (!value) return { re: false, other: null };
+
+  const hasRe = value.includes('レ');
+  const other = value.replace('レ', '') || null;
+  return { re: hasRe, other };
+}
+
+/**
+ * Combine Re and Other into a kaeri value string
+ * Convention: other comes first, then レ (e.g., "一レ", "上レ")
+ */
+function combineKaeriValue(re: boolean, other: string | null): string | null {
+  if (!re && !other) return null;
+  if (re && !other) return 'レ';
+  if (!re && other) return other;
+  return `${other}レ`;
+}
+
+/**
+ * Find which group a kaeri value belongs to
+ */
+function findKaeriGroup(value: string): string | null {
+  for (const group of KAERI_GROUPS) {
+    if (group.values.some((v) => v.value === value)) {
+      return group.group;
+    }
+  }
+  return null;
+}
+
 function updateKaeriButtons(currentValue: string | null): void {
   selectionKaeriButtons.innerHTML = '';
 
-  // Add kaeri buttons
-  for (const kaeri of KAERI_VALUES) {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    btn.className = 'selection-kaeri-btn';
-    btn.textContent = kaeri.label;
-    btn.dataset['value'] = kaeri.value;
+  // Parse current value into components
+  const { re, other } = parseKaeriValue(currentValue);
+  currentKaeriRe = re;
+  currentKaeriOther = other;
 
-    if (currentValue === kaeri.value) {
-      btn.classList.add('active');
+  // Add kaeri buttons by group
+  for (const group of KAERI_GROUPS) {
+    const groupDiv = document.createElement('div');
+    groupDiv.className = 'selection-kaeri-group';
+
+    for (const kaeri of group.values) {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'selection-kaeri-btn';
+      btn.textContent = kaeri.label;
+      btn.dataset['value'] = kaeri.value;
+      btn.dataset['group'] = group.group;
+
+      // Check if this button should be active
+      if (group.group === 're' && re) {
+        btn.classList.add('active');
+      } else if (group.group !== 're' && other === kaeri.value) {
+        btn.classList.add('active');
+      }
+
+      btn.addEventListener('click', () => {
+        handleKaeriToggle(kaeri.value, group.group);
+      });
+
+      groupDiv.appendChild(btn);
     }
 
-    btn.addEventListener('click', () => {
-      handleKaeriButtonClick(kaeri.value, currentValue === kaeri.value);
-    });
-
-    selectionKaeriButtons.appendChild(btn);
+    selectionKaeriButtons.appendChild(groupDiv);
   }
 
   // Add clear button if there's a current value
@@ -439,16 +555,36 @@ function updateKaeriButtons(currentValue: string | null): void {
     clearBtn.textContent = '✕';
     clearBtn.title = '返り点を削除';
     clearBtn.addEventListener('click', () => {
-      handleKaeriButtonClick(null, false);
+      applyKaeriValue(null);
     });
     selectionKaeriButtons.appendChild(clearBtn);
   }
 }
 
 /**
- * Handle kaeriten button click in selection panel
+ * Handle kaeri button toggle
  */
-function handleKaeriButtonClick(value: string | null, isToggleOff: boolean): void {
+function handleKaeriToggle(value: string, group: string): void {
+  if (group === 're') {
+    // Toggle レ点
+    currentKaeriRe = !currentKaeriRe;
+  } else {
+    // Toggle other kaeri - same value toggles off, different value replaces
+    if (currentKaeriOther === value) {
+      currentKaeriOther = null;
+    } else {
+      currentKaeriOther = value;
+    }
+  }
+
+  const newValue = combineKaeriValue(currentKaeriRe, currentKaeriOther);
+  applyKaeriValue(newValue);
+}
+
+/**
+ * Apply kaeri value to document
+ */
+function applyKaeriValue(value: string | null): void {
   if (!currentDocument || !currentSelectionFromId) return;
 
   let newDoc = currentDocument;
@@ -461,8 +597,8 @@ function handleKaeriButtonClick(value: string | null, isToggleOff: boolean): voi
     newDoc = removeMark(newDoc, existingMark.id);
   }
 
-  // Add new mark if not toggling off and value is provided
-  if (!isToggleOff && value) {
+  // Add new mark if value is provided
+  if (value) {
     newDoc = addMark(newDoc, {
       type: 'kaeri',
       value: value,
@@ -484,7 +620,7 @@ function handleKaeriButtonClick(value: string | null, isToggleOff: boolean): voi
 function handleKanaApply(): void {
   if (!currentDocument || !currentSelectionFromId || !currentSelectionToId) return;
 
-  const type = selectionKanaType.value as 'yomigana' | 'okurigana' | 'soegana';
+  const type = currentSelectedKanaType;
   const value = selectionKanaInput.value.trim();
 
   if (!value) return;
@@ -518,9 +654,14 @@ function handleKanaApply(): void {
 function clearSelectionPanel(): void {
   currentSelectionFromId = null;
   currentSelectionToId = null;
+  currentKanaValues = { yomigana: '', okurigana: '', soegana: '' };
+  currentSelectedKanaType = 'yomigana';
+  currentKaeriRe = false;
+  currentKaeriOther = null;
   selectionInfo.innerHTML = '<p class="selection-empty">文字をクリックまたはドラッグで選択</p>';
   selectionActions.style.display = 'none';
   selectionKaeriButtons.innerHTML = '';
+  updateKanaTypeButtons();
   selectionKanaInput.value = '';
   selectionKanaApply.disabled = true;
 }
@@ -609,6 +750,11 @@ function renderDocument(doc: SKAMDocument, preserveSelection = false): void {
         updateSelectionPanel(fromId, toId);
         // Apply selection classes
         setSelectionClasses(renderOutput, fromId, toId);
+      },
+      onEmptyClick: () => {
+        // Clear selection when clicking empty area
+        clearSelectionPanel();
+        clearSelection(renderOutput);
       },
     });
 
@@ -1063,6 +1209,23 @@ glyphSizeInput.addEventListener('input', applyCustomStyles);
 rubyRatioInput.addEventListener('input', applyCustomStyles);
 lineHeightInput.addEventListener('input', applyCustomStyles);
 resetCustomizeBtn.addEventListener('click', resetCustomize);
+
+// Selection panel kana type buttons
+selectionKanaTypes.addEventListener('click', (e) => {
+  const target = e.target as HTMLElement;
+  if (!target.classList.contains('selection-kana-type-btn')) return;
+
+  const type = target.dataset['type'] as 'yomigana' | 'okurigana' | 'soegana' | undefined;
+  if (!type) return;
+
+  currentSelectedKanaType = type;
+  updateKanaTypeButtons();
+
+  // Update input with existing value for this type
+  selectionKanaInput.value = currentKanaValues[type];
+  selectionKanaApply.disabled = !selectionKanaInput.value.trim();
+  selectionKanaInput.focus();
+});
 
 // Selection panel kana input
 selectionKanaInput.addEventListener('input', () => {

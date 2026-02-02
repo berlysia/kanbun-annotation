@@ -38,6 +38,12 @@ export interface InteractiveCallbacks {
    * @param event マウスイベント
    */
   onMarkClick?: (markId: string, event: MouseEvent) => void;
+
+  /**
+   * 空白部分（トークン以外の場所）がクリックされた時のコールバック
+   * @param event マウスイベント
+   */
+  onEmptyClick?: (event: MouseEvent) => void;
 }
 
 /**
@@ -282,7 +288,12 @@ export function attachInteractiveHandlers(
     const mousePos = { x: event.clientX, y: event.clientY };
     const tokenId = getTokenIdFromElement(target, mousePos, isVertical);
 
-    if (!tokenId) return;
+    if (!tokenId) {
+      // トークン以外の場所をクリックした場合は選択をクリア
+      clearSelectionClasses(container);
+      callbacks.onEmptyClick?.(event);
+      return;
+    }
 
     // 選択クラスをクリア
     clearSelectionClasses(container);

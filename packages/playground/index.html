@@ -94,13 +94,13 @@
                   <div class="selection-kaeri-buttons" id="selection-kaeri-buttons"></div>
                 </div>
                 <div class="selection-action-group">
-                  <label class="selection-action-label" for="selection-kana-input">仮名</label>
+                  <label class="selection-action-label">仮名</label>
+                  <div class="selection-kana-types" id="selection-kana-types">
+                    <button type="button" class="selection-kana-type-btn active" data-type="yomigana">読み</button>
+                    <button type="button" class="selection-kana-type-btn" data-type="okurigana">送り</button>
+                    <button type="button" class="selection-kana-type-btn" data-type="soegana">添え</button>
+                  </div>
                   <div class="selection-kana-row">
-                    <select id="selection-kana-type" class="selection-kana-select">
-                      <option value="yomigana">読み</option>
-                      <option value="okurigana">送り</option>
-                      <option value="soegana">添え</option>
-                    </select>
                     <input type="text" id="selection-kana-input" class="selection-kana-input" placeholder="仮名" autocomplete="off" />
                     <button type="button" id="selection-kana-apply" class="selection-btn-apply" disabled>適用</button>
                   </div>

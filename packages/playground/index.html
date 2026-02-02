@@ -95,16 +95,28 @@
               </div>
               <div class="customize-group">
                 <label>
-                  ルビサイズ
+                  文字サイズ
                   <input
                     type="range"
-                    id="ruby-font-size"
+                    id="glyph-size"
+                    min="0.8"
+                    max="1.5"
+                    step="0.1"
+                    value="1"
+                  />
+                  <span id="glyph-size-value">1em</span>
+                </label>
+                <label>
+                  ルビ比率
+                  <input
+                    type="range"
+                    id="ruby-ratio"
                     min="0.3"
                     max="0.8"
                     step="0.05"
                     value="0.5"
                   />
-                  <span id="ruby-font-size-value">0.5em</span>
+                  <span id="ruby-ratio-value">0.5</span>
                 </label>
                 <label>
                   行間

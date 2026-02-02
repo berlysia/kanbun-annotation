@@ -28,8 +28,10 @@ const colorKaeritenInput = document.getElementById('color-kaeriten') as HTMLInpu
 const colorRubyInput = document.getElementById('color-ruby') as HTMLInputElement;
 const colorEmphasisInput = document.getElementById('color-emphasis') as HTMLInputElement;
 const fontFamilySelect = document.getElementById('font-family') as HTMLSelectElement;
-const rubyFontSizeInput = document.getElementById('ruby-font-size') as HTMLInputElement;
-const rubyFontSizeValue = document.getElementById('ruby-font-size-value') as HTMLSpanElement;
+const glyphSizeInput = document.getElementById('glyph-size') as HTMLInputElement;
+const glyphSizeValue = document.getElementById('glyph-size-value') as HTMLSpanElement;
+const rubyRatioInput = document.getElementById('ruby-ratio') as HTMLInputElement;
+const rubyRatioValue = document.getElementById('ruby-ratio-value') as HTMLSpanElement;
 const lineHeightInput = document.getElementById('line-height') as HTMLInputElement;
 const lineHeightValue = document.getElementById('line-height-value') as HTMLSpanElement;
 const resetCustomizeBtn = document.getElementById('reset-customize-btn') as HTMLButtonElement;
@@ -46,7 +48,8 @@ interface CustomizeState {
   colorRuby: string;
   colorEmphasis: string;
   fontFamily: string;
-  rubyFontSize: string;
+  glyphSize: string;
+  rubyRatio: string;
   lineHeight: string;
 }
 
@@ -55,7 +58,8 @@ const DEFAULT_CUSTOMIZE_STATE: CustomizeState = {
   colorRuby: '#000000',
   colorEmphasis: '#000000',
   fontFamily: "'Noto Serif JP', serif",
-  rubyFontSize: '0.5',
+  glyphSize: '1',
+  rubyRatio: '0.5',
   lineHeight: '2',
 };
 
@@ -144,13 +148,15 @@ function getCustomizeState(): CustomizeState {
     colorRuby: colorRubyInput.value,
     colorEmphasis: colorEmphasisInput.value,
     fontFamily: fontFamilySelect.value,
-    rubyFontSize: rubyFontSizeInput.value,
+    glyphSize: glyphSizeInput.value,
+    rubyRatio: rubyRatioInput.value,
     lineHeight: lineHeightInput.value,
   };
 }
 
 function updateRangeDisplays(): void {
-  rubyFontSizeValue.textContent = `${rubyFontSizeInput.value}em`;
+  glyphSizeValue.textContent = `${glyphSizeInput.value}em`;
+  rubyRatioValue.textContent = rubyRatioInput.value;
   lineHeightValue.textContent = lineHeightInput.value;
 }
 
@@ -171,7 +177,8 @@ function applyCustomStyles(): void {
     --skam-color-ruby: ${state.colorRuby};
     --skam-color-emphasis: ${state.colorEmphasis};
     --skam-font-family: ${state.fontFamily};
-    --skam-ruby-font-size: ${state.rubyFontSize}em;
+    --skam-glyph-size: ${state.glyphSize}em;
+    --skam-ruby-ratio: ${state.rubyRatio};
     --skam-line-height: ${state.lineHeight};
   }
 }`;
@@ -184,7 +191,8 @@ function resetCustomize(): void {
   colorRubyInput.value = DEFAULT_CUSTOMIZE_STATE.colorRuby;
   colorEmphasisInput.value = DEFAULT_CUSTOMIZE_STATE.colorEmphasis;
   fontFamilySelect.value = DEFAULT_CUSTOMIZE_STATE.fontFamily;
-  rubyFontSizeInput.value = DEFAULT_CUSTOMIZE_STATE.rubyFontSize;
+  glyphSizeInput.value = DEFAULT_CUSTOMIZE_STATE.glyphSize;
+  rubyRatioInput.value = DEFAULT_CUSTOMIZE_STATE.rubyRatio;
   lineHeightInput.value = DEFAULT_CUSTOMIZE_STATE.lineHeight;
   applyCustomStyles();
 }
@@ -353,7 +361,8 @@ colorKaeritenInput.addEventListener('input', applyCustomStyles);
 colorRubyInput.addEventListener('input', applyCustomStyles);
 colorEmphasisInput.addEventListener('input', applyCustomStyles);
 fontFamilySelect.addEventListener('change', applyCustomStyles);
-rubyFontSizeInput.addEventListener('input', applyCustomStyles);
+glyphSizeInput.addEventListener('input', applyCustomStyles);
+rubyRatioInput.addEventListener('input', applyCustomStyles);
 lineHeightInput.addEventListener('input', applyCustomStyles);
 resetCustomizeBtn.addEventListener('click', resetCustomize);
 

@@ -117,7 +117,8 @@ function generateCommonStyles(prefix: string, vp: string): string {
   --${vp}-font-family: inherit;
   --${vp}-font-family-ruby: inherit;
   --${vp}-glyph-size: 1em;
-  --${vp}-ruby-font-size: 0.5em;
+  --${vp}-ruby-ratio: 0.5;
+  --${vp}-ruby-font-size: calc(var(--${vp}-ruby-ratio) * var(--${vp}-glyph-size));
   --${vp}-line-height: 2;
   --${vp}-letter-spacing: 0;
 
@@ -130,6 +131,7 @@ function generateCommonStyles(prefix: string, vp: string): string {
 /* Display Layer */
 :where(.${prefix}-display) {
   position: relative;
+  font-size: var(--${vp}-glyph-size);
 }
 
 /* Block (論理的なブロック単位、句や段落など) */
@@ -167,7 +169,8 @@ function generateCommonStyles(prefix: string, vp: string): string {
 }
 
 :where(.${prefix}-ruby) {
-  font-size: var(--${vp}-ruby-font-size);
+  /* font-size 適用後のコンテキストなので 1em = glyph-size */
+  font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   font-family: var(--${vp}-font-family-ruby);
   color: var(--${vp}-color-ruby);
   user-select: none;
@@ -196,30 +199,43 @@ function generateCommonStyles(prefix: string, vp: string): string {
 /*
  * Suffix Row (送り仮名・返り点の配置コンテナ)
  *
- * font-size: 0.5em 環境内なので、元の 0.5em → 1em, 元の 1em → 2em
+ * font-size は親から継承し、grid-template-rows を document 基準の em で計算。
+ * 子要素（suffix-right 等）に font-size: ruby-font-size を指定。
  *
- * grid-template-rowsで3行配置（縦書き時は横方向、横書き時は縦方向）
- *   row1: 送り仮名（縦書き時は右、横書き時は上）
- *   row2: 返り点（中央）
- *   row3: 再読2送り（縦書き時は左、横書き時は下）
+ *   row1: ruby-font-size（送り仮名）
+ *   row2: glyph-size（返り点 = 本文サイズ）
+ *   row3: ruby-font-size（再読2送り）
  */
 :where(.${prefix}-suffix-row) {
   display: inline-grid;
-  font-size: var(--${vp}-ruby-font-size);
-  grid-template-rows: 1em 2em 1em;
+  /* font-size 適用後のコンテキストなので 1em = glyph-size */
+  grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) 1em calc(var(--${vp}-ruby-ratio) * 1em);
   line-height: 1;
-  vertical-align: top;
+  vertical-align: calc(var(--${vp}-ruby-ratio) * 0.5em + 0.5em);
+}
+
+/* row1 にプレースホルダーを配置してベースラインを安定させる */
+:where(.${prefix}-suffix-row)::before {
+  content: '';
+  grid-row: 1;
+}
+
+/* suffix-right がある場合はプレースホルダー不要 */
+:where(.${prefix}-suffix-row:has(.${prefix}-suffix-right))::before {
+  display: none;
 }
 
 /* Suffix Right (送り仮名・添え仮名) */
 :where(.${prefix}-suffix-right) {
   grid-row: 1;
+  font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   user-select: none;
 }
 
 /* Suffix Center (返り点) - 縦書き時は左寄せ、横書き時は下寄せ */
 :where(.${prefix}-suffix-center) {
   grid-row: 2;
+  font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   align-self: end;
   user-select: none;
 }
@@ -227,6 +243,7 @@ function generateCommonStyles(prefix: string, vp: string): string {
 /* Suffix Left (再読文字2回目の送り仮名) */
 :where(.${prefix}-suffix-left) {
   grid-row: 3;
+  font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   user-select: none;
 }
 
@@ -238,7 +255,7 @@ function generateCommonStyles(prefix: string, vp: string): string {
 
 /* Suffix Kana (送り仮名・添え仮名のみの場合) */
 :where(.${prefix}-suffix-kana) {
-  font-size: var(--${vp}-ruby-font-size);
+  font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   vertical-align: top;
   user-select: none;
 }

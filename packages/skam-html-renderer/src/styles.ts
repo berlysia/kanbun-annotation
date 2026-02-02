@@ -508,8 +508,8 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   text-combine-upright: all;
 }
 
-/* Note reference - 縦中横 */
-:where(.${prefix}-note-ref--half-width) {
+/* Ref (参照ラベル) - 縦中横 */
+:where(.${prefix}-ref--half-width) {
   text-combine-upright: all;
 }
 

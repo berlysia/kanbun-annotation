@@ -194,13 +194,13 @@ const LEARNING_BASIC_PROFILE: RenderProfile = {
   ref: true,
 };
 
-/** 学習用ヒント付きプロファイル（返り点+送り仮名） */
+/** 学習用ヒント付きプロファイル（返り点+送り仮名+再読文字） */
 const LEARNING_HINT_PROFILE: RenderProfile = {
   yomigana: false,
   okurigana: true,
   kaeriten: true,
   kutoten: true,
-  saidoku: false,
+  saidoku: true,
   okototen: false,
   tateten: false,
   emphasis: false,

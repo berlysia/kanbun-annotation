@@ -9,6 +9,7 @@ import {
   setSelectionClasses,
   clearSelection,
   PROFILES,
+  type RenderProfile,
 } from '@kanbun/skam-html-renderer';
 import type { SKAMDocument, RefFormat } from '@kanbun/skam';
 import { SAMPLES } from './samples.js';
@@ -35,6 +36,7 @@ const copyHtmlBtn = document.getElementById('copy-html-btn') as HTMLButtonElemen
 const writingModeRadios = document.querySelectorAll<HTMLInputElement>('input[name="writing-mode"]');
 const inlineModeCheckbox = document.getElementById('inline-mode') as HTMLInputElement;
 const profileSelect = document.getElementById('profile-select') as HTMLSelectElement;
+const profileCheckboxes = document.getElementById('profile-checkboxes') as HTMLDivElement;
 
 // 2-pane layout elements
 const editorContainer = document.querySelector('.editor-container') as HTMLDivElement;
@@ -244,6 +246,10 @@ const DEFAULT_CUSTOMIZE_STATE: CustomizeState = {
 // ============================================================================
 
 type ProfileName = keyof typeof PROFILES;
+type ProfileNameOrCustom = ProfileName | 'custom';
+
+// Current profile settings (initialized from PROFILES.full)
+let currentProfileSettings: RenderProfile = { ...PROFILES.full };
 
 interface URLState {
   sample: number;
@@ -400,12 +406,76 @@ function getInlineMode(): boolean {
   return inlineModeCheckbox.checked;
 }
 
-function getProfile(): ProfileName {
+function getProfile(): ProfileNameOrCustom {
   const value = profileSelect.value;
-  if (value === 'learningBasic' || value === 'learningHint') {
+  if (value === 'learningBasic' || value === 'learningHint' || value === 'custom') {
     return value;
   }
   return 'full';
+}
+
+/**
+ * Get the current profile settings for rendering
+ */
+function getProfileSettings(): RenderProfile {
+  return { ...currentProfileSettings };
+}
+
+/**
+ * Update checkboxes to match the given profile settings
+ */
+function syncCheckboxesToProfile(profile: RenderProfile): void {
+  const checkboxes =
+    profileCheckboxes.querySelectorAll<HTMLInputElement>('input[data-profile-key]');
+  for (const checkbox of checkboxes) {
+    const key = checkbox.dataset['profileKey'] as keyof RenderProfile;
+    if (key && key in profile) {
+      checkbox.checked = profile[key];
+    }
+  }
+}
+
+/**
+ * Read checkbox states and update currentProfileSettings
+ */
+function readCheckboxesToProfile(): RenderProfile {
+  const profile: RenderProfile = { ...PROFILES.full };
+  const checkboxes =
+    profileCheckboxes.querySelectorAll<HTMLInputElement>('input[data-profile-key]');
+  for (const checkbox of checkboxes) {
+    const key = checkbox.dataset['profileKey'] as keyof RenderProfile;
+    if (key && key in profile) {
+      profile[key] = checkbox.checked;
+    }
+  }
+  return profile;
+}
+
+/**
+ * Set profile to custom mode
+ */
+function setCustomProfile(): void {
+  const customOption = profileSelect.querySelector<HTMLOptionElement>('option[value="custom"]');
+  if (customOption) {
+    customOption.disabled = false;
+  }
+  profileSelect.value = 'custom';
+  // Update URL to remove profile (custom is not saved)
+  updateURL({ profile: 'full' });
+}
+
+/**
+ * Apply a preset profile
+ */
+function applyPresetProfile(profileName: ProfileName): void {
+  currentProfileSettings = { ...PROFILES[profileName] };
+  syncCheckboxesToProfile(currentProfileSettings);
+  profileSelect.value = profileName;
+  // Disable custom option when using preset
+  const customOption = profileSelect.querySelector<HTMLOptionElement>('option[value="custom"]');
+  if (customOption) {
+    customOption.disabled = true;
+  }
 }
 
 /**
@@ -1499,8 +1569,7 @@ function renderDocument(doc: SKAMDocument, preserveSelection = false): void {
   // HTML render with interactive mode enabled
   const writingMode = getWritingMode();
   const inline = getInlineMode();
-  const profileName = getProfile();
-  const profile = PROFILES[profileName];
+  const profile = getProfileSettings();
   const result = render(doc, { writingMode, inline, profile, interactive: true });
 
   // Apply CSS and HTML
@@ -1984,7 +2053,26 @@ inlineModeCheckbox.addEventListener('change', () => {
 
 // Profile change
 profileSelect.addEventListener('change', () => {
-  updateURL({ profile: getProfile() });
+  const profile = getProfile();
+  if (profile !== 'custom') {
+    applyPresetProfile(profile);
+    updateURL({ profile });
+  }
+  if (currentDocument) {
+    renderDocument(currentDocument);
+  }
+});
+
+// Profile checkboxes change
+profileCheckboxes.addEventListener('change', (e) => {
+  const target = e.target as HTMLInputElement;
+  if (!target.dataset['profileKey']) return;
+
+  // Update current profile settings from checkboxes
+  currentProfileSettings = readCheckboxesToProfile();
+  // Switch to custom mode
+  setCustomProfile();
+
   if (currentDocument) {
     renderDocument(currentDocument);
   }
@@ -2112,8 +2200,8 @@ for (const radio of writingModeRadios) {
 // Set inline mode
 inlineModeCheckbox.checked = initialState.inline;
 
-// Set profile
-profileSelect.value = initialState.profile;
+// Set profile and sync checkboxes
+applyPresetProfile(initialState.profile);
 
 // Load sample (without updating URL since we're restoring from URL)
 loadSample(initialState.sample, false);

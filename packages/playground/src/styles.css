@@ -437,6 +437,53 @@
     outline-offset: 2px;
   }
 
+  /* Profile Details (individual feature toggles) */
+  .profile-details {
+    width: 100%;
+    margin-top: 0.5rem;
+    font-size: 0.75rem;
+    color: var(--editor-text);
+  }
+
+  .profile-details summary {
+    cursor: pointer;
+    color: var(--editor-primary);
+    padding: 0.25rem 0;
+  }
+
+  .profile-details summary:hover {
+    text-decoration: underline;
+  }
+
+  .profile-checkboxes {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0.25rem 0.5rem;
+    padding: 0.5rem;
+    background-color: var(--editor-bg);
+    border: 1px solid var(--editor-border);
+    border-radius: var(--radius-sm);
+    margin-top: 0.25rem;
+  }
+
+  .profile-checkboxes label {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    cursor: pointer;
+    font-size: 0.7rem;
+    white-space: nowrap;
+  }
+
+  .profile-checkboxes label:hover {
+    color: var(--editor-primary);
+  }
+
+  .profile-checkboxes input[type='checkbox'] {
+    margin: 0;
+    cursor: pointer;
+  }
+
   /* Preview Main Area (contains content + selection panel) */
   .preview-main {
     flex: 1;

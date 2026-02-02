@@ -18,7 +18,8 @@
     "playground:preview": "pnpm --filter @kanbun/playground preview",
     "changeset": "changeset",
     "changeset:version": "changeset version",
-    "changeset:publish": "changeset publish"
+    "changeset:publish": "changeset publish",
+    "prepare": "husky"
   },
   "keywords": [
     "kanbun",
@@ -34,7 +35,9 @@
     "@types/node": "25.0.10",
     "@typescript/native-preview": "7.0.0-dev.20260122.4",
     "happy-dom": "20.3.9",
+    "husky": "9.1.7",
     "knip": "5.82.1",
+    "lint-staged": "16.2.7",
     "oxlint": "1.41.0",
     "prettier": "3.8.1",
     "tsup": "8.5.1",
@@ -44,5 +47,8 @@
     "onlyBuiltDependencies": [
       "@anthropic-ai/tokenizer-wasm"
     ]
+  },
+  "lint-staged": {
+    "*.{ts,tsx,js,jsx,json,md,html,css}": "prettier --write"
   }
 }

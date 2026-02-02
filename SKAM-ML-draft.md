@@ -442,59 +442,109 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 
 ---
 
-### 7.13 `skam:underline`（傍線）
+### 7.13 `skam:region`（領域指定）
 
-教育用途や試験問題等で傍線部を指示するために使用する。
+教育用途や試験問題等で傍線部を指示するために使用する。`ref`属性でrefマークを参照できる。
 
 ```xml
 <skam:block>
-  <skam:underline style="solid" group="a">學而時習</skam:underline>之
+  <skam:region style="solid" ref="ref-1">學而時習</skam:region>之
 </skam:block>
 ```
 
 #### 属性
 
-| 属性    | 必須 | 説明                                                |
-| ------- | ---- | --------------------------------------------------- |
-| `style` | 任意 | 傍線スタイル（solid, dotted, dashed, wavy, double） |
-| `group` | 任意 | ラベルとの関連付けグループID                        |
+| 属性    | 必須 | 説明                                                         |
+| ------- | ---- | ------------------------------------------------------------ |
+| `style` | 任意 | 傍線スタイル（none, solid, dotted, dashed, wavy, double）。省略時は`none` |
+| `ref`   | 任意 | 参照するrefマークのID                                        |
 
 ※ style の値一覧は SKAM 仕様 5.7節を参照。
 
 #### 正規化
 
-- `marks.type = "underline"`
+- `marks.type = "region"`
 - `anchor = 内容のtoken範囲`
-- `style`, `group` を保持
+- `style`, `ref` を保持
 
 ---
 
-### 7.14 `skam:label`（番号振り）
+### 7.14 `skam:ref`（参照識別子・注釈）
 
-傍線部の識別や問題番号の付与等に使用する。空要素として直前tokenに付与する。
+傍線部の識別子、問題番号、注釈等に使用する。空要素または内容を持つ要素として使用。
 
 ```xml
+<!-- 自動番号（format指定） -->
 <skam:block>
-  <skam:underline style="solid" group="a">學而時習</skam:underline>
-  <skam:label format="iroha" group="a"/>之
+  <skam:region style="solid" ref="ref-1">學而時習</skam:region>
+  <skam:ref xml:id="ref-1" format="iroha-katakana"/>之
 </skam:block>
+
+<!-- 明示ラベル -->
+<skam:block>
+  學而時習<skam:ref label="(※)"/>之
+</skam:block>
+
+<!-- 注釈（子要素として） -->
+<skam:block>
+  學而時習之<skam:ref format="numeric-bracket">「之」は目的語として読む。</skam:ref>
+</skam:block>
+
+<!-- 注釈のみ（番号なし） -->
+<skam:block>
+  學而時習之<skam:ref>補足説明テキスト</skam:ref>
+</skam:block>
+
+<!-- 分離定義（長い注釈用） -->
+<skam:block>
+  學而時習之<skam:ref xml:id="n1" format="numeric-bracket"/>
+</skam:block>
+<!-- skam:notes 内で skam:note が ref="n1" で参照 -->
 ```
 
 #### 属性
 
-| 属性     | 必須 | 説明                                       |
-| -------- | ---- | ------------------------------------------ |
-| `value`  | 任意 | 識別用文字列（format指定時は自動生成可能） |
-| `format` | 任意 | 番号フォーマット                           |
-| `group`  | 任意 | アンダーラインとの関連付けグループID       |
+| 属性     | 必須                           | 説明                                               |
+| -------- | ------------------------------ | -------------------------------------------------- |
+| `xml:id` | 分離定義時は必須               | 一意識別子。skam:note から参照される場合に必要     |
+| `label`  | label/format/内容のいずれか必須 | 表示ラベル（明示値、formatと排他）                |
+| `format` | label/format/内容のいずれか必須 | 自動番号フォーマット（labelと排他）               |
 
+※ `label` と `format` は排他（併用禁止）
 ※ format の値一覧は SKAM 仕様 5.8節を参照。
 
 #### 正規化
 
-- `marks.type = "label"`
-- `anchor = 直前token`
-- `value`, `format`, `group` を保持
+- `marks.type = "ref"`
+- 空要素: `anchor = 直前token`
+- 内容あり要素: `anchor = 内容のtoken範囲`
+- `label`, `format`, `content` を保持
+- 分離定義: `ext.noteRef` に参照先の note ID を保持
+
+---
+
+### 7.15 `skam:note`（注釈本文・分離定義）
+
+長い注釈テキストを `skam:notes` セクションに分離して定義する。
+`ref` 属性で対応する `skam:ref` 要素を参照する。
+
+```xml
+<!-- 本文中: ref が宣言（xml:id を持つ） -->
+<skam:block>
+  學而時習之<skam:ref xml:id="n1" format="numeric-bracket"/>
+</skam:block>
+
+<!-- skam:notes内: note が ref を参照 -->
+<skam:notes>
+  <skam:note ref="n1">長い注釈テキスト...</skam:note>
+</skam:notes>
+```
+
+#### 属性
+
+| 属性  | 必須 | 説明                          |
+| ----- | ---- | ----------------------------- |
+| `ref` | 必須 | 参照する skam:ref 要素の xml:id |
 
 ---
 
@@ -514,36 +564,45 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 
 ---
 
-## 9. Notes（注釈本文）
+## 9. Notes（注釈本文・分離定義）
 
-### 9.1 `skam:ref`（本文内）
+`skam:notes` セクションには `skam:note` 要素を配置する。
+`skam:note` は `ref` 属性で本文中の `skam:ref` 要素を参照し、その注釈内容を提供する。
 
-```xml
-<skam:block>
-  學而時習之<skam:ref target="#n1"/>
-</skam:block>
+### 9.1 参照関係
+
+```
+skam:ref (xml:id を持つ宣言)
+    ↑ ref 属性で参照
+skam:note (content を提供)
 ```
 
-#### 内容モデル
+- `skam:ref` が宣言側（`xml:id` を持つ）
+- `skam:note` が `ref` 属性で `skam:ref` を参照
 
-- **空要素のみ**（テキスト・子要素を含まない）
-- 常に直前 token にアンカーされる
-
-#### 属性
-
-- `target`（必須）: 参照先の `skam:note` の `xml:id`（`#` 付き）
-
-※ 範囲全体に注釈を付ける場合は `skam:span type="note"` を使用する（将来拡張）。
-
-### 9.2 `skam:note`
+### 9.2 構造
 
 ```xml
 <skam:notes>
-  <skam:note xml:id="n1">
+  <skam:note ref="n1">
     「之」は目的語として読む。
+  </skam:note>
+  <skam:note ref="n2">
+    この一節は『論語』学而篇の冒頭である。
   </skam:note>
 </skam:notes>
 ```
+
+### 9.3 本文からの参照
+
+```xml
+<skam:block>
+  學而時習之<skam:ref xml:id="n1" format="numeric-bracket"/>
+</skam:block>
+```
+
+※ `skam:ref` の `xml:id="n1"` を `skam:note` の `ref="n1"` が参照する。
+※ `#` 接頭辞は不要（`ref="n1"` と記述、`ref="#n1"` ではない）。
 
 ---
 
@@ -571,7 +630,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
       <skam:kun soe="を">之</skam:kun>
       <skam:kaeri kind="re"/>
       <skam:kun okuri="ふ">習</skam:kun>
-      <skam:ref target="#n1"/>
+      <skam:ref xml:id="n1" format="numeric-bracket"/>
     </skam:block>
   </skam:body>
 
@@ -582,7 +641,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
   </skam:readings>
 
   <skam:notes>
-    <skam:note xml:id="n1">「之」は目的語。</skam:note>
+    <skam:note ref="n1">「之」は目的語。</skam:note>
   </skam:notes>
 </skam:doc>
 ```
@@ -638,25 +697,47 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 </skam:doc>
 ```
 
-### 11.5 傍線と番号振りの例
+### 11.5 傍線部と参照識別子の例
 
-教育用途での傍線部指示の例：
+教育用途での傍線部指示の例（region + ref を使用）：
 
 ```xml
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      <skam:underline style="solid" group="a">
+      <skam:region style="solid" ref="ref-1">
         <skam:kun yomi="まな" okuri="びて">學</skam:kun>
         而
         <skam:kun okuri="に">時</skam:kun>
         <skam:kun okuri="ふ">習</skam:kun>
-      </skam:underline>
-      <skam:label format="iroha" group="a"/>
+      </skam:region>
+      <skam:ref format="iroha-katakana"/>
       <skam:kun soe="を">之</skam:kun>
       <skam:kaeri kind="re"/>
     </skam:block>
   </skam:body>
+</skam:doc>
+```
+
+### 11.6 注釈の例
+
+```xml
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:kun yomi="まな" okuri="びて">學</skam:kun>
+      而
+      <skam:kun okuri="に">時</skam:kun>
+      <skam:kun soe="を">之</skam:kun>
+      <skam:kaeri kind="re"/>
+      <skam:kun okuri="ふ">習</skam:kun>
+      <skam:ref xml:id="n1" format="numeric-bracket"/>
+    </skam:block>
+  </skam:body>
+
+  <skam:notes>
+    <skam:note ref="n1">「之」は目的語として読む。</skam:note>
+  </skam:notes>
 </skam:doc>
 ```
 
@@ -673,6 +754,7 @@ SKAM-ML/XMLはHTMLに依存しない純XML語彙とし、本文構造は`skam:bl
 | `skam:kaeri`                  | `kaeri`              |
 | `skam:kun` (yomi属性)         | `yomigana`           |
 | `skam:kun` (okuri属性)        | `okurigana`          |
+| `skam:kun` (soe属性)          | `soegana`            |
 | `skam:yomigana`               | `yomigana`           |
 | `skam:kutoten`                | `kutoten`            |
 | `skam:okototen`               | `okototen`           |
@@ -680,10 +762,9 @@ SKAM-ML/XMLはHTMLに依存しない純XML語彙とし、本文構造は`skam:bl
 | `skam:okimoji`                | `okimoji`            |
 | `skam:joji`                   | `joji`               |
 | `skam:span` (type="emphasis") | `emphasis`           |
-| `skam:ref` / `skam:note`      | `note`               |
+| `skam:ref`                    | `ref`                |
+| `skam:region`                 | `region`             |
 | `skam:saidoku`                | `saidoku`            |
 | `skam:tateten`                | `tateten`            |
-| `skam:underline`              | `underline`          |
-| `skam:label`                  | `label`              |
 
 ※ `derivations`（読み順等）はコンパイル時に生成される。

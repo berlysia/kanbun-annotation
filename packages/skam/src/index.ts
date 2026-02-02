@@ -92,12 +92,11 @@ export type MarkType =
   | 'soegana'
   | 'kutoten'
   | 'emphasis'
-  | 'note'
   | 'saidoku'
   | 'okototen'
   | 'tateten'
-  | 'underline'
-  | 'label';
+  | 'region'
+  | 'ref';
 
 /**
  * 注記の基底構造
@@ -177,11 +176,45 @@ export interface EmphasisMark extends BaseMark {
   value?: string;
 }
 
-/** 注釈（割注・欄外注含む） */
-export interface NoteMark extends BaseMark {
-  type: 'note';
-  /** 注釈テキスト */
-  value: string;
+/** 参照フォーマット（RefFormat） */
+export type RefFormat =
+  | 'alpha-upper'
+  | 'alpha-lower'
+  | 'numeric-paren'
+  | 'numeric-bracket'
+  | 'numeric-circled'
+  | 'iroha-katakana'
+  | 'iroha-hiragana'
+  | 'gojuon-katakana'
+  | 'gojuon-hiragana'
+  | 'kanji-numeric';
+
+/** 領域スタイル */
+export type RegionStyle = 'none' | 'solid' | 'dotted' | 'dashed' | 'wavy' | 'double';
+
+/** 領域指定（傍線部等、refを参照） */
+export interface RegionMark extends BaseMark {
+  type: 'region';
+  /** 傍線スタイル（省略または 'none' で不可視） */
+  style?: RegionStyle;
+  /** 参照する ref の識別子 */
+  ref?: string;
+}
+
+/**
+ * 参照識別子・注釈（ref）
+ *
+ * label / format / content のいずれか必須。
+ * label と format は排他（併用禁止）。
+ */
+export interface RefMark extends BaseMark {
+  type: 'ref';
+  /** 表示ラベル（明示値、format と排他） */
+  label?: string;
+  /** 自動番号フォーマット（label と排他） */
+  format?: RefFormat;
+  /** 注釈テキスト（任意） */
+  content?: string;
 }
 
 /** 再読文字の語形（1回分の読み） */
@@ -219,41 +252,6 @@ export interface TatetenMark extends BaseMark {
   type: 'tateten';
 }
 
-/** 傍線スタイル */
-export type UnderlineStyle = 'solid' | 'dotted' | 'dashed' | 'wavy' | 'double';
-
-/** 傍線（教育用途、テストの傍線部指示等） */
-export interface UnderlineMark extends BaseMark {
-  type: 'underline';
-  /** 傍線スタイル */
-  style?: UnderlineStyle;
-  /** labelとの関連付け用グループ識別子（メタデータ、レンダリングには影響しない） */
-  group?: string;
-}
-
-/** 番号振りフォーマット */
-export type LabelFormat =
-  | 'alpha-upper'
-  | 'alpha-lower'
-  | 'numeric'
-  | 'circled'
-  | 'iroha'
-  | 'iroha-hiragana'
-  | 'gojuon'
-  | 'gojuon-hiragana'
-  | 'kanji-numeric';
-
-/** 番号振り（教育用途、傍線部の識別子等） */
-export interface LabelMark extends BaseMark {
-  type: 'label';
-  /** 識別用文字列（format指定時は表示に使わない、省略可） */
-  value?: string;
-  /** 番号フォーマット（format指定時は登場順で自動番号） */
-  format?: LabelFormat;
-  /** underlineとの関連付け用グループ識別子（メタデータ、レンダリングには影響しない） */
-  group?: string;
-}
-
 /** すべての注記型 */
 export type Mark =
   | KaeriMark
@@ -264,12 +262,11 @@ export type Mark =
   | SoeganaMark
   | KutotenMark
   | EmphasisMark
-  | NoteMark
   | SaidokuMark
   | OkototenMark
   | TatetenMark
-  | UnderlineMark
-  | LabelMark;
+  | RegionMark
+  | RefMark;
 
 // ============================================================================
 // Derivations

@@ -351,16 +351,16 @@ describe('render', () => {
     });
   });
 
-  describe('notes', () => {
-    it('should render notes section', () => {
+  describe('ref with content (notes)', () => {
+    it('should render notes section for ref with content', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
         marks: [
           {
-            type: 'note',
+            type: 'ref',
             anchor: { from: 't1', to: 't1' },
-            value: '學問の意。',
+            content: '學問の意。',
           },
         ],
         readings: [],
@@ -373,15 +373,15 @@ describe('render', () => {
       expect(result.html).toContain('學問の意。');
     });
 
-    it('should render note reference marker in text', () => {
+    it('should render ref reference marker in text', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
         marks: [
           {
-            type: 'note',
+            type: 'ref',
             anchor: { from: 't1', to: 't1' },
-            value: '學問の意。',
+            content: '學問の意。',
           },
         ],
         readings: [],
@@ -389,11 +389,12 @@ describe('render', () => {
 
       const result = render(doc);
 
-      expect(result.html).toContain('skam-note-ref');
+      // ref markers use skam-ref class
+      expect(result.html).toContain('skam-ref');
       expect(result.html).toContain('[1]');
     });
 
-    it('should render multiple note references with correct numbering', () => {
+    it('should render multiple ref references with correct numbering', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [
@@ -402,14 +403,14 @@ describe('render', () => {
         ],
         marks: [
           {
-            type: 'note',
+            type: 'ref',
             anchor: { from: 't1', to: 't1' },
-            value: '第一の注釈。',
+            content: '第一の注釈。',
           },
           {
-            type: 'note',
+            type: 'ref',
             anchor: { from: 't2', to: 't2' },
-            value: '第二の注釈。',
+            content: '第二の注釈。',
           },
         ],
         readings: [],
@@ -589,9 +590,9 @@ describe('render', () => {
         tokens: [{ id: 't1', text: '學' }],
         marks: [
           {
-            type: 'note',
+            type: 'ref',
             anchor: { from: 't1', to: 't1' },
-            value: '<b>test</b>',
+            content: '<b>test</b>',
           },
         ],
         readings: [],
@@ -628,8 +629,8 @@ describe('getDefaultStyles', () => {
   });
 });
 
-describe('underline', () => {
-  it('should render underline mark', () => {
+describe('region', () => {
+  it('should render region mark', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
@@ -638,8 +639,9 @@ describe('underline', () => {
       ],
       marks: [
         {
-          type: 'underline',
+          type: 'region',
           anchor: { from: 't1', to: 't2' },
+          style: 'solid',
         },
       ],
       readings: [],
@@ -647,11 +649,11 @@ describe('underline', () => {
 
     const result = render(doc);
 
-    expect(result.html).toContain('skam-underline');
+    expect(result.html).toContain('skam-region');
     expect(result.html).toContain('data-style="solid"');
   });
 
-  it('should render underline with style', () => {
+  it('should render region with wavy style', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
@@ -660,7 +662,7 @@ describe('underline', () => {
       ],
       marks: [
         {
-          type: 'underline',
+          type: 'region',
           anchor: { from: 't1', to: 't2' },
           style: 'wavy',
         },
@@ -670,11 +672,11 @@ describe('underline', () => {
 
     const result = render(doc);
 
-    expect(result.html).toContain('skam-underline');
+    expect(result.html).toContain('skam-region');
     expect(result.html).toContain('data-style="wavy"');
   });
 
-  it('should not render underline when profile.underline is false', () => {
+  it('should not render region when profile.region is false', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
@@ -683,29 +685,30 @@ describe('underline', () => {
       ],
       marks: [
         {
-          type: 'underline',
+          type: 'region',
           anchor: { from: 't1', to: 't2' },
+          style: 'solid',
         },
       ],
       readings: [],
     };
 
-    const result = render(doc, { profile: { underline: false } });
+    const result = render(doc, { profile: { region: false } });
 
-    expect(result.html).not.toContain('skam-underline');
+    expect(result.html).not.toContain('skam-region');
   });
 });
 
-describe('label', () => {
-  it('should render label with value', () => {
+describe('ref (label)', () => {
+  it('should render ref with label value', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [{ id: 't1', text: '語' }],
       marks: [
         {
-          type: 'label',
+          type: 'ref',
           anchor: { from: 't1', to: 't1' },
-          value: '(A)',
+          label: '(A)',
         },
       ],
       readings: [],
@@ -713,11 +716,11 @@ describe('label', () => {
 
     const result = render(doc);
 
-    expect(result.html).toContain('skam-label');
+    expect(result.html).toContain('skam-ref');
     expect(result.html).toContain('(A)');
   });
 
-  it('should render label with format', () => {
+  it('should render ref with format', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
@@ -726,12 +729,12 @@ describe('label', () => {
       ],
       marks: [
         {
-          type: 'label',
+          type: 'ref',
           anchor: { from: 't1', to: 't1' },
           format: 'alpha-upper',
         },
         {
-          type: 'label',
+          type: 'ref',
           anchor: { from: 't2', to: 't2' },
           format: 'alpha-upper',
         },
@@ -743,10 +746,11 @@ describe('label', () => {
 
     expect(result.html).toContain('(A)');
     expect(result.html).toContain('(B)');
-    expect(result.html).toContain('data-format="alpha-upper"');
+    // ref marks have skam-ref class
+    expect(result.html).toContain('skam-ref');
   });
 
-  it('should render label with iroha format', () => {
+  it('should render ref with iroha-katakana format', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
@@ -756,19 +760,19 @@ describe('label', () => {
       ],
       marks: [
         {
-          type: 'label',
+          type: 'ref',
           anchor: { from: 't1', to: 't1' },
-          format: 'iroha',
+          format: 'iroha-katakana',
         },
         {
-          type: 'label',
+          type: 'ref',
           anchor: { from: 't2', to: 't2' },
-          format: 'iroha',
+          format: 'iroha-katakana',
         },
         {
-          type: 'label',
+          type: 'ref',
           anchor: { from: 't3', to: 't3' },
-          format: 'iroha',
+          format: 'iroha-katakana',
         },
       ],
       readings: [],
@@ -781,7 +785,7 @@ describe('label', () => {
     expect(result.html).toContain('(ハ)');
   });
 
-  it('should render label with circled format', () => {
+  it('should render ref with numeric-circled format', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
@@ -790,14 +794,14 @@ describe('label', () => {
       ],
       marks: [
         {
-          type: 'label',
+          type: 'ref',
           anchor: { from: 't1', to: 't1' },
-          format: 'circled',
+          format: 'numeric-circled',
         },
         {
-          type: 'label',
+          type: 'ref',
           anchor: { from: 't2', to: 't2' },
-          format: 'circled',
+          format: 'numeric-circled',
         },
       ],
       readings: [],
@@ -809,7 +813,7 @@ describe('label', () => {
     expect(result.html).toContain('②');
   });
 
-  it('should reuse same index for same value', () => {
+  it('should reuse same index for same ext.value', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
@@ -819,22 +823,22 @@ describe('label', () => {
       ],
       marks: [
         {
-          type: 'label',
+          type: 'ref',
           anchor: { from: 't1', to: 't1' },
-          value: 'x',
           format: 'alpha-upper',
+          ext: { value: 'x' },
         },
         {
-          type: 'label',
+          type: 'ref',
           anchor: { from: 't2', to: 't2' },
-          value: 'y',
           format: 'alpha-upper',
+          ext: { value: 'y' },
         },
         {
-          type: 'label',
+          type: 'ref',
           anchor: { from: 't3', to: 't3' },
-          value: 'x',
           format: 'alpha-upper',
+          ext: { value: 'x' },
         },
       ],
       readings: [],
@@ -847,21 +851,21 @@ describe('label', () => {
     expect(matches).toHaveLength(2);
   });
 
-  it('should not render label when profile.label is false', () => {
+  it('should not render ref label when profile.ref is false', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [{ id: 't1', text: '語' }],
       marks: [
         {
-          type: 'label',
+          type: 'ref',
           anchor: { from: 't1', to: 't1' },
-          value: '(A)',
+          label: '(A)',
         },
       ],
       readings: [],
     };
 
-    const result = render(doc, { profile: { label: false } });
+    const result = render(doc, { profile: { ref: false } });
 
     expect(result.html).not.toContain('skam-label');
     expect(result.html).not.toContain('(A)');
@@ -877,12 +881,11 @@ describe('PROFILES', () => {
     expect(PROFILES.full.okototen).toBe(true);
     expect(PROFILES.full.tateten).toBe(true);
     expect(PROFILES.full.emphasis).toBe(true);
-    expect(PROFILES.full.notes).toBe(true);
+    expect(PROFILES.full.ref).toBe(true);
     expect(PROFILES.full.okimoji).toBe(true);
     expect(PROFILES.full.joji).toBe(true);
     expect(PROFILES.full.soegana).toBe(true);
-    expect(PROFILES.full.underline).toBe(true);
-    expect(PROFILES.full.label).toBe(true);
+    expect(PROFILES.full.region).toBe(true);
   });
 
   it('should have learningBasic profile with minimal elements', () => {
@@ -890,8 +893,8 @@ describe('PROFILES', () => {
     expect(PROFILES.learningBasic.okurigana).toBe(false);
     expect(PROFILES.learningBasic.kaeriten).toBe(true);
     expect(PROFILES.learningBasic.kutoten).toBe(true);
-    expect(PROFILES.learningBasic.underline).toBe(true);
-    expect(PROFILES.learningBasic.label).toBe(true);
+    expect(PROFILES.learningBasic.region).toBe(true);
+    expect(PROFILES.learningBasic.ref).toBe(true);
   });
 
   it('should have learningHint profile with helpful elements', () => {
@@ -899,8 +902,8 @@ describe('PROFILES', () => {
     expect(PROFILES.learningHint.okurigana).toBe(true);
     expect(PROFILES.learningHint.kaeriten).toBe(true);
     expect(PROFILES.learningHint.soegana).toBe(true);
-    expect(PROFILES.learningHint.underline).toBe(true);
-    expect(PROFILES.learningHint.label).toBe(true);
+    expect(PROFILES.learningHint.region).toBe(true);
+    expect(PROFILES.learningHint.ref).toBe(true);
   });
 });
 
@@ -990,9 +993,9 @@ describe('inline mode', () => {
       tokens: [{ id: 't1', text: '學' }],
       marks: [
         {
-          type: 'note',
+          type: 'ref',
           anchor: { from: 't1', to: 't1' },
-          value: '注釈テキスト',
+          content: '注釈テキスト',
         },
       ],
       readings: [],
@@ -1011,9 +1014,9 @@ describe('inline mode', () => {
       tokens: [{ id: 't1', text: '學' }],
       marks: [
         {
-          type: 'note',
+          type: 'ref',
           anchor: { from: 't1', to: 't1' },
-          value: '注釈テキスト',
+          content: '注釈テキスト',
         },
       ],
       readings: [],
@@ -1345,7 +1348,7 @@ describe(':where() specificity', () => {
 
   it('should wrap attribute selectors with :where()', () => {
     const css = getDefaultStyles({ useLayer: false });
-    expect(css).toContain(':where(.skam-underline[data-style="dotted"])');
+    expect(css).toContain(':where(.skam-region[data-style="dotted"])');
     expect(css).toContain(':where(.skam-okototen[data-shape="dot"])');
   });
 

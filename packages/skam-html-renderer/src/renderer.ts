@@ -16,12 +16,12 @@ import type {
   SoeganaMark,
   KutotenMark,
   EmphasisMark,
-  NoteMark,
   SaidokuMark,
   OkototenMark,
   TatetenMark,
-  UnderlineMark,
-  LabelMark,
+  RegionMark,
+  RefMark,
+  RefFormat,
   Reading,
 } from '@kanbun/skam';
 import { getDefaultStyles } from './styles.js';
@@ -42,12 +42,11 @@ export interface RenderProfile {
   okototen: boolean;
   tateten: boolean;
   emphasis: boolean;
-  notes: boolean;
   okimoji: boolean;
   joji: boolean;
   soegana: boolean;
-  underline: boolean;
-  label: boolean;
+  region: boolean;
+  ref: boolean;
 }
 
 /**
@@ -149,12 +148,11 @@ const FULL_PROFILE: RenderProfile = {
   okototen: true,
   tateten: true,
   emphasis: true,
-  notes: true,
   okimoji: true,
   joji: true,
   soegana: true,
-  underline: true,
-  label: true,
+  region: true,
+  ref: true,
 };
 
 /** 学習用基本プロファイル（返り点のみ） */
@@ -167,12 +165,11 @@ const LEARNING_BASIC_PROFILE: RenderProfile = {
   okototen: false,
   tateten: false,
   emphasis: false,
-  notes: false,
   okimoji: true,
   joji: true,
   soegana: false,
-  underline: true,
-  label: true,
+  region: true,
+  ref: true,
 };
 
 /** 学習用ヒント付きプロファイル（返り点+送り仮名） */
@@ -185,12 +182,11 @@ const LEARNING_HINT_PROFILE: RenderProfile = {
   okototen: false,
   tateten: false,
   emphasis: false,
-  notes: false,
   okimoji: true,
   joji: true,
   soegana: true,
-  underline: true,
-  label: true,
+  region: true,
+  ref: true,
 };
 
 /**
@@ -468,21 +464,23 @@ function shouldApplyTateChuYoko(text: string): boolean {
 /**
  * インデックスをフォーマットに従って文字列化
  */
-function formatLabelIndex(index: number, format: LabelMark['format']): string {
+function formatRefIndex(index: number, format: RefFormat): string {
   switch (format) {
     case 'alpha-upper':
       return `(${String.fromCharCode(65 + index)})`; // A=65
     case 'alpha-lower':
       return `(${String.fromCharCode(97 + index)})`; // a=97
-    case 'numeric':
+    case 'numeric-paren':
       return `(${index + 1})`;
-    case 'circled':
+    case 'numeric-bracket':
+      return `[${index + 1}]`;
+    case 'numeric-circled':
       return CIRCLED_NUMBERS[index] ?? `(${index + 1})`;
-    case 'iroha':
+    case 'iroha-katakana':
       return `(${IROHA_SEQUENCE[index] ?? String(index + 1)})`;
     case 'iroha-hiragana':
       return `(${IROHA_HIRAGANA_SEQUENCE[index] ?? String(index + 1)})`;
-    case 'gojuon':
+    case 'gojuon-katakana':
       return `(${GOJUON_SEQUENCE[index] ?? String(index + 1)})`;
     case 'gojuon-hiragana':
       return `(${GOJUON_HIRAGANA_SEQUENCE[index] ?? String(index + 1)})`;
@@ -494,49 +492,71 @@ function formatLabelIndex(index: number, format: LabelMark['format']): string {
 }
 
 /**
- * ドキュメント内のLabelMarkを解決してマップを生成
+ * ドキュメント内のRefMarkを解決してマップを生成
+ *
+ * 同一性判定:
+ * - 同じ label 値を持つ ref は同一
+ * - 同じ format + 同じ ext.value を持つ ref は同一
  */
-function resolveLabelValues(marks: Mark[]): Map<LabelMark, string> {
-  const labelMarks = marks.filter((m): m is LabelMark => m.type === 'label');
-  const result = new Map<LabelMark, string>();
+function resolveRefValues(marks: Mark[]): Map<RefMark, string> {
+  const refMarks = marks.filter((m): m is RefMark => m.type === 'ref');
+  const result = new Map<RefMark, string>();
 
-  // format指定ありのラベルをフォーマット別にグループ化
-  const formatGroups = new Map<string, LabelMark[]>();
+  // label指定ありのrefをlabel値でグループ化
+  const labelToIndex = new Map<string, number>();
 
-  for (const label of labelMarks) {
-    if (label.format) {
-      const group = formatGroups.get(label.format) ?? [];
-      group.push(label);
-      formatGroups.set(label.format, group);
-    } else if (label.value) {
-      // formatなしの場合はvalueをそのまま使用
-      result.set(label, label.value);
+  // format指定ありのrefをフォーマット別にグループ化
+  const formatGroups = new Map<string, RefMark[]>();
+
+  let nextLabelIndex = 0;
+
+  for (const ref of refMarks) {
+    if (ref.label) {
+      // labelあり: 同一labelは同一インデックス
+      let index = labelToIndex.get(ref.label);
+      if (index === undefined) {
+        index = nextLabelIndex++;
+        labelToIndex.set(ref.label, index);
+      }
+      result.set(ref, ref.label);
+    } else if (ref.format) {
+      const group = formatGroups.get(ref.format) ?? [];
+      group.push(ref);
+      formatGroups.set(ref.format, group);
+    } else if (ref.content && !ref.label && !ref.format) {
+      // contentのみの場合: 暗黙的にnumeric-bracketフォーマットで番号を割り当て
+      const group = formatGroups.get('numeric-bracket') ?? [];
+      group.push(ref);
+      formatGroups.set('numeric-bracket', group);
     }
   }
 
   // 各フォーマットグループ内でインデックスを割り当て
-  for (const [format, labels] of formatGroups) {
+  for (const [format, refs] of formatGroups) {
     const valueToIndex = new Map<string, number>();
     let nextIndex = 0;
 
-    for (const label of labels) {
+    for (const ref of refs) {
       let index: number;
 
-      if (label.value !== undefined) {
+      // ext.value を同一性判定に使用
+      const extValue = ref.ext?.['value'] as string | undefined;
+
+      if (extValue !== undefined) {
         // valueありの場合：同一valueは同一インデックス
-        const existingIndex = valueToIndex.get(label.value);
+        const existingIndex = valueToIndex.get(extValue);
         if (existingIndex !== undefined) {
           index = existingIndex;
         } else {
           index = nextIndex++;
-          valueToIndex.set(label.value, index);
+          valueToIndex.set(extValue, index);
         }
       } else {
         // valueなしの場合：単純にインクリメント
         index = nextIndex++;
       }
 
-      result.set(label, formatLabelIndex(index, format as LabelMark['format']));
+      result.set(ref, formatRefIndex(index, format as RefFormat));
     }
   }
 
@@ -544,21 +564,21 @@ function resolveLabelValues(marks: Mark[]): Map<LabelMark, string> {
 }
 
 /**
- * Underline Markの範囲に含まれるTokenを特定
+ * Region Markの範囲に含まれるTokenを特定
  */
-function getUnderlineGroups(tokens: Token[], marks: Mark[]): Map<string, UnderlineMark> {
-  const underlineMarks = marks.filter((m): m is UnderlineMark => m.type === 'underline');
-  const tokenIdToGroup = new Map<string, UnderlineMark>();
+function getRegionGroups(tokens: Token[], marks: Mark[]): Map<string, RegionMark> {
+  const regionMarks = marks.filter((m): m is RegionMark => m.type === 'region');
+  const tokenIdToGroup = new Map<string, RegionMark>();
 
-  for (const underline of underlineMarks) {
-    const fromIndex = tokens.findIndex((t) => t.id === underline.anchor.from);
-    const toIndex = tokens.findIndex((t) => t.id === underline.anchor.to);
+  for (const region of regionMarks) {
+    const fromIndex = tokens.findIndex((t) => t.id === region.anchor.from);
+    const toIndex = tokens.findIndex((t) => t.id === region.anchor.to);
 
     if (fromIndex !== -1 && toIndex !== -1) {
       for (let i = fromIndex; i <= toIndex; i++) {
         const token = tokens[i];
         if (token) {
-          tokenIdToGroup.set(token.id, underline);
+          tokenIdToGroup.set(token.id, region);
         }
       }
     }
@@ -691,7 +711,7 @@ function renderToken(
   marks: Mark[],
   ctx: Omit<TokenRenderContext, 'tokenMarks'>,
   rangeCtx?: RangeMarkContext,
-  noteIndexMap?: Map<NoteMark, number>
+  refValueMap?: Map<RefMark, string>
 ): string {
   const { prefix, profile } = ctx;
   const tokenMarks = getMarksForToken(token.id, marks);
@@ -837,20 +857,22 @@ function renderToken(
     classes.push(`${prefix}-joji`);
   }
 
-  // 注釈参照（本文中のマーカー）
-  let noteRef = '';
-  if (profile.notes && noteIndexMap) {
-    const noteMarks = (tokenMarks.get('note') ?? []) as NoteMark[];
-    if (noteMarks.length > 0) {
-      noteRef = noteMarks
+  // ref 参照（本文中のマーカー）
+  let refHtml = '';
+  if (profile.ref && refValueMap) {
+    const refMarks = (tokenMarks.get('ref') ?? []) as RefMark[];
+    if (refMarks.length > 0) {
+      refHtml = refMarks
         .map((m) => {
-          const index = noteIndexMap.get(m);
-          if (index !== undefined) {
-            const refText = `[${index}]`;
+          const refText = refValueMap.get(m) ?? '';
+          if (refText) {
             const halfWidthClass = shouldApplyTateChuYoko(refText)
-              ? ` ${prefix}-note-ref--half-width`
+              ? ` ${prefix}-ref--half-width`
               : '';
-            return `<sup class="${prefix}-note-ref${halfWidthClass}">${refText}</sup>`;
+            return `<sup class="${prefix}-ref${halfWidthClass}">${escapeHtml(refText)}</sup>`;
+          } else if (m.content) {
+            // contentのみの場合: 注釈アイコンを表示
+            return `<sup class="${prefix}-ref ${prefix}-ref--content-only">*</sup>`;
           }
           return '';
         })
@@ -858,7 +880,7 @@ function renderToken(
     }
   }
 
-  return `<span class="${classes.join(' ')}" data-token-id="${escapeHtml(token.id)}">${baseHtml}${okototenHtml}${suffixRowHtml}</span>${kutoten}${noteRef}`;
+  return `<span class="${classes.join(' ')}" data-token-id="${escapeHtml(token.id)}">${baseHtml}${okototenHtml}${suffixRowHtml}</span>${kutoten}${refHtml}`;
 }
 
 // ============================================================================
@@ -883,26 +905,26 @@ function renderReadingLayer(readings: Reading[], prefix: string, inline: boolean
 }
 
 /**
- * 注釈のHTMLを生成
+ * 注釈のHTMLを生成（contentを持つrefマークから生成）
  */
-function renderNotes(marks: Mark[], prefix: string, profile: RenderProfile): string {
-  if (!profile.notes) {
+function renderRefNotes(marks: Mark[], prefix: string, profile: RenderProfile, refValueMap: Map<RefMark, string>): string {
+  if (!profile.ref) {
     return '';
   }
 
-  const noteMarks = marks.filter((m): m is NoteMark => m.type === 'note');
+  const refMarks = marks.filter((m): m is RefMark => m.type === 'ref' && m.content !== undefined);
 
-  if (noteMarks.length === 0) {
+  if (refMarks.length === 0) {
     return '';
   }
 
-  const noteItems = noteMarks
-    .map((note, index) => {
-      const marker = String(index + 1);
+  const noteItems = refMarks
+    .map((ref) => {
+      const marker = refValueMap.get(ref) ?? '*';
       const halfWidthClass = shouldApplyTateChuYoko(marker)
         ? ` ${prefix}-note-marker--half-width`
         : '';
-      return `<div class="${prefix}-note-item"><span class="${prefix}-note-marker${halfWidthClass}">${marker}</span>${escapeHtml(note.value)}</div>`;
+      return `<div class="${prefix}-note-item"><span class="${prefix}-note-marker${halfWidthClass}">${escapeHtml(marker)}</span>${escapeHtml(ref.content!)}</div>`;
     })
     .join('');
 
@@ -950,18 +972,14 @@ function renderDisplayLayer(
   const { tokens, marks } = doc;
   const ctx = { prefix, profile };
 
-  // noteマークのインデックスマップを作成（本文中の参照番号用）
-  const noteMarks = marks.filter((m): m is NoteMark => m.type === 'note');
-  const noteIndexMap = new Map<NoteMark, number>();
-  noteMarks.forEach((note, index) => {
-    noteIndexMap.set(note, index + 1); // 1-based
-  });
+  // refマークの値を事前計算
+  const refValueMap = profile.ref ? resolveRefValues(marks) : new Map();
 
   // たて点グループを特定
   const tatetenGroups = getTatetenGroups(tokens, marks);
 
-  // 傍線グループを特定
-  const underlineGroups = profile.underline ? getUnderlineGroups(tokens, marks) : new Map();
+  // 領域グループを特定
+  const regionGroups = profile.region ? getRegionGroups(tokens, marks) : new Map();
 
   // 範囲yomiganaグループを特定（熟語ルビ対応）
   const yomiganaRangeGroups = profile.yomigana
@@ -978,13 +996,10 @@ function renderDisplayLayer(
     ? getRangeMarkGroups(tokens, marks, 'soegana')
     : new Map();
 
-  // ラベル値を事前計算
-  const labelValues = profile.label ? resolveLabelValues(marks) : new Map();
-
-  // underlineグループ内に読み仮名があるかを判定するヘルパー
-  const hasYomiganaInUnderline = (underline: UnderlineMark): boolean => {
-    const fromIndex = tokens.findIndex((t) => t.id === underline.anchor.from);
-    const toIndex = tokens.findIndex((t) => t.id === underline.anchor.to);
+  // regionグループ内に読み仮名があるかを判定するヘルパー
+  const hasYomiganaInRegion = (region: RegionMark): boolean => {
+    const fromIndex = tokens.findIndex((t) => t.id === region.anchor.from);
+    const toIndex = tokens.findIndex((t) => t.id === region.anchor.to);
 
     if (fromIndex !== -1 && toIndex !== -1) {
       for (let j = fromIndex; j <= toIndex; j++) {
@@ -1000,35 +1015,22 @@ function renderDisplayLayer(
     return false;
   };
 
-  // underlineグループ内のラベルを収集するヘルパー
-  const collectLabelsForUnderline = (underline: UnderlineMark): string => {
-    if (!profile.label) return '';
+  // regionのrefを解決して表示用テキストを取得するヘルパー
+  const getRefTextForRegion = (region: RegionMark): string => {
+    if (!profile.ref || !region.ref) return '';
 
-    const labelsInGroup: string[] = [];
-    const fromIndex = tokens.findIndex((t) => t.id === underline.anchor.from);
-    const toIndex = tokens.findIndex((t) => t.id === underline.anchor.to);
-
-    if (fromIndex !== -1 && toIndex !== -1) {
-      for (let j = fromIndex; j <= toIndex; j++) {
-        const t = tokens[j];
-        if (t) {
-          const tMarks = getMarksForToken(t.id, marks);
-          const tLabelMarks = (tMarks.get('label') ?? []) as LabelMark[];
-          for (const m of tLabelMarks) {
-            const labelText = labelValues.get(m) ?? m.value ?? '';
-            const dataAttrs = m.format ? ` data-format="${m.format}"` : '';
-            const halfWidthClass = shouldApplyTateChuYoko(labelText)
-              ? ` ${prefix}-label--half-width`
-              : '';
-            labelsInGroup.push(
-              `<span class="${prefix}-label${halfWidthClass}"${dataAttrs}>${escapeHtml(labelText)}</span>`
-            );
-          }
-        }
+    // region.ref は RefMark の id を参照
+    const refMark = marks.find((m): m is RefMark => m.type === 'ref' && m.id === region.ref);
+    if (refMark) {
+      const refText = refValueMap.get(refMark) ?? '';
+      if (refText) {
+        const halfWidthClass = shouldApplyTateChuYoko(refText)
+          ? ` ${prefix}-ref--half-width`
+          : '';
+        return `<span class="${prefix}-ref${halfWidthClass}">${escapeHtml(refText)}</span>`;
       }
     }
-
-    return labelsInGroup.join('');
+    return '';
   };
 
   // ブロックごとにトークンをグループ化
@@ -1042,9 +1044,9 @@ function renderDisplayLayer(
     const blockTokens = blockGroup.tokens;
     const renderedTokens: string[] = [];
     let currentTatetenGroup: TatetenMark | undefined;
-    let currentUnderlineGroup: UnderlineMark | undefined;
+    let currentRegionGroup: RegionMark | undefined;
     let groupTokens: string[] = [];
-    let underlineTokens: string[] = [];
+    let regionTokens: string[] = [];
 
     // 処理済みトークンを追跡（範囲グループのスキップ用）
     const processedTokenIds = new Set<string>();
@@ -1058,7 +1060,7 @@ function renderDisplayLayer(
       }
 
       const tokenGroup = tatetenGroups.get(token.id);
-      const underlineGroup = underlineGroups.get(token.id);
+      const regionGroup = regionGroups.get(token.id);
 
       // 範囲グループのチェック
       const yomiganaGroup = yomiganaRangeGroups.get(token.id);
@@ -1120,48 +1122,30 @@ function renderDisplayLayer(
         }
       }
 
-      let tokenHtml = renderToken(token, marks, ctx, rangeCtx, noteIndexMap);
+      let tokenHtml = renderToken(token, marks, ctx, rangeCtx, refValueMap);
 
-      // ラベルを追加（傍線グループ外のトークンに紐づくラベルのみ）
-      if (profile.label && !underlineGroup) {
-        const tokenMarks = getMarksForToken(token.id, marks);
-        const tokenLabelMarks = (tokenMarks.get('label') ?? []) as LabelMark[];
-        if (tokenLabelMarks.length > 0) {
-          const labelHtml = tokenLabelMarks
-            .map((m) => {
-              const labelText = labelValues.get(m) ?? m.value ?? '';
-              const dataAttrs = m.format ? ` data-format="${m.format}"` : '';
-              const halfWidthClass = shouldApplyTateChuYoko(labelText)
-                ? ` ${prefix}-label--half-width`
-                : '';
-              return `<span class="${prefix}-label${halfWidthClass}"${dataAttrs}>${escapeHtml(labelText)}</span>`;
-            })
-            .join('');
-          tokenHtml += labelHtml;
-        }
-      }
-
-      // 傍線グループ処理
-      if (profile.underline && underlineGroup) {
-        if (currentUnderlineGroup !== underlineGroup) {
-          // 新しい傍線グループ開始（前のグループがあれば閉じる）
-          if (currentUnderlineGroup && underlineTokens.length > 0) {
-            const style = currentUnderlineGroup.style ?? 'solid';
-            const labelsHtml = collectLabelsForUnderline(currentUnderlineGroup);
-            const hasRuby = hasYomiganaInUnderline(currentUnderlineGroup);
-            const rubyClass = hasRuby ? ` ${prefix}-underline--has-ruby` : '';
+      // region グループ処理
+      if (profile.region && regionGroup) {
+        if (currentRegionGroup !== regionGroup) {
+          // 新しい region グループ開始（前のグループがあれば閉じる）
+          if (currentRegionGroup && regionTokens.length > 0) {
+            const style = currentRegionGroup.style ?? 'none';
+            const refHtml = getRefTextForRegion(currentRegionGroup);
+            const hasRuby = hasYomiganaInRegion(currentRegionGroup);
+            const rubyClass = hasRuby ? ` ${prefix}-region--has-ruby` : '';
+            const styleClass = style !== 'none' ? ` ${prefix}-region--${style}` : '';
             renderedTokens.push(
-              `<span class="${prefix}-underline${rubyClass}" data-style="${style}">${underlineTokens.join('')}${labelsHtml}</span>`
+              `<span class="${prefix}-region${rubyClass}${styleClass}" data-style="${style}">${regionTokens.join('')}${refHtml}</span>`
             );
-            underlineTokens = [];
+            regionTokens = [];
           }
-          currentUnderlineGroup = underlineGroup;
+          currentRegionGroup = regionGroup;
         }
-        // 傍線グループ内のトークンを蓄積（たて点処理も考慮）
+        // region グループ内のトークンを蓄積（たて点処理も考慮）
         if (profile.tateten && tokenGroup) {
           if (currentTatetenGroup !== tokenGroup) {
             if (currentTatetenGroup && groupTokens.length > 0) {
-              underlineTokens.push(
+              regionTokens.push(
                 `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
               );
               groupTokens = [];
@@ -1171,35 +1155,36 @@ function renderDisplayLayer(
           groupTokens.push(tokenHtml);
         } else {
           if (currentTatetenGroup && groupTokens.length > 0) {
-            underlineTokens.push(
+            regionTokens.push(
               `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
             );
             groupTokens = [];
             currentTatetenGroup = undefined;
           }
-          underlineTokens.push(tokenHtml);
+          regionTokens.push(tokenHtml);
         }
       } else {
-        // 傍線グループ外
-        // 前の傍線グループを閉じる
-        if (currentUnderlineGroup && underlineTokens.length > 0) {
+        // region グループ外
+        // 前の region グループを閉じる
+        if (currentRegionGroup && regionTokens.length > 0) {
           // たて点グループも閉じる
           if (currentTatetenGroup && groupTokens.length > 0) {
-            underlineTokens.push(
+            regionTokens.push(
               `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
             );
             groupTokens = [];
             currentTatetenGroup = undefined;
           }
-          const style = currentUnderlineGroup.style ?? 'solid';
-          const labelsHtml = collectLabelsForUnderline(currentUnderlineGroup);
-          const hasRuby = hasYomiganaInUnderline(currentUnderlineGroup);
-          const rubyClass = hasRuby ? ` ${prefix}-underline--has-ruby` : '';
+          const style = currentRegionGroup.style ?? 'none';
+          const refHtml = getRefTextForRegion(currentRegionGroup);
+          const hasRuby = hasYomiganaInRegion(currentRegionGroup);
+          const rubyClass = hasRuby ? ` ${prefix}-region--has-ruby` : '';
+          const styleClass = style !== 'none' ? ` ${prefix}-region--${style}` : '';
           renderedTokens.push(
-            `<span class="${prefix}-underline${rubyClass}" data-style="${style}">${underlineTokens.join('')}${labelsHtml}</span>`
+            `<span class="${prefix}-region${rubyClass}${styleClass}" data-style="${style}">${regionTokens.join('')}${refHtml}</span>`
           );
-          underlineTokens = [];
-          currentUnderlineGroup = undefined;
+          regionTokens = [];
+          currentRegionGroup = undefined;
         }
 
         // たて点グループ処理
@@ -1229,8 +1214,8 @@ function renderDisplayLayer(
 
     // 最後のグループを閉じる
     if (currentTatetenGroup && groupTokens.length > 0) {
-      if (currentUnderlineGroup) {
-        underlineTokens.push(
+      if (currentRegionGroup) {
+        regionTokens.push(
           `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
         );
       } else {
@@ -1240,13 +1225,14 @@ function renderDisplayLayer(
       }
     }
 
-    if (currentUnderlineGroup && underlineTokens.length > 0) {
-      const style = currentUnderlineGroup.style ?? 'solid';
-      const labelsHtml = collectLabelsForUnderline(currentUnderlineGroup);
-      const hasRuby = hasYomiganaInUnderline(currentUnderlineGroup);
-      const rubyClass = hasRuby ? ` ${prefix}-underline--has-ruby` : '';
+    if (currentRegionGroup && regionTokens.length > 0) {
+      const style = currentRegionGroup.style ?? 'none';
+      const refHtml = getRefTextForRegion(currentRegionGroup);
+      const hasRuby = hasYomiganaInRegion(currentRegionGroup);
+      const rubyClass = hasRuby ? ` ${prefix}-region--has-ruby` : '';
+      const styleClass = style !== 'none' ? ` ${prefix}-region--${style}` : '';
       renderedTokens.push(
-        `<span class="${prefix}-underline${rubyClass}" data-style="${style}">${underlineTokens.join('')}${labelsHtml}</span>`
+        `<span class="${prefix}-region${rubyClass}${styleClass}" data-style="${style}">${regionTokens.join('')}${refHtml}</span>`
       );
     }
 
@@ -1288,8 +1274,11 @@ export function render(doc: SKAMDocument, options: RenderOptions = {}): RenderRe
   // 読み層
   const readingHtml = includeReadingLayer ? renderReadingLayer(doc.readings, prefix, inline) : '';
 
+  // refマークの値を事前計算（注釈出力用）
+  const refValueMap = profile.ref ? resolveRefValues(doc.marks) : new Map();
+
   // 注釈（インラインモードでは出力しない）
-  const notesHtml = inline ? '' : renderNotes(doc.marks, prefix, profile);
+  const notesHtml = inline ? '' : renderRefNotes(doc.marks, prefix, profile, refValueMap);
 
   // data-copyable 属性
   const copyableAttr = copyable
@@ -1353,8 +1342,11 @@ export function renderHTML(doc: SKAMDocument, options: RenderHTMLOptions = {}): 
   // 読み層
   const readingHtml = includeReadingLayer ? renderReadingLayer(doc.readings, prefix, inline) : '';
 
+  // refマークの値を事前計算（注釈出力用）
+  const refValueMap = profile.ref ? resolveRefValues(doc.marks) : new Map();
+
   // 注釈（インラインモードでは出力しない）
-  const notesHtml = inline ? '' : renderNotes(doc.marks, prefix, profile);
+  const notesHtml = inline ? '' : renderRefNotes(doc.marks, prefix, profile, refValueMap);
 
   // data-copyable 属性
   const copyableAttr = copyable

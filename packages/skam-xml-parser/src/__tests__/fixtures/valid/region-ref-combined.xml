@@ -2,7 +2,7 @@
 <skam:doc xmlns:skam="urn:skam:1">
   <skam:body>
     <skam:block>
-      <skam:underline group="a">傍線部<skam:label value="a" format="alpha-upper" group="a"/></skam:underline>を現代語訳せよ。
+      <skam:region style="solid" ref="ref-1">傍線部<skam:ref xml:id="ref-1" format="alpha-upper"/></skam:region>を現代語訳せよ。
     </skam:block>
   </skam:body>
 </skam:doc>

@@ -151,12 +151,11 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 | `joji`      | 助字（文法的機能を持つ漢字ラベル） | なし                                           |
 | `kutoten`   | 句読点                             | 必須（句読点記号）、kind任意                   |
 | `emphasis`  | 傍点・圏点                         | 任意（傍点の種類）                             |
-| `note`      | 注釈（割注・欄外注含む）           | 必須（注釈テキスト）                           |
 | `saidoku`   | 再読文字                           | 必須（forms配列）                              |
 | `okototen`  | ヲコト点                           | position必須、shape必須                        |
 | `tateten`   | たて点（熟語境界）                 | なし                                           |
-| `underline` | 傍線（教育用途、傍線部指示等）     | 任意（style: solid/dotted/dashed/wavy/double） |
-| `label`     | 番号振り（傍線部の識別等）         | value任意、format任意（alpha-upper/iroha等）   |
+| `region`    | 領域指定（傍線部等、refを参照）     | style任意、ref任意                             |
+| `ref`       | 参照識別子・注釈                   | label/format/contentのいずれか必須             |
 
 ※ `type` の追加は後方互換で許可される。
 
@@ -293,18 +292,18 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 
 ---
 
-### 5.7 傍線（Underline）
+### 5.7 領域指定（Region）
 
-教育用途や試験問題等で傍線部を指示するために使用する。
+教育用途や試験問題等で傍線部を指示するために使用する。refを参照して識別子を表示できる。
 
 #### 構造
 
 ```json
 {
-  "type": "underline",
+  "type": "region",
   "anchor": { "from": "t1", "to": "t3" },
   "style": "solid",
-  "group": "a"
+  "ref": "ref-1"
 }
 ```
 
@@ -312,64 +311,90 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 
 | フィールド | 必須 | 説明                                                |
 | ---------- | ---- | --------------------------------------------------- |
-| `style`    | 任意 | 傍線スタイル（solid, dotted, dashed, wavy, double） |
-| `group`    | 任意 | ラベルとの関連付けグループID                        |
+| `style`    | 任意 | 傍線スタイル（none, solid, dotted, dashed, wavy, double）。省略時または`none`で不可視 |
+| `ref`      | 任意 | 参照するrefマークのID                               |
 
 #### style 一覧
 
-| style    | 説明   |
-| -------- | ------ |
-| `solid`  | 実線   |
-| `dotted` | 点線   |
-| `dashed` | 破線   |
-| `wavy`   | 波線   |
-| `double` | 二重線 |
+| style    | 説明                  |
+| -------- | --------------------- |
+| `none`   | 不可視（論理的な範囲のみ） |
+| `solid`  | 実線                  |
+| `dotted` | 点線                  |
+| `dashed` | 破線                  |
+| `wavy`   | 波線                  |
+| `double` | 二重線                |
 
 ---
 
-### 5.8 番号振り（Label）
+### 5.8 参照識別子・注釈（Ref）
 
-傍線部の識別や問題番号の付与等に使用する。
+傍線部の識別子、問題番号、注釈等に使用する統合型。
+同じlabel値または同じformat+valueを持つrefは同一の参照として扱われる。
 
 #### 構造
 
 ```json
 {
-  "type": "label",
-  "anchor": { "from": "t1", "to": "t1" },
-  "value": "ア",
-  "format": "iroha",
-  "group": "a"
+  "type": "ref",
+  "id": "n1",
+  "anchor": { "from": "t3", "to": "t3" },
+  "format": "numeric-bracket",
+  "content": "「之」は目的語として読む。"
 }
 ```
 
 #### フィールド
 
-| フィールド | 必須 | 説明                                       |
-| ---------- | ---- | ------------------------------------------ |
-| `value`    | 任意 | 識別用文字列（format指定時は自動生成可能） |
-| `format`   | 任意 | 番号フォーマット                           |
-| `group`    | 任意 | アンダーラインとの関連付けグループID       |
+| フィールド | 必須                           | 説明                                               |
+| ---------- | ------------------------------ | -------------------------------------------------- |
+| `id`       | 分離定義時は必須               | 一意識別子。note から参照される場合に必須         |
+| `label`    | label/format/contentのいずれか必須 | 表示ラベル（明示値、formatと排他）                |
+| `format`   | label/format/contentのいずれか必須 | 自動番号フォーマット（labelと排他）               |
+| `content`  | label/format/contentのいずれか必須 | 注釈テキスト（インラインまたは分離定義から解決）  |
 
-#### value と format の関係
+※ `label` と `format` は排他（併用禁止）
 
-- `value` と `format` が両方ある場合: `value` を優先（`format` は参考情報）
-- `format` のみの場合: レンダラーが `format` に従い番号を生成してよい
-- どちらも省略の場合: 表示なし、または実装依存
+#### 分離定義（note との連携）
 
-#### format 一覧
+長い注釈テキストは `note` として別の場所に定義し、ref から参照できる。
 
-| format            | 例              | 説明             |
-| ----------------- | --------------- | ---------------- |
-| `alpha-upper`     | A, B, C, ...    | 英大文字         |
-| `alpha-lower`     | a, b, c, ...    | 英小文字         |
-| `numeric`         | 1, 2, 3, ...    | 数字             |
-| `circled`         | ①, ②, ③, ...    | 丸数字           |
-| `iroha`           | ア, イ, ウ, ... | いろは順カタカナ |
-| `iroha-hiragana`  | あ, い, う, ... | いろは順ひらがな |
-| `gojuon`          | ア, イ, ウ, ... | 五十音順カタカナ |
-| `gojuon-hiragana` | あ, い, う, ... | 五十音順ひらがな |
-| `kanji-numeric`   | 一, 二, 三, ... | 漢数字           |
+**参照関係**:
+- `ref` が宣言側（`id` を持つ）
+- `note` が `ref` 属性で ref を参照し、content を提供
+
+```json
+{
+  "type": "ref",
+  "id": "n1",
+  "anchor": { "from": "t3", "to": "t3" },
+  "format": "numeric-bracket",
+  "ext": { "noteRef": "n1" }
+}
+```
+
+パーサーは note の内容を解決し、`content` フィールドにマージする。
+
+#### 同一性判定
+
+- 同じ `label` 値を持つ ref は同一の参照
+- 同じ `format` + 同じ `value`（ext内）を持つ ref は同一の参照
+- 同一の参照は同じ番号/ラベルで表示される
+
+#### format 一覧（RefFormat）
+
+| format            | 例              | 説明                   |
+| ----------------- | --------------- | ---------------------- |
+| `alpha-upper`     | (A), (B), (C)   | 英大文字（括弧付き）   |
+| `alpha-lower`     | (a), (b), (c)   | 英小文字（括弧付き）   |
+| `numeric-paren`   | (1), (2), (3)   | 数字（丸括弧）         |
+| `numeric-bracket` | [1], [2], [3]   | 数字（角括弧）         |
+| `numeric-circled` | ①, ②, ③         | 丸数字                 |
+| `iroha-katakana`  | (イ), (ロ), (ハ) | いろは順カタカナ       |
+| `iroha-hiragana`  | (い), (ろ), (は) | いろは順ひらがな       |
+| `gojuon-katakana` | (ア), (イ), (ウ) | 五十音順カタカナ       |
+| `gojuon-hiragana` | (あ), (い), (う) | 五十音順ひらがな       |
+| `kanji-numeric`   | (一), (二), (三) | 漢数字（括弧付き）     |
 
 ---
 
@@ -788,9 +813,9 @@ SKAM データは常に完全な情報を保持し、用途に応じた情報の
 
 ---
 
-## Appendix E: 傍線と番号振りの例
+## Appendix E: 傍線部と参照識別子の例
 
-教育用途での傍線部指示の例：
+教育用途での傍線部指示の例（region + ref を使用）：
 
 ```json
 {
@@ -804,18 +829,17 @@ SKAM データは常に完全な情報を保持し、用途に応じた情報の
   ],
   "marks": [
     {
-      "type": "underline",
-      "id": "m1",
-      "anchor": { "from": "t1", "to": "t4" },
-      "style": "solid",
-      "group": "a"
+      "type": "ref",
+      "id": "ref-1",
+      "anchor": { "from": "t4", "to": "t4" },
+      "format": "iroha-katakana"
     },
     {
-      "type": "label",
-      "id": "m2",
-      "anchor": { "from": "t4", "to": "t4" },
-      "format": "iroha",
-      "group": "a"
+      "type": "region",
+      "id": "region-1",
+      "anchor": { "from": "t1", "to": "t4" },
+      "style": "solid",
+      "ref": "ref-1"
     },
     {
       "type": "okurigana",
@@ -856,3 +880,41 @@ SKAM データは常に完全な情報を保持し、用途に応じた情報の
   ]
 }
 ```
+
+### 注釈の例
+
+```json
+{
+  "type": "ref",
+  "id": "ref-note-1",
+  "anchor": { "from": "t5", "to": "t5" },
+  "format": "numeric-bracket",
+  "content": "「之」は目的語として読む。"
+}
+```
+
+### 同一参照の複数配置
+
+同じ `format` と `value`（ext内）を持つ ref は同一番号で表示される：
+
+```json
+{
+  "marks": [
+    {
+      "type": "ref",
+      "id": "ref-a1",
+      "anchor": { "from": "t1", "to": "t1" },
+      "format": "iroha-katakana",
+      "ext": { "value": "a" }
+    },
+    {
+      "type": "ref",
+      "id": "ref-a2",
+      "anchor": { "from": "t5", "to": "t5" },
+      "format": "iroha-katakana",
+      "ext": { "value": "a" }
+    }
+  ]
+}
+```
+※ 両方とも「(イ)」と表示される

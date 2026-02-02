@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1">
+  <skam:body>
+    <skam:block>
+      重要語<skam:ref format="alpha-upper"/>
+      重要語<skam:ref format="alpha-upper"/>
+      重要語<skam:ref format="numeric-circled"/>
+      重要語<skam:ref format="iroha-katakana"/>
+    </skam:block>
+  </skam:body>
+</skam:doc>

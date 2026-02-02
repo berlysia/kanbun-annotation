@@ -155,13 +155,13 @@ export const SAMPLES: Sample[] = [
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      學<skam:ref target="n1"/>而時
+      學<skam:ref xml:id="n1" format="numeric-bracket"/>而時
       <skam:kun okuri="ニ">之</skam:kun><skam:kaeri kind="re"/>
       <skam:kun okuri="フ">習</skam:kun><skam:kutoten value="。" kind="ku"/>
     </skam:block>
   </skam:body>
   <skam:notes>
-    <skam:note id="n1">「學」は目的を持って学ぶの意。</skam:note>
+    <skam:note ref="n1">「學」は目的を持って学ぶの意。</skam:note>
   </skam:notes>
 </skam:doc>`,
   },
@@ -172,10 +172,10 @@ export const SAMPLES: Sample[] = [
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      <skam:underline group="a"><skam:kun yomi="まな" okuri="ビテ">學</skam:kun>而<skam:label value="a" format="alpha-upper" group="a"/></skam:underline>
+      <skam:region style="solid" ref="ref-a"><skam:kun yomi="まな" okuri="ビテ">學</skam:kun>而<skam:ref xml:id="ref-a" format="alpha-upper"/></skam:region>
       <skam:kun okuri="ニ">時</skam:kun>
       <skam:kun okuri="フ">習</skam:kun>
-      <skam:underline group="b"><skam:kun soe="ヲ">之</skam:kun><skam:kaeri kind="re"/><skam:label value="b" format="alpha-upper" group="b"/></skam:underline><skam:kutoten value="。" kind="ku"/>
+      <skam:region style="solid" ref="ref-b"><skam:kun soe="ヲ">之</skam:kun><skam:kaeri kind="re"/><skam:ref xml:id="ref-b" format="alpha-upper"/></skam:region><skam:kutoten value="。" kind="ku"/>
     </skam:block>
   </skam:body>
   <skam:readings>
@@ -190,11 +190,11 @@ export const SAMPLES: Sample[] = [
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      <skam:underline style="solid">實線</skam:underline>
-      <skam:underline style="wavy">波線</skam:underline>
-      <skam:underline style="double">二重線</skam:underline>
-      <skam:underline style="dotted">點線</skam:underline>
-      <skam:underline style="dashed">破線</skam:underline>
+      <skam:region style="solid">實線</skam:region>
+      <skam:region style="wavy">波線</skam:region>
+      <skam:region style="double">二重線</skam:region>
+      <skam:region style="dotted">點線</skam:region>
+      <skam:region style="dashed">破線</skam:region>
     </skam:block>
   </skam:body>
 </skam:doc>`,
@@ -206,11 +206,11 @@ export const SAMPLES: Sample[] = [
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      <skam:underline style="solid" group="a">實線<skam:label value="a" format="alpha-upper" group="a"/></skam:underline>
-      <skam:underline style="wavy" group="b">波線<skam:label value="b" format="alpha-upper" group="b"/></skam:underline>
-      <skam:underline style="double" group="c">二重線<skam:label value="c" format="alpha-upper" group="c"/></skam:underline>
-      <skam:underline style="dotted" group="d">點線<skam:label value="d" format="alpha-upper" group="d"/></skam:underline>
-      <skam:underline style="dashed" group="e">破線<skam:label value="e" format="alpha-upper" group="e"/></skam:underline>
+      <skam:region style="solid" ref="ref-a">實線<skam:ref xml:id="ref-a" format="alpha-upper"/></skam:region>
+      <skam:region style="wavy" ref="ref-b">波線<skam:ref xml:id="ref-b" format="alpha-upper"/></skam:region>
+      <skam:region style="double" ref="ref-c">二重線<skam:ref xml:id="ref-c" format="alpha-upper"/></skam:region>
+      <skam:region style="dotted" ref="ref-d">點線<skam:ref xml:id="ref-d" format="alpha-upper"/></skam:region>
+      <skam:region style="dashed" ref="ref-e">破線<skam:ref xml:id="ref-e" format="alpha-upper"/></skam:region>
     </skam:block>
   </skam:body>
 </skam:doc>`,
@@ -223,15 +223,15 @@ export const SAMPLES: Sample[] = [
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      <skam:underline group="1">大文字<skam:label value="1" format="alpha-upper" group="1"/></skam:underline>
-      <skam:underline group="2">小文字<skam:label value="2" format="alpha-lower" group="2"/></skam:underline>
-      <skam:underline group="3">數字<skam:label value="3" format="numeric" group="3"/></skam:underline>
-      <skam:underline group="4">丸數字<skam:label value="4" format="circled" group="4"/></skam:underline>
-      <skam:underline group="5">イロハ<skam:label value="5" format="iroha" group="5"/></skam:underline>
-      <skam:underline group="6">いろは<skam:label value="6" format="iroha-hiragana" group="6"/></skam:underline>
-      <skam:underline group="7">アイウ<skam:label value="7" format="gojuon" group="7"/></skam:underline>
-      <skam:underline group="8">あいう<skam:label value="8" format="gojuon-hiragana" group="8"/></skam:underline>
-      <skam:underline group="9">漢數字<skam:label value="9" format="kanji-numeric" group="9"/></skam:underline>
+      <skam:region style="solid" ref="ref-1">大文字<skam:ref xml:id="ref-1" format="alpha-upper"/></skam:region>
+      <skam:region style="solid" ref="ref-2">小文字<skam:ref xml:id="ref-2" format="alpha-lower"/></skam:region>
+      <skam:region style="solid" ref="ref-3">數字<skam:ref xml:id="ref-3" format="numeric-paren"/></skam:region>
+      <skam:region style="solid" ref="ref-4">丸數字<skam:ref xml:id="ref-4" format="numeric-circled"/></skam:region>
+      <skam:region style="solid" ref="ref-5">イロハ<skam:ref xml:id="ref-5" format="iroha-katakana"/></skam:region>
+      <skam:region style="solid" ref="ref-6">いろは<skam:ref xml:id="ref-6" format="iroha-hiragana"/></skam:region>
+      <skam:region style="solid" ref="ref-7">アイウ<skam:ref xml:id="ref-7" format="gojuon-katakana"/></skam:region>
+      <skam:region style="solid" ref="ref-8">あいう<skam:ref xml:id="ref-8" format="gojuon-hiragana"/></skam:region>
+      <skam:region style="solid" ref="ref-9">漢數字<skam:ref xml:id="ref-9" format="kanji-numeric"/></skam:region>
     </skam:block>
   </skam:body>
 </skam:doc>`,

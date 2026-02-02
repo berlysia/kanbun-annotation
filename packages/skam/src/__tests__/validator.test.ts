@@ -60,7 +60,6 @@ describe('validateSKAMDocument', () => {
           { type: 'soegana', anchor: { from: 't1', to: 't1' }, value: 'を' },
           { type: 'kutoten', anchor: { from: 't1', to: 't1' }, value: '。' },
           { type: 'emphasis', anchor: { from: 't1', to: 't1' } },
-          { type: 'note', anchor: { from: 't1', to: 't1' }, value: '注釈' },
           {
             type: 'saidoku',
             anchor: { from: 't1', to: 't1' },
@@ -73,8 +72,8 @@ describe('validateSKAMDocument', () => {
             shape: 'dot',
           },
           { type: 'tateten', anchor: { from: 't1', to: 't1' } },
-          { type: 'underline', anchor: { from: 't1', to: 't1' } },
-          { type: 'label', anchor: { from: 't1', to: 't1' }, value: '(A)' },
+          { type: 'region', anchor: { from: 't1', to: 't1' } },
+          { type: 'ref', anchor: { from: 't1', to: 't1' }, label: '(A)' },
         ],
         readings: [],
       };
@@ -83,11 +82,11 @@ describe('validateSKAMDocument', () => {
       expect(result.valid).toBe(true);
     });
 
-    it('should validate underline with all optional fields', () => {
+    it('should validate region with all optional fields', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'underline', anchor: { from: 't1', to: 't1' }, style: 'wavy', group: 'a' }],
+        marks: [{ type: 'region', anchor: { from: 't1', to: 't1' }, style: 'wavy', ref: 'ref-1' }],
         readings: [],
       };
 
@@ -95,11 +94,11 @@ describe('validateSKAMDocument', () => {
       expect(result.valid).toBe(true);
     });
 
-    it('should validate label with value only', () => {
+    it('should validate ref with label only', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'label', anchor: { from: 't1', to: 't1' }, value: '(A)' }],
+        marks: [{ type: 'ref', anchor: { from: 't1', to: 't1' }, label: '(A)' }],
         readings: [],
       };
 
@@ -107,11 +106,11 @@ describe('validateSKAMDocument', () => {
       expect(result.valid).toBe(true);
     });
 
-    it('should validate label with format only', () => {
+    it('should validate ref with format only', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'label', anchor: { from: 't1', to: 't1' }, format: 'alpha-upper' }],
+        marks: [{ type: 'ref', anchor: { from: 't1', to: 't1' }, format: 'alpha-upper' }],
         readings: [],
       };
 
@@ -119,17 +118,28 @@ describe('validateSKAMDocument', () => {
       expect(result.valid).toBe(true);
     });
 
-    it('should validate label with both value and format', () => {
+    it('should validate ref with content only', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        marks: [{ type: 'ref', anchor: { from: 't1', to: 't1' }, content: '注釈テキスト' }],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(true);
+    });
+
+    it('should validate ref with format and content', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
         marks: [
           {
-            type: 'label',
+            type: 'ref',
             anchor: { from: 't1', to: 't1' },
-            value: 'a',
-            format: 'alpha-upper',
-            group: 'a',
+            format: 'numeric-bracket',
+            content: '注釈テキスト',
           },
         ],
         readings: [],
@@ -139,13 +149,13 @@ describe('validateSKAMDocument', () => {
       expect(result.valid).toBe(true);
     });
 
-    it('should validate all underline styles', () => {
-      const styles = ['solid', 'dotted', 'dashed', 'wavy', 'double'] as const;
+    it('should validate all region styles', () => {
+      const styles = ['none', 'solid', 'dotted', 'dashed', 'wavy', 'double'] as const;
       for (const style of styles) {
         const doc: SKAMDocument = {
           format: 'skam@0.1',
           tokens: [{ id: 't1', text: '學' }],
-          marks: [{ type: 'underline', anchor: { from: 't1', to: 't1' }, style }],
+          marks: [{ type: 'region', anchor: { from: 't1', to: 't1' }, style }],
           readings: [],
         };
 
@@ -154,13 +164,24 @@ describe('validateSKAMDocument', () => {
       }
     });
 
-    it('should validate all label formats', () => {
-      const formats = ['alpha-upper', 'alpha-lower', 'numeric', 'circled', 'iroha'] as const;
+    it('should validate all ref formats', () => {
+      const formats = [
+        'alpha-upper',
+        'alpha-lower',
+        'numeric-paren',
+        'numeric-bracket',
+        'numeric-circled',
+        'iroha-katakana',
+        'iroha-hiragana',
+        'gojuon-katakana',
+        'gojuon-hiragana',
+        'kanji-numeric',
+      ] as const;
       for (const format of formats) {
         const doc: SKAMDocument = {
           format: 'skam@0.1',
           tokens: [{ id: 't1', text: '學' }],
-          marks: [{ type: 'label', anchor: { from: 't1', to: 't1' }, format }],
+          marks: [{ type: 'ref', anchor: { from: 't1', to: 't1' }, format }],
           readings: [],
         };
 
@@ -556,11 +577,11 @@ describe('validateSKAMDocument', () => {
       }
     });
 
-    it('should reject underline with invalid style', () => {
+    it('should reject region with invalid style', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'underline', anchor: { from: 't1', to: 't1' }, style: 'invalid' }],
+        marks: [{ type: 'region', anchor: { from: 't1', to: 't1' }, style: 'invalid' }],
         readings: [],
       };
 
@@ -571,26 +592,28 @@ describe('validateSKAMDocument', () => {
       }
     });
 
-    it('should reject label without value and format', () => {
+    it('should reject ref without label, format, or content', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'label', anchor: { from: 't1', to: 't1' } }],
+        marks: [{ type: 'ref', anchor: { from: 't1', to: 't1' } }],
         readings: [],
       };
 
       const result = validateSKAMDocument(doc);
       expect(result.valid).toBe(false);
       if (!result.valid) {
-        expect(result.errors.some((e) => e.message.includes('value or format'))).toBe(true);
+        expect(result.errors.some((e) => e.message.includes('label, format, or content'))).toBe(
+          true,
+        );
       }
     });
 
-    it('should reject label with invalid format', () => {
+    it('should reject ref with invalid format', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'label', anchor: { from: 't1', to: 't1' }, format: 'invalid' }],
+        marks: [{ type: 'ref', anchor: { from: 't1', to: 't1' }, format: 'invalid' }],
         readings: [],
       };
 
@@ -598,6 +621,23 @@ describe('validateSKAMDocument', () => {
       expect(result.valid).toBe(false);
       if (!result.valid) {
         expect(result.errors.some((e) => e.path === 'marks[0].format')).toBe(true);
+      }
+    });
+
+    it('should reject ref with both label and format', () => {
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        marks: [
+          { type: 'ref', anchor: { from: 't1', to: 't1' }, label: '(A)', format: 'alpha-upper' },
+        ],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.message.includes('mutually exclusive'))).toBe(true);
       }
     });
   });

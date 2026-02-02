@@ -277,15 +277,15 @@ describe('parse - valid fixtures', () => {
   });
 
   describe('ref-note.xml', () => {
-    it('should parse and resolve note references', () => {
+    it('should parse and resolve ref content references', () => {
       const xml = readFixture('valid', 'ref-note.xml');
       const doc = parse(xml);
 
-      const note = doc.marks.find((m) => m.type === 'note');
-      expect(note).toBeDefined();
+      const ref = doc.marks.find((m) => m.type === 'ref');
+      expect(ref).toBeDefined();
 
-      if (note?.type === 'note') {
-        expect(note.value).toBe('「之」は目的語として読む。');
+      if (ref?.type === 'ref') {
+        expect(ref.content).toBe('「之」は目的語として読む。');
       }
     });
   });
@@ -333,28 +333,28 @@ describe('parse - valid fixtures', () => {
     });
   });
 
-  describe('underline-basic.xml', () => {
-    it('should parse underline element', () => {
-      const xml = readFixture('valid', 'underline-basic.xml');
+  describe('region-basic.xml', () => {
+    it('should parse region element', () => {
+      const xml = readFixture('valid', 'region-basic.xml');
       const doc = parse(xml);
 
-      const underlineMarks = doc.marks.filter((m) => m.type === 'underline');
-      expect(underlineMarks).toHaveLength(1);
+      const regionMarks = doc.marks.filter((m) => m.type === 'region');
+      expect(regionMarks).toHaveLength(1);
 
-      const mark = underlineMarks[0]!;
+      const mark = regionMarks[0]!;
       expect(mark.anchor.from).not.toBe(mark.anchor.to);
     });
   });
 
-  describe('underline-style.xml', () => {
-    it('should parse underline with style attributes', () => {
-      const xml = readFixture('valid', 'underline-style.xml');
+  describe('region-style.xml', () => {
+    it('should parse region with style attributes', () => {
+      const xml = readFixture('valid', 'region-style.xml');
       const doc = parse(xml);
 
-      const underlineMarks = doc.marks.filter((m) => m.type === 'underline');
-      expect(underlineMarks.length).toBeGreaterThanOrEqual(5);
+      const regionMarks = doc.marks.filter((m) => m.type === 'region');
+      expect(regionMarks.length).toBeGreaterThanOrEqual(5);
 
-      const styles = underlineMarks.map((m) => (m as { style?: string }).style);
+      const styles = regionMarks.map((m) => (m as { style?: string }).style);
       expect(styles).toContain('solid');
       expect(styles).toContain('wavy');
       expect(styles).toContain('double');
@@ -363,54 +363,54 @@ describe('parse - valid fixtures', () => {
     });
   });
 
-  describe('label-value.xml', () => {
-    it('should parse label with value attribute', () => {
-      const xml = readFixture('valid', 'label-value.xml');
+  describe('ref-label.xml', () => {
+    it('should parse ref with label attribute', () => {
+      const xml = readFixture('valid', 'ref-label.xml');
       const doc = parse(xml);
 
-      const labelMarks = doc.marks.filter((m) => m.type === 'label');
-      expect(labelMarks.length).toBeGreaterThanOrEqual(3);
+      const refMarks = doc.marks.filter((m) => m.type === 'ref');
+      expect(refMarks.length).toBeGreaterThanOrEqual(3);
 
-      const values = labelMarks.map((m) => (m as { value?: string }).value);
-      expect(values).toContain('(A)');
-      expect(values).toContain('(B)');
-      expect(values).toContain('※');
+      const labels = refMarks.map((m) => (m as { label?: string }).label);
+      expect(labels).toContain('(A)');
+      expect(labels).toContain('(B)');
+      expect(labels).toContain('※');
     });
   });
 
-  describe('label-format.xml', () => {
-    it('should parse label with format attribute', () => {
-      const xml = readFixture('valid', 'label-format.xml');
+  describe('ref-format.xml', () => {
+    it('should parse ref with format attribute', () => {
+      const xml = readFixture('valid', 'ref-format.xml');
       const doc = parse(xml);
 
-      const labelMarks = doc.marks.filter((m) => m.type === 'label');
-      expect(labelMarks.length).toBeGreaterThanOrEqual(4);
+      const refMarks = doc.marks.filter((m) => m.type === 'ref');
+      expect(refMarks.length).toBeGreaterThanOrEqual(4);
 
-      const formats = labelMarks.map((m) => (m as { format?: string }).format);
+      const formats = refMarks.map((m) => (m as { format?: string }).format);
       expect(formats).toContain('alpha-upper');
-      expect(formats).toContain('circled');
-      expect(formats).toContain('iroha');
+      expect(formats).toContain('numeric-circled');
+      expect(formats).toContain('iroha-katakana');
     });
   });
 
-  describe('underline-label-combined.xml', () => {
-    it('should parse underline and label with group', () => {
-      const xml = readFixture('valid', 'underline-label-combined.xml');
+  describe('region-ref-combined.xml', () => {
+    it('should parse region with ref reference', () => {
+      const xml = readFixture('valid', 'region-ref-combined.xml');
       const doc = parse(xml);
 
-      const underlineMarks = doc.marks.filter((m) => m.type === 'underline');
-      const labelMarks = doc.marks.filter((m) => m.type === 'label');
+      const regionMarks = doc.marks.filter((m) => m.type === 'region');
+      const refMarks = doc.marks.filter((m) => m.type === 'ref');
 
-      expect(underlineMarks).toHaveLength(1);
-      expect(labelMarks).toHaveLength(1);
+      expect(regionMarks).toHaveLength(1);
+      expect(refMarks).toHaveLength(1);
 
-      const underline = underlineMarks[0]!;
-      const label = labelMarks[0]!;
+      const region = regionMarks[0]!;
+      const ref = refMarks[0]!;
 
-      expect((underline as { group?: string }).group).toBe('a');
-      expect((label as { group?: string }).group).toBe('a');
-      expect((label as { value?: string }).value).toBe('a');
-      expect((label as { format?: string }).format).toBe('alpha-upper');
+      // ref has xml:id="ref-1", region has ref="ref-1"
+      expect((region as { ref?: string }).ref).toBe('ref-1');
+      expect(ref.id).toBe('ref-1');
+      expect((ref as { format?: string }).format).toBe('alpha-upper');
     });
   });
 
@@ -436,11 +436,11 @@ describe('parse - valid fixtures', () => {
       'readings.xml',
       'meta-tokenization.xml',
       'multiple-blocks.xml',
-      'underline-basic.xml',
-      'underline-style.xml',
-      'label-value.xml',
-      'label-format.xml',
-      'underline-label-combined.xml',
+      'region-basic.xml',
+      'region-style.xml',
+      'ref-label.xml',
+      'ref-format.xml',
+      'region-ref-combined.xml',
       'readme-example.xml',
     ];
 

@@ -16,6 +16,8 @@ import type {
   ReadingKind,
   GlyphGridCoord,
   SaidokuForm,
+  RefFormat,
+  RegionStyle,
 } from './index.js';
 import {
   type ValidationError,
@@ -35,26 +37,26 @@ const VALID_MARK_TYPES: MarkType[] = [
   'soegana',
   'kutoten',
   'emphasis',
-  'note',
   'saidoku',
   'okototen',
   'tateten',
-  'underline',
-  'label',
+  'region',
+  'ref',
 ];
 
-const VALID_UNDERLINE_STYLES = ['solid', 'dotted', 'dashed', 'wavy', 'double'] as const;
-const VALID_LABEL_FORMATS = [
+const VALID_REGION_STYLES: RegionStyle[] = ['none', 'solid', 'dotted', 'dashed', 'wavy', 'double'];
+const VALID_REF_FORMATS: RefFormat[] = [
   'alpha-upper',
   'alpha-lower',
-  'numeric',
-  'circled',
-  'iroha',
+  'numeric-paren',
+  'numeric-bracket',
+  'numeric-circled',
+  'iroha-katakana',
   'iroha-hiragana',
-  'gojuon',
+  'gojuon-katakana',
   'gojuon-hiragana',
   'kanji-numeric',
-] as const;
+];
 
 const VALID_READING_KINDS: ReadingKind[] = ['kundoku', 'kakikudashi', 'yomiage'];
 
@@ -348,7 +350,6 @@ function validateMark(mark: unknown, index: number, errors: ValidationError[]): 
       case 'okurigana':
       case 'yomigana':
       case 'soegana':
-      case 'note':
         if (!isString(mark['value'])) {
           errors.push(
             createValidationError(
@@ -456,94 +457,101 @@ function validateMark(mark: unknown, index: number, errors: ValidationError[]): 
         // No additional required fields
         break;
 
-      case 'underline':
+      case 'region':
         // style is optional but must be valid if present
         if ('style' in mark && mark['style'] !== undefined) {
-          if (
-            !VALID_UNDERLINE_STYLES.includes(
-              mark['style'] as (typeof VALID_UNDERLINE_STYLES)[number]
-            )
-          ) {
+          if (!VALID_REGION_STYLES.includes(mark['style'] as RegionStyle)) {
             errors.push(
               createValidationError(
                 'INVALID_VALUE',
                 `${path}.style`,
-                `underline style must be one of: ${VALID_UNDERLINE_STYLES.join(', ')}`,
-                VALID_UNDERLINE_STYLES.join('|'),
+                `region style must be one of: ${VALID_REGION_STYLES.join(', ')}`,
+                VALID_REGION_STYLES.join('|'),
                 mark['style']
               )
             );
             valid = false;
           }
         }
-        // group is optional string
-        if ('group' in mark && mark['group'] !== undefined && !isString(mark['group'])) {
+        // ref is optional string
+        if ('ref' in mark && mark['ref'] !== undefined && !isString(mark['ref'])) {
           errors.push(
             createValidationError(
               'INVALID_TYPE',
-              `${path}.group`,
-              'group must be a string if provided',
+              `${path}.ref`,
+              'ref must be a string if provided',
               'string',
-              typeof mark['group']
+              typeof mark['ref']
             )
           );
           valid = false;
         }
         break;
 
-      case 'label':
-        // Either value or format must be present (at least one)
-        if (!('value' in mark) && !('format' in mark)) {
+      case 'ref':
+        // At least one of label, format, or content must be present
+        if (!('label' in mark) && !('format' in mark) && !('content' in mark)) {
           errors.push(
             createValidationError(
               'MISSING_FIELD',
               `${path}`,
-              'label requires either value or format (or both)',
-              'value or format',
-              'neither'
+              'ref requires at least one of: label, format, or content',
+              'label, format, or content',
+              'none'
             )
           );
           valid = false;
         }
-        // value is optional but must be string if present
-        if ('value' in mark && mark['value'] !== undefined && !isString(mark['value'])) {
+        // label and format are mutually exclusive
+        if ('label' in mark && mark['label'] !== undefined && 'format' in mark && mark['format'] !== undefined) {
+          errors.push(
+            createValidationError(
+              'INVALID_VALUE',
+              `${path}`,
+              'ref cannot have both label and format (mutually exclusive)',
+              'label OR format',
+              'both'
+            )
+          );
+          valid = false;
+        }
+        // label is optional but must be string if present
+        if ('label' in mark && mark['label'] !== undefined && !isString(mark['label'])) {
           errors.push(
             createValidationError(
               'INVALID_TYPE',
-              `${path}.value`,
-              'value must be a string if provided',
+              `${path}.label`,
+              'label must be a string if provided',
               'string',
-              typeof mark['value']
+              typeof mark['label']
             )
           );
           valid = false;
         }
         // format is optional but must be valid if present
         if ('format' in mark && mark['format'] !== undefined) {
-          if (
-            !VALID_LABEL_FORMATS.includes(mark['format'] as (typeof VALID_LABEL_FORMATS)[number])
-          ) {
+          if (!VALID_REF_FORMATS.includes(mark['format'] as RefFormat)) {
             errors.push(
               createValidationError(
                 'INVALID_VALUE',
                 `${path}.format`,
-                `label format must be one of: ${VALID_LABEL_FORMATS.join(', ')}`,
-                VALID_LABEL_FORMATS.join('|'),
+                `ref format must be one of: ${VALID_REF_FORMATS.join(', ')}`,
+                VALID_REF_FORMATS.join('|'),
                 mark['format']
               )
             );
             valid = false;
           }
         }
-        // group is optional string
-        if ('group' in mark && mark['group'] !== undefined && !isString(mark['group'])) {
+        // content is optional but must be string if present
+        if ('content' in mark && mark['content'] !== undefined && !isString(mark['content'])) {
           errors.push(
             createValidationError(
               'INVALID_TYPE',
-              `${path}.group`,
-              'group must be a string if provided',
+              `${path}.content`,
+              'content must be a string if provided',
               'string',
-              typeof mark['group']
+              typeof mark['content']
             )
           );
           valid = false;

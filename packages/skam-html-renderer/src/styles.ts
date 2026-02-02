@@ -338,11 +338,11 @@ function generateCommonStyles(prefix: string, vp: string): string {
  * text-decoration は display: inline-block の子要素には伝播しないため、
  * box-shadow で代替実装。inset を使用し、spread で線の太さを制御。
  */
-:where(.${prefix}-underline) {
+:where(.${prefix}-region) {
   position: relative;
 }
 
-:where(.${prefix}-underline[data-style="solid"]) {
+:where(.${prefix}-region[data-style="solid"]) {
   /* Default solid line - スタイルは書字方向依存部分で定義 */
 }
 
@@ -357,7 +357,7 @@ function generateCommonStyles(prefix: string, vp: string): string {
 }
 
 /* underline内のラベル - 共通部分 */
-:where(.${prefix}-underline .${prefix}-label) {
+:where(.${prefix}-region .${prefix}-label) {
   position: absolute;
   vertical-align: baseline;
   white-space: nowrap;
@@ -430,18 +430,18 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   text-emphasis-position: right;
 }
 
-/* Underline (傍線) - 縦書き: 右側に表示 */
-:where(.${prefix}-underline) {
+/* Region (傍線部) - 縦書き: 右側に表示 */
+:where(.${prefix}-region) {
   box-shadow: inset -1px 0 0 0 currentColor;
   padding-right: 0.25em;
 }
 
 /* 読み仮名がある場合はpadding-rightを広げる */
-:where(.${prefix}-underline--has-ruby) {
+:where(.${prefix}-region--has-ruby) {
   padding-right: 0.5em;
 }
 
-:where(.${prefix}-underline[data-style="dotted"]) {
+:where(.${prefix}-region[data-style="dotted"]) {
   box-shadow: none;
   background-image: linear-gradient(to bottom, currentColor 2px, transparent 2px);
   background-size: 1px 4px;
@@ -449,7 +449,7 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: right;
 }
 
-:where(.${prefix}-underline[data-style="dashed"]) {
+:where(.${prefix}-region[data-style="dashed"]) {
   box-shadow: none;
   background-image: linear-gradient(to bottom, currentColor 4px, transparent 4px);
   background-size: 1px 8px;
@@ -457,7 +457,7 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: right;
 }
 
-:where(.${prefix}-underline[data-style="wavy"]) {
+:where(.${prefix}-region[data-style="wavy"]) {
   /*
    * Wavy line using repeating SVG pattern
    * SVG内でcurrentColorは効かないため、黒色を直接指定。
@@ -470,13 +470,13 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: right;
 }
 
-:where(.${prefix}-underline[data-style="double"]) {
+:where(.${prefix}-region[data-style="double"]) {
   box-shadow: none;
   padding-right: 0.5em;
 }
 
-:where(.${prefix}-underline[data-style="double"])::before,
-:where(.${prefix}-underline[data-style="double"])::after {
+:where(.${prefix}-region[data-style="double"])::before,
+:where(.${prefix}-region[data-style="double"])::after {
   content: '';
   position: absolute;
   background-color: currentColor;
@@ -485,20 +485,20 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   width: 1px;
 }
 
-:where(.${prefix}-underline[data-style="double"])::before {
+:where(.${prefix}-region[data-style="double"])::before {
   right: 0;
 }
 
-:where(.${prefix}-underline[data-style="double"])::after {
+:where(.${prefix}-region[data-style="double"])::after {
   right: 3px;
 }
 
-:where(.${prefix}-underline--has-ruby[data-style="double"]) {
+:where(.${prefix}-region--has-ruby[data-style="double"]) {
   padding-right: 0.7em;
 }
 
 /* Label - 縦書き: 傍線の開始位置（上）に配置 */
-:where(.${prefix}-underline .${prefix}-label) {
+:where(.${prefix}-region .${prefix}-label) {
   inset-inline-start: 0;
   inset-block-start: -1.5em;
 }
@@ -531,17 +531,17 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
 }
 
 /* Underline (傍線) - 横書き: 下側に表示 */
-:where(.${prefix}-underline) {
+:where(.${prefix}-region) {
   box-shadow: inset 0 -1px 0 0 currentColor;
   padding-bottom: 0.1em;
 }
 
 /* 読み仮名がある場合 - 横書きでは特別な調整なし */
-:where(.${prefix}-underline--has-ruby) {
+:where(.${prefix}-region--has-ruby) {
   /* No additional padding needed for horizontal */
 }
 
-:where(.${prefix}-underline[data-style="dotted"]) {
+:where(.${prefix}-region[data-style="dotted"]) {
   box-shadow: none;
   background-image: linear-gradient(to right, currentColor 2px, transparent 2px);
   background-size: 4px 1px;
@@ -549,7 +549,7 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: bottom;
 }
 
-:where(.${prefix}-underline[data-style="dashed"]) {
+:where(.${prefix}-region[data-style="dashed"]) {
   box-shadow: none;
   background-image: linear-gradient(to right, currentColor 4px, transparent 4px);
   background-size: 8px 1px;
@@ -557,7 +557,7 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: bottom;
 }
 
-:where(.${prefix}-underline[data-style="wavy"]) {
+:where(.${prefix}-region[data-style="wavy"]) {
   /*
    * Wavy line using repeating SVG pattern
    * SVG内でcurrentColorは効かないため、黒色を直接指定。
@@ -570,13 +570,13 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: bottom;
 }
 
-:where(.${prefix}-underline[data-style="double"]) {
+:where(.${prefix}-region[data-style="double"]) {
   box-shadow: none;
   padding-bottom: 0.3em;
 }
 
-:where(.${prefix}-underline[data-style="double"])::before,
-:where(.${prefix}-underline[data-style="double"])::after {
+:where(.${prefix}-region[data-style="double"])::before,
+:where(.${prefix}-region[data-style="double"])::after {
   content: '';
   position: absolute;
   background-color: currentColor;
@@ -585,20 +585,20 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   height: 1px;
 }
 
-:where(.${prefix}-underline[data-style="double"])::before {
+:where(.${prefix}-region[data-style="double"])::before {
   bottom: 0;
 }
 
-:where(.${prefix}-underline[data-style="double"])::after {
+:where(.${prefix}-region[data-style="double"])::after {
   bottom: 3px;
 }
 
-:where(.${prefix}-underline--has-ruby[data-style="double"]) {
+:where(.${prefix}-region--has-ruby[data-style="double"]) {
   /* No additional padding needed for horizontal */
 }
 
 /* Label - 横書き: 傍線の開始位置（下）に配置 */
-:where(.${prefix}-underline .${prefix}-label) {
+:where(.${prefix}-region .${prefix}-label) {
   inset-inline-start: 0;
   inset-block-end: -1.5em;
 }

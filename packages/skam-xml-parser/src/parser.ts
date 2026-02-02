@@ -18,16 +18,15 @@ import type {
   SoeganaMark,
   KutotenMark,
   EmphasisMark,
-  NoteMark,
   SaidokuMark,
   SaidokuForm,
   OkototenMark,
   TatetenMark,
   GlyphGridCoord,
-  UnderlineMark,
-  UnderlineStyle,
-  LabelMark,
-  LabelFormat,
+  RegionMark,
+  RegionStyle,
+  RefMark,
+  RefFormat,
 } from '@kanbun/skam';
 
 // ============================================================================
@@ -51,15 +50,16 @@ const KAERI_VALUE_MAP: Record<KaeriKind, string> = {
   otsu: '乙',
 };
 
-const VALID_UNDERLINE_STYLES = ['solid', 'dotted', 'dashed', 'wavy', 'double'] as const;
-const VALID_LABEL_FORMATS = [
+const VALID_REGION_STYLES = ['none', 'solid', 'dotted', 'dashed', 'wavy', 'double'] as const;
+const VALID_REF_FORMATS = [
   'alpha-upper',
   'alpha-lower',
-  'numeric',
-  'circled',
-  'iroha',
+  'numeric-paren',
+  'numeric-bracket',
+  'numeric-circled',
+  'iroha-katakana',
   'iroha-hiragana',
-  'gojuon',
+  'gojuon-katakana',
   'gojuon-hiragana',
   'kanji-numeric',
 ] as const;
@@ -87,7 +87,7 @@ interface ParserState {
   tokens: Token[];
   marks: Mark[];
   readings: Reading[];
-  notes: Map<string, string>;
+  noteContents: Map<string, string>;
   tokenIndex: number;
   blockIndex: number;
   currentBlockId: string | null;
@@ -98,7 +98,7 @@ function createParserState(): ParserState {
     tokens: [],
     marks: [],
     readings: [],
-    notes: new Map(),
+    noteContents: new Map(),
     tokenIndex: 0,
     blockIndex: 0,
     currentBlockId: null,
@@ -519,100 +519,136 @@ function processSaidoku(element: Element, state: ParserState): string[] {
   return tokenIds;
 }
 
-function processRef(element: Element, state: ParserState, precedingTokenId: string | null): void {
-  const target = getRequiredAttr(element, 'target', 'skam:ref');
-
-  if (!precedingTokenId) {
-    throw new SKAMXMLParseError('<skam:ref> requires a preceding token');
-  }
-
-  // Remove leading # if present
-  const noteId = target.startsWith('#') ? target.slice(1) : target;
-
-  // Note content will be resolved later
-  const mark: NoteMark = {
-    type: 'note',
-    id: generateMarkId(state),
-    anchor: { from: precedingTokenId, to: precedingTokenId },
-    value: '', // Will be filled in later
-    ext: { refId: noteId },
-  };
-
-  state.marks.push(mark);
-}
-
-function processUnderline(element: Element, state: ParserState): string[] {
+/**
+ * Process skam:region element (replaces underline)
+ */
+function processRegion(element: Element, state: ParserState): string[] {
   const styleAttr = getAttr(element, 'style');
-  const group = getAttr(element, 'group');
+  const refAttr = getAttr(element, 'ref');
 
   // Process children to get tokens
   const tokenIds = processBlockChildren(element, state);
 
   if (tokenIds.length === 0) {
-    throw new SKAMXMLParseError('<skam:underline> must contain content');
+    throw new SKAMXMLParseError('<skam:region> must contain content');
   }
 
-  const mark: UnderlineMark = {
-    type: 'underline',
+  const mark: RegionMark = {
+    type: 'region',
     id: generateMarkId(state),
     anchor: createAnchor(tokenIds),
   };
 
   if (styleAttr) {
-    if (!VALID_UNDERLINE_STYLES.includes(styleAttr as (typeof VALID_UNDERLINE_STYLES)[number])) {
+    if (!VALID_REGION_STYLES.includes(styleAttr as (typeof VALID_REGION_STYLES)[number])) {
       throw new SKAMXMLParseError(
-        `Invalid underline style '${styleAttr}'. Valid styles: ${VALID_UNDERLINE_STYLES.join(', ')}`
+        `Invalid region style '${styleAttr}'. Valid styles: ${VALID_REGION_STYLES.join(', ')}`
       );
     }
-    mark.style = styleAttr as UnderlineStyle;
+    mark.style = styleAttr as RegionStyle;
   }
 
-  if (group) {
-    mark.group = group;
+  if (refAttr) {
+    mark.ref = refAttr;
   }
 
   state.marks.push(mark);
   return tokenIds;
 }
 
-function processLabel(element: Element, state: ParserState, precedingTokenId: string | null): void {
-  const value = getAttr(element, 'value');
+/**
+ * Process skam:ref element (replaces label and note)
+ *
+ * Supports:
+ * - Empty element with format/label for auto-numbering
+ * - Element with content for inline annotation
+ * - xml:id for separated note content (note references this ref)
+ */
+function processRef(element: Element, state: ParserState, precedingTokenId: string | null): string[] {
+  const labelAttr = getAttr(element, 'label');
   const formatAttr = getAttr(element, 'format');
-  const group = getAttr(element, 'group');
+  // xml:id attribute takes precedence for explicit id assignment
+  const xmlIdAttr = getAttr(element, 'xml:id') || getAttr(element, 'id');
 
-  // Either value or format must be present
-  if (!value && !formatAttr) {
-    throw new SKAMXMLParseError('<skam:label> requires either value or format attribute');
+  // Check for text content
+  let content: string | undefined;
+  const textContent = (element.textContent ?? '').trim();
+
+  // If element has text content but no child elements, it's inline content
+  let hasChildElements = false;
+  for (let i = 0; i < element.childNodes.length; i++) {
+    const child = element.childNodes[i];
+    if (child && isElement(child)) {
+      hasChildElements = true;
+      break;
+    }
   }
 
-  if (!precedingTokenId) {
-    throw new SKAMXMLParseError('<skam:label> requires a preceding token');
+  if (textContent && !hasChildElements) {
+    content = textContent;
   }
 
-  const mark: LabelMark = {
-    type: 'label',
-    id: generateMarkId(state),
-    anchor: { from: precedingTokenId, to: precedingTokenId },
+  // Validate: label and format are mutually exclusive
+  if (labelAttr && formatAttr) {
+    throw new SKAMXMLParseError('<skam:ref> cannot have both label and format (mutually exclusive)');
+  }
+
+  // Validate: at least one of label, format, content, or xml:id (for separated definition) must be present
+  if (!labelAttr && !formatAttr && !content && !xmlIdAttr) {
+    throw new SKAMXMLParseError('<skam:ref> requires at least one of: label, format, content, or xml:id');
+  }
+
+  // Validate format value
+  if (formatAttr && !VALID_REF_FORMATS.includes(formatAttr as (typeof VALID_REF_FORMATS)[number])) {
+    throw new SKAMXMLParseError(
+      `Invalid ref format '${formatAttr}'. Valid formats: ${VALID_REF_FORMATS.join(', ')}`
+    );
+  }
+
+  // Determine anchor: empty element anchors to preceding token, content element spans the tokens
+  let tokenIds: string[] = [];
+
+  if (!hasChildElements && !textContent) {
+    // Empty element - anchor to preceding token
+    if (!precedingTokenId) {
+      throw new SKAMXMLParseError('<skam:ref> (empty element) requires a preceding token');
+    }
+    tokenIds = [precedingTokenId];
+  } else if (!hasChildElements && textContent) {
+    // Has text content only - create tokens from text
+    tokenIds = addTokensFromText(textContent, state);
+    if (tokenIds.length === 0) {
+      // Fall back to preceding token if text was only whitespace
+      if (!precedingTokenId) {
+        throw new SKAMXMLParseError('<skam:ref> requires a preceding token when content is empty');
+      }
+      tokenIds = [precedingTokenId];
+    }
+  }
+
+  const mark: RefMark = {
+    type: 'ref',
+    id: xmlIdAttr || generateMarkId(state),
+    anchor: createAnchor(tokenIds),
   };
 
-  if (value) {
-    mark.value = value;
+  if (labelAttr) {
+    mark.label = labelAttr;
   }
 
   if (formatAttr) {
-    if (!VALID_LABEL_FORMATS.includes(formatAttr as (typeof VALID_LABEL_FORMATS)[number])) {
-      throw new SKAMXMLParseError(
-        `Invalid label format '${formatAttr}'. Valid formats: ${VALID_LABEL_FORMATS.join(', ')}`
-      );
-    }
-    mark.format = formatAttr as LabelFormat;
+    mark.format = formatAttr as RefFormat;
   }
 
-  if (group) {
-    mark.group = group;
+  if (content) {
+    mark.content = content;
   }
+
+  // Note: separated note content is resolved in processNotes()
+  // The note element references this ref via its 'ref' attribute
 
   state.marks.push(mark);
+  return tokenIds;
 }
 
 // ============================================================================
@@ -699,18 +735,18 @@ function processBlockChildren(element: Element, state: ParserState): string[] {
           if (ids.length > 0) lastTokenId = ids[ids.length - 1]!;
           break;
         }
-        case 'ref':
-          processRef(child, state, lastTokenId);
-          break;
-        case 'underline': {
-          const ids = processUnderline(child, state);
+        case 'region': {
+          const ids = processRegion(child, state);
           allTokenIds.push(...ids);
           if (ids.length > 0) lastTokenId = ids[ids.length - 1]!;
           break;
         }
-        case 'label':
-          processLabel(child, state, lastTokenId);
+        case 'ref': {
+          const ids = processRef(child, state, lastTokenId);
+          allTokenIds.push(...ids);
+          if (ids.length > 0) lastTokenId = ids[ids.length - 1]!;
           break;
+        }
         default:
           // Unknown elements are ignored per spec
           break;
@@ -773,30 +809,31 @@ function processNotes(element: Element, state: ParserState): void {
     const child = element.childNodes[i];
     if (!child) continue;
 
-    if (isElement(child) && getLocalName(child) === 'note') {
-      // Note: @xmldom/xmldom returns "" for missing attributes, not null
-      // Use || instead of ?? to handle empty string fallback
-      const id = getAttr(child, 'xml:id') || getAttr(child, 'id');
-      if (id) {
-        const text = (child.textContent ?? '').trim();
-        state.notes.set(id, text);
+    if (isElement(child)) {
+      const localName = getLocalName(child);
+      // skam:note element with ref attribute referencing a skam:ref element
+      if (localName === 'note') {
+        // Note: @xmldom/xmldom returns "" for missing attributes, not null
+        // Use || instead of ?? to handle empty string fallback
+        // New design: note has 'ref' attribute that references skam:ref's xml:id
+        const refAttr = getAttr(child, 'ref');
+        if (refAttr) {
+          const text = (child.textContent ?? '').trim();
+          state.noteContents.set(refAttr, text);
+        }
       }
     }
   }
 }
 
-function resolveNoteReferences(state: ParserState): void {
+function resolveContentReferences(state: ParserState): void {
+  // New design: note's ref attribute references skam:ref's id
+  // Find ref marks and resolve their content from noteContents
   for (const mark of state.marks) {
-    if (mark.type === 'note' && mark.ext?.['refId']) {
-      const refId = mark.ext['refId'] as string;
-      const noteText = state.notes.get(refId);
+    if (mark.type === 'ref' && mark.id) {
+      const noteText = state.noteContents.get(mark.id);
       if (noteText !== undefined) {
-        (mark as NoteMark).value = noteText;
-      }
-      // Remove the temporary refId from ext
-      delete mark.ext['refId'];
-      if (Object.keys(mark.ext).length === 0) {
-        delete mark.ext;
+        (mark as RefMark).content = noteText;
       }
     }
   }
@@ -887,8 +924,8 @@ export function parse(xml: string, options: ParseOptions = {}): SKAMDocument {
     throw new SKAMXMLParseError('Document must contain <skam:body>');
   }
 
-  // Resolve note references
-  resolveNoteReferences(state);
+  // Resolve content references for ref marks
+  resolveContentReferences(state);
 
   // Build document
   const skamDoc: SKAMDocument = {

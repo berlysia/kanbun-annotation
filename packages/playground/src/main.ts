@@ -3,12 +3,16 @@
  */
 
 import { parse, stringify, SKAMXMLParseError } from '@kanbun/skam-xml-parser';
-import { render, attachInteractiveHandlers, PROFILES } from '@kanbun/skam-html-renderer';
+import {
+  render,
+  attachInteractiveHandlers,
+  setSelectionClasses,
+  PROFILES,
+} from '@kanbun/skam-html-renderer';
 import type { SKAMDocument } from '@kanbun/skam';
 import { SAMPLES } from './samples.js';
 import { ErrorPanel, type ParseError } from './editor/error-panel.js';
 import { XmlEditor } from './editor/xml-editor.js';
-import { MarkPopup, getKaeriValueFromKind, type ExistingKanaMarks } from './editor/mark-popup.js';
 import { addMark, removeMark, getMarksForToken } from './editor/document-operations.js';
 
 // ============================================================================
@@ -92,9 +96,6 @@ let isUpdatingFromGui = false;
 
 // Cleanup function for interactive handlers
 let cleanupInteractiveHandlers: (() => void) | null = null;
-
-// Mark Popup instance for adding/editing marks
-const markPopup = new MarkPopup(document.body);
 
 // Initialize XML Editor with syntax highlighting
 const xmlEditor = new XmlEditor(xmlEditorWrapper, {
@@ -545,15 +546,21 @@ function getMarkTypeLabel(type: string): string {
   return labels[type] ?? type;
 }
 
-function renderDocument(doc: SKAMDocument): void {
+function renderDocument(doc: SKAMDocument, preserveSelection = false): void {
   currentDocument = doc;
+
+  // Save current selection state before cleanup
+  const savedFromId = preserveSelection ? currentSelectionFromId : null;
+  const savedToId = preserveSelection ? currentSelectionToId : null;
 
   // Cleanup previous interactive handlers
   cleanupInteractiveHandlers?.();
   cleanupInteractiveHandlers = null;
 
-  // Clear selection panel
-  clearSelectionPanel();
+  // Clear selection panel only if not preserving
+  if (!preserveSelection) {
+    clearSelectionPanel();
+  }
 
   // JSON output
   jsonOutput.textContent = JSON.stringify(doc, null, 2);
@@ -589,64 +596,27 @@ function renderDocument(doc: SKAMDocument): void {
   // Setup interactive event handlers (not in inline mode)
   if (!inline) {
     cleanupInteractiveHandlers = attachInteractiveHandlers(renderOutput, {
-      onTokenClick: (tokenId, event) => {
+      onTokenClick: (tokenId) => {
         if (!currentDocument) return;
-
-        // Update selection panel
+        // Update selection panel (selection visual handled by interactive handlers)
         updateSelectionPanel(tokenId, tokenId);
-
-        // Find existing marks for this token
-        const marks = getMarksForToken(currentDocument, tokenId);
-        const existingKaeri = marks.find((m) => m.type === 'kaeri');
-
-        // Collect existing kana marks by type
-        const existingKanaMarks: ExistingKanaMarks = {};
-        for (const mark of marks) {
-          if (mark.type === 'okurigana') existingKanaMarks.okurigana = mark;
-          if (mark.type === 'yomigana') existingKanaMarks.yomigana = mark;
-          if (mark.type === 'soegana') existingKanaMarks.soegana = mark;
-        }
-
-        // Show unified popup with kaeri tab as default for single click
-        markPopup.showUnifiedPopup(
-          { x: event.clientX, y: event.clientY },
-          tokenId,
-          tokenId,
-          'kaeri',
-          existingKaeri,
-          existingKanaMarks
-        );
+        // Apply selection classes
+        setSelectionClasses(renderOutput, tokenId, tokenId);
       },
       onTokenSelect: (fromId, toId) => {
         if (!currentDocument) return;
-
         // Update selection panel
         updateSelectionPanel(fromId, toId);
-
-        // Find existing marks for the first token
-        const marks = getMarksForToken(currentDocument, fromId);
-        const existingKaeri = marks.find((m) => m.type === 'kaeri');
-
-        // Collect existing kana marks by type
-        const existingKanaMarks: ExistingKanaMarks = {};
-        for (const mark of marks) {
-          if (mark.type === 'okurigana') existingKanaMarks.okurigana = mark;
-          if (mark.type === 'yomigana') existingKanaMarks.yomigana = mark;
-          if (mark.type === 'soegana') existingKanaMarks.soegana = mark;
-        }
-
-        // Calculate position: use the center of the selection range
-        const tokenElement = renderOutput.querySelector(`[data-token-id="${fromId}"]`);
-        let position = { x: 0, y: 0 };
-        if (tokenElement) {
-          const rect = tokenElement.getBoundingClientRect();
-          position = { x: rect.left + rect.width / 2, y: rect.bottom + 5 };
-        }
-
-        // Show unified popup with kana tab as default for range selection
-        markPopup.showUnifiedPopup(position, fromId, toId, 'kana', existingKaeri, existingKanaMarks);
+        // Apply selection classes
+        setSelectionClasses(renderOutput, fromId, toId);
       },
     });
+
+    // Restore selection if preserving
+    if (savedFromId && savedToId) {
+      updateSelectionPanel(savedFromId, savedToId);
+      setSelectionClasses(renderOutput, savedFromId, savedToId);
+    }
   }
 }
 
@@ -747,7 +717,8 @@ function updateXmlFromDocument(doc: SKAMDocument): void {
     currentDocument = doc;
     const xml = stringify(doc);
     xmlEditor.setValue(xml);
-    renderDocument(doc);
+    // Preserve selection when updating from GUI actions
+    renderDocument(doc, true);
     hideErrors();
   } finally {
     isUpdatingFromGui = false;
@@ -1106,65 +1077,6 @@ selectionKanaInput.addEventListener('keydown', (e) => {
 });
 
 selectionKanaApply.addEventListener('click', handleKanaApply);
-
-// ============================================================================
-// Mark Popup Callbacks
-// ============================================================================
-
-// Kaeri (返り点) selection callback
-markPopup.onKaeriSelect((tokenId, kind) => {
-  if (!currentDocument) return;
-
-  let newDoc = currentDocument;
-
-  // Find and remove existing kaeri mark for this token
-  const existingMark = getMarksForToken(currentDocument, tokenId).find((m) => m.type === 'kaeri');
-  if (existingMark?.id) {
-    newDoc = removeMark(newDoc, existingMark.id);
-  }
-
-  // Add new mark if kind is provided (not a delete operation)
-  if (kind) {
-    const kaeriValue = getKaeriValueFromKind(kind);
-    if (kaeriValue) {
-      newDoc = addMark(newDoc, {
-        type: 'kaeri',
-        value: kaeriValue,
-        anchor: { from: tokenId, to: tokenId },
-      });
-    }
-  }
-
-  updateXmlFromDocument(newDoc);
-});
-
-// Kana (送り仮名/読み仮名/添え仮名) selection callback
-markPopup.onKanaSelect((fromId, toId, type, value) => {
-  if (!currentDocument) return;
-
-  let newDoc = currentDocument;
-
-  // Find and remove existing mark of the SAME type only
-  // This preserves other kana types (e.g., when adding yomigana, keep okurigana)
-  if (type) {
-    const existingMark = getMarksForToken(currentDocument, fromId).find((m) => m.type === type);
-    if (existingMark?.id) {
-      newDoc = removeMark(newDoc, existingMark.id);
-    }
-  }
-  // Note: if type is null/undefined without value, nothing is deleted (no-op)
-
-  // Add new mark if type is provided (not a delete operation)
-  if (type && value) {
-    newDoc = addMark(newDoc, {
-      type,
-      value,
-      anchor: { from: fromId, to: toId },
-    });
-  }
-
-  updateXmlFromDocument(newDoc);
-});
 
 // ============================================================================
 // Initialize

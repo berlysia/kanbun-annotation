@@ -722,10 +722,11 @@ function renderSaidokuToken(
   const secondForm = forms[1];
 
   // 第1読み用のrt（読み仮名のみ、送り仮名は含めない）
+  // 読み仮名の表示はprofile.yomiganaに従う
   let firstRt = '';
   if (firstForm) {
     const n = firstForm.n ?? 1;
-    const yomi = firstForm.yomi ? escapeHtml(firstForm.yomi) : '';
+    const yomi = profile.yomigana && firstForm.yomi ? escapeHtml(firstForm.yomi) : '';
     firstRt = `<rt class="${prefix}-ruby" data-saidoku-n="${n}">${yomi}</rt>`;
   }
 
@@ -738,8 +739,9 @@ function renderSaidokuToken(
   }
 
   // 第2読み用のrt（読み仮名のみ、送り仮名は含めない）
+  // 読み仮名の表示はprofile.yomiganaに従う
   const n2 = secondForm.n ?? 2;
-  const yomi2 = secondForm.yomi ? escapeHtml(secondForm.yomi) : '';
+  const yomi2 = profile.yomigana && secondForm.yomi ? escapeHtml(secondForm.yomi) : '';
   const secondRt = `<rt class="${prefix}-ruby ${prefix}-saidoku-under" data-saidoku-n="${n2}">${yomi2}</rt>`;
 
   // 外側ruby（第2読み）で内側rubyを包む
@@ -812,11 +814,12 @@ function renderToken(
 
   // 送り仮名（再読文字の場合はformsから取得）
   // 再読文字の場合: 第1読みは右側（通常の送り仮名位置）、第2読みは左側（返り点位置）
+  // 送り仮名の表示はprofile.okuriganaに従う（profile.saidokuとは独立）
   let saidokuOkuri1 = ''; // 第1読みの送り仮名（右側）
   let saidokuOkuri2 = ''; // 第2読みの送り仮名（左側、返り点と同じ位置）
   let okurigana = '';
   if (profile.okurigana) {
-    if (saidokuMark && profile.saidoku) {
+    if (saidokuMark) {
       // 再読文字の場合: formsから送り仮名を取得
       for (const form of saidokuMark.forms) {
         if (form.okuri) {

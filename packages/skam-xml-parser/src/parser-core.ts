@@ -407,8 +407,7 @@ function processYomigana(element: Element, state: ParserState): string[] {
 function processKutoten(
   element: Element,
   state: ParserState,
-  precedingTokenId: string | null,
-  _followingTokenId: string | null
+  precedingTokenId: string | null
 ): void {
   const value = getRequiredAttr(element, 'value', 'skam:kutoten');
   const kind = getAttr(element, 'kind') as 'ku' | 'ten' | 'other' | null;
@@ -690,12 +689,7 @@ function processSaidoku(element: Element, state: ParserState): string[] {
  *
  * Position-based: ref does not create tokens, just marks a position between tokens
  */
-function processRef(
-  element: Element,
-  state: ParserState,
-  precedingTokenId: string | null,
-  _followingTokenId: string | null
-): void {
+function processRef(element: Element, state: ParserState, precedingTokenId: string | null): void {
   const labelAttr = getAttr(element, 'label');
   const formatAttr = getAttr(element, 'format');
   // xml:id attribute takes precedence for explicit id assignment
@@ -789,9 +783,6 @@ function processBlockChildren(element: Element, state: ParserState): string[] {
   let lastTokenId: string | null =
     state.tokens.length > 0 ? state.tokens[state.tokens.length - 1]!.id : null;
 
-  // Track the starting token count for this block to calculate relative indices
-  const blockStartTokenCount = allTokenIds.length;
-
   for (let i = 0; i < element.childNodes.length; i++) {
     const child = element.childNodes[i];
     if (!child) continue;
@@ -823,7 +814,7 @@ function processBlockChildren(element: Element, state: ParserState): string[] {
           break;
         }
         case 'kutoten':
-          // Defer processing until we know the following token
+          // Defer to ensure precedingTokenIndex is within current block
           pendingPositionMarks.push({
             element: child,
             type: 'kutoten',
@@ -873,7 +864,7 @@ function processBlockChildren(element: Element, state: ParserState): string[] {
           break;
         }
         case 'ref':
-          // Defer processing until we know the following token
+          // Defer to ensure precedingTokenIndex is within current block
           pendingPositionMarks.push({
             element: child,
             type: 'ref',
@@ -891,12 +882,11 @@ function processBlockChildren(element: Element, state: ParserState): string[] {
   for (const pending of pendingPositionMarks) {
     const precedingTokenId =
       pending.precedingTokenIndex >= 0 ? (allTokenIds[pending.precedingTokenIndex] ?? null) : null;
-    const followingTokenId = allTokenIds[pending.precedingTokenIndex + 1] ?? null;
 
     if (pending.type === 'kutoten') {
-      processKutoten(pending.element, state, precedingTokenId, followingTokenId);
+      processKutoten(pending.element, state, precedingTokenId);
     } else {
-      processRef(pending.element, state, precedingTokenId, followingTokenId);
+      processRef(pending.element, state, precedingTokenId);
     }
   }
 

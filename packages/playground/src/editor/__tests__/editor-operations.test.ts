@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { SKAMDocument, Mark } from '@kanbun/skam';
-import { addMark, removeMark, getMarksForToken, getMarksForRange } from '../document-operations';
+import { addMark, removeMark, getMarksForToken, getMarksForRange } from '@kanbun/skam';
 
 // ============================================================================
 // Test Helpers

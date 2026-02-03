@@ -27,6 +27,7 @@
     "@kanbun/skam": "workspace:*",
     "@kanbun/skam-html-renderer": "workspace:*",
     "@kanbun/skam-xml-parser": "workspace:*",
+    "@kanbun/skam-xml-stringify": "workspace:*",
     "prismjs": "1.30.0"
   },
   "devDependencies": {

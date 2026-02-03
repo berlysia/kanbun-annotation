@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { SKAMDocument, Mark, KaeriMark } from '@kanbun/skam';
+import type { SKAMDocument, Mark, KaeriMark } from '../index.js';
 import {
   generateMarkId,
   addMark,
@@ -8,7 +8,7 @@ import {
   getMarksForToken,
   getMarksForRange,
   type MarkInput,
-} from '../document-operations';
+} from '../operations/index.js';
 
 /** テスト用の最小限のSKAMDocumentを作成 */
 function createTestDocument(marks: Mark[] = []): SKAMDocument {

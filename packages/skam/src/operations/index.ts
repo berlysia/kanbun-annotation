@@ -1,4 +1,4 @@
-import type { SKAMDocument, Mark, Anchor, Position, KutotenMark, RefMark } from '@kanbun/skam';
+import type { SKAMDocument, Mark, Anchor, Position, KutotenMark, RefMark } from '../index.js';
 
 /**
  * position ベースのマーク（kutoten, ref）かどうかを判定

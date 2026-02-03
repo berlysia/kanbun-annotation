@@ -420,3 +420,19 @@ export {
 } from './errors.js';
 
 export { validateSKAMDocument, isSKAMDocument, assertSKAMDocument } from './validator.js';
+
+// ============================================================================
+// Operations
+// ============================================================================
+
+export {
+  generateMarkId,
+  addMark,
+  updateMark,
+  replaceMark,
+  removeMark,
+  getMarksForToken,
+  getMarksForRange,
+  type MarkInput,
+  type MarkUpdates,
+} from './operations/index.js';

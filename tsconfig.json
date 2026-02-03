@@ -4,7 +4,9 @@
   "references": [
     { "path": "packages/skam" },
     { "path": "packages/skam-xml-parser" },
+    { "path": "packages/skam-xml-stringify" },
     { "path": "packages/skam-html-renderer" },
-    { "path": "packages/playground" }
+    { "path": "packages/playground" },
+    { "path": "packages/integration-tests" }
   ]
 }

@@ -41,6 +41,18 @@ importers:
         specifier: 4.0.18
         version: 4.0.18(@types/node@25.0.10)(happy-dom@20.3.9)(jiti@2.6.1)(yaml@2.8.2)
 
+  packages/integration-tests:
+    devDependencies:
+      '@kanbun/skam':
+        specifier: workspace:*
+        version: link:../skam
+      '@kanbun/skam-xml-parser':
+        specifier: workspace:*
+        version: link:../skam-xml-parser
+      '@kanbun/skam-xml-stringify':
+        specifier: workspace:*
+        version: link:../skam-xml-stringify
+
   packages/playground:
     dependencies:
       '@kanbun/skam':
@@ -52,6 +64,9 @@ importers:
       '@kanbun/skam-xml-parser':
         specifier: workspace:*
         version: link:../skam-xml-parser
+      '@kanbun/skam-xml-stringify':
+        specifier: workspace:*
+        version: link:../skam-xml-stringify
       prismjs:
         specifier: 1.30.0
         version: 1.30.0
@@ -92,6 +107,12 @@ importers:
       '@xmldom/xmldom':
         specifier: 0.8.11
         version: 0.8.11
+
+  packages/skam-xml-stringify:
+    dependencies:
+      '@kanbun/skam':
+        specifier: workspace:*
+        version: link:../skam
 
 packages:
   '@babel/runtime@7.28.6':

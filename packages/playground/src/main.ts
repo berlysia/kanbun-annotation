@@ -2,7 +2,8 @@
  * SKAM Playground
  */
 
-import { parse, stringify, SKAMXMLParseError } from '@kanbun/skam-xml-parser';
+import { parse, SKAMXMLParseError } from '@kanbun/skam-xml-parser';
+import { stringify } from '@kanbun/skam-xml-stringify';
 import {
   render,
   attachInteractiveHandlers,
@@ -12,15 +13,10 @@ import {
   type RenderProfile,
 } from '@kanbun/skam-html-renderer';
 import type { SKAMDocument, RefFormat, Mark } from '@kanbun/skam';
+import { addMark, removeMark, getMarksForToken, getMarksForRange } from '@kanbun/skam';
 import { SAMPLES } from './samples.js';
 import { ErrorPanel, type ParseError } from './editor/error-panel.js';
 import { XmlEditor } from './editor/xml-editor.js';
-import {
-  addMark,
-  removeMark,
-  getMarksForToken,
-  getMarksForRange,
-} from './editor/document-operations.js';
 
 // ============================================================================
 // DOM Elements

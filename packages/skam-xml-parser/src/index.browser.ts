@@ -15,8 +15,6 @@ export {
   type PositionInfo,
   type TokenPosition,
 } from './parser-core.js';
-export { stringify, type StringifyOptions } from './stringify.js';
-
 /**
  * Parse SKAM-ML/XML string to SKAMDocument
  *

@@ -1,0 +1,50 @@
+{
+  "name": "@kanbun/skam-xml-stringify",
+  "version": "0.1.0",
+  "description": "SKAM JSON to SKAM-ML/XML stringifier - SKAM JSONからSKAM-ML/XMLへのシリアライザー",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsgo --noEmit",
+    "lint": "oxlint src",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "keywords": [
+    "kanbun",
+    "漢文",
+    "annotation",
+    "skam",
+    "xml",
+    "stringify"
+  ],
+  "author": "berlysia",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/berlysia/kanbun-annotation.git",
+    "directory": "packages/skam-xml-stringify"
+  },
+  "bugs": {
+    "url": "https://github.com/berlysia/kanbun-annotation/issues"
+  },
+  "homepage": "https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-xml-stringify#readme",
+  "publishConfig": {
+    "access": "public"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "@kanbun/skam": "workspace:*"
+  }
+}

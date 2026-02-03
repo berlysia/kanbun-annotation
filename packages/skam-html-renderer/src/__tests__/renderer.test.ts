@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { SKAMDocument } from '@kanbun/skam';
+import { parse } from '@kanbun/skam-xml-parser';
 import { render, PROFILES, getDefaultStyles } from '../index.js';
 
 describe('render', () => {
@@ -1767,5 +1768,234 @@ describe('data-token-id attributes', () => {
       const tokenIndex = htmlContent.indexOf('skam-base');
       expect(refIndex).toBeLessThan(tokenIndex);
     });
+  });
+});
+
+describe('highlight with ref association', () => {
+  it('should render ref before highlight span (explicit association)', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '重' },
+        { id: 't2', text: '要' },
+      ],
+      marks: [
+        {
+          type: 'highlight',
+          anchor: { from: 't1', to: 't2' },
+          style: 'solid',
+          ref: 'ref1',
+        },
+        {
+          type: 'ref',
+          id: 'ref1',
+          position: { after: 't1' },
+          label: '(A)',
+        },
+      ],
+      readings: [],
+    };
+
+    const result = render(doc, { profile: PROFILES.full });
+
+    // Ref should be rendered before highlight
+    expect(result.html).toContain('skam-ref');
+    expect(result.html).toContain('(A)');
+
+    // Ref marker should appear before highlight span
+    const htmlContent = result.html;
+    const refIndex = htmlContent.indexOf('skam-ref');
+    const highlightIndex = htmlContent.indexOf('skam-highlight');
+    expect(refIndex).toBeLessThan(highlightIndex);
+  });
+
+  it('should not render ref standalone when associated with highlight', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '重' },
+        { id: 't2', text: '要' },
+      ],
+      marks: [
+        {
+          type: 'highlight',
+          anchor: { from: 't1', to: 't2' },
+          style: 'solid',
+          ref: 'ref1',
+        },
+        {
+          type: 'ref',
+          id: 'ref1',
+          position: { after: 't1' },
+          label: '(A)',
+        },
+      ],
+      readings: [],
+    };
+
+    const result = render(doc, { profile: PROFILES.full });
+
+    // Count occurrences of (A) - should be exactly 1 (before highlight, not inside tokens)
+    const matches = result.html.match(/\(A\)/g);
+    expect(matches).toHaveLength(1);
+  });
+
+  it('should render ref standalone when not associated with any highlight', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '重' },
+        { id: 't2', text: '要' },
+      ],
+      marks: [
+        {
+          type: 'highlight',
+          anchor: { from: 't1', to: 't2' },
+          style: 'solid',
+          // no ref attribute
+        },
+        {
+          type: 'ref',
+          id: 'ref1',
+          position: { after: 't1' },
+          label: '(A)',
+        },
+      ],
+      readings: [],
+    };
+
+    const result = render(doc, { profile: PROFILES.full });
+
+    // Ref should be rendered as standalone (inside token area)
+    expect(result.html).toContain('skam-ref');
+    expect(result.html).toContain('(A)');
+
+    // Ref should appear after the token it follows (t1), not before highlight
+    const htmlContent = result.html;
+    // The ref with sup tag appears in renderToken
+    expect(htmlContent).toContain('<sup class="skam-ref');
+  });
+
+  it('should render implicitly associated ref before highlight (single ref, no ids)', () => {
+    // When highlight and single ref inside both lack explicit ids,
+    // parser sets highlight.ref = ref.id (auto-generated id)
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '重' },
+        { id: 't2', text: '要' },
+      ],
+      marks: [
+        {
+          type: 'highlight',
+          anchor: { from: 't1', to: 't2' },
+          style: 'solid',
+          ref: 'm1', // implicitly set by parser
+        },
+        {
+          type: 'ref',
+          id: 'm1', // auto-generated id
+          position: { after: 't1' },
+          label: '(A)',
+        },
+      ],
+      readings: [],
+    };
+
+    const result = render(doc, { profile: PROFILES.full });
+
+    // Ref should be rendered before highlight (not standalone)
+    const htmlContent = result.html;
+    const refIndex = htmlContent.indexOf('skam-ref');
+    const highlightIndex = htmlContent.indexOf('skam-highlight');
+    expect(refIndex).toBeLessThan(highlightIndex);
+
+    // Should appear exactly once
+    const matches = htmlContent.match(/\(A\)/g);
+    expect(matches).toHaveLength(1);
+
+    // Should NOT have <sup> (standalone ref uses <sup>, associated uses <span>)
+    expect(htmlContent).not.toContain('<sup class="skam-ref');
+  });
+});
+
+describe('XML to HTML integration - highlight with ref', () => {
+  it('should render ref before highlight from parsed XML (explicit association)', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1">
+  <skam:body>
+    <skam:block>
+      <skam:span type="highlight" style="solid" ref="ref-1">傍線部<skam:ref xml:id="ref-1" format="alpha-upper"/></skam:span>を現代語訳せよ。
+    </skam:block>
+  </skam:body>
+</skam:doc>`;
+
+    const doc = parse(xml);
+    const result = render(doc, { profile: PROFILES.full });
+
+    // Ref should appear before highlight, not as standalone
+    const htmlContent = result.html;
+    const refIndex = htmlContent.indexOf('skam-ref');
+    const highlightIndex = htmlContent.indexOf('skam-highlight');
+    expect(refIndex).toBeLessThan(highlightIndex);
+
+    // Should have (A) exactly once
+    const matches = htmlContent.match(/\(A\)/g);
+    expect(matches).toHaveLength(1);
+
+    // Should NOT have <sup> (standalone ref marker)
+    expect(htmlContent).not.toContain('<sup class="skam-ref');
+  });
+
+  it('should render ref before highlight from parsed XML (implicit association)', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:span type="highlight"><skam:ref format="alpha-upper"/>學而</skam:span>
+    </skam:block>
+  </skam:body>
+</skam:doc>`;
+
+    const doc = parse(xml);
+    const result = render(doc, { profile: PROFILES.full });
+
+    // Ref should appear before highlight, not as standalone
+    const htmlContent = result.html;
+    const refIndex = htmlContent.indexOf('skam-ref');
+    const highlightIndex = htmlContent.indexOf('skam-highlight');
+    expect(refIndex).toBeLessThan(highlightIndex);
+
+    // Should have (A) exactly once
+    const matches = htmlContent.match(/\(A\)/g);
+    expect(matches).toHaveLength(1);
+
+    // Should NOT have <sup> (standalone ref marker)
+    expect(htmlContent).not.toContain('<sup class="skam-ref');
+  });
+
+  it('should render multiple refs standalone when not associated', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:span type="highlight"><skam:ref format="alpha-upper"/>學<skam:ref format="numeric-bracket"/>而</skam:span>
+    </skam:block>
+  </skam:body>
+</skam:doc>`;
+
+    const doc = parse(xml);
+    const result = render(doc, { profile: PROFILES.full });
+
+    // Both refs should be rendered as standalone
+    const htmlContent = result.html;
+
+    // Should have (A) and [1] (numeric-bracket format uses brackets)
+    expect(htmlContent).toContain('(A)');
+    expect(htmlContent).toContain('[1]');
+
+    // First ref (block-start) uses <span>, second ref (after token) uses <sup>
+    // Note: block-start refs are rendered differently from position-based refs
+    expect(htmlContent).toContain('<sup class="skam-ref');
   });
 });

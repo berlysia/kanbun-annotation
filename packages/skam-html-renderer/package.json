@@ -46,5 +46,8 @@
   },
   "dependencies": {
     "@kanbun/skam": "workspace:*"
+  },
+  "devDependencies": {
+    "@kanbun/skam-xml-parser": "workspace:*"
   }
 }

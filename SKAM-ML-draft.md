@@ -145,12 +145,12 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 
 以下の要素は anchor ではなく **position** で配置位置を指定する：
 
-| 要素           | position の決定方法                                  |
-| -------------- | ---------------------------------------------------- |
-| `skam:kutoten` | 直前 token の後（`{ after: tokenId }`）              |
-| `skam:ref`     | 直前 token の後、または先頭の場合は最初の token の前 |
+| 要素           | position の決定方法                                    |
+| -------------- | ------------------------------------------------------ |
+| `skam:kutoten` | 直前 token の後（`{ after: tokenId }`）、先頭なら `{}` |
+| `skam:ref`     | 直前 token の後（`{ after: tokenId }`）、先頭なら `{}` |
 
-position は `{ before: tokenId }` または `{ after: tokenId }` の形式。
+position は `{ after: tokenId }` または `{}`（ブロック先頭）の形式。
 
 ---
 
@@ -280,7 +280,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 #### 正規化
 
 - `marks.type = "kutoten"`
-- `position = { after: 直前token }` （先頭の場合は `{ before: 最初のtoken }`）
+- `position = { after: 直前token }`（先頭の場合は `{}`）
 - `value = value属性`
 - `kind` があれば保持、なければパーサーが推論してもよい
 
@@ -548,7 +548,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 #### 正規化
 
 - `marks.type = "ref"`
-- `position = { after: 直前token }` （先頭の場合は `{ before: 最初のtoken }`）
+- `position = { after: 直前token }`（先頭の場合は `{}`）
 - **空要素**: position のみ生成
 - **内容あり要素**: 内容を `content` フィールドに設定（内包テキストはトークン化しない）
 - `label`, `format`, `content` を保持

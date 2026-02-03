@@ -442,6 +442,26 @@ describe('parse - valid fixtures', () => {
     });
   });
 
+  describe('ref-at-block-start.xml', () => {
+    it('should parse ref at the beginning of a block', () => {
+      const xml = readFixture('valid', 'ref-at-block-start.xml');
+      const doc = parse(xml);
+
+      expect(doc.tokens).toHaveLength(3); // 學而時
+      expect(doc.marks).toHaveLength(1);
+
+      const ref = doc.marks[0]!;
+      expect(ref.type).toBe('ref');
+      expect(ref.id).toBe('ref-1');
+      expect((ref as { format?: string }).format).toBe('alpha-upper');
+
+      // ref at block start should have position.before pointing to first token
+      const position = (ref as { position?: { before?: string; after?: string } }).position;
+      expect(position?.before).toBe('t1'); // before 學
+      expect(position?.after).toBeUndefined();
+    });
+  });
+
   describe('all valid fixtures produce valid SKAMDocument', () => {
     const validFixtures = [
       'minimal.xml',
@@ -470,6 +490,7 @@ describe('parse - valid fixtures', () => {
       'ref-format.xml',
       'highlight-ref-combined.xml',
       'readme-example.xml',
+      'ref-at-block-start.xml',
     ];
 
     for (const fixture of validFixtures) {

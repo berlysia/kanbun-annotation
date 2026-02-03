@@ -797,10 +797,24 @@ function processRef(
 // Block Processing
 // ============================================================================
 
+/**
+ * Pending position-based mark that needs position assignment after tokens are known
+ */
+interface PendingPositionMark {
+  element: Element;
+  type: 'kutoten' | 'ref';
+  /** Token index before this mark (-1 if at beginning) */
+  precedingTokenIndex: number;
+}
+
 function processBlockChildren(element: Element, state: ParserState): string[] {
   const allTokenIds: string[] = [];
+  const pendingPositionMarks: PendingPositionMark[] = [];
   let lastTokenId: string | null =
     state.tokens.length > 0 ? state.tokens[state.tokens.length - 1]!.id : null;
+
+  // Track the starting token count for this block to calculate relative indices
+  const blockStartTokenCount = allTokenIds.length;
 
   for (let i = 0; i < element.childNodes.length; i++) {
     const child = element.childNodes[i];
@@ -833,9 +847,12 @@ function processBlockChildren(element: Element, state: ParserState): string[] {
           break;
         }
         case 'kutoten':
-          // kutoten is position-based, placed after the preceding token
-          // followingTokenId will be determined if there are more tokens after
-          processKutoten(child, state, lastTokenId, null);
+          // Defer processing until we know the following token
+          pendingPositionMarks.push({
+            element: child,
+            type: 'kutoten',
+            precedingTokenIndex: allTokenIds.length - 1,
+          });
           break;
         case 'okototen': {
           const ids = processOkototen(child, state);
@@ -880,14 +897,30 @@ function processBlockChildren(element: Element, state: ParserState): string[] {
           break;
         }
         case 'ref':
-          // ref is position-based, placed after the preceding token
-          // ref does not generate tokens (content goes to content field)
-          processRef(child, state, lastTokenId, null);
+          // Defer processing until we know the following token
+          pendingPositionMarks.push({
+            element: child,
+            type: 'ref',
+            precedingTokenIndex: allTokenIds.length - 1,
+          });
           break;
         default:
           // Unknown elements are ignored per spec
           break;
       }
+    }
+  }
+
+  // Process pending position-based marks now that we have all token IDs
+  for (const pending of pendingPositionMarks) {
+    const precedingTokenId =
+      pending.precedingTokenIndex >= 0 ? (allTokenIds[pending.precedingTokenIndex] ?? null) : null;
+    const followingTokenId = allTokenIds[pending.precedingTokenIndex + 1] ?? null;
+
+    if (pending.type === 'kutoten') {
+      processKutoten(pending.element, state, precedingTokenId, followingTokenId);
+    } else {
+      processRef(pending.element, state, precedingTokenId, followingTokenId);
     }
   }
 

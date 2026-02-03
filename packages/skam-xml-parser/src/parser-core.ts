@@ -9,6 +9,7 @@ import type {
   Token,
   Mark,
   Reading,
+  Position,
   KaeriMark,
   OkuriganaMark,
   YomiganaMark,
@@ -406,19 +407,34 @@ function processYomigana(element: Element, state: ParserState): string[] {
 function processKutoten(
   element: Element,
   state: ParserState,
-  precedingTokenId: string | null
+  precedingTokenId: string | null,
+  followingTokenId: string | null
 ): void {
   const value = getRequiredAttr(element, 'value', 'skam:kutoten');
   const kind = getAttr(element, 'kind') as 'ku' | 'ten' | 'other' | null;
 
-  if (!precedingTokenId) {
-    throw new SKAMXMLParseError('<skam:kutoten> requires a preceding token');
+  // Determine position based on context
+  // precedingTokenId: token before this kutoten
+  // followingTokenId: token after this kutoten (for adjacent position)
+  let position: Position;
+
+  if (precedingTokenId && followingTokenId) {
+    // Between two tokens
+    position = { after: precedingTokenId, before: followingTokenId };
+  } else if (precedingTokenId) {
+    // After a token (e.g., end of line)
+    position = { after: precedingTokenId };
+  } else if (followingTokenId) {
+    // Before a token (e.g., beginning of line - rare for kutoten)
+    position = { before: followingTokenId };
+  } else {
+    throw new SKAMXMLParseError('<skam:kutoten> requires at least one adjacent token');
   }
 
   const mark: KutotenMark = {
     type: 'kutoten',
     id: generateMarkId(state),
-    anchor: { from: precedingTokenId, to: precedingTokenId },
+    position,
     value,
   };
 
@@ -678,24 +694,27 @@ function processSaidoku(element: Element, state: ParserState): string[] {
 }
 
 /**
- * Process skam:ref element (replaces label and note)
+ * Process skam:ref element (position-based mark)
  *
  * Supports:
  * - Empty element with format/label for auto-numbering
- * - Element with content for inline annotation
+ * - Element with content for inline annotation (content stored in content field, not tokenized)
  * - xml:id for separated note content (note references this ref)
+ *
+ * Position-based: ref does not create tokens, just marks a position between tokens
  */
 function processRef(
   element: Element,
   state: ParserState,
-  precedingTokenId: string | null
-): string[] {
+  precedingTokenId: string | null,
+  followingTokenId: string | null
+): void {
   const labelAttr = getAttr(element, 'label');
   const formatAttr = getAttr(element, 'format');
   // xml:id attribute takes precedence for explicit id assignment
   const xmlIdAttr = getAttr(element, 'xml:id') || getAttr(element, 'id');
 
-  // Check for text content
+  // Check for text content - this becomes the content field, not tokens
   let content: string | undefined;
   const textContent = (element.textContent ?? '').trim();
 
@@ -734,31 +753,26 @@ function processRef(
     );
   }
 
-  // Determine anchor: empty element anchors to preceding token, content element spans the tokens
-  let tokenIds: string[] = [];
+  // Determine position based on context
+  let position: Position;
 
-  if (!hasChildElements && !textContent) {
-    // Empty element - anchor to preceding token
-    if (!precedingTokenId) {
-      throw new SKAMXMLParseError('<skam:ref> (empty element) requires a preceding token');
-    }
-    tokenIds = [precedingTokenId];
-  } else if (!hasChildElements && textContent) {
-    // Has text content only - create tokens from text
-    tokenIds = addTokensFromText(textContent, state);
-    if (tokenIds.length === 0) {
-      // Fall back to preceding token if text was only whitespace
-      if (!precedingTokenId) {
-        throw new SKAMXMLParseError('<skam:ref> requires a preceding token when content is empty');
-      }
-      tokenIds = [precedingTokenId];
-    }
+  if (precedingTokenId && followingTokenId) {
+    // Between two tokens
+    position = { after: precedingTokenId, before: followingTokenId };
+  } else if (precedingTokenId) {
+    // After a token (e.g., end of line)
+    position = { after: precedingTokenId };
+  } else if (followingTokenId) {
+    // Before a token (e.g., beginning of line)
+    position = { before: followingTokenId };
+  } else {
+    throw new SKAMXMLParseError('<skam:ref> requires at least one adjacent token');
   }
 
   const mark: RefMark = {
     type: 'ref',
     id: xmlIdAttr || generateMarkId(state),
-    anchor: createAnchor(tokenIds),
+    position,
   };
 
   if (labelAttr) {
@@ -777,7 +791,6 @@ function processRef(
   // The note element references this ref via its 'ref' attribute
 
   state.marks.push(mark);
-  return tokenIds;
 }
 
 // ============================================================================
@@ -820,7 +833,9 @@ function processBlockChildren(element: Element, state: ParserState): string[] {
           break;
         }
         case 'kutoten':
-          processKutoten(child, state, lastTokenId);
+          // kutoten is position-based, placed after the preceding token
+          // followingTokenId will be determined if there are more tokens after
+          processKutoten(child, state, lastTokenId, null);
           break;
         case 'okototen': {
           const ids = processOkototen(child, state);
@@ -864,12 +879,11 @@ function processBlockChildren(element: Element, state: ParserState): string[] {
           if (ids.length > 0) lastTokenId = ids[ids.length - 1]!;
           break;
         }
-        case 'ref': {
-          const ids = processRef(child, state, lastTokenId);
-          allTokenIds.push(...ids);
-          if (ids.length > 0) lastTokenId = ids[ids.length - 1]!;
+        case 'ref':
+          // ref is position-based, placed after the preceding token
+          // ref does not generate tokens (content goes to content field)
+          processRef(child, state, lastTokenId, null);
           break;
-        }
         default:
           // Unknown elements are ignored per spec
           break;

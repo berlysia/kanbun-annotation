@@ -11,7 +11,7 @@ import {
   PROFILES,
   type RenderProfile,
 } from '@kanbun/skam-html-renderer';
-import type { SKAMDocument, RefFormat } from '@kanbun/skam';
+import type { SKAMDocument, RefFormat, Mark } from '@kanbun/skam';
 import { SAMPLES } from './samples.js';
 import { ErrorPanel, type ParseError } from './editor/error-panel.js';
 import { XmlEditor } from './editor/xml-editor.js';
@@ -1181,12 +1181,12 @@ function updateExistingUnderline(): void {
       type: 'ref';
       id?: string;
       format: RefFormat;
-      anchor: { from: string; to: string };
+      position: { after: string };
     } = {
       type: 'ref',
       id: refId,
       format: formatValue,
-      anchor: { from: normalizedFromId, to: normalizedToId },
+      position: { after: normalizedToId },
     };
     newDoc = addMark(newDoc, refMark);
     // Find the newly added ref mark to get its generated ID
@@ -1195,8 +1195,8 @@ function updateExistingUnderline(): void {
         m.type === 'ref' &&
         'format' in m &&
         m.format === formatValue &&
-        m.anchor.from === normalizedFromId &&
-        m.anchor.to === normalizedToId
+        'position' in m &&
+        m.position.after === normalizedToId
     );
     if (addedRefMark?.id) {
       refId = addedRefMark.id;
@@ -1280,12 +1280,12 @@ function handleUnderlineToggle(): void {
         type: 'ref';
         id?: string;
         format: RefFormat;
-        anchor: { from: string; to: string };
+        position: { after: string };
       } = {
         type: 'ref',
         id: refId,
         format: formatValue,
-        anchor: { from: normalizedFromId, to: normalizedToId },
+        position: { after: normalizedToId },
       };
       newDoc = addMark(newDoc, refMark);
       // Update refId to match the generated mark ID (addMark generates new IDs)
@@ -1295,8 +1295,8 @@ function handleUnderlineToggle(): void {
           m.type === 'ref' &&
           'format' in m &&
           m.format === formatValue &&
-          m.anchor.from === normalizedFromId &&
-          m.anchor.to === normalizedToId
+          'position' in m &&
+          m.position.after === normalizedToId
       );
       if (addedRefMark?.id) {
         refId = addedRefMark.id;
@@ -1469,6 +1469,53 @@ function getMarkTypeLabel(type: string): string {
 }
 
 /**
+ * Get the sort index for a mark (for ordering by document position)
+ */
+function getMarkSortIndex(mark: Mark, tokens: SKAMDocument['tokens']): number {
+  // Position-based marks (kutoten, ref)
+  if (mark.type === 'kutoten' || mark.type === 'ref') {
+    const position = mark.position;
+    if ('after' in position && position.after) {
+      return tokens.findIndex((t) => t.id === position.after);
+    }
+    if ('before' in position && position.before) {
+      return tokens.findIndex((t) => t.id === position.before) - 0.5;
+    }
+    return -1;
+  }
+  // Anchor-based marks
+  return tokens.findIndex((t) => t.id === mark.anchor.from);
+}
+
+/**
+ * Get the anchor text for a mark
+ */
+function getMarkAnchorText(mark: Mark, tokens: SKAMDocument['tokens']): string {
+  // Position-based marks (kutoten, ref)
+  if (mark.type === 'kutoten' || mark.type === 'ref') {
+    const position = mark.position;
+    const afterTokenId = 'after' in position ? position.after : undefined;
+    if (afterTokenId) {
+      const token = tokens.find((t) => t.id === afterTokenId);
+      return token?.text ?? '';
+    }
+    return '';
+  }
+  // Anchor-based marks
+  const fromIndex = tokens.findIndex((t) => t.id === mark.anchor.from);
+  const toIndex = tokens.findIndex((t) => t.id === mark.anchor.to);
+  if (fromIndex !== -1 && toIndex !== -1) {
+    const startIdx = Math.min(fromIndex, toIndex);
+    const endIdx = Math.max(fromIndex, toIndex);
+    return tokens
+      .slice(startIdx, endIdx + 1)
+      .map((t) => t.text)
+      .join('');
+  }
+  return '';
+}
+
+/**
  * Update marks list panel with all marks from the document
  */
 function updateMarksList(doc: SKAMDocument | null): void {
@@ -1477,31 +1524,15 @@ function updateMarksList(doc: SKAMDocument | null): void {
     return;
   }
 
-  // Sort marks by their anchor position in the document (appearance order)
+  // Sort marks by their position in the document (appearance order)
   const sortedMarks = [...doc.marks].sort((a, b) => {
-    const aFromIndex = doc.tokens.findIndex((t) => t.id === a.anchor.from);
-    const bFromIndex = doc.tokens.findIndex((t) => t.id === b.anchor.from);
-    return aFromIndex - bFromIndex;
+    return getMarkSortIndex(a, doc.tokens) - getMarkSortIndex(b, doc.tokens);
   });
 
   // Build HTML - display in appearance order with type inline
   let html = '';
   for (const mark of sortedMarks) {
-    const anchorFrom = mark.anchor.from;
-    const anchorTo = mark.anchor.to;
-
-    // Get text for the anchor range
-    let anchorText = '';
-    const fromIndex = doc.tokens.findIndex((t) => t.id === anchorFrom);
-    const toIndex = doc.tokens.findIndex((t) => t.id === anchorTo);
-    if (fromIndex !== -1 && toIndex !== -1) {
-      const startIdx = Math.min(fromIndex, toIndex);
-      const endIdx = Math.max(fromIndex, toIndex);
-      anchorText = doc.tokens
-        .slice(startIdx, endIdx + 1)
-        .map((t) => t.text)
-        .join('');
-    }
+    const anchorText = getMarkAnchorText(mark, doc.tokens);
 
     let value = '';
     if ('value' in mark && mark.value !== undefined) {

@@ -34,7 +34,7 @@ export interface Token {
 // ============================================================================
 
 /**
- * 対象 token 範囲を指定するアンカー
+ * 対象 token 範囲を指定するアンカー（anchor ベース Mark 用）
  *
  * from ≤ to（token順）。単一tokenの場合も省略しない。
  */
@@ -44,6 +44,22 @@ export interface Anchor {
   /** 終了 token ID（inclusive） */
   to: string;
 }
+
+// ============================================================================
+// Position
+// ============================================================================
+
+/**
+ * トークン間の位置を指定（position ベース Mark 用）
+ *
+ * - before と after の両方: 2トークン間（隣接必須）
+ * - before のみ: トークンの前（先頭配置可能）
+ * - after のみ: トークンの後（末尾配置可能）
+ */
+export type Position =
+  | { before: string; after: string }
+  | { before: string; after?: never }
+  | { after: string; before?: never };
 
 // ============================================================================
 // Coordinate System
@@ -160,13 +176,25 @@ export interface SoeganaMark extends BaseMark {
   value: string;
 }
 
-/** 句読点 */
-export interface KutotenMark extends BaseMark {
+/**
+ * 句読点（position ベース）
+ *
+ * トークン間の位置に配置される。anchor ではなく position を使用。
+ */
+export interface KutotenMark {
   type: 'kutoten';
+  /** 一意識別子（任意だが推奨） */
+  id?: string;
+  /** 配置位置（トークン間） */
+  position: Position;
   /** 句読点記号（。、等） */
   value: string;
   /** 分類（任意） */
   kind?: 'ku' | 'ten' | 'other';
+  /** 表示上の弱いヒント */
+  placementHint?: string;
+  /** 拡張フィールド（round-trip保持推奨） */
+  ext?: Record<string, unknown>;
 }
 
 /**
@@ -229,19 +257,28 @@ export interface HighlightMark extends BaseMark {
 }
 
 /**
- * 参照識別子・注釈（ref）
+ * 参照識別子・注釈（ref）（position ベース）
  *
+ * トークン間の位置に配置される。anchor ではなく position を使用。
  * label / format / content のいずれか必須。
  * label と format は排他（併用禁止）。
  */
-export interface RefMark extends BaseMark {
+export interface RefMark {
   type: 'ref';
+  /** 一意識別子（分離定義時は必須） */
+  id?: string;
+  /** 配置位置（トークン間） */
+  position: Position;
   /** 表示ラベル（明示値、format と排他） */
   label?: string;
   /** 自動番号フォーマット（label と排他） */
   format?: RefFormat;
   /** 注釈テキスト（任意） */
   content?: string;
+  /** 表示上の弱いヒント */
+  placementHint?: string;
+  /** 拡張フィールド（round-trip保持推奨） */
+  ext?: Record<string, unknown>;
 }
 
 /** 再読文字の語形（1回分の読み） */

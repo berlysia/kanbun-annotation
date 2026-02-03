@@ -58,7 +58,7 @@ describe('validateSKAMDocument', () => {
           { type: 'okimoji', anchor: { from: 't1', to: 't1' } },
           { type: 'joji', anchor: { from: 't1', to: 't1' } },
           { type: 'soegana', anchor: { from: 't1', to: 't1' }, value: 'を' },
-          { type: 'kutoten', anchor: { from: 't1', to: 't1' }, value: '。' },
+          { type: 'kutoten', position: { after: 't1' }, value: '。' },
           { type: 'emphasis', anchor: { from: 't1', to: 't1' } },
           {
             type: 'saidoku',
@@ -73,7 +73,7 @@ describe('validateSKAMDocument', () => {
           },
           { type: 'tateten', anchor: { from: 't1', to: 't1' } },
           { type: 'highlight', anchor: { from: 't1', to: 't1' } },
-          { type: 'ref', anchor: { from: 't1', to: 't1' }, label: '(A)' },
+          { type: 'ref', position: { after: 't1' }, label: '(A)' },
         ],
         readings: [],
       };
@@ -100,7 +100,7 @@ describe('validateSKAMDocument', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'ref', anchor: { from: 't1', to: 't1' }, label: '(A)' }],
+        marks: [{ type: 'ref', position: { after: 't1' }, label: '(A)' }],
         readings: [],
       };
 
@@ -112,7 +112,7 @@ describe('validateSKAMDocument', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'ref', anchor: { from: 't1', to: 't1' }, format: 'alpha-upper' }],
+        marks: [{ type: 'ref', position: { after: 't1' }, format: 'alpha-upper' }],
         readings: [],
       };
 
@@ -124,7 +124,7 @@ describe('validateSKAMDocument', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'ref', anchor: { from: 't1', to: 't1' }, content: '注釈テキスト' }],
+        marks: [{ type: 'ref', position: { after: 't1' }, content: '注釈テキスト' }],
         readings: [],
       };
 
@@ -139,7 +139,7 @@ describe('validateSKAMDocument', () => {
         marks: [
           {
             type: 'ref',
-            anchor: { from: 't1', to: 't1' },
+            position: { after: 't1' },
             format: 'numeric-bracket',
             content: '注釈テキスト',
           },
@@ -183,7 +183,7 @@ describe('validateSKAMDocument', () => {
         const doc: SKAMDocument = {
           format: 'skam@0.1',
           tokens: [{ id: 't1', text: '學' }],
-          marks: [{ type: 'ref', anchor: { from: 't1', to: 't1' }, format }],
+          marks: [{ type: 'ref', position: { after: 't1' }, format }],
           readings: [],
         };
 
@@ -197,8 +197,8 @@ describe('validateSKAMDocument', () => {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
         marks: [
-          { type: 'kutoten', anchor: { from: 't1', to: 't1' }, value: '。', kind: 'ku' },
-          { type: 'kutoten', anchor: { from: 't1', to: 't1' }, value: '、', kind: 'ten' },
+          { type: 'kutoten', position: { after: 't1' }, value: '。', kind: 'ku' },
+          { type: 'kutoten', position: { after: 't1' }, value: '、', kind: 'ten' },
         ],
         readings: [],
       };
@@ -566,9 +566,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [
-          { type: 'kutoten', anchor: { from: 't1', to: 't1' }, value: '。', kind: 'invalid' },
-        ],
+        marks: [{ type: 'kutoten', position: { after: 't1' }, value: '。', kind: 'invalid' }],
         readings: [],
       };
 
@@ -598,7 +596,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'ref', anchor: { from: 't1', to: 't1' } }],
+        marks: [{ type: 'ref', position: { after: 't1' } }],
         readings: [],
       };
 
@@ -615,7 +613,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'ref', anchor: { from: 't1', to: 't1' }, format: 'invalid' }],
+        marks: [{ type: 'ref', position: { after: 't1' }, format: 'invalid' }],
         readings: [],
       };
 
@@ -630,9 +628,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [
-          { type: 'ref', anchor: { from: 't1', to: 't1' }, label: '(A)', format: 'alpha-upper' },
-        ],
+        marks: [{ type: 'ref', position: { after: 't1' }, label: '(A)', format: 'alpha-upper' }],
         readings: [],
       };
 
@@ -641,6 +637,124 @@ describe('validateSKAMDocument', () => {
       if (!result.valid) {
         expect(result.errors.some((e) => e.message.includes('mutually exclusive'))).toBe(true);
       }
+    });
+
+    it('should reject kutoten with anchor instead of position', () => {
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        marks: [{ type: 'kutoten', anchor: { from: 't1', to: 't1' }, value: '。' }],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.path === 'marks[0].position')).toBe(true);
+      }
+    });
+
+    it('should reject ref with anchor instead of position', () => {
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        marks: [{ type: 'ref', anchor: { from: 't1', to: 't1' }, label: '(A)' }],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.path === 'marks[0].position')).toBe(true);
+      }
+    });
+
+    it('should reject position without before or after', () => {
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        marks: [{ type: 'kutoten', position: {}, value: '。' }],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.kind === 'MISSING_POSITION')).toBe(true);
+      }
+    });
+
+    it('should reject position with unknown token reference', () => {
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        marks: [{ type: 'kutoten', position: { after: 'unknown' }, value: '。' }],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.kind === 'UNKNOWN_TOKEN_REF')).toBe(true);
+      }
+    });
+
+    it('should reject position with non-adjacent tokens', () => {
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [
+          { id: 't1', text: '學' },
+          { id: 't2', text: '而' },
+          { id: 't3', text: '時' },
+        ],
+        marks: [{ type: 'kutoten', position: { after: 't1', before: 't3' }, value: '。' }],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.kind === 'NON_ADJACENT_POSITION')).toBe(true);
+      }
+    });
+
+    it('should validate position with adjacent tokens', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [
+          { id: 't1', text: '學' },
+          { id: 't2', text: '而' },
+        ],
+        marks: [{ type: 'kutoten', position: { after: 't1', before: 't2' }, value: '。' }],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(true);
+    });
+
+    it('should validate position with before only (beginning placement)', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        marks: [{ type: 'ref', position: { before: 't1' }, label: '(A)' }],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(true);
+    });
+
+    it('should validate position with after only (end placement)', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        marks: [{ type: 'kutoten', position: { after: 't1' }, value: '。' }],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(true);
     });
   });
 

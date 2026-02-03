@@ -10,6 +10,7 @@ import type {
   Token,
   Mark,
   Anchor,
+  Position,
   Reading,
   Derivation,
   MarkType,
@@ -18,6 +19,8 @@ import type {
   SaidokuForm,
   RefFormat,
   HighlightStyle,
+  KutotenMark,
+  RefMark,
 } from './index.js';
 import {
   type ValidationError,
@@ -166,6 +169,82 @@ function validateAnchor(
         'Anchor to is required and must be a string',
         'string',
         typeof anchor['to']
+      )
+    );
+    valid = false;
+  }
+
+  return valid;
+}
+
+/**
+ * Position（位置指定）の構造検証
+ *
+ * 有効なパターン:
+ * - { before: string, after: string } - 2トークン間
+ * - { before: string } - トークンの前（先頭配置可能）
+ * - { after: string } - トークンの後（末尾配置可能）
+ */
+function validatePosition(
+  position: unknown,
+  path: string,
+  errors: ValidationError[]
+): position is Position {
+  if (!isObject(position)) {
+    errors.push(
+      createValidationError(
+        'INVALID_TYPE',
+        path,
+        'Position must be an object',
+        'object',
+        typeof position
+      )
+    );
+    return false;
+  }
+
+  const hasBefore = 'before' in position && position['before'] !== undefined;
+  const hasAfter = 'after' in position && position['after'] !== undefined;
+
+  // At least one of before or after is required
+  if (!hasBefore && !hasAfter) {
+    errors.push(
+      createValidationError(
+        'MISSING_POSITION',
+        path,
+        'Position requires at least one of: before, after',
+        'before and/or after',
+        'none'
+      )
+    );
+    return false;
+  }
+
+  let valid = true;
+
+  // Validate before if present
+  if (hasBefore && !isString(position['before'])) {
+    errors.push(
+      createValidationError(
+        'INVALID_TYPE',
+        `${path}.before`,
+        'before must be a string (token ID)',
+        'string',
+        typeof position['before']
+      )
+    );
+    valid = false;
+  }
+
+  // Validate after if present
+  if (hasAfter && !isString(position['after'])) {
+    errors.push(
+      createValidationError(
+        'INVALID_TYPE',
+        `${path}.after`,
+        'after must be a string (token ID)',
+        'string',
+        typeof position['after']
       )
     );
     valid = false;
@@ -338,9 +417,32 @@ function validateMark(mark: unknown, index: number, errors: ValidationError[]): 
     valid = false;
   }
 
-  // anchor (required)
-  if (!validateAnchor(mark['anchor'], `${path}.anchor`, errors)) {
-    valid = false;
+  // Position-based marks (kutoten, ref) require position instead of anchor
+  const isPositionBasedMark = markType === 'kutoten' || markType === 'ref';
+
+  if (isPositionBasedMark) {
+    // position (required for position-based marks)
+    if (!validatePosition(mark['position'], `${path}.position`, errors)) {
+      valid = false;
+    }
+    // anchor should not be present
+    if ('anchor' in mark && mark['anchor'] !== undefined) {
+      errors.push(
+        createValidationError(
+          'INVALID_VALUE',
+          `${path}.anchor`,
+          `${markType} uses position, not anchor`,
+          'no anchor',
+          'anchor present'
+        )
+      );
+      valid = false;
+    }
+  } else {
+    // anchor (required for anchor-based marks)
+    if (!validateAnchor(mark['anchor'], `${path}.anchor`, errors)) {
+      valid = false;
+    }
   }
 
   // Type-specific validation
@@ -706,38 +808,113 @@ function validateDerivation(
 // Token Reference Validation
 // ============================================================================
 
+/** Type guard for position-based marks */
+function isPositionBasedMark(mark: Mark): mark is KutotenMark | RefMark {
+  return mark.type === 'kutoten' || mark.type === 'ref';
+}
+
+/**
+ * Validate position adjacency (both before and after tokens must be adjacent)
+ */
+function validatePositionAdjacency(
+  position: Position,
+  tokenIds: string[],
+  path: string,
+  errors: ValidationError[]
+): void {
+  if ('before' in position && 'after' in position && position.before && position.after) {
+    const beforeIndex = tokenIds.indexOf(position.before);
+    const afterIndex = tokenIds.indexOf(position.after);
+
+    // Both must exist (already checked in validatePosition reference check)
+    if (beforeIndex !== -1 && afterIndex !== -1) {
+      // after must immediately precede before (afterIndex + 1 === beforeIndex)
+      if (afterIndex + 1 !== beforeIndex) {
+        errors.push(
+          createValidationError(
+            'NON_ADJACENT_POSITION',
+            path,
+            `Tokens "${position.after}" and "${position.before}" are not adjacent`,
+            'adjacent tokens',
+            `${position.after} (index ${afterIndex}) and ${position.before} (index ${beforeIndex})`
+          )
+        );
+      }
+    }
+  }
+}
+
 function validateTokenReferences(
   tokens: Token[],
   marks: Mark[],
   derivations: Derivation[] | undefined,
   errors: ValidationError[]
 ): void {
-  const tokenIds = new Set(tokens.map((t) => t.id));
+  const tokenIdSet = new Set(tokens.map((t) => t.id));
+  const tokenIdList = tokens.map((t) => t.id);
 
-  // Check mark anchors
+  // Check mark references (anchor or position)
   marks.forEach((mark, index) => {
-    const path = `marks[${index}].anchor`;
-    if (!tokenIds.has(mark.anchor.from)) {
-      errors.push(
-        createValidationError(
-          'UNKNOWN_TOKEN_REF',
-          `${path}.from`,
-          `Token "${mark.anchor.from}" not found`,
-          'valid token ID',
-          mark.anchor.from
-        )
-      );
-    }
-    if (!tokenIds.has(mark.anchor.to)) {
-      errors.push(
-        createValidationError(
-          'UNKNOWN_TOKEN_REF',
-          `${path}.to`,
-          `Token "${mark.anchor.to}" not found`,
-          'valid token ID',
-          mark.anchor.to
-        )
-      );
+    if (isPositionBasedMark(mark)) {
+      // Position-based mark: check position references
+      const path = `marks[${index}].position`;
+      const position = mark.position;
+
+      if ('before' in position && position.before !== undefined) {
+        if (!tokenIdSet.has(position.before)) {
+          errors.push(
+            createValidationError(
+              'UNKNOWN_TOKEN_REF',
+              `${path}.before`,
+              `Token "${position.before}" not found`,
+              'valid token ID',
+              position.before
+            )
+          );
+        }
+      }
+
+      if ('after' in position && position.after !== undefined) {
+        if (!tokenIdSet.has(position.after)) {
+          errors.push(
+            createValidationError(
+              'UNKNOWN_TOKEN_REF',
+              `${path}.after`,
+              `Token "${position.after}" not found`,
+              'valid token ID',
+              position.after
+            )
+          );
+        }
+      }
+
+      // Validate adjacency if both before and after are present
+      validatePositionAdjacency(position, tokenIdList, path, errors);
+    } else {
+      // Anchor-based mark: check anchor references
+      const path = `marks[${index}].anchor`;
+      if (!tokenIdSet.has(mark.anchor.from)) {
+        errors.push(
+          createValidationError(
+            'UNKNOWN_TOKEN_REF',
+            `${path}.from`,
+            `Token "${mark.anchor.from}" not found`,
+            'valid token ID',
+            mark.anchor.from
+          )
+        );
+      }
+      if (!tokenIdSet.has(mark.anchor.to)) {
+        errors.push(
+          createValidationError(
+            'UNKNOWN_TOKEN_REF',
+            `${path}.to`,
+            `Token "${mark.anchor.to}" not found`,
+            'valid token ID',
+            mark.anchor.to
+          )
+        );
+      }
     }
   });
 
@@ -745,7 +922,7 @@ function validateTokenReferences(
   derivations?.forEach((derivation, index) => {
     if (derivation.kind === 'readingOrder') {
       derivation.result.forEach((tokenId, itemIndex) => {
-        if (!tokenIds.has(tokenId)) {
+        if (!tokenIdSet.has(tokenId)) {
           errors.push(
             createValidationError(
               'UNKNOWN_TOKEN_REF',

@@ -250,7 +250,7 @@ describe('render', () => {
         marks: [
           {
             type: 'kutoten',
-            anchor: { from: 't1', to: 't1' },
+            position: { after: 't1' },
             value: '。',
           },
         ],
@@ -412,7 +412,7 @@ describe('render', () => {
         marks: [
           {
             type: 'ref',
-            anchor: { from: 't1', to: 't1' },
+            position: { after: 't1' },
             content: '學問の意。',
           },
         ],
@@ -433,7 +433,7 @@ describe('render', () => {
         marks: [
           {
             type: 'ref',
-            anchor: { from: 't1', to: 't1' },
+            position: { after: 't1' },
             content: '學問の意。',
           },
         ],
@@ -457,12 +457,12 @@ describe('render', () => {
         marks: [
           {
             type: 'ref',
-            anchor: { from: 't1', to: 't1' },
+            position: { after: 't1' },
             content: '第一の注釈。',
           },
           {
             type: 'ref',
-            anchor: { from: 't2', to: 't2' },
+            position: { after: 't2' },
             content: '第二の注釈。',
           },
         ],
@@ -644,7 +644,7 @@ describe('render', () => {
         marks: [
           {
             type: 'ref',
-            anchor: { from: 't1', to: 't1' },
+            position: { after: 't1' },
             content: '<b>test</b>',
           },
         ],
@@ -769,7 +769,7 @@ describe('highlight', () => {
         },
         {
           type: 'kutoten',
-          anchor: { from: 't5', to: 't5' },
+          position: { after: 't5' },
           value: '。',
         },
       ],
@@ -801,13 +801,13 @@ describe('highlight', () => {
         },
         {
           type: 'kutoten',
-          anchor: { from: 't1', to: 't1' },
+          position: { after: 't1' },
           value: '、',
           kind: 'ten',
         },
         {
           type: 'kutoten',
-          anchor: { from: 't4', to: 't4' },
+          position: { after: 't4' },
           value: '。',
           kind: 'ku',
         },
@@ -839,7 +839,7 @@ describe('ref (label)', () => {
       marks: [
         {
           type: 'ref',
-          anchor: { from: 't1', to: 't1' },
+          position: { after: 't1' },
           label: '(A)',
         },
       ],
@@ -862,12 +862,12 @@ describe('ref (label)', () => {
       marks: [
         {
           type: 'ref',
-          anchor: { from: 't1', to: 't1' },
+          position: { after: 't1' },
           format: 'alpha-upper',
         },
         {
           type: 'ref',
-          anchor: { from: 't2', to: 't2' },
+          position: { after: 't2' },
           format: 'alpha-upper',
         },
       ],
@@ -893,17 +893,17 @@ describe('ref (label)', () => {
       marks: [
         {
           type: 'ref',
-          anchor: { from: 't1', to: 't1' },
+          position: { after: 't1' },
           format: 'iroha-katakana',
         },
         {
           type: 'ref',
-          anchor: { from: 't2', to: 't2' },
+          position: { after: 't2' },
           format: 'iroha-katakana',
         },
         {
           type: 'ref',
-          anchor: { from: 't3', to: 't3' },
+          position: { after: 't3' },
           format: 'iroha-katakana',
         },
       ],
@@ -927,12 +927,12 @@ describe('ref (label)', () => {
       marks: [
         {
           type: 'ref',
-          anchor: { from: 't1', to: 't1' },
+          position: { after: 't1' },
           format: 'numeric-circled',
         },
         {
           type: 'ref',
-          anchor: { from: 't2', to: 't2' },
+          position: { after: 't2' },
           format: 'numeric-circled',
         },
       ],
@@ -956,19 +956,19 @@ describe('ref (label)', () => {
       marks: [
         {
           type: 'ref',
-          anchor: { from: 't1', to: 't1' },
+          position: { after: 't1' },
           format: 'alpha-upper',
           ext: { value: 'x' },
         },
         {
           type: 'ref',
-          anchor: { from: 't2', to: 't2' },
+          position: { after: 't2' },
           format: 'alpha-upper',
           ext: { value: 'y' },
         },
         {
           type: 'ref',
-          anchor: { from: 't3', to: 't3' },
+          position: { after: 't3' },
           format: 'alpha-upper',
           ext: { value: 'x' },
         },
@@ -990,7 +990,7 @@ describe('ref (label)', () => {
       marks: [
         {
           type: 'ref',
-          anchor: { from: 't1', to: 't1' },
+          position: { after: 't1' },
           label: '(A)',
         },
       ],
@@ -1126,7 +1126,7 @@ describe('inline mode', () => {
       marks: [
         {
           type: 'ref',
-          anchor: { from: 't1', to: 't1' },
+          position: { after: 't1' },
           content: '注釈テキスト',
         },
       ],
@@ -1147,7 +1147,7 @@ describe('inline mode', () => {
       marks: [
         {
           type: 'ref',
-          anchor: { from: 't1', to: 't1' },
+          position: { after: 't1' },
           content: '注釈テキスト',
         },
       ],
@@ -1696,7 +1696,7 @@ describe('data-token-id attributes', () => {
           {
             type: 'ref',
             id: 'ref-1',
-            anchor: { from: 't1', to: 't1' },
+            position: { after: 't1' },
             format: 'iroha-katakana',
           },
         ],
@@ -1720,7 +1720,7 @@ describe('data-token-id attributes', () => {
           {
             type: 'ref',
             id: 'ref-1',
-            anchor: { from: 't1', to: 't1' },
+            position: { after: 't1' },
             format: 'alpha-upper',
           },
         ],

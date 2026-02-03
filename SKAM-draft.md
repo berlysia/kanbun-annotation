@@ -30,8 +30,12 @@ SKAM は、漢文本文と訓点・注記・読みを**分離して保持**し�
 ### 2.2 注記（Annotation / Mark）
 
 - 返り点・送り仮名・助字・強調・注釈等
-- 本文 token を **anchor 参照**する外付け情報
 - 本文テキストを直接分断しない（stand-off）
+
+注記には2種類の参照方式がある：
+
+- **anchor 参照**: 本文 token（群）に紐づく注記（読み仮名、送り仮名、返り点等）
+- **position 参照**: token 間の位置に存在する注記（句読点、参照識別子等）
 
 ### 2.3 読み（Reading Layer）
 
@@ -90,6 +94,10 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 
 ### 5.1 共通構造
 
+注記には **anchor ベース**と **position ベース**の2種類がある。
+
+#### anchor ベース（トークンに紐づく注記）
+
 ```json
 {
   "type": "kaeri",
@@ -101,16 +109,29 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 }
 ```
 
+#### position ベース（トークン間に存在する注記）
+
+```json
+{
+  "type": "kutoten",
+  "id": "m1",
+  "position": { "after": "t3" },
+  "value": "。",
+  "ext": {}
+}
+```
+
 #### フィールド
 
-| フィールド      | 必須         | 説明                                                                  |
-| --------------- | ------------ | --------------------------------------------------------------------- |
-| `type`          | 必須         | 注記種別                                                              |
-| `id`            | 任意（推奨） | 一意識別子。編集・差分・UI操作用。無ければ配列indexを一時IDとして扱う |
-| `anchor`        | 必須         | 対象 token 範囲                                                       |
-| `value`         | type依存     | 表示・意味の主データ                                                  |
-| `placementHint` | 任意         | 表示上の弱いヒント（解釈不能でも問題としない）                        |
-| `ext`           | 任意         | 拡張フィールド（round-trip 保持推奨）                                 |
+| フィールド      | 必須                | 説明                                                                  |
+| --------------- | ------------------- | --------------------------------------------------------------------- |
+| `type`          | 必須                | 注記種別                                                              |
+| `id`            | 任意（推奨）        | 一意識別子。編集・差分・UI操作用。無ければ配列indexを一時IDとして扱う |
+| `anchor`        | anchor ベースのみ   | 対象 token 範囲                                                       |
+| `position`      | position ベースのみ | 配置位置（トークン間）                                                |
+| `value`         | type依存            | 表示・意味の主データ                                                  |
+| `placementHint` | 任意                | 表示上の弱いヒント（解釈不能でも問題としない）                        |
+| `ext`           | 任意                | 拡張フィールド（round-trip 保持推奨）                                 |
 
 #### 同一 anchor を持つ marks の順序
 
@@ -141,23 +162,24 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 
 ### 5.2 type 一覧（v0.1）
 
-| type        | 意味                               | value                                 |
-| ----------- | ---------------------------------- | ------------------------------------- |
-| `kaeri`     | 返り点                             | 必須（レ、一、二、上、下、甲、乙 等） |
-| `okurigana` | 送り仮名                           | 必須（送り仮名テキスト）              |
-| `yomigana`  | 読み仮名（ルビ）                   | 必須（読み仮名テキスト）              |
-| `soegana`   | 添え仮名（訓読時に補う助詞）       | 必須（助詞テキスト）                  |
-| `okimoji`   | 置字（訓読時に読まない漢字）       | なし                                  |
-| `joji`      | 助字（文法的機能を持つ漢字ラベル） | なし                                  |
-| `kutoten`   | 句読点                             | 必須（句読点記号）、kind任意          |
-| `emphasis`  | 傍点・圏点（後世の記述）           | style任意（傍点の種類）               |
-| `saidoku`   | 再読文字                           | 必須（forms配列）                     |
-| `okototen`  | ヲコト点                           | position必須、shape必須               |
-| `tateten`   | たて点（熟語境界）                 | なし                                  |
-| `highlight` | 傍線・ハイライト（後世の記述）     | style任意、ref任意                    |
-| `ref`       | 参照識別子・注釈                   | label/format/contentのいずれか必須    |
+| type        | 意味                               | 参照方式     | value                                 |
+| ----------- | ---------------------------------- | ------------ | ------------------------------------- |
+| `kaeri`     | 返り点                             | anchor       | 必須（レ、一、二、上、下、甲、乙 等） |
+| `okurigana` | 送り仮名                           | anchor       | 必須（送り仮名テキスト）              |
+| `yomigana`  | 読み仮名（ルビ）                   | anchor       | 必須（読み仮名テキスト）              |
+| `soegana`   | 添え仮名（訓読時に補う助詞）       | anchor       | 必須（助詞テキスト）                  |
+| `okimoji`   | 置字（訓読時に読まない漢字）       | anchor       | なし                                  |
+| `joji`      | 助字（文法的機能を持つ漢字ラベル） | anchor       | なし                                  |
+| `kutoten`   | 句読点                             | **position** | 必須（句読点記号）、kind任意          |
+| `emphasis`  | 傍点・圏点（後世の記述）           | anchor       | style任意（傍点の種類）               |
+| `saidoku`   | 再読文字                           | anchor       | 必須（forms配列）                     |
+| `okototen`  | ヲコト点                           | anchor       | position必須、shape必須               |
+| `tateten`   | たて点（熟語境界）                 | anchor       | なし                                  |
+| `highlight` | 傍線・ハイライト（後世の記述）     | anchor       | style任意、ref任意                    |
+| `ref`       | 参照識別子・注釈                   | **position** | label/format/contentのいずれか必須    |
 
 ※ `type` の追加は後方互換で許可される。
+※ **position** 参照の Mark はトークン間の位置に存在し、anchor を持たない。
 
 ---
 
@@ -173,10 +195,62 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 - `from` ≤ `to`（**tokens 配列における出現順**）
 - 単一 token の場合も省略しない
 - `from` と `to` は inclusive（両端を含む）
+- **anchor ベースの Mark のみ使用**（position ベースの Mark には使用しない）
 
 ---
 
-### 5.4 座標系（Coord）
+### 5.4 Position（位置指定）
+
+トークン間の位置を指定する。**position ベースの Mark（kutoten, ref）が使用**する。
+
+#### 構造
+
+```json
+// トークンの後（最も一般的）
+{ "after": "t3" }
+
+// トークンの前（先頭配置用）
+{ "before": "t1" }
+
+// 2トークン間（明示的な境界指定）
+{ "after": "t3", "before": "t4" }
+```
+
+#### 規則
+
+| 形式                              | 説明                                   |
+| --------------------------------- | -------------------------------------- |
+| `{ "after": tokenId }`            | 指定トークンの直後に配置               |
+| `{ "before": tokenId }`           | 指定トークンの直前に配置（先頭配置可） |
+| `{ "after": id1, "before": id2 }` | 2トークン間に配置（隣接必須）          |
+
+#### バリデーション
+
+- `before` と `after` の両方を指定する場合、参照トークンは **tokens 配列において隣接**していなければならない（MUST）
+- 参照する token ID が存在しない場合はエラー
+- `before` と `after` のいずれかは必須
+
+#### 用例
+
+```json
+// 句読点: 「之」の後に配置
+{
+  "type": "kutoten",
+  "position": { "after": "t5" },
+  "value": "。"
+}
+
+// 参照識別子: 文頭に配置
+{
+  "type": "ref",
+  "position": { "before": "t1" },
+  "format": "alpha-upper"
+}
+```
+
+---
+
+### 5.5 座標系（Coord）
 
 注記の位置を指定するための統一座標系。
 
@@ -208,7 +282,41 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 
 ---
 
-### 5.5 再読文字（Saidoku）
+### 5.6 句読点（Kutoten）
+
+句読点を表す。**position ベース**でトークン間の位置に配置される。
+
+#### 構造
+
+```json
+{
+  "type": "kutoten",
+  "id": "m1",
+  "position": { "after": "t5" },
+  "value": "。",
+  "kind": "ku"
+}
+```
+
+#### フィールド
+
+| フィールド | 必須 | 説明                                   |
+| ---------- | ---- | -------------------------------------- |
+| `position` | 必須 | 配置位置（トークン間）                 |
+| `value`    | 必須 | 句読点記号（。、、等）                 |
+| `kind`     | 任意 | 分類（ku/ten/other）。省略時は推論可能 |
+
+#### kind の値
+
+| kind    | 説明   | 典型的な value |
+| ------- | ------ | -------------- |
+| `ku`    | 句点   | 。             |
+| `ten`   | 読点   | 、             |
+| `other` | その他 | ・ 等          |
+
+---
+
+### 5.7 再読文字（Saidoku）
 
 1つの文字を複数回読む再読文字を表現する。
 
@@ -247,7 +355,7 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 
 ---
 
-### 5.6 ヲコト点（Okototen）
+### 5.8 ヲコト点（Okototen）
 
 漢字の字画の隅や内部に打点される訓点記号。
 
@@ -292,7 +400,7 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 
 ---
 
-### 5.7 傍点・圏点（Emphasis）
+### 5.9 傍点・圏点（Emphasis）
 
 強調のために文字の傍らに付す記号。
 
@@ -334,7 +442,7 @@ CSS `text-emphasis-style` に準拠。形状キーワードと修飾子（`fille
 
 ---
 
-### 5.8 傍線・ハイライト（Highlight）
+### 5.10 傍線・ハイライト（Highlight）
 
 教育用途や試験問題等で傍線部を指示するために使用する。refを参照して識別子を表示できる。
 
@@ -377,10 +485,12 @@ CSS `text-decoration-style` に準拠。
 
 ---
 
-### 5.9 参照識別子・注釈（Ref）
+### 5.11 参照識別子・注釈（Ref）
 
 傍線部の識別子、問題番号、注釈等に使用する統合型。
 同じlabel値または同じformat+valueを持つrefは同一の参照として扱われる。
+
+**position ベース**: ref は anchor ではなく **position** でトークン間の位置を指定する。
 
 #### 構造
 
@@ -388,7 +498,7 @@ CSS `text-decoration-style` に準拠。
 {
   "type": "ref",
   "id": "n1",
-  "anchor": { "from": "t3", "to": "t3" },
+  "position": { "after": "t3" },
   "format": "numeric-bracket",
   "content": "「之」は目的語として読む。"
 }
@@ -399,6 +509,7 @@ CSS `text-decoration-style` に準拠。
 | フィールド | 必須                               | 説明                                             |
 | ---------- | ---------------------------------- | ------------------------------------------------ |
 | `id`       | 分離定義時は必須                   | 一意識別子。note から参照される場合に必須        |
+| `position` | 必須                               | 配置位置（トークン間）                           |
 | `label`    | label/format/contentのいずれか必須 | 表示ラベル（明示値、formatと排他）               |
 | `format`   | label/format/contentのいずれか必須 | 自動番号フォーマット（labelと排他）              |
 | `content`  | label/format/contentのいずれか必須 | 注釈テキスト（インラインまたは分離定義から解決） |
@@ -418,13 +529,32 @@ CSS `text-decoration-style` に準拠。
 {
   "type": "ref",
   "id": "n1",
-  "anchor": { "from": "t3", "to": "t3" },
+  "position": { "after": "t3" },
   "format": "numeric-bracket",
   "ext": { "noteRef": "n1" }
 }
 ```
 
 パーサーは note の内容を解決し、`content` フィールドにマージする。
+
+#### SKAM-ML からの変換
+
+SKAM-ML/XML では `<skam:ref>` 要素が内容を持つ場合があるが、SKAM JSON では内容は **分離定義**として扱われる：
+
+```xml
+<!-- SKAM-ML: 内容を持つ ref -->
+<skam:ref format="numeric-bracket">「之」は目的語として読む。</skam:ref>
+```
+
+```json
+// SKAM JSON: position ベース + content
+{
+  "type": "ref",
+  "position": { "after": "t3" },
+  "format": "numeric-bracket",
+  "content": "「之」は目的語として読む。"
+}
+```
 
 #### 同一性判定
 
@@ -882,7 +1012,7 @@ SKAM データは常に完全な情報を保持し、用途に応じた情報の
     {
       "type": "ref",
       "id": "ref-1",
-      "anchor": { "from": "t4", "to": "t4" },
+      "position": { "after": "t4" },
       "format": "iroha-katakana"
     },
     {
@@ -938,7 +1068,7 @@ SKAM データは常に完全な情報を保持し、用途に応じた情報の
 {
   "type": "ref",
   "id": "ref-note-1",
-  "anchor": { "from": "t5", "to": "t5" },
+  "position": { "after": "t5" },
   "format": "numeric-bracket",
   "content": "「之」は目的語として読む。"
 }
@@ -954,14 +1084,14 @@ SKAM データは常に完全な情報を保持し、用途に応じた情報の
     {
       "type": "ref",
       "id": "ref-a1",
-      "anchor": { "from": "t1", "to": "t1" },
+      "position": { "after": "t1" },
       "format": "iroha-katakana",
       "ext": { "value": "a" }
     },
     {
       "type": "ref",
       "id": "ref-a2",
-      "anchor": { "from": "t5", "to": "t5" },
+      "position": { "after": "t5" },
       "format": "iroha-katakana",
       "ext": { "value": "a" }
     }

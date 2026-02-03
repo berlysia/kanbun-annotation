@@ -132,10 +132,25 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 
 ### 7.1 アンカー規則（規範）
 
+注記要素は SKAM JSON の Mark に変換される際、**anchor** または **position** で参照先を指定する。
+
+#### anchor ベース（トークンに紐づく Mark）
+
 | 要素種別 | アンカー            |
 | -------- | ------------------- |
 | 空要素   | 直前 token          |
 | 包囲要素 | 含まれる token 範囲 |
+
+#### position ベース（トークン間に存在する Mark）
+
+以下の要素は anchor ではなく **position** で配置位置を指定する：
+
+| 要素           | position の決定方法                                  |
+| -------------- | ---------------------------------------------------- |
+| `skam:kutoten` | 直前 token の後（`{ after: tokenId }`）              |
+| `skam:ref`     | 直前 token の後、または先頭の場合は最初の token の前 |
+
+position は `{ before: tokenId }` または `{ after: tokenId }` の形式。
 
 ---
 
@@ -247,7 +262,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 
 ### 7.5 `skam:kutoten`（句読点）
 
-句読点を表す。
+句読点を表す。**position ベース**でトークン間の位置に配置される。
 
 ```xml
 <skam:block>
@@ -265,7 +280,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 #### 正規化
 
 - `marks.type = "kutoten"`
-- `anchor = 直前token`
+- `position = { after: 直前token }` （先頭の場合は `{ before: 最初のtoken }`）
 - `value = value属性`
 - `kind` があれば保持、なければパーサーが推論してもよい
 
@@ -486,7 +501,9 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 
 ### 7.13 `skam:ref`（参照識別子・注釈）
 
-傍線部の識別子、問題番号、注釈等に使用する。空要素または内容を持つ要素として使用。
+傍線部の識別子、問題番号、注釈等に使用する。**position ベース**でトークン間の位置に配置される。
+
+空要素または内容を持つ要素として使用。内容を持つ場合は **分離定義として解体**される。
 
 ```xml
 <!-- 自動番号（format指定） -->
@@ -500,7 +517,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
   學而時習<skam:ref label="(※)"/>之
 </skam:block>
 
-<!-- 注釈（子要素として） -->
+<!-- 注釈（子要素として） - 分離定義に解体される -->
 <skam:block>
   學而時習之<skam:ref format="numeric-bracket">「之」は目的語として読む。</skam:ref>
 </skam:block>
@@ -526,15 +543,37 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 | `format` | label/format/内容のいずれか必須 | 自動番号フォーマット（labelと排他）            |
 
 ※ `label` と `format` は排他（併用禁止）
-※ format の値一覧は SKAM 仕様 5.9節を参照。
+※ format の値一覧は SKAM 仕様 5.11節を参照。
 
 #### 正規化
 
 - `marks.type = "ref"`
-- 空要素: `anchor = 直前token`
-- 内容あり要素: `anchor = 内容のtoken範囲`
+- `position = { after: 直前token }` （先頭の場合は `{ before: 最初のtoken }`）
+- **空要素**: position のみ生成
+- **内容あり要素**: 内容を `content` フィールドに設定（内包テキストはトークン化しない）
 - `label`, `format`, `content` を保持
-- 分離定義: `ext.noteRef` に参照先の note ID を保持
+- 分離定義: `skam:note` から content を解決
+
+#### 内容内包の解体
+
+SKAM-ML で内容を持つ ref は、SKAM JSON では位置マーカー + content として表現される：
+
+```xml
+<!-- SKAM-ML -->
+<skam:ref format="numeric-bracket">「之」は目的語として読む。</skam:ref>
+```
+
+```json
+// SKAM JSON
+{
+  "type": "ref",
+  "position": { "after": "t5" },
+  "format": "numeric-bracket",
+  "content": "「之」は目的語として読む。"
+}
+```
+
+内包テキストは**トークン化されない**（本文の一部ではない）。
 
 ---
 

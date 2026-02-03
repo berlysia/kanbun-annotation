@@ -147,7 +147,8 @@ describe('updateMark', () => {
 
     updateMark(doc, 'm1', { anchor: { from: 't2', to: 't2' } });
 
-    expect(doc.marks[0]?.anchor).toEqual({ from: 't1', to: 't1' });
+    const mark = doc.marks[0];
+    expect(mark != null && 'anchor' in mark && mark.anchor).toEqual({ from: 't1', to: 't1' });
   });
 
   it('存在しないmarkIdの場合は元のドキュメントを返す', () => {
@@ -169,7 +170,8 @@ describe('updateMark', () => {
 
     expect(result.marks[0]?.placementHint).toBe('left');
     // 他のプロパティは保持される
-    expect(result.marks[0]?.anchor).toEqual({ from: 't1', to: 't1' });
+    const mark = result.marks[0];
+    expect(mark != null && 'anchor' in mark && mark.anchor).toEqual({ from: 't1', to: 't1' });
   });
 });
 
@@ -272,7 +274,7 @@ describe('getMarksForToken', () => {
   it('同じトークンにyomiganaとrefの両方があるとき両方を取得する', () => {
     const doc = createTestDocument([
       { type: 'yomigana', id: 'm1', anchor: { from: 't3', to: 't3' }, value: 'まな' },
-      { type: 'ref', id: 'ref-1', anchor: { from: 't3', to: 't3' }, format: 'iroha-katakana' },
+      { type: 'ref', id: 'ref-1', position: { after: 't3' }, format: 'iroha-katakana' },
     ]);
 
     const result = getMarksForToken(doc, 't3');
@@ -287,7 +289,7 @@ describe('Playground scenario: yomiganaを追加してもrefは残る', () => {
   it('refがついているトークンにyomiganaを追加してもrefは削除されない', () => {
     // Initial state: token has ref mark
     const initialDoc = createTestDocument([
-      { type: 'ref', id: 'ref-1', anchor: { from: 't3', to: 't3' }, format: 'iroha-katakana' },
+      { type: 'ref', id: 'ref-1', position: { after: 't3' }, format: 'iroha-katakana' },
     ]);
 
     // Simulate handleKanaApply: check for existing yomigana, remove if found, add new
@@ -318,7 +320,7 @@ describe('Playground scenario: yomiganaを追加してもrefは残る', () => {
     // Initial state: token has both yomigana and ref
     const initialDoc = createTestDocument([
       { type: 'yomigana', id: 'm1', anchor: { from: 't3', to: 't3' }, value: 'がく' },
-      { type: 'ref', id: 'ref-1', anchor: { from: 't3', to: 't3' }, format: 'iroha-katakana' },
+      { type: 'ref', id: 'ref-1', position: { after: 't3' }, format: 'iroha-katakana' },
     ]);
 
     // Simulate handleKanaApply: find and remove existing yomigana, add new

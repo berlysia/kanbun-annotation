@@ -391,7 +391,7 @@ describe('stringify - kutoten', () => {
         {
           type: 'kutoten',
           id: 'm1',
-          anchor: { from: 't2', to: 't2' },
+          position: { after: 't2' },
           value: '。',
         } as KutotenMark,
       ],
@@ -411,7 +411,7 @@ describe('stringify - kutoten', () => {
         {
           type: 'kutoten',
           id: 'm1',
-          anchor: { from: 't1', to: 't1' },
+          position: { after: 't1' },
           value: '、',
           kind: 'ten',
         } as KutotenMark,
@@ -719,7 +719,7 @@ describe('stringify - ref', () => {
         {
           type: 'ref',
           id: 'ref-1',
-          anchor: { from: 't1', to: 't1' },
+          position: { after: 't1' },
           format: 'iroha-katakana',
         } as RefMark,
       ],
@@ -739,7 +739,7 @@ describe('stringify - ref', () => {
         {
           type: 'ref',
           id: 'ref-1',
-          anchor: { from: 't1', to: 't1' },
+          position: { after: 't1' },
           label: '(※)',
         } as RefMark,
       ],
@@ -765,7 +765,7 @@ describe('stringify - ref', () => {
         {
           type: 'ref',
           id: 'ref-1',
-          anchor: { from: 't1', to: 't1' },
+          position: { after: 't1' },
           format: 'iroha-katakana',
         } as RefMark,
       ],
@@ -798,7 +798,7 @@ describe('stringify - ref', () => {
         {
           type: 'ref',
           id: 'ref-1',
-          anchor: { from: 't1', to: 't1' },
+          position: { after: 't1' },
           format: 'alpha-upper',
         } as RefMark,
       ],
@@ -825,7 +825,7 @@ describe('stringify - ref', () => {
         {
           type: 'ref',
           id: 'ref-1',
-          anchor: { from: 't1', to: 't1' },
+          position: { after: 't1' },
           format: 'numeric-bracket',
         } as RefMark,
       ],
@@ -852,7 +852,7 @@ describe('stringify - ref', () => {
         {
           type: 'ref',
           id: 'ref-1',
-          anchor: { from: 't1', to: 't1' },
+          position: { after: 't1' },
           format: 'iroha-katakana',
         } as RefMark,
       ],
@@ -922,7 +922,7 @@ describe('stringify - round-trip (new marks)', () => {
         {
           type: 'kutoten',
           id: 'm1',
-          anchor: { from: 't1', to: 't1' },
+          position: { after: 't1' },
           value: '。',
         } as KutotenMark,
       ],
@@ -935,6 +935,7 @@ describe('stringify - round-trip (new marks)', () => {
     const kutoten = reparsedDoc.marks.find((m) => m.type === 'kutoten');
     expect(kutoten).toBeDefined();
     expect((kutoten as KutotenMark).value).toBe('。');
+    expect((kutoten as KutotenMark).position).toBeDefined();
   });
 
   it('should round-trip emphasis', () => {

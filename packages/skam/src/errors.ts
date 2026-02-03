@@ -11,6 +11,9 @@ export type ValidationErrorKind =
   | 'INVALID_TYPE'
   | 'DUPLICATE_ID'
   | 'INVALID_ANCHOR'
+  | 'INVALID_POSITION'
+  | 'NON_ADJACENT_POSITION'
+  | 'MISSING_POSITION'
   | 'UNKNOWN_TOKEN_REF'
   | 'INVALID_VALUE';
 

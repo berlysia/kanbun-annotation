@@ -1,4 +1,21 @@
-import type { SKAMDocument, Mark, Anchor } from '@kanbun/skam';
+import type { SKAMDocument, Mark, Anchor, Position, KutotenMark, RefMark } from '@kanbun/skam';
+
+/**
+ * position ベースのマーク（kutoten, ref）かどうかを判定
+ */
+function isPositionBasedMark(mark: Mark): mark is KutotenMark | RefMark {
+  return mark.type === 'kutoten' || mark.type === 'ref';
+}
+
+/**
+ * Position から after の tokenId を取得
+ */
+function getPositionAfterTokenId(position: Position): string | undefined {
+  if ('after' in position && position.after) {
+    return position.after;
+  }
+  return undefined;
+}
 
 /**
  * idを含まないMark用の入力型
@@ -18,6 +35,7 @@ export type MarkInput = Mark;
  */
 export type MarkUpdates = {
   anchor?: Anchor;
+  position?: Position;
   placementHint?: string;
   ext?: Record<string, unknown>;
 };
@@ -141,7 +159,8 @@ export function removeMark(doc: SKAMDocument, markId: string): SKAMDocument {
 /**
  * tokenIdに関連するマークを取得
  *
- * マークのanchorがtokenIdを含む（from <= tokenId <= to）場合に関連とみなす。
+ * anchor ベースのマーク: anchorがtokenIdを含む（from <= tokenId <= to）場合に関連とみなす。
+ * position ベースのマーク（kutoten, ref）: position.after が tokenId と一致する場合に関連とみなす。
  * ただし、token IDの順序を正確に判定するにはtokens配列の順序を参照する必要がある。
  */
 export function getMarksForToken(doc: SKAMDocument, tokenId: string): Mark[] {
@@ -160,6 +179,13 @@ export function getMarksForToken(doc: SKAMDocument, tokenId: string): Mark[] {
   }
 
   return doc.marks.filter((mark) => {
+    // position ベースのマーク（kutoten, ref）
+    if (isPositionBasedMark(mark)) {
+      const afterTokenId = getPositionAfterTokenId(mark.position);
+      return afterTokenId === tokenId;
+    }
+
+    // anchor ベースのマーク
     const fromIndex = tokenIndexMap.get(mark.anchor.from);
     const toIndex = tokenIndexMap.get(mark.anchor.to);
 

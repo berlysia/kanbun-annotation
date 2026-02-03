@@ -431,13 +431,14 @@ describe('parse - valid fixtures', () => {
       // yomigana should anchor to 學
       expect((yomigana as { value?: string }).value).toBe('まな');
 
-      // ref should anchor to 學 (preceding token)
+      // ref should be positioned after 學 (preceding token)
       expect(ref.id).toBe('ref-1');
       expect((ref as { format?: string }).format).toBe('iroha-katakana');
 
-      // Both should anchor to the same token
-      expect(yomigana.anchor.from).toBe(ref.anchor.from);
-      expect(yomigana.anchor.to).toBe(ref.anchor.to);
+      // ref is position-based, yomigana is anchor-based
+      // ref should be positioned after the same token that yomigana anchors to
+      expect(yomigana.anchor.from).toBe(yomigana.anchor.to); // single token
+      expect((ref as { position?: { after?: string } }).position?.after).toBe(yomigana.anchor.from);
     });
   });
 

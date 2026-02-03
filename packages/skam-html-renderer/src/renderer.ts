@@ -8,6 +8,7 @@ import type {
   SKAMDocument,
   Token,
   Mark,
+  Position,
   KaeriMark,
   OkuriganaMark,
   YomiganaMark,
@@ -346,12 +347,28 @@ function escapeHtml(text: string): string {
     .replace(/'/g, '&#x27;');
 }
 
+/** Type guard for position-based marks (kutoten, ref) */
+function isPositionBasedMark(mark: Mark): mark is KutotenMark | RefMark {
+  return mark.type === 'kutoten' || mark.type === 'ref';
+}
+
+/** Get the token ID that a position-based mark is attached to (after) */
+function getPositionAfterTokenId(position: Position): string | undefined {
+  if ('after' in position && position.after) {
+    return position.after;
+  }
+  return undefined;
+}
+
 /**
  * Token IDから Markを取得
  *
  * 範囲マーク（複数トークンにまたがるマーク）の特別処理:
  * - yomigana: anchor.fromで返す（熟語全体にルビをかけるため）
  * - okurigana, soegana: anchor.toで返す（熟語の後に付くため）
+ *
+ * Position-basedマーク（kutoten, ref）の処理:
+ * - position.afterで返す（トークンの後に配置）
  */
 function getMarksForToken(tokenId: string, marks: Mark[]): Map<Mark['type'], Mark[]> {
   const result = new Map<Mark['type'], Mark[]>();
@@ -362,6 +379,18 @@ function getMarksForToken(tokenId: string, marks: Mark[]): Map<Mark['type'], Mar
   const endMarks = new Set(['okurigana', 'soegana']);
 
   for (const mark of marks) {
+    // Position-based marks (kutoten, ref)
+    if (isPositionBasedMark(mark)) {
+      const afterTokenId = getPositionAfterTokenId(mark.position);
+      if (afterTokenId === tokenId) {
+        const existing = result.get(mark.type) ?? [];
+        existing.push(mark);
+        result.set(mark.type, existing);
+      }
+      continue;
+    }
+
+    // Anchor-based marks
     if (startMarks.has(mark.type)) {
       // 先頭マーク: anchor.fromでのみ返す
       if (mark.anchor.from === tokenId) {
@@ -429,7 +458,11 @@ function getRangeMarkGroups(
   marks: Mark[],
   type: 'yomigana' | 'okurigana' | 'soegana'
 ): Map<string, RangeMarkGroup> {
-  const targetMarks = marks.filter((m) => m.type === type && m.anchor.from !== m.anchor.to);
+  // Filter to anchor-based marks of the specified type
+  const targetMarks = marks.filter(
+    (m): m is YomiganaMark | OkuriganaMark | SoeganaMark =>
+      m.type === type && !isPositionBasedMark(m) && m.anchor.from !== m.anchor.to
+  );
   const tokenIdToGroup = new Map<string, RangeMarkGroup>();
 
   for (const mark of targetMarks) {
@@ -536,10 +569,12 @@ function resolveRefValues(tokens: Token[], marks: Mark[]): Map<RefMark, string> 
     }
   }
 
-  // anchor.fromのtoken位置でソート（文書内の登場順）
+  // position.afterのtoken位置でソート（文書内の登場順）
   const sortedRefMarks = [...refMarks].sort((a, b) => {
-    const aIndex = tokenIndexMap.get(a.anchor.from) ?? Infinity;
-    const bIndex = tokenIndexMap.get(b.anchor.from) ?? Infinity;
+    const aTokenId = getPositionAfterTokenId(a.position);
+    const bTokenId = getPositionAfterTokenId(b.position);
+    const aIndex = aTokenId ? (tokenIndexMap.get(aTokenId) ?? Infinity) : Infinity;
+    const bIndex = bTokenId ? (tokenIndexMap.get(bTokenId) ?? Infinity) : Infinity;
     return aIndex - bIndex;
   });
 

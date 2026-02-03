@@ -23,6 +23,7 @@ import type {
   SKAMDocument,
   Token,
   Mark,
+  Position,
   KaeriMark,
   OkuriganaMark,
   YomiganaMark,
@@ -35,6 +36,7 @@ import type {
   EmphasisMark,
   HighlightMark,
   RefMark,
+  TatetenMark,
 } from '@kanbun/skam';
 
 // ============================================================================
@@ -193,6 +195,19 @@ function buildTokenIndexMap(tokens: Token[]): Map<string, number> {
 // Annotation Collection
 // ============================================================================
 
+/** Type guard for anchor-based marks */
+function isAnchorBasedMark(mark: Mark): mark is Exclude<Mark, KutotenMark | RefMark> {
+  return mark.type !== 'kutoten' && mark.type !== 'ref';
+}
+
+/** Get the token ID that a position-based mark should be attached to (for 'after' position) */
+function getPositionAfterTokenId(position: Position): string | undefined {
+  if ('after' in position && position.after) {
+    return position.after;
+  }
+  return undefined;
+}
+
 /**
  * Token ごとの annotation を収集（単一トークンマーク用）
  */
@@ -210,7 +225,34 @@ function collectTokenAnnotations(
 
   // Mark を処理
   for (const mark of marks) {
-    // 単一 token を参照する mark のみ処理
+    // Position-based marks (kutoten, ref) are handled separately
+    if (!isAnchorBasedMark(mark)) {
+      const positionMark = mark as KutotenMark | RefMark;
+      const tokenId = getPositionAfterTokenId(positionMark.position);
+      if (!tokenId) {
+        // before-only position marks are not attached to a token annotation
+        continue;
+      }
+      const annotation = annotations.get(tokenId);
+      if (!annotation) {
+        continue;
+      }
+
+      if (mark.type === 'kutoten') {
+        if (!annotation.kutotenAfter) {
+          annotation.kutotenAfter = [];
+        }
+        annotation.kutotenAfter.push(mark as KutotenMark);
+      } else if (mark.type === 'ref') {
+        if (!annotation.refAfter) {
+          annotation.refAfter = [];
+        }
+        annotation.refAfter.push(mark as RefMark);
+      }
+      continue;
+    }
+
+    // Anchor-based marks: only process single-token marks
     if (mark.anchor.from !== mark.anchor.to) {
       // 複数 token にまたがる mark は別途処理
       continue;
@@ -238,12 +280,6 @@ function collectTokenAnnotations(
         }
         annotation.kaeriAfter.push(mark as KaeriMark);
         break;
-      case 'kutoten':
-        if (!annotation.kutotenAfter) {
-          annotation.kutotenAfter = [];
-        }
-        annotation.kutotenAfter.push(mark as KutotenMark);
-        break;
       case 'okimoji':
         if (!annotation.wrappers) {
           annotation.wrappers = [];
@@ -268,16 +304,6 @@ function collectTokenAnnotations(
         }
         annotation.wrappers.push({ type: 'saidoku', mark: mark as SaidokuMark });
         break;
-      case 'ref': {
-        // 単一トークンへの ref は空要素として出力（content の有無に関わらず）
-        // content がある場合は stringifyNotes で別途 notes セクションに出力される
-        const refMark = mark as RefMark;
-        if (!annotation.refAfter) {
-          annotation.refAfter = [];
-        }
-        annotation.refAfter.push(refMark);
-        break;
-      }
     }
   }
 
@@ -289,28 +315,24 @@ function collectTokenAnnotations(
  *
  * emphasis, tateten, highlight は単一トークンでも包囲要素として出力する。
  *
- * ref は anchor.from !== anchor.to の場合のみ包囲要素として扱う。
- * 単一トークンへの ref（空要素形式）は collectTokenAnnotations で refAfter として処理される。
+ * ref は position ベースなので範囲マークとしては扱わない。
+ * （content がある場合は notes セクションに出力される）
  */
 function collectRangeMarks(marks: Mark[], tokenIndexMap: Map<string, number>): RangeMark[] {
   const rangeMarks: RangeMark[] = [];
 
   for (const mark of marks) {
-    // 包囲要素として出力すべきマークタイプ
-    const isRangeElementType =
-      mark.type === 'emphasis' || mark.type === 'tateten' || mark.type === 'highlight';
-
-    // ref は content があり、かつ複数トークンにまたがる場合のみ包囲要素
-    // 単一トークンへの ref（anchor.from === anchor.to）は空要素として扱う
-    const isRangeRef =
-      mark.type === 'ref' && (mark as RefMark).content && mark.anchor.from !== mark.anchor.to;
-
-    if (!isRangeElementType && !isRangeRef) {
+    // 包囲要素として出力すべきマークタイプ（anchor ベースのみ）
+    // ref は position ベースなので除外
+    if (mark.type !== 'emphasis' && mark.type !== 'tateten' && mark.type !== 'highlight') {
       continue;
     }
 
-    const startIndex = tokenIndexMap.get(mark.anchor.from);
-    const endIndex = tokenIndexMap.get(mark.anchor.to);
+    // These marks are anchor-based
+    const anchorMark = mark as EmphasisMark | TatetenMark | HighlightMark;
+
+    const startIndex = tokenIndexMap.get(anchorMark.anchor.from);
+    const endIndex = tokenIndexMap.get(anchorMark.anchor.to);
 
     if (startIndex === undefined || endIndex === undefined) {
       continue;

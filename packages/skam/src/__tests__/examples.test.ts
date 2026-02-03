@@ -91,13 +91,11 @@ describe('SKAM Examples', () => {
   });
 
   describe('句読点', () => {
-    it('should support kutoten mark type', () => {
+    it('should support kutoten mark type with position', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [
-          { type: 'kutoten', id: 'm1', anchor: { from: 't1', to: 't1' }, value: '。', kind: 'ku' },
-        ],
+        marks: [{ type: 'kutoten', id: 'm1', position: { after: 't1' }, value: '。', kind: 'ku' }],
         readings: [],
       };
 
@@ -105,6 +103,7 @@ describe('SKAM Examples', () => {
       expect(firstMark.type).toBe('kutoten');
       if (firstMark.type === 'kutoten') {
         expect(firstMark.kind).toBe('ku');
+        expect(firstMark.position).toEqual({ after: 't1' });
       }
     });
   });
@@ -131,7 +130,9 @@ describe('SKAM Examples', () => {
       expect(doc.marks).toHaveLength(3);
       const tatetenMark = doc.marks[0]!;
       expect(tatetenMark.type).toBe('tateten');
-      expect(tatetenMark.anchor).toEqual({ from: 't1', to: 't2' });
+      if (tatetenMark.type === 'tateten') {
+        expect(tatetenMark.anchor).toEqual({ from: 't1', to: 't2' });
+      }
     });
   });
 

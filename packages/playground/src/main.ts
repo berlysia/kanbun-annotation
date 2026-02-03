@@ -92,6 +92,9 @@ const resetCustomizeBtn = document.getElementById('reset-customize-btn') as HTML
 let currentDocument: SKAMDocument | null = null;
 
 // Current selection state for panel actions
+// Position-based selection (token index) - survives parse/stringify round-trip
+let currentSelectionRange: { fromIndex: number; toIndex: number } | null = null;
+// Token ID-based selection - derived from range + currentDocument
 let currentSelectionFromId: string | null = null;
 let currentSelectionToId: string | null = null;
 
@@ -198,10 +201,6 @@ let currentUnderlineFormat: RefFormat | '' = '';
 // - 'multi': multiple characters selected without tateten - kaeri disabled, tateten enabled
 // - 'tateten': selection matches a tateten range - kaeri enabled, tateten shows "解除"
 let currentSelectionMode: 'single' | 'multi' | 'tateten' = 'single';
-
-// Flag to prevent double updates when GUI operation triggers XML update
-// which would trigger parseAndRender again
-let isUpdatingFromGui = false;
 
 // Cleanup function for interactive handlers
 let cleanupInteractiveHandlers: (() => void) | null = null;
@@ -659,10 +658,6 @@ function updateSelectionPanel(fromId: string, toId: string): void {
     return;
   }
 
-  // Update current selection state
-  currentSelectionFromId = fromId;
-  currentSelectionToId = toId;
-
   // Get tokens in range
   const tokens = currentDocument.tokens;
   const fromIndex = tokens.findIndex((t) => t.id === fromId);
@@ -675,6 +670,12 @@ function updateSelectionPanel(fromId: string, toId: string): void {
 
   const startIndex = Math.min(fromIndex, toIndex);
   const endIndex = Math.max(fromIndex, toIndex);
+
+  // Update current selection state (position-based)
+  currentSelectionRange = { fromIndex: startIndex, toIndex: endIndex };
+  // Also update tokenID-based state (for backward compatibility during migration)
+  currentSelectionFromId = tokens[startIndex]!.id;
+  currentSelectionToId = tokens[endIndex]!.id;
   const selectedTokens = tokens.slice(startIndex, endIndex + 1);
   const count = selectedTokens.length;
   const chars = selectedTokens.map((t) => t.text).join('');
@@ -985,11 +986,7 @@ function handleTatetenToggle(): void {
   }
 
   updateXmlFromDocument(newDoc);
-
-  // Re-update selection panel
-  if (currentSelectionFromId && currentSelectionToId) {
-    updateSelectionPanel(currentSelectionFromId, currentSelectionToId);
-  }
+  // parseAndRender handles selection restoration automatically
 }
 
 /**
@@ -1059,11 +1056,7 @@ function handleEmphasisToggle(): void {
   }
 
   updateXmlFromDocument(newDoc);
-
-  // Re-update selection panel
-  if (currentSelectionFromId && currentSelectionToId) {
-    updateSelectionPanel(currentSelectionFromId, currentSelectionToId);
-  }
+  // parseAndRender handles selection restoration automatically
 }
 
 /**
@@ -1102,11 +1095,7 @@ function updateExistingEmphasis(): void {
   });
 
   updateXmlFromDocument(newDoc);
-
-  // Re-update selection panel
-  if (currentSelectionFromId && currentSelectionToId) {
-    updateSelectionPanel(currentSelectionFromId, currentSelectionToId);
-  }
+  // parseAndRender handles selection restoration automatically
 }
 
 /**
@@ -1232,11 +1221,7 @@ function updateExistingUnderline(): void {
   newDoc = addMark(newDoc, highlightMark);
 
   updateXmlFromDocument(newDoc);
-
-  // Re-update selection panel
-  if (currentSelectionFromId && currentSelectionToId) {
-    updateSelectionPanel(currentSelectionFromId, currentSelectionToId);
-  }
+  // parseAndRender handles selection restoration automatically
 }
 
 /**
@@ -1338,11 +1323,7 @@ function handleUnderlineToggle(): void {
   }
 
   updateXmlFromDocument(newDoc);
-
-  // Re-update selection panel
-  if (currentSelectionFromId && currentSelectionToId) {
-    updateSelectionPanel(currentSelectionFromId, currentSelectionToId);
-  }
+  // parseAndRender handles selection restoration automatically
 }
 
 /**
@@ -1391,11 +1372,7 @@ function applyKaeriValue(value: string | null): void {
   }
 
   updateXmlFromDocument(newDoc);
-
-  // Re-update selection panel with new state
-  if (currentSelectionFromId && currentSelectionToId) {
-    updateSelectionPanel(currentSelectionFromId, currentSelectionToId);
-  }
+  // parseAndRender handles selection restoration automatically
 }
 
 /**
@@ -1427,15 +1404,14 @@ function handleKanaApply(): void {
   });
 
   updateXmlFromDocument(newDoc);
-
-  // Re-update selection panel
-  updateSelectionPanel(currentSelectionFromId, currentSelectionToId);
+  // parseAndRender handles selection restoration automatically
 }
 
 /**
  * Clear selection panel
  */
 function clearSelectionPanel(): void {
+  currentSelectionRange = null;
   currentSelectionFromId = null;
   currentSelectionToId = null;
   currentKanaValues = { yomigana: '', okurigana: '', soegana: '' };
@@ -1544,21 +1520,15 @@ function updateMarksList(doc: SKAMDocument | null): void {
   marksList.innerHTML = html;
 }
 
-function renderDocument(doc: SKAMDocument, preserveSelection = false): void {
+function renderDocument(doc: SKAMDocument): void {
   currentDocument = doc;
-
-  // Save current selection state before cleanup
-  const savedFromId = preserveSelection ? currentSelectionFromId : null;
-  const savedToId = preserveSelection ? currentSelectionToId : null;
 
   // Cleanup previous interactive handlers
   cleanupInteractiveHandlers?.();
   cleanupInteractiveHandlers = null;
 
-  // Clear selection panel only if not preserving
-  if (!preserveSelection) {
-    clearSelectionPanel();
-  }
+  // Note: Selection panel is NOT cleared here.
+  // parseAndRender handles selection restoration via position-based tracking.
 
   // Update marks list panel
   updateMarksList(doc);
@@ -1616,12 +1586,6 @@ function renderDocument(doc: SKAMDocument, preserveSelection = false): void {
         clearSelection(renderOutput);
       },
     });
-
-    // Restore selection if preserving
-    if (savedFromId && savedToId) {
-      updateSelectionPanel(savedFromId, savedToId);
-      setSelectionClasses(renderOutput, savedFromId, savedToId);
-    }
   }
 }
 
@@ -1634,9 +1598,24 @@ function parseAndRender(): void {
     return;
   }
 
+  // Save selection range before parse (position-based)
+  const savedRange = currentSelectionRange;
+
   try {
     const doc = parse(xmlText);
-    renderDocument(doc);
+
+    // Try to restore selection from position
+    if (savedRange && doc.tokens[savedRange.fromIndex] && doc.tokens[savedRange.toIndex]) {
+      const fromId = doc.tokens[savedRange.fromIndex]!.id;
+      const toId = doc.tokens[savedRange.toIndex]!.id;
+      renderDocument(doc);
+      updateSelectionPanel(fromId, toId);
+      setSelectionClasses(renderOutput, fromId, toId);
+    } else {
+      // Token count changed or no selection - clear all selection state
+      clearSelectionPanel();
+      renderDocument(doc);
+    }
   } catch (err) {
     if (err instanceof SKAMXMLParseError) {
       const parseError: ParseError = { message: err.message };
@@ -1656,6 +1635,7 @@ function parseAndRender(): void {
     renderOutput.innerHTML = '';
     htmlOutput.textContent = '';
     currentDocument = null;
+    clearSelectionPanel();
   }
 }
 
@@ -1711,23 +1691,17 @@ function downloadXml(): void {
  * Update XML editor from a SKAMDocument (GUI operation -> XML sync)
  *
  * This function is called when GUI operations modify the document.
- * It converts the document back to XML and updates the editor,
- * while preventing the change from triggering a re-parse.
+ * It converts the document back to XML and updates the editor.
+ * The onContentChange callback will trigger parseAndRender,
+ * which restores selection using position-based tracking.
  *
  * @param doc The updated SKAMDocument
  */
 function updateXmlFromDocument(doc: SKAMDocument): void {
-  isUpdatingFromGui = true;
-  try {
-    currentDocument = doc;
-    const xml = stringify(doc);
-    xmlEditor.setValue(xml);
-    // Preserve selection when updating from GUI actions
-    renderDocument(doc, true);
-    hideErrors();
-  } finally {
-    isUpdatingFromGui = false;
-  }
+  const xml = stringify(doc);
+  xmlEditor.setValue(xml);
+  // onContentChange → parseAndRender will be triggered automatically
+  // Selection is restored via position-based tracking in parseAndRender
 }
 
 // Export updateXmlFromDocument to window for console testing and future GUI operations
@@ -1975,11 +1949,8 @@ xmlPane.addEventListener('drop', async (e) => {
 
 // Register debounced content change callback from XmlEditor
 // This enables auto-parse on content change (after debounce)
+// Selection is restored via position-based tracking in parseAndRender
 xmlEditor.onContentChange(() => {
-  // Skip if this change was triggered by GUI operation (updateXmlFromDocument)
-  if (isUpdatingFromGui) return;
-
-  // Auto-parse on content change
   parseAndRender();
 });
 

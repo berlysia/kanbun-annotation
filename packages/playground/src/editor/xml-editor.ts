@@ -198,11 +198,12 @@ export class XmlEditor {
   }
 
   /**
-   * Set XML content
+   * Set XML content and trigger change notification
    */
   setValue(xml: string): void {
     this.textarea.value = xml;
     this.highlight();
+    this.notifyChange();
   }
 
   /**

@@ -523,9 +523,20 @@ function getRangeMarkGroups(
 
 /**
  * 返り点記号をUnicodeに変換
+ * 複合返り点（例: 一レ）は1文字ずつ変換して連結する
  */
 function convertKaeriToUnicode(value: string): string {
-  return KAERI_UNICODE[value] ?? value;
+  // 単一文字の場合はそのままマッピング
+  if (value.length === 1) {
+    return KAERI_UNICODE[value] ?? value;
+  }
+
+  // 複合返り点: 各文字を個別に変換
+  let result = '';
+  for (const char of value) {
+    result += KAERI_UNICODE[char] ?? char;
+  }
+  return result;
 }
 
 /**

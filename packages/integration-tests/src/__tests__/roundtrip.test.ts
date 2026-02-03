@@ -73,6 +73,46 @@ describe('round-trip - basic', () => {
     expect((reparsedDoc.marks[0] as KaeriMark).value).toBe('レ');
   });
 
+  it('should produce XML that can be re-parsed (compound kaeri)', () => {
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '不' },
+        { id: 't2', text: '可' },
+        { id: 't3', text: '不' },
+        { id: 't4', text: '學' },
+      ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3', 't4'] }],
+      marks: [
+        {
+          type: 'kaeri',
+          id: 'm1',
+          anchor: { from: 't1', to: 't1' },
+          value: '一レ',
+        } as KaeriMark,
+        {
+          type: 'kaeri',
+          id: 'm2',
+          anchor: { from: 't3', to: 't3' },
+          value: 'レ',
+        } as KaeriMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+    expect(xml).toContain('kind="ichi-re"');
+    expect(xml).toContain('kind="re"');
+
+    const reparsedDoc = parse(xml);
+    const kaeriMarks = reparsedDoc.marks.filter((m) => m.type === 'kaeri');
+    expect(kaeriMarks).toHaveLength(2);
+
+    const values = kaeriMarks.map((m) => (m as KaeriMark).value);
+    expect(values).toContain('一レ');
+    expect(values).toContain('レ');
+  });
+
   it('should produce XML that can be re-parsed (kun attributes)', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',

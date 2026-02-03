@@ -75,6 +75,21 @@ describe('parse - valid fixtures', () => {
     });
   });
 
+  describe('kaeri-compound.xml', () => {
+    it('should parse compound kaeri kinds', () => {
+      const xml = readFixture('valid', 'kaeri-compound.xml');
+      const doc = parse(xml);
+
+      const kaeriMarks = doc.marks.filter((m) => m.type === 'kaeri');
+      expect(kaeriMarks).toHaveLength(3);
+
+      const values = kaeriMarks.map((m) => (m as { value: string }).value);
+      expect(values).toContain('一レ');
+      expect(values).toContain('レ');
+      expect(values).toContain('上レ');
+    });
+  });
+
   describe('kun-reading-okuri.xml', () => {
     it('should parse kun with reading and okuri', () => {
       const xml = readFixture('valid', 'kun-reading-okuri.xml');

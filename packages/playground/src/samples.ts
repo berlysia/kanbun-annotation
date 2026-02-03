@@ -91,6 +91,23 @@ export const SAMPLES: Sample[] = [
 </skam:doc>`,
   },
   {
+    name: '複合返り点（一レ点）',
+    description: '一レ点・レ点を組み合わせた複合返り点の例（不可不學＝学ばざるべからず）',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      不<skam:kaeri kind="ichi-re"/>
+      <skam:kun okuri="カラ">可</skam:kun>不<skam:kaeri kind="re"/>
+      <skam:kun yomi="まな" okuri="バ">學</skam:kun><skam:kutoten value="。" kind="ku"/>
+    </skam:block>
+  </skam:body>
+  <skam:readings>
+    <skam:reading kind="kakikudashi">学ばざるべからず。</skam:reading>
+  </skam:readings>
+</skam:doc>`,
+  },
+  {
     name: 'たて点（熟語）',
     description: '熟語境界を示すたて点の例',
     xml: `<?xml version="1.0" encoding="UTF-8"?>

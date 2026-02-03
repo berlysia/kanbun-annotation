@@ -310,14 +310,26 @@ function createAnchor(tokenIds: string[]): { from: string; to: string } {
 // Mark Processors
 // ============================================================================
 
+function parseKaeriKind(kind: string): string {
+  // 単一返り点
+  if (VALID_KAERI_KINDS.includes(kind as KaeriKind)) {
+    return KAERI_VALUE_MAP[kind as KaeriKind];
+  }
+
+  // 複合返り点（例: ichi-re → 一レ）
+  const parts = kind.split('-');
+  if (parts.length > 1 && parts.every((p) => VALID_KAERI_KINDS.includes(p as KaeriKind))) {
+    return parts.map((p) => KAERI_VALUE_MAP[p as KaeriKind]).join('');
+  }
+
+  throw new SKAMXMLParseError(
+    `Invalid kaeri kind '${kind}'. Valid kinds: ${VALID_KAERI_KINDS.join(', ')} (compound: e.g. ichi-re)`
+  );
+}
+
 function processKaeri(element: Element, state: ParserState, precedingTokenId: string | null): void {
   const kind = getRequiredAttr(element, 'kind', 'skam:kaeri');
-
-  if (!VALID_KAERI_KINDS.includes(kind as KaeriKind)) {
-    throw new SKAMXMLParseError(
-      `Invalid kaeri kind '${kind}'. Valid kinds: ${VALID_KAERI_KINDS.join(', ')}`
-    );
-  }
+  const value = parseKaeriKind(kind);
 
   if (!precedingTokenId) {
     throw new SKAMXMLParseError('<skam:kaeri> requires a preceding token');
@@ -327,7 +339,7 @@ function processKaeri(element: Element, state: ParserState, precedingTokenId: st
     type: 'kaeri',
     id: generateMarkId(state),
     anchor: { from: precedingTokenId, to: precedingTokenId },
-    value: KAERI_VALUE_MAP[kind as KaeriKind],
+    value,
   };
 
   state.marks.push(mark);

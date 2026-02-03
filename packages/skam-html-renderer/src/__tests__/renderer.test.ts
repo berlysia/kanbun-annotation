@@ -252,6 +252,27 @@ describe('render', () => {
       expect(result.html).toContain('\u3193'); // 二
       expect(result.html).toContain('\u3192'); // 一
     });
+
+    it('should render compound kaeriten with Unicode characters', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '不' }],
+        blocks: [],
+        marks: [
+          {
+            type: 'kaeri',
+            anchor: { from: 't1', to: 't1' },
+            value: '一レ',
+          },
+        ],
+        readings: [],
+      };
+
+      const result = render(doc);
+
+      expect(result.html).toContain('skam-kaeriten');
+      expect(result.html).toContain('\u3192\u3191'); // 一レ (Unicode)
+    });
   });
 
   describe('kutoten', () => {

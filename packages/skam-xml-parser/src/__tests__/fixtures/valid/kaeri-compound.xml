@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- kaeri-compound.xml - 複合返り点（一レ点、上レ点等） -->
+<!-- 不可不學 (学ばざるべからず) -->
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      不<skam:kaeri kind="ichi-re"/>可不<skam:kaeri kind="re"/>學
+    </skam:block>
+    <skam:block>
+      甲<skam:kaeri kind="jo-re"/>乙丙
+    </skam:block>
+  </skam:body>
+</skam:doc>

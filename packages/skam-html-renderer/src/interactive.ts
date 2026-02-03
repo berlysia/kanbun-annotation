@@ -472,42 +472,45 @@ export function attachInteractiveHandlers(
 
     const endPosition = { x: event.clientX, y: event.clientY };
 
-    // 選択クラスをクリア（コールバック側で制御するため）
-    clearSelectionClasses(container);
+    // コールバックが例外を投げても必ず状態をリセットする
+    try {
+      // 選択クラスをクリア（コールバック側で制御するため）
+      clearSelectionClasses(container);
 
-    // ドラッグ方向を判定して正規化
-    let fromId = state.startTokenId;
-    let toId = endTokenId;
+      // ドラッグ方向を判定して正規化
+      let fromId = state.startTokenId;
+      let toId = endTokenId;
 
-    if (state.startPosition) {
-      const comparison = comparePositions(state.startPosition, endPosition, isVertical);
-      if (comparison > 0) {
-        // 逆方向にドラッグされた場合はswap
-        [fromId, toId] = [toId, fromId];
+      if (state.startPosition) {
+        const comparison = comparePositions(state.startPosition, endPosition, isVertical);
+        if (comparison > 0) {
+          // 逆方向にドラッグされた場合はswap
+          [fromId, toId] = [toId, fromId];
+        }
       }
+
+      // 選択範囲を正規化（熟語が部分的に含まれる場合は熟語全体を含める）
+      const [normalizedFrom, normalizedTo] = normalizeSelectionRange(container, fromId, toId);
+
+      // コールバック呼び出し
+      if (normalizedFrom === normalizedTo) {
+        // 単一クリック（熟語の一部をクリックしても単一トークンとして扱う）
+        callbacks.onTokenClick?.(normalizedFrom, event);
+        // 単一選択の場合、Shift+クリックの起点として記録
+        state.lastSelectedTokenId = normalizedFrom;
+      } else {
+        // 範囲選択
+        callbacks.onTokenSelect?.(normalizedFrom, normalizedTo);
+        // 範囲選択の場合、終点をShift+クリックの起点として記録
+        state.lastSelectedTokenId = normalizedTo;
+      }
+    } finally {
+      // 状態リセット
+      state.isDragging = false;
+      state.startTokenId = null;
+      state.startPosition = null;
+      state.currentEndTokenId = null;
     }
-
-    // 選択範囲を正規化（熟語が部分的に含まれる場合は熟語全体を含める）
-    const [normalizedFrom, normalizedTo] = normalizeSelectionRange(container, fromId, toId);
-
-    // コールバック呼び出し
-    if (normalizedFrom === normalizedTo) {
-      // 単一クリック（熟語の一部をクリックしても単一トークンとして扱う）
-      callbacks.onTokenClick?.(normalizedFrom, event);
-      // 単一選択の場合、Shift+クリックの起点として記録
-      state.lastSelectedTokenId = normalizedFrom;
-    } else {
-      // 範囲選択
-      callbacks.onTokenSelect?.(normalizedFrom, normalizedTo);
-      // 範囲選択の場合、終点をShift+クリックの起点として記録
-      state.lastSelectedTokenId = normalizedTo;
-    }
-
-    // 状態リセット
-    state.isDragging = false;
-    state.startTokenId = null;
-    state.startPosition = null;
-    state.currentEndTokenId = null;
   };
 
   /**

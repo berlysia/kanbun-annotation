@@ -1403,7 +1403,7 @@ function renderDisplayLayer(
             const refHtml = getRefTextForHighlight(currentHighlightGroup);
             const styleClass = ` ${prefix}-highlight--${style}`;
             renderedTokens.push(
-              `${refHtml}<span class="${prefix}-highlight${styleClass}" data-style="${style}">${highlightTokens.join('')}</span>${pendingHighlightKutoten}`
+              `<span class="${prefix}-highlight${styleClass}" data-style="${style}">${highlightTokens.join('')}${refHtml}</span>${pendingHighlightKutoten}`
             );
             highlightTokens = [];
             pendingHighlightKutoten = '';
@@ -1467,7 +1467,7 @@ function renderDisplayLayer(
           const refHtml = getRefTextForHighlight(currentHighlightGroup);
           const styleClass = ` ${prefix}-highlight--${style}`;
           renderedTokens.push(
-            `${refHtml}<span class="${prefix}-highlight${styleClass}" data-style="${style}">${highlightTokens.join('')}</span>${pendingHighlightKutoten}`
+            `<span class="${prefix}-highlight${styleClass}" data-style="${style}">${highlightTokens.join('')}${refHtml}</span>${pendingHighlightKutoten}`
           );
           highlightTokens = [];
           pendingHighlightKutoten = '';
@@ -1517,7 +1517,7 @@ function renderDisplayLayer(
       const refHtml = getRefTextForHighlight(currentHighlightGroup);
       const styleClass = ` ${prefix}-highlight--${style}`;
       renderedTokens.push(
-        `${refHtml}<span class="${prefix}-highlight${styleClass}" data-style="${style}">${highlightTokens.join('')}</span>${pendingHighlightKutoten}`
+        `<span class="${prefix}-highlight${styleClass}" data-style="${style}">${highlightTokens.join('')}${refHtml}</span>${pendingHighlightKutoten}`
       );
     }
 

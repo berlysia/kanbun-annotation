@@ -8,6 +8,7 @@ import type {
   SKAMDocument,
   SKAMVersion,
   Token,
+  Block,
   Mark,
   Anchor,
   Position,
@@ -181,9 +182,8 @@ function validateAnchor(
  * Position（位置指定）の構造検証
  *
  * 有効なパターン:
- * - { before: string, after: string } - 2トークン間
- * - { after: string } - そのトークンの後ろに配置
- * - { } (after 省略) - ブロック先頭に配置
+ * - { blockId: string, after: string } - block 内のトークンの後ろに配置
+ * - { blockId: string } (after 省略) - ブロック先頭に配置
  */
 function validatePosition(
   position: unknown,
@@ -203,6 +203,22 @@ function validatePosition(
     return false;
   }
 
+  let valid = true;
+
+  // blockId (required)
+  if (!isString(position['blockId'])) {
+    errors.push(
+      createValidationError(
+        'MISSING_FIELD',
+        `${path}.blockId`,
+        'position.blockId is required and must be a string',
+        'string',
+        typeof position['blockId']
+      )
+    );
+    valid = false;
+  }
+
   const hasAfter = 'after' in position && position['after'] !== undefined;
 
   // If after is present, it must be a string
@@ -216,11 +232,10 @@ function validatePosition(
         typeof position['after']
       )
     );
-    return false;
+    valid = false;
   }
 
-  // Position can be empty object (meaning "at block start") or have after
-  return true;
+  return valid;
 }
 
 function validateGlyphGridCoord(
@@ -775,6 +790,66 @@ function validateDerivation(
 }
 
 // ============================================================================
+// Block Validation
+// ============================================================================
+
+function validateBlock(block: unknown, index: number, errors: ValidationError[]): block is Block {
+  const path = `blocks[${index}]`;
+
+  if (!isObject(block)) {
+    errors.push(
+      createValidationError('INVALID_TYPE', path, 'Block must be an object', 'object', typeof block)
+    );
+    return false;
+  }
+
+  let valid = true;
+
+  if (!isString(block['id'])) {
+    errors.push(
+      createValidationError(
+        'MISSING_FIELD',
+        `${path}.id`,
+        'Block id is required and must be a string',
+        'string',
+        typeof block['id']
+      )
+    );
+    valid = false;
+  }
+
+  if (!isArray(block['tokenIds'])) {
+    errors.push(
+      createValidationError(
+        'MISSING_FIELD',
+        `${path}.tokenIds`,
+        'Block tokenIds is required and must be an array',
+        'array',
+        typeof block['tokenIds']
+      )
+    );
+    valid = false;
+  } else {
+    block['tokenIds'].forEach((tokenId, tokenIdIndex) => {
+      if (!isString(tokenId)) {
+        errors.push(
+          createValidationError(
+            'INVALID_TYPE',
+            `${path}.tokenIds[${tokenIdIndex}]`,
+            'tokenIds items must be strings',
+            'string',
+            typeof tokenId
+          )
+        );
+        valid = false;
+      }
+    });
+  }
+
+  return valid;
+}
+
+// ============================================================================
 // Token Reference Validation
 // ============================================================================
 
@@ -784,9 +859,178 @@ function isPositionBasedMark(mark: Mark): mark is KutotenMark | RefMark {
 }
 
 /**
- * Validate position adjacency (both before and after tokens must be adjacent)
+ * Block-Token 整合性検証
+ *
+ * - 全 token がちょうど1回 blocks に出現
+ * - tokenIds の各要素は tokens に存在
+ * - Block ID は一意
  */
-// validatePositionAdjacency removed: Position now only has optional `after`
+function validateBlockTokenIntegrity(
+  tokens: Token[],
+  blocks: Block[],
+  errors: ValidationError[]
+): void {
+  const tokenIdSet = new Set(tokens.map((t) => t.id));
+
+  // Block ID uniqueness
+  const blockIdCounts = new Map<string, number>();
+  blocks.forEach((block, index) => {
+    const count = (blockIdCounts.get(block.id) ?? 0) + 1;
+    blockIdCounts.set(block.id, count);
+    if (count > 1) {
+      errors.push(
+        createValidationError(
+          'DUPLICATE_ID',
+          `blocks[${index}].id`,
+          `Duplicate block ID "${block.id}"`,
+          'unique ID',
+          block.id
+        )
+      );
+    }
+  });
+
+  // Track which tokens are referenced by blocks
+  const tokenToBlock = new Map<string, string>();
+
+  blocks.forEach((block, blockIndex) => {
+    block.tokenIds.forEach((tokenId, tokenIdIndex) => {
+      // tokenId must exist in tokens
+      if (!tokenIdSet.has(tokenId)) {
+        errors.push(
+          createValidationError(
+            'UNKNOWN_TOKEN_REF',
+            `blocks[${blockIndex}].tokenIds[${tokenIdIndex}]`,
+            `Token "${tokenId}" not found in tokens`,
+            'valid token ID',
+            tokenId
+          )
+        );
+        return;
+      }
+
+      // Token must not appear in multiple blocks
+      const existingBlock = tokenToBlock.get(tokenId);
+      if (existingBlock !== undefined) {
+        errors.push(
+          createValidationError(
+            'INVALID_VALUE',
+            `blocks[${blockIndex}].tokenIds[${tokenIdIndex}]`,
+            `Token "${tokenId}" already belongs to block "${existingBlock}"`,
+            'unique block membership',
+            `also in block "${existingBlock}"`
+          )
+        );
+      } else {
+        tokenToBlock.set(tokenId, block.id);
+      }
+    });
+  });
+
+  // All tokens must belong to exactly one block
+  tokens.forEach((token, index) => {
+    if (!tokenToBlock.has(token.id)) {
+      errors.push(
+        createValidationError(
+          'INVALID_VALUE',
+          `tokens[${index}]`,
+          `Token "${token.id}" does not belong to any block`,
+          'block membership',
+          'orphaned token'
+        )
+      );
+    }
+  });
+}
+
+/**
+ * Anchor の block 制約検証
+ *
+ * - from/to は同一 block 内
+ * - from のインデックス ≤ to のインデックス（blocks.tokenIds 内の順序）
+ */
+function validateAnchorBlockConstraints(
+  blocks: Block[],
+  marks: Mark[],
+  errors: ValidationError[]
+): void {
+  // Build tokenId → { blockId, index in block } map
+  const tokenBlockInfo = new Map<string, { blockId: string; indexInBlock: number }>();
+  for (const block of blocks) {
+    for (let i = 0; i < block.tokenIds.length; i++) {
+      const tokenId = block.tokenIds[i];
+      if (tokenId !== undefined) {
+        tokenBlockInfo.set(tokenId, { blockId: block.id, indexInBlock: i });
+      }
+    }
+  }
+
+  const blockIdSet = new Set(blocks.map((b) => b.id));
+
+  marks.forEach((mark, index) => {
+    if (isPositionBasedMark(mark)) {
+      // Position-based: validate blockId exists and after belongs to that block
+      const path = `marks[${index}].position`;
+      const position = mark.position;
+
+      if (!blockIdSet.has(position.blockId)) {
+        errors.push(
+          createValidationError(
+            'INVALID_VALUE',
+            `${path}.blockId`,
+            `Block "${position.blockId}" not found`,
+            'valid block ID',
+            position.blockId
+          )
+        );
+      }
+
+      if (position.after !== undefined) {
+        const afterInfo = tokenBlockInfo.get(position.after);
+        if (afterInfo && afterInfo.blockId !== position.blockId) {
+          errors.push(
+            createValidationError(
+              'INVALID_VALUE',
+              `${path}.after`,
+              `Token "${position.after}" belongs to block "${afterInfo.blockId}", not "${position.blockId}"`,
+              `token in block "${position.blockId}"`,
+              `token in block "${afterInfo.blockId}"`
+            )
+          );
+        }
+      }
+    } else {
+      // Anchor-based: from/to must be in same block, from ≤ to in block order
+      const path = `marks[${index}].anchor`;
+      const fromInfo = tokenBlockInfo.get(mark.anchor.from);
+      const toInfo = tokenBlockInfo.get(mark.anchor.to);
+
+      if (fromInfo && toInfo) {
+        if (fromInfo.blockId !== toInfo.blockId) {
+          errors.push(
+            createValidationError(
+              'INVALID_ANCHOR',
+              path,
+              `anchor.from (block "${fromInfo.blockId}") and anchor.to (block "${toInfo.blockId}") must be in the same block`,
+              'same block',
+              `from in "${fromInfo.blockId}", to in "${toInfo.blockId}"`
+            )
+          );
+        } else if (fromInfo.indexInBlock > toInfo.indexInBlock) {
+          errors.push(
+            createValidationError(
+              'INVALID_ANCHOR',
+              path,
+              `anchor.from appears after anchor.to in block "${fromInfo.blockId}"`,
+              'from ≤ to in block order',
+              `from at index ${fromInfo.indexInBlock}, to at index ${toInfo.indexInBlock}`
+            )
+          );
+        }
+      }
+    }
+  });
+}
 
 function validateTokenReferences(
   tokens: Token[],
@@ -795,7 +1039,6 @@ function validateTokenReferences(
   errors: ValidationError[]
 ): void {
   const tokenIdSet = new Set(tokens.map((t) => t.id));
-  const tokenIdList = tokens.map((t) => t.id);
 
   // Check mark references (anchor or position)
   marks.forEach((mark, index) => {
@@ -817,7 +1060,6 @@ function validateTokenReferences(
           );
         }
       }
-      // If after is undefined, mark is at block start - no reference to validate
     } else {
       // Anchor-based mark: check anchor references
       const path = `marks[${index}].anchor`;
@@ -962,6 +1204,39 @@ export function validateSKAMDocument(input: unknown): ValidationResult<SKAMDocum
     });
   }
 
+  // blocks (required array)
+  const blocks = input['blocks'];
+  if (!isArray(blocks)) {
+    errors.push(
+      createValidationError(
+        'MISSING_FIELD',
+        'blocks',
+        'blocks is required and must be an array',
+        'array',
+        typeof blocks
+      )
+    );
+  } else {
+    blocks.forEach((block, index) => {
+      validateBlock(block, index, errors);
+    });
+
+    // Empty document warning: blocks=[] && tokens=[] is valid but unusual
+    if (blocks.length === 0 && isArray(tokens) && tokens.length === 0) {
+      // Valid but unusual - no error
+    } else if (blocks.length === 0 && isArray(tokens) && tokens.length > 0) {
+      errors.push(
+        createValidationError(
+          'INVALID_VALUE',
+          'blocks',
+          'blocks is empty but tokens is not empty. All tokens must belong to a block.',
+          'non-empty blocks',
+          'empty blocks with tokens'
+        )
+      );
+    }
+  }
+
   // marks (required array)
   const marks = input['marks'];
   if (!isArray(marks)) {
@@ -1019,14 +1294,16 @@ export function validateSKAMDocument(input: unknown): ValidationResult<SKAMDocum
   }
 
   // Cross-reference validation (only if basic validation passed)
-  if (errors.length === 0 && isArray(tokens) && isArray(marks)) {
+  if (errors.length === 0 && isArray(tokens) && isArray(marks) && isArray(blocks)) {
     validateUniqueIds(tokens as Token[], marks as Mark[], errors);
+    validateBlockTokenIntegrity(tokens as Token[], blocks as Block[], errors);
     validateTokenReferences(
       tokens as Token[],
       marks as Mark[],
       isArray(derivations) ? (derivations as Derivation[]) : undefined,
       errors
     );
+    validateAnchorBlockConstraints(blocks as Block[], marks as Mark[], errors);
   }
 
   if (errors.length > 0) {
@@ -1037,6 +1314,7 @@ export function validateSKAMDocument(input: unknown): ValidationResult<SKAMDocum
   const document: SKAMDocument = {
     format: input['format'] as SKAMVersion,
     tokens: input['tokens'] as Token[],
+    blocks: input['blocks'] as Block[],
     marks: input['marks'] as Mark[],
     readings: input['readings'] as Reading[],
   };

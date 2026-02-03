@@ -30,6 +30,24 @@ export interface Token {
 }
 
 // ============================================================================
+// Block
+// ============================================================================
+
+/**
+ * 論理的なブロック（段落・文単位）
+ *
+ * tokens の部分集合を順序付きで保持する。全 token はちょうど1つの block に属する。
+ */
+export interface Block {
+  /** 一意識別子 */
+  id: string;
+  /** この block に属する token ID の配列（順序保持） */
+  tokenIds: string[];
+  /** 拡張フィールド（round-trip保持推奨） */
+  ext?: Record<string, unknown>;
+}
+
+// ============================================================================
 // Anchor
 // ============================================================================
 
@@ -52,11 +70,14 @@ export interface Anchor {
 /**
  * トークン間の位置を指定（position ベース Mark 用）
  *
+ * - blockId: この mark が属する block の ID（必須）
  * - after が指定されている: そのトークンの後ろに配置
  * - after が未定義: ブロック先頭に配置
  */
 export interface Position {
-  /** この mark が配置されるトークンの ID。未定義の場合は先頭に配置。 */
+  /** この mark が属する block の ID（必須） */
+  blockId: string;
+  /** この mark が配置されるトークンの ID。未定義の場合はブロック先頭に配置。 */
   after?: string;
 }
 
@@ -393,8 +414,10 @@ export interface Reading {
 export interface SKAMDocument {
   /** フォーマットバージョン */
   format: SKAMVersion;
-  /** 本文 token 列 */
+  /** 本文 token のマスター定義（順序は無意味） */
   tokens: Token[];
+  /** ブロック構造（必須、原文順） */
+  blocks: Block[];
   /** 注記列 */
   marks: Mark[];
   /** 導出情報（任意） */

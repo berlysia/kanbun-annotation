@@ -1118,16 +1118,17 @@ function updateExistingUnderline(): void {
   let refId: string | undefined;
   if (formatValue) {
     refId = refInputValue || generateRefId(newDoc);
+    const refBlockId = newDoc.blocks.find((b) => b.tokenIds.includes(normalizedToId))?.id ?? '';
     const refMark: {
       type: 'ref';
       id?: string;
       format: RefFormat;
-      position: { after: string };
+      position: { blockId: string; after: string };
     } = {
       type: 'ref',
       id: refId,
       format: formatValue,
-      position: { after: normalizedToId },
+      position: { blockId: refBlockId, after: normalizedToId },
     };
     newDoc = addMark(newDoc, refMark);
     // Find the newly added ref mark to get its generated ID
@@ -1233,16 +1234,17 @@ function handleUnderlineToggle(): void {
     let refId: string | undefined;
     if (formatValue) {
       refId = refInputValue || generateRefId(newDoc);
+      const refBlockId = newDoc.blocks.find((b) => b.tokenIds.includes(normalizedToId))?.id ?? '';
       const refMark: {
         type: 'ref';
         id?: string;
         format: RefFormat;
-        position: { after: string };
+        position: { blockId: string; after: string };
       } = {
         type: 'ref',
         id: refId,
         format: formatValue,
-        position: { after: normalizedToId },
+        position: { blockId: refBlockId, after: normalizedToId },
       };
       newDoc = addMark(newDoc, refMark);
       // Update refId to match the generated mark ID (addMark generates new IDs)

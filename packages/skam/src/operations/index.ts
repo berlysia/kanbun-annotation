@@ -161,15 +161,15 @@ export function removeMark(doc: SKAMDocument, markId: string): SKAMDocument {
  *
  * anchor ベースのマーク: anchorがtokenIdを含む（from <= tokenId <= to）場合に関連とみなす。
  * position ベースのマーク（kutoten, ref）: position.after が tokenId と一致する場合に関連とみなす。
- * ただし、token IDの順序を正確に判定するにはtokens配列の順序を参照する必要がある。
+ * token ID の順序は blocks.tokenIds の連結順で判定する。
  */
 export function getMarksForToken(doc: SKAMDocument, tokenId: string): Mark[] {
-  // tokens配列のインデックスマップを作成
+  // blocks の tokenIds 順にインデックスマップを作成
   const tokenIndexMap = new Map<string, number>();
-  for (let i = 0; i < doc.tokens.length; i++) {
-    const token = doc.tokens[i];
-    if (token != null) {
-      tokenIndexMap.set(token.id, i);
+  let globalIndex = 0;
+  for (const block of doc.blocks) {
+    for (const tid of block.tokenIds) {
+      tokenIndexMap.set(tid, globalIndex++);
     }
   }
 
@@ -205,10 +205,10 @@ export function getMarksForToken(doc: SKAMDocument, tokenId: string): Mark[] {
  */
 export function getMarksForRange(doc: SKAMDocument, fromId: string, toId: string): Mark[] {
   const tokenIndexMap = new Map<string, number>();
-  for (let i = 0; i < doc.tokens.length; i++) {
-    const token = doc.tokens[i];
-    if (token != null) {
-      tokenIndexMap.set(token.id, i);
+  let globalIndex = 0;
+  for (const block of doc.blocks) {
+    for (const tid of block.tokenIds) {
+      tokenIndexMap.set(tid, globalIndex++);
     }
   }
 

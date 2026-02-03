@@ -21,6 +21,7 @@ function createDoc(marks: Mark[] = []): SKAMDocument {
       { id: 't4', text: '而' },
       { id: 't5', text: '時' },
     ],
+    blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3', 't4', 't5'] }],
     marks,
     readings: [],
   };
@@ -759,7 +760,12 @@ describe('仮名と他マークの相互作用', () => {
 
   it('ref マークのあるトークンに仮名を追加しても ref は残る', () => {
     const doc = createDoc([
-      { type: 'ref', id: 'ref-1', position: { after: 't3' }, format: 'iroha-katakana' },
+      {
+        type: 'ref',
+        id: 'ref-1',
+        position: { blockId: 'b1', after: 't3' },
+        format: 'iroha-katakana',
+      },
     ]);
 
     const result = applyKana(doc, 't3', 't3', 'yomigana', 'まな');
@@ -842,7 +848,9 @@ describe('getMarksForToken: アンカー範囲との関係', () => {
   });
 
   it('position ベースのマーク（kutoten）は after で検索', () => {
-    const doc = createDoc([{ type: 'kutoten', id: 'm1', position: { after: 't2' }, value: '。' }]);
+    const doc = createDoc([
+      { type: 'kutoten', id: 'm1', position: { blockId: 'b1', after: 't2' }, value: '。' },
+    ]);
     expect(getMarksForToken(doc, 't2')).toHaveLength(1);
     expect(getMarksForToken(doc, 't1')).toHaveLength(0);
     expect(getMarksForToken(doc, 't3')).toHaveLength(0);
@@ -851,7 +859,7 @@ describe('getMarksForToken: アンカー範囲との関係', () => {
   it('anchor ベースと position ベースのマークが混在', () => {
     const doc = createDoc([
       { type: 'yomigana', id: 'm1', anchor: { from: 't2', to: 't3' }, value: 'いわく' },
-      { type: 'kutoten', id: 'm2', position: { after: 't3' }, value: '。' },
+      { type: 'kutoten', id: 'm2', position: { blockId: 'b1', after: 't3' }, value: '。' },
     ]);
     // t3: yomigana(anchor包含) + kutoten(position一致)
     expect(getMarksForToken(doc, 't3')).toHaveLength(2);

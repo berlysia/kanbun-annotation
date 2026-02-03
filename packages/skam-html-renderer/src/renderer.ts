@@ -7,6 +7,7 @@
 import type {
   SKAMDocument,
   Token,
+  Block,
   Mark,
   Position,
   KaeriMark,
@@ -367,7 +368,7 @@ function isBlockStartPosition(position: Position): boolean {
 
 /** Get block-start position marks for a given blockId */
 function getBlockStartMarks(
-  blockId: string | null,
+  blockId: string,
   marks: Mark[]
 ): { refs: RefMark[]; kutotenMarks: KutotenMark[] } {
   const refs: RefMark[] = [];
@@ -377,9 +378,8 @@ function getBlockStartMarks(
     if (!isPositionBasedMark(mark)) continue;
     if (!isBlockStartPosition(mark.position)) continue;
 
-    // Check if this mark belongs to this block via ext.blockId
-    const markBlockId = (mark.ext?.['blockId'] as string | undefined) ?? null;
-    if (markBlockId !== blockId) continue;
+    // Check if this mark belongs to this block via position.blockId
+    if (mark.position.blockId !== blockId) continue;
 
     if (mark.type === 'ref') {
       refs.push(mark);
@@ -1105,29 +1105,38 @@ function renderRefNotes(
 }
 
 /**
- * Tokenからブロック境界を検出してグループ化
+ * doc.blocks を使って Token をブロックごとにグループ化
+ *
+ * blocks が存在する場合は各 block の tokenIds から tokens を解決する。
+ * blocks が空の場合は全 tokens を blockId=null の単一グループとして返す。
  */
-function groupTokensByBlock(tokens: Token[]): { blockId: string | null; tokens: Token[] }[] {
-  const groups: { blockId: string | null; tokens: Token[] }[] = [];
-  let currentBlockId: string | null = null;
-  let currentGroup: Token[] = [];
-
-  for (const token of tokens) {
-    const blockId = (token.ext?.['blockId'] as string | undefined) ?? null;
-
-    if (blockId !== currentBlockId) {
-      if (currentGroup.length > 0) {
-        groups.push({ blockId: currentBlockId, tokens: currentGroup });
-      }
-      currentBlockId = blockId;
-      currentGroup = [token];
-    } else {
-      currentGroup.push(token);
-    }
+function groupTokensByBlock(
+  blocks: Block[],
+  tokens: Token[]
+): { blockId: string; tokens: Token[] }[] {
+  if (blocks.length === 0) {
+    // blocks が空の場合は全 tokens を単一グループとして返す
+    return tokens.length > 0 ? [{ blockId: '', tokens }] : [];
   }
 
-  if (currentGroup.length > 0) {
-    groups.push({ blockId: currentBlockId, tokens: currentGroup });
+  const tokenMap = new Map<string, Token>();
+  for (const token of tokens) {
+    tokenMap.set(token.id, token);
+  }
+
+  const groups: { blockId: string; tokens: Token[] }[] = [];
+
+  for (const block of blocks) {
+    const blockTokens: Token[] = [];
+    for (const tokenId of block.tokenIds) {
+      const token = tokenMap.get(tokenId);
+      if (token) {
+        blockTokens.push(token);
+      }
+    }
+    if (blockTokens.length > 0) {
+      groups.push({ blockId: block.id, tokens: blockTokens });
+    }
   }
 
   return groups;
@@ -1197,8 +1206,8 @@ function renderDisplayLayer(
     return '';
   };
 
-  // ブロックごとにトークンをグループ化
-  const blockGroups = groupTokensByBlock(tokens);
+  // ブロックごとにトークンをグループ化（doc.blocks を使用）
+  const blockGroups = groupTokensByBlock(doc.blocks ?? [], tokens);
   const blockTag = inline ? 'span' : 'div';
 
   // 各ブロックを個別にレンダリング

@@ -7,6 +7,7 @@
 import type {
   SKAMDocument,
   Token,
+  Block,
   Mark,
   Reading,
   Position,
@@ -179,6 +180,7 @@ class PositionTracker {
 
 interface ParserState {
   tokens: Token[];
+  blocks: Block[];
   marks: Mark[];
   readings: Reading[];
   noteContents: Map<string, string>;
@@ -193,6 +195,7 @@ interface ParserState {
 function createParserState(source?: string): ParserState {
   return {
     tokens: [],
+    blocks: [],
     marks: [],
     readings: [],
     noteContents: new Map(),
@@ -268,11 +271,6 @@ function addTokensFromText(text: string, state: ParserState): string[] {
 
     const id = generateTokenId(state);
     const token: Token = { id, text: char };
-
-    // Set blockId in ext if we're in a block
-    if (state.currentBlockId) {
-      token.ext = { blockId: state.currentBlockId };
-    }
 
     // Add position info if tracking is enabled
     if (tracker) {
@@ -412,10 +410,12 @@ function processKutoten(
   const value = getRequiredAttr(element, 'value', 'skam:kutoten');
   const kind = getAttr(element, 'kind') as 'ku' | 'ten' | 'other' | null;
 
-  // Position is determined by precedingTokenId only
-  // - { after: tokenId } - after the specified token
-  // - {} (empty) - at block start (no preceding token)
-  const position: Position = precedingTokenId ? { after: precedingTokenId } : {};
+  // Position includes blockId and optional after
+  // - { blockId, after: tokenId } - after the specified token
+  // - { blockId } - at block start (no preceding token)
+  const position: Position = precedingTokenId
+    ? { blockId: state.currentBlockId!, after: precedingTokenId }
+    : { blockId: state.currentBlockId! };
 
   const mark: KutotenMark = {
     type: 'kutoten',
@@ -426,11 +426,6 @@ function processKutoten(
 
   if (kind) {
     mark.kind = kind;
-  }
-
-  // For block-start kutoten (empty position), store blockId for renderer
-  if (!precedingTokenId && state.currentBlockId) {
-    mark.ext = { blockId: state.currentBlockId };
   }
 
   state.marks.push(mark);
@@ -780,21 +775,18 @@ function processRef(element: Element, state: ParserState, precedingTokenId: stri
     );
   }
 
-  // Position is determined by precedingTokenId only
-  // - { after: tokenId } - after the specified token
-  // - {} (empty) - at block start (no preceding token)
-  const position: Position = precedingTokenId ? { after: precedingTokenId } : {};
+  // Position includes blockId and optional after
+  // - { blockId, after: tokenId } - after the specified token
+  // - { blockId } - at block start (no preceding token)
+  const position: Position = precedingTokenId
+    ? { blockId: state.currentBlockId!, after: precedingTokenId }
+    : { blockId: state.currentBlockId! };
 
   const mark: RefMark = {
     type: 'ref',
     id: xmlIdAttr || generateMarkId(state),
     position,
   };
-
-  // For block-start refs (empty position), store blockId for renderer
-  if (!precedingTokenId && state.currentBlockId) {
-    mark.ext = { ...mark.ext, blockId: state.currentBlockId };
-  }
 
   if (labelAttr) {
     mark.label = labelAttr;
@@ -945,8 +937,12 @@ function processBlockChildren(element: Element, state: ParserState): string[] {
 }
 
 function processBlock(element: Element, state: ParserState): void {
-  // Set current block ID for tokens created within this block
-  state.currentBlockId = `b${++state.blockIndex}`;
+  // Read xml:id attribute, or auto-generate block ID
+  const xmlIdAttr = getAttr(element, 'xml:id') || getAttr(element, 'id');
+  const blockId = xmlIdAttr || `b${++state.blockIndex}`;
+
+  // Set current block ID for marks (kutoten/ref position) created within this block
+  state.currentBlockId = blockId;
 
   const tokenIds = processBlockChildren(element, state);
 
@@ -957,6 +953,10 @@ function processBlock(element: Element, state: ParserState): void {
   if (tokenIds.length === 0) {
     throw new SKAMXMLParseError('<skam:block> must contain at least one token');
   }
+
+  // Build Block object and add to state
+  const block: Block = { id: blockId, tokenIds };
+  state.blocks.push(block);
 }
 
 // ============================================================================
@@ -1109,6 +1109,7 @@ export function parseFromDocument(
   const skamDoc: SKAMDocument = {
     format: 'skam@0.1',
     tokens: state.tokens,
+    blocks: state.blocks,
     marks: state.marks,
     readings: state.readings,
   };

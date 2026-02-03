@@ -149,13 +149,6 @@ function indentStr(level: number, size: number): string {
 }
 
 /**
- * Token のブロックID を取得
- */
-function getBlockId(token: Token): string | undefined {
-  return token.ext?.['blockId'] as string | undefined;
-}
-
-/**
  * 返り点の value を kind に変換
  */
 function kaeriValueToKind(value: string): string {
@@ -181,24 +174,6 @@ function kaeriValueToKind(value: string): string {
 
   // 不明な場合はそのまま返す
   return value;
-}
-
-// ============================================================================
-// Token Index Map
-// ============================================================================
-
-/**
- * トークンID → インデックスのマップを構築
- */
-function buildTokenIndexMap(tokens: Token[]): Map<string, number> {
-  const map = new Map<string, number>();
-  for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i];
-    if (token) {
-      map.set(token.id, i);
-    }
-  }
-  return map;
 }
 
 // ============================================================================
@@ -820,6 +795,7 @@ function contentNodeToXml(node: ContentNode): string {
  * ブロックの XML を生成
  */
 function blockToXml(
+  blockId: string,
   blockTokens: Token[],
   annotations: Map<string, TokenAnnotation>,
   rangeMarks: RangeMark[],
@@ -841,7 +817,7 @@ function blockToXml(
   // XML に変換
   const content = contentTree.map(contentNodeToXml).join('');
 
-  return `${ind}<skam:block>${content}</skam:block>`;
+  return `${ind}<skam:block xml:id="${escapeXml(blockId)}">${content}</skam:block>`;
 }
 
 /**
@@ -886,46 +862,28 @@ function stringifyNotes(marks: Mark[], indentSize: number): string[] {
 export function stringify(doc: SKAMDocument, options: StringifyOptions = {}): string {
   const { indent: indentSize = 2, xmlDeclaration = true } = options;
 
-  // トークンインデックスマップを構築
-  const tokenIndexMap = buildTokenIndexMap(doc.tokens);
+  // トークンID → Token のマップを構築
+  const tokenMap = new Map<string, Token>();
+  for (const token of doc.tokens) {
+    tokenMap.set(token.id, token);
+  }
+
+  // blocks の tokenIds の順序に基づいてトークンインデックスマップを構築
+  // blocks の出現順で通しインデックスを付与する
+  const tokenIndexMap = new Map<string, number>();
+  let globalIndex = 0;
+  for (const block of doc.blocks) {
+    for (const tokenId of block.tokenIds) {
+      tokenIndexMap.set(tokenId, globalIndex);
+      globalIndex++;
+    }
+  }
 
   // Annotation を収集
   const annotations = collectTokenAnnotations(doc.tokens, doc.marks, tokenIndexMap);
 
   // 範囲マークを収集
   const rangeMarks = collectRangeMarks(doc.marks, tokenIndexMap);
-
-  // Token をブロックごとにグループ化
-  interface BlockInfo {
-    tokens: Token[];
-    startIndex: number;
-  }
-  const blocks: BlockInfo[] = [];
-  let currentBlock: Token[] = [];
-  let currentBlockId: string | undefined;
-  let currentBlockStartIndex = 0;
-
-  for (let i = 0; i < doc.tokens.length; i++) {
-    const token = doc.tokens[i];
-    if (!token) continue;
-
-    const blockId = getBlockId(token);
-
-    if (blockId !== currentBlockId) {
-      if (currentBlock.length > 0) {
-        blocks.push({ tokens: currentBlock, startIndex: currentBlockStartIndex });
-      }
-      currentBlock = [];
-      currentBlockId = blockId;
-      currentBlockStartIndex = i;
-    }
-
-    currentBlock.push(token);
-  }
-
-  if (currentBlock.length > 0) {
-    blocks.push({ tokens: currentBlock, startIndex: currentBlockStartIndex });
-  }
 
   // XML を構築
   const lines: string[] = [];
@@ -946,8 +904,21 @@ export function stringify(doc: SKAMDocument, options: StringifyOptions = {}): st
   // body 要素
   lines.push(`${indentStr(1, indentSize)}<skam:body>`);
 
-  for (const block of blocks) {
-    lines.push(blockToXml(block.tokens, annotations, rangeMarks, block.startIndex, 2, indentSize));
+  // doc.blocks を直接イテレートしてブロックを出力
+  let blockStartIndex = 0;
+  for (const block of doc.blocks) {
+    const blockTokens: Token[] = [];
+    for (const tokenId of block.tokenIds) {
+      const token = tokenMap.get(tokenId);
+      if (token) {
+        blockTokens.push(token);
+      }
+    }
+
+    lines.push(
+      blockToXml(block.id, blockTokens, annotations, rangeMarks, blockStartIndex, 2, indentSize)
+    );
+    blockStartIndex += block.tokenIds.length;
   }
 
   lines.push(`${indentStr(1, indentSize)}</skam:body>`);

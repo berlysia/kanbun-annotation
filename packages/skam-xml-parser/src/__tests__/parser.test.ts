@@ -27,7 +27,9 @@ describe('parse - valid fixtures', () => {
       expect(doc.format).toBe('skam@0.1');
       expect(doc.tokens).toHaveLength(1);
       expect(doc.tokens[0]).toMatchObject({ id: 't1', text: '學' });
-      expect(doc.tokens[0]?.ext?.['blockId']).toBe('b1');
+      // blockId is now managed via blocks array, not token.ext
+      expect(doc.blocks).toHaveLength(1);
+      expect(doc.blocks[0]).toMatchObject({ id: 'b1', tokenIds: ['t1'] });
       expect(doc.marks).toHaveLength(0);
       expect(doc.readings).toHaveLength(0);
       expect(validateSKAMDocument(doc).valid).toBe(true);
@@ -455,9 +457,9 @@ describe('parse - valid fixtures', () => {
       expect(ref.id).toBe('ref-1');
       expect((ref as { format?: string }).format).toBe('alpha-upper');
 
-      // ref at block start should have empty position (no after property)
-      const position = (ref as { position?: { after?: string } }).position;
-      expect(position).toEqual({}); // empty position means block start
+      // ref at block start should have blockId but no after property
+      const position = (ref as { position?: { blockId?: string; after?: string } }).position;
+      expect(position).toEqual({ blockId: 'b1' }); // blockId only, no after = block start
       expect(position?.after).toBeUndefined();
     });
   });
@@ -863,12 +865,14 @@ describe('parse - position tracking', () => {
     expect(pos.start.line).toBeGreaterThanOrEqual(1);
   });
 
-  it('should preserve blockId in ext alongside position', () => {
+  it('should have blocks alongside position tracking', () => {
     const xml = readFixture('valid', 'minimal.xml');
     const doc = parse(xml, { trackPositions: true });
 
     const token = doc.tokens[0]!;
-    expect(token.ext?.['blockId']).toBe('b1');
+    // blockId is now managed via blocks array, not token.ext
+    expect(doc.blocks).toHaveLength(1);
+    expect(doc.blocks[0]).toMatchObject({ id: 'b1', tokenIds: ['t1'] });
     expect(token.ext?.['position']).toBeDefined();
   });
 });

@@ -19,6 +19,7 @@ function createTestDocument(marks: Mark[] = []): SKAMDocument {
       { id: 't2', text: '曰' },
       { id: 't3', text: '學' },
     ],
+    blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
     marks,
     readings: [],
   };
@@ -275,7 +276,12 @@ describe('getMarksForToken', () => {
   it('同じトークンにyomiganaとrefの両方があるとき両方を取得する', () => {
     const doc = createTestDocument([
       { type: 'yomigana', id: 'm1', anchor: { from: 't3', to: 't3' }, value: 'まな' },
-      { type: 'ref', id: 'ref-1', position: { after: 't3' }, format: 'iroha-katakana' },
+      {
+        type: 'ref',
+        id: 'ref-1',
+        position: { blockId: 'b1', after: 't3' },
+        format: 'iroha-katakana',
+      },
     ]);
 
     const result = getMarksForToken(doc, 't3');
@@ -290,7 +296,12 @@ describe('Playground scenario: yomiganaを追加してもrefは残る', () => {
   it('refがついているトークンにyomiganaを追加してもrefは削除されない', () => {
     // Initial state: token has ref mark
     const initialDoc = createTestDocument([
-      { type: 'ref', id: 'ref-1', position: { after: 't3' }, format: 'iroha-katakana' },
+      {
+        type: 'ref',
+        id: 'ref-1',
+        position: { blockId: 'b1', after: 't3' },
+        format: 'iroha-katakana',
+      },
     ]);
 
     // Simulate handleKanaApply: check for existing yomigana, remove if found, add new
@@ -321,7 +332,12 @@ describe('Playground scenario: yomiganaを追加してもrefは残る', () => {
     // Initial state: token has both yomigana and ref
     const initialDoc = createTestDocument([
       { type: 'yomigana', id: 'm1', anchor: { from: 't3', to: 't3' }, value: 'がく' },
-      { type: 'ref', id: 'ref-1', position: { after: 't3' }, format: 'iroha-katakana' },
+      {
+        type: 'ref',
+        id: 'ref-1',
+        position: { blockId: 'b1', after: 't3' },
+        format: 'iroha-katakana',
+      },
     ]);
 
     // Simulate handleKanaApply: find and remove existing yomigana, add new
@@ -430,7 +446,7 @@ describe('getMarksForRange', () => {
 
   it('position ベースのマーク（kutoten）が範囲内なら取得する', () => {
     const doc = createTestDocument([
-      { type: 'kutoten', id: 'm1', position: { after: 't2' }, value: '。' },
+      { type: 'kutoten', id: 'm1', position: { blockId: 'b1', after: 't2' }, value: '。' },
     ]);
 
     const result = getMarksForRange(doc, 't1', 't3');
@@ -439,7 +455,7 @@ describe('getMarksForRange', () => {
 
   it('position ベースのマークが範囲外なら取得しない', () => {
     const doc = createTestDocument([
-      { type: 'kutoten', id: 'm1', position: { after: 't3' }, value: '。' },
+      { type: 'kutoten', id: 'm1', position: { blockId: 'b1', after: 't3' }, value: '。' },
     ]);
 
     const result = getMarksForRange(doc, 't1', 't2');
@@ -470,7 +486,7 @@ describe('getMarksForRange', () => {
     const doc = createTestDocument([
       { type: 'yomigana', id: 'm1', anchor: { from: 't1', to: 't3' }, value: 'しいわく' },
       { type: 'kaeri', id: 'm2', anchor: { from: 't2', to: 't2' }, value: 'レ' },
-      { type: 'kutoten', id: 'm3', position: { after: 't2' }, value: '。' },
+      { type: 'kutoten', id: 'm3', position: { blockId: 'b1', after: 't2' }, value: '。' },
     ]);
 
     const rangeResult = getMarksForRange(doc, 't2', 't2');

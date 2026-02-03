@@ -10,6 +10,7 @@ import type { SKAMDocument } from '../index.js';
 const validMinimalDocument: SKAMDocument = {
   format: 'skam@0.1',
   tokens: [{ id: 't1', text: '學' }],
+  blocks: [{ id: 'b1', tokenIds: ['t1'] }],
   marks: [],
   readings: [],
 };
@@ -20,6 +21,7 @@ const validCompleteDocument: SKAMDocument = {
     { id: 't1', text: '学' },
     { id: 't2', text: '而' },
   ],
+  blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
   marks: [
     { type: 'okurigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'びて' },
     { type: 'kaeri', id: 'm2', anchor: { from: 't2', to: 't2' }, value: 'レ' },
@@ -51,6 +53,7 @@ describe('validateSKAMDocument', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '國' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [
           { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: 'レ' },
           { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'び' },
@@ -58,7 +61,7 @@ describe('validateSKAMDocument', () => {
           { type: 'okimoji', anchor: { from: 't1', to: 't1' } },
           { type: 'joji', anchor: { from: 't1', to: 't1' } },
           { type: 'soegana', anchor: { from: 't1', to: 't1' }, value: 'を' },
-          { type: 'kutoten', position: { after: 't1' }, value: '。' },
+          { type: 'kutoten', position: { blockId: 'b1', after: 't1' }, value: '。' },
           { type: 'emphasis', anchor: { from: 't1', to: 't1' } },
           {
             type: 'saidoku',
@@ -73,7 +76,7 @@ describe('validateSKAMDocument', () => {
           },
           { type: 'tateten', anchor: { from: 't1', to: 't1' } },
           { type: 'highlight', anchor: { from: 't1', to: 't1' } },
-          { type: 'ref', position: { after: 't1' }, label: '(A)' },
+          { type: 'ref', position: { blockId: 'b1', after: 't1' }, label: '(A)' },
         ],
         readings: [],
       };
@@ -86,6 +89,7 @@ describe('validateSKAMDocument', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [
           { type: 'highlight', anchor: { from: 't1', to: 't1' }, style: 'wavy', ref: 'ref-1' },
         ],
@@ -100,7 +104,8 @@ describe('validateSKAMDocument', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'ref', position: { after: 't1' }, label: '(A)' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [{ type: 'ref', position: { blockId: 'b1', after: 't1' }, label: '(A)' }],
         readings: [],
       };
 
@@ -112,7 +117,8 @@ describe('validateSKAMDocument', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'ref', position: { after: 't1' }, format: 'alpha-upper' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [{ type: 'ref', position: { blockId: 'b1', after: 't1' }, format: 'alpha-upper' }],
         readings: [],
       };
 
@@ -124,7 +130,8 @@ describe('validateSKAMDocument', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'ref', position: { after: 't1' }, content: '注釈テキスト' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [{ type: 'ref', position: { blockId: 'b1', after: 't1' }, content: '注釈テキスト' }],
         readings: [],
       };
 
@@ -136,10 +143,11 @@ describe('validateSKAMDocument', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [
           {
             type: 'ref',
-            position: { after: 't1' },
+            position: { blockId: 'b1', after: 't1' },
             format: 'numeric-bracket',
             content: '注釈テキスト',
           },
@@ -157,6 +165,7 @@ describe('validateSKAMDocument', () => {
         const doc: SKAMDocument = {
           format: 'skam@0.1',
           tokens: [{ id: 't1', text: '學' }],
+          blocks: [{ id: 'b1', tokenIds: ['t1'] }],
           marks: [{ type: 'highlight', anchor: { from: 't1', to: 't1' }, style }],
           readings: [],
         };
@@ -183,7 +192,8 @@ describe('validateSKAMDocument', () => {
         const doc: SKAMDocument = {
           format: 'skam@0.1',
           tokens: [{ id: 't1', text: '學' }],
-          marks: [{ type: 'ref', position: { after: 't1' }, format }],
+          blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+          marks: [{ type: 'ref', position: { blockId: 'b1', after: 't1' }, format }],
           readings: [],
         };
 
@@ -196,9 +206,10 @@ describe('validateSKAMDocument', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [
-          { type: 'kutoten', position: { after: 't1' }, value: '。', kind: 'ku' },
-          { type: 'kutoten', position: { after: 't1' }, value: '、', kind: 'ten' },
+          { type: 'kutoten', position: { blockId: 'b1', after: 't1' }, value: '。', kind: 'ku' },
+          { type: 'kutoten', position: { blockId: 'b1', after: 't1' }, value: '、', kind: 'ten' },
         ],
         readings: [],
       };
@@ -211,6 +222,7 @@ describe('validateSKAMDocument', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [
           { type: 'emphasis', anchor: { from: 't1', to: 't1' } },
           { type: 'emphasis', anchor: { from: 't1', to: 't1' }, style: 'sesame' },
@@ -226,6 +238,7 @@ describe('validateSKAMDocument', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [],
         readings: [
           { kind: 'kundoku', text: '学ぶ' },
@@ -242,6 +255,7 @@ describe('validateSKAMDocument', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '將' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [
           {
             type: 'saidoku',
@@ -263,6 +277,7 @@ describe('validateSKAMDocument', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '國' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [
           {
             type: 'okototen',
@@ -306,6 +321,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.2',
         tokens: [],
+        blocks: [],
         marks: [],
         readings: [],
       };
@@ -320,6 +336,7 @@ describe('validateSKAMDocument', () => {
     it('should reject missing format', () => {
       const doc = {
         tokens: [],
+        blocks: [],
         marks: [],
         readings: [],
       };
@@ -336,6 +353,7 @@ describe('validateSKAMDocument', () => {
     it('should reject missing tokens', () => {
       const doc = {
         format: 'skam@0.1',
+        blocks: [],
         marks: [],
         readings: [],
       };
@@ -351,6 +369,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: [] }],
         marks: [],
         readings: [],
       };
@@ -366,6 +385,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [],
         readings: [],
       };
@@ -384,6 +404,7 @@ describe('validateSKAMDocument', () => {
           { id: 't1', text: '學' },
           { id: 't1', text: '而' },
         ],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [],
         readings: [],
       };
@@ -396,11 +417,255 @@ describe('validateSKAMDocument', () => {
     });
   });
 
+  describe('無効なドキュメント - blocks', () => {
+    it('should reject missing blocks', () => {
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [],
+        marks: [],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.path === 'blocks')).toBe(true);
+      }
+    });
+
+    it('should reject empty blocks with non-empty tokens', () => {
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        blocks: [],
+        marks: [],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.path === 'blocks')).toBe(true);
+      }
+    });
+
+    it('should reject block without id', () => {
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ tokenIds: ['t1'] }],
+        marks: [],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.path === 'blocks[0].id')).toBe(true);
+      }
+    });
+
+    it('should reject block without tokenIds', () => {
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1' }],
+        marks: [],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.path === 'blocks[0].tokenIds')).toBe(true);
+      }
+    });
+
+    it('should reject duplicate block IDs', () => {
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [
+          { id: 't1', text: '學' },
+          { id: 't2', text: '而' },
+        ],
+        blocks: [
+          { id: 'b1', tokenIds: ['t1'] },
+          { id: 'b1', tokenIds: ['t2'] },
+        ],
+        marks: [],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.kind === 'DUPLICATE_ID')).toBe(true);
+      }
+    });
+
+    it('should reject token referenced by multiple blocks', () => {
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        blocks: [
+          { id: 'b1', tokenIds: ['t1'] },
+          { id: 'b2', tokenIds: ['t1'] },
+        ],
+        marks: [],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.message.includes('already belongs to block'))).toBe(
+          true
+        );
+      }
+    });
+
+    it('should reject orphaned token (not in any block)', () => {
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [
+          { id: 't1', text: '學' },
+          { id: 't2', text: '而' },
+        ],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.message.includes('does not belong to any block'))).toBe(
+          true
+        );
+      }
+    });
+
+    it('should reject block with unknown token reference', () => {
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1', 'unknown'] }],
+        marks: [],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.kind === 'UNKNOWN_TOKEN_REF')).toBe(true);
+      }
+    });
+
+    it('should accept empty blocks with empty tokens', () => {
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [],
+        blocks: [],
+        marks: [],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(true);
+    });
+  });
+
+  describe('無効なドキュメント - anchor block constraints', () => {
+    it('should reject anchor spanning different blocks', () => {
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [
+          { id: 't1', text: '學' },
+          { id: 't2', text: '而' },
+        ],
+        blocks: [
+          { id: 'b1', tokenIds: ['t1'] },
+          { id: 'b2', tokenIds: ['t2'] },
+        ],
+        marks: [{ type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'びて' }],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.kind === 'INVALID_ANCHOR')).toBe(true);
+      }
+    });
+
+    it('should reject anchor where from appears after to in block', () => {
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [
+          { id: 't1', text: '學' },
+          { id: 't2', text: '而' },
+        ],
+        blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
+        marks: [{ type: 'okurigana', anchor: { from: 't2', to: 't1' }, value: 'びて' }],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.kind === 'INVALID_ANCHOR')).toBe(true);
+      }
+    });
+
+    it('should reject position.blockId referencing non-existent block', () => {
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [{ type: 'kutoten', position: { blockId: 'b999', after: 't1' }, value: '。' }],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.message.includes('Block "b999" not found'))).toBe(true);
+      }
+    });
+
+    it('should reject position.after in wrong block', () => {
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [
+          { id: 't1', text: '學' },
+          { id: 't2', text: '而' },
+        ],
+        blocks: [
+          { id: 'b1', tokenIds: ['t1'] },
+          { id: 'b2', tokenIds: ['t2'] },
+        ],
+        marks: [{ type: 'kutoten', position: { blockId: 'b1', after: 't2' }, value: '。' }],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(
+          result.errors.some(
+            (e) => e.message.includes('belongs to block "b2"') && e.message.includes('not "b1"')
+          )
+        ).toBe(true);
+      }
+    });
+  });
+
   describe('無効なドキュメント - marks', () => {
     it('should reject missing marks', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [],
+        blocks: [],
         readings: [],
       };
 
@@ -415,6 +680,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [{ type: 'unknown', anchor: { from: 't1', to: 't1' } }],
         readings: [],
       };
@@ -430,6 +696,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [{ type: 'kaeri', value: 'レ' }],
         readings: [],
       };
@@ -445,6 +712,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [{ type: 'kaeri', anchor: { from: 'unknown', to: 't1' }, value: 'レ' }],
         readings: [],
       };
@@ -460,6 +728,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [{ type: 'kaeri', anchor: { from: 't1', to: 't1' } }],
         readings: [],
       };
@@ -475,6 +744,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '將' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [{ type: 'saidoku', anchor: { from: 't1', to: 't1' } }],
         readings: [],
       };
@@ -490,6 +760,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '國' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [{ type: 'okototen', anchor: { from: 't1', to: 't1' }, shape: 'dot' }],
         readings: [],
       };
@@ -505,6 +776,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '國' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [
           {
             type: 'okototen',
@@ -526,6 +798,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '國' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [
           {
             type: 'okototen',
@@ -548,6 +821,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [
           { type: 'kaeri', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'レ' },
           { type: 'kaeri', id: 'm1', anchor: { from: 't1', to: 't1' }, value: '一' },
@@ -566,7 +840,15 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'kutoten', position: { after: 't1' }, value: '。', kind: 'invalid' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [
+          {
+            type: 'kutoten',
+            position: { blockId: 'b1', after: 't1' },
+            value: '。',
+            kind: 'invalid',
+          },
+        ],
         readings: [],
       };
 
@@ -581,6 +863,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [{ type: 'highlight', anchor: { from: 't1', to: 't1' }, style: 'invalid' }],
         readings: [],
       };
@@ -596,7 +879,8 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'ref', position: { after: 't1' } }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [{ type: 'ref', position: { blockId: 'b1', after: 't1' } }],
         readings: [],
       };
 
@@ -613,7 +897,8 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'ref', position: { after: 't1' }, format: 'invalid' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [{ type: 'ref', position: { blockId: 'b1', after: 't1' }, format: 'invalid' }],
         readings: [],
       };
 
@@ -628,7 +913,15 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'ref', position: { after: 't1' }, label: '(A)', format: 'alpha-upper' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [
+          {
+            type: 'ref',
+            position: { blockId: 'b1', after: 't1' },
+            label: '(A)',
+            format: 'alpha-upper',
+          },
+        ],
         readings: [],
       };
 
@@ -643,6 +936,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [{ type: 'kutoten', anchor: { from: 't1', to: 't1' }, value: '。' }],
         readings: [],
       };
@@ -658,6 +952,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [{ type: 'ref', anchor: { from: 't1', to: 't1' }, label: '(A)' }],
         readings: [],
       };
@@ -673,7 +968,8 @@ describe('validateSKAMDocument', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'kutoten', position: {}, value: '。' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [{ type: 'kutoten', position: { blockId: 'b1' }, value: '。' }],
         readings: [],
       };
 
@@ -685,7 +981,8 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'kutoten', position: { after: 'unknown' }, value: '。' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [{ type: 'kutoten', position: { blockId: 'b1', after: 'unknown' }, value: '。' }],
         readings: [],
       };
 
@@ -703,7 +1000,8 @@ describe('validateSKAMDocument', () => {
           { id: 't1', text: '學' },
           { id: 't2', text: '而' },
         ],
-        marks: [{ type: 'kutoten', position: { after: 't1' }, value: '。' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
+        marks: [{ type: 'kutoten', position: { blockId: 'b1', after: 't1' }, value: '。' }],
         readings: [],
       };
 
@@ -715,7 +1013,8 @@ describe('validateSKAMDocument', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'ref', position: {}, label: '(A)' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [{ type: 'ref', position: { blockId: 'b1' }, label: '(A)' }],
         readings: [],
       };
 
@@ -727,12 +1026,29 @@ describe('validateSKAMDocument', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'kutoten', position: { after: 't1' }, value: '。' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [{ type: 'kutoten', position: { blockId: 'b1', after: 't1' }, value: '。' }],
         readings: [],
       };
 
       const result = validateSKAMDocument(doc);
       expect(result.valid).toBe(true);
+    });
+
+    it('should reject position without blockId', () => {
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [{ type: 'kutoten', position: { after: 't1' }, value: '。' }],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.path === 'marks[0].position.blockId')).toBe(true);
+      }
     });
   });
 
@@ -741,6 +1057,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [],
+        blocks: [],
         marks: [],
       };
 
@@ -755,6 +1072,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [],
+        blocks: [],
         marks: [],
         readings: [{ kind: 'unknown', text: 'test' }],
       };
@@ -770,6 +1088,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [],
+        blocks: [],
         marks: [],
         readings: [{ kind: 'kakikudashi' }],
       };
@@ -787,6 +1106,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [],
         readings: [],
         derivations: [{ method: 'manual', result: ['t1'] }],
@@ -803,6 +1123,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [],
         readings: [],
         derivations: [{ kind: 'readingOrder', result: ['t1'] }],
@@ -819,6 +1140,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [],
         readings: [],
         derivations: [{ kind: 'readingOrder', method: 'manual' }],
@@ -835,6 +1157,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [],
         readings: [],
         derivations: [{ kind: 'readingOrder', method: 'manual', result: ['t1', 'unknown'] }],
@@ -853,6 +1176,7 @@ describe('validateSKAMDocument', () => {
       const doc = {
         format: 'invalid',
         tokens: 'not-array',
+        blocks: 'not-array',
         marks: 'not-array',
         readings: 'not-array',
       };

@@ -33,7 +33,8 @@ describe('round-trip - basic', () => {
   it('should produce XML that can be re-parsed (minimal)', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '學' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [],
       readings: [],
     };
@@ -49,9 +50,10 @@ describe('round-trip - basic', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '學', ext: { blockId: 'b1' } },
-        { id: 't2', text: '而', ext: { blockId: 'b1' } },
+        { id: 't1', text: '學' },
+        { id: 't2', text: '而' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
       marks: [
         {
           type: 'kaeri',
@@ -74,7 +76,8 @@ describe('round-trip - basic', () => {
   it('should produce XML that can be re-parsed (kun attributes)', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '學' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [
         {
           type: 'yomigana',
@@ -114,7 +117,8 @@ describe('round-trip - ref', () => {
   it('should round-trip ref with yomigana on same token', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '學' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [
         {
           type: 'yomigana',
@@ -125,7 +129,7 @@ describe('round-trip - ref', () => {
         {
           type: 'ref',
           id: 'ref-1',
-          position: { after: 't1' },
+          position: { blockId: 'b1', after: 't1' },
           format: 'iroha-katakana',
         } as RefMark,
       ],
@@ -153,12 +157,13 @@ describe('round-trip - new marks', () => {
   it('should round-trip kutoten', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '學' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [
         {
           type: 'kutoten',
           id: 'm1',
-          position: { after: 't1' },
+          position: { blockId: 'b1', after: 't1' },
           value: '。',
         } as KutotenMark,
       ],
@@ -178,9 +183,10 @@ describe('round-trip - new marks', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '學', ext: { blockId: 'b1' } },
-        { id: 't2', text: '而', ext: { blockId: 'b1' } },
+        { id: 't1', text: '學' },
+        { id: 't2', text: '而' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
       marks: [
         {
           type: 'emphasis',
@@ -203,9 +209,10 @@ describe('round-trip - new marks', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '學', ext: { blockId: 'b1' } },
-        { id: 't2', text: '而', ext: { blockId: 'b1' } },
+        { id: 't1', text: '學' },
+        { id: 't2', text: '而' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
       marks: [
         {
           type: 'highlight',
@@ -229,9 +236,10 @@ describe('round-trip - new marks', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '國', ext: { blockId: 'b1' } },
-        { id: 't2', text: '家', ext: { blockId: 'b1' } },
+        { id: 't1', text: '國' },
+        { id: 't2', text: '家' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
       marks: [
         {
           type: 'tateten',
@@ -252,7 +260,8 @@ describe('round-trip - new marks', () => {
   it('should round-trip okimoji', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '而', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '而' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [
         {
           type: 'okimoji',
@@ -273,7 +282,8 @@ describe('round-trip - new marks', () => {
   it('should round-trip joji', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '之', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '之' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [
         {
           type: 'joji',
@@ -294,7 +304,8 @@ describe('round-trip - new marks', () => {
   it('should round-trip saidoku', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '將', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '將' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [
         {
           type: 'saidoku',
@@ -320,7 +331,8 @@ describe('round-trip - new marks', () => {
   it('should round-trip okototen', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '學' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [
         {
           type: 'okototen',
@@ -353,12 +365,13 @@ describe('round-trip - multi-token', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '夜', ext: { blockId: 'b1' } },
-        { id: 't2', text: '來', ext: { blockId: 'b1' } },
-        { id: 't3', text: '風', ext: { blockId: 'b1' } },
-        { id: 't4', text: '雨', ext: { blockId: 'b1' } },
-        { id: 't5', text: '聲', ext: { blockId: 'b1' } },
+        { id: 't1', text: '夜' },
+        { id: 't2', text: '來' },
+        { id: 't3', text: '風' },
+        { id: 't4', text: '雨' },
+        { id: 't5', text: '聲' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3', 't4', 't5'] }],
       marks: [
         {
           type: 'soegana',
@@ -389,9 +402,10 @@ describe('round-trip - multi-token', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '風', ext: { blockId: 'b1' } },
-        { id: 't2', text: '雨', ext: { blockId: 'b1' } },
+        { id: 't1', text: '風' },
+        { id: 't2', text: '雨' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
       marks: [
         {
           type: 'yomigana',
@@ -420,9 +434,10 @@ describe('round-trip - multi-token', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '風', ext: { blockId: 'b1' } },
-        { id: 't2', text: '雨', ext: { blockId: 'b1' } },
+        { id: 't1', text: '風' },
+        { id: 't2', text: '雨' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
       marks: [
         {
           type: 'okurigana',
@@ -447,9 +462,10 @@ describe('round-trip - multi-token', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '風', ext: { blockId: 'b1' } },
-        { id: 't2', text: '雨', ext: { blockId: 'b1' } },
+        { id: 't1', text: '風' },
+        { id: 't2', text: '雨' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
       marks: [
         {
           type: 'yomigana',
@@ -485,10 +501,11 @@ describe('round-trip - multi-token', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '學', ext: { blockId: 'b1' } },
-        { id: 't2', text: '而', ext: { blockId: 'b1' } },
-        { id: 't3', text: '時', ext: { blockId: 'b1' } },
+        { id: 't1', text: '學' },
+        { id: 't2', text: '而' },
+        { id: 't3', text: '時' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
       marks: [
         {
           type: 'emphasis',
@@ -520,10 +537,11 @@ describe('round-trip - multi-token', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '國', ext: { blockId: 'b1' } },
-        { id: 't2', text: '家', ext: { blockId: 'b1' } },
-        { id: 't3', text: '之', ext: { blockId: 'b1' } },
+        { id: 't1', text: '國' },
+        { id: 't2', text: '家' },
+        { id: 't3', text: '之' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
       marks: [
         {
           type: 'tateten',
@@ -554,10 +572,11 @@ describe('round-trip - multi-token', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '學', ext: { blockId: 'b1' } },
-        { id: 't2', text: '而', ext: { blockId: 'b1' } },
-        { id: 't3', text: '時', ext: { blockId: 'b1' } },
+        { id: 't1', text: '學' },
+        { id: 't2', text: '而' },
+        { id: 't3', text: '時' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
       marks: [
         {
           type: 'highlight',
@@ -585,12 +604,13 @@ describe('round-trip - multi-token', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '處', ext: { blockId: 'b1' } },
-        { id: 't2', text: '處', ext: { blockId: 'b1' } },
-        { id: 't3', text: '聞', ext: { blockId: 'b1' } },
-        { id: 't4', text: '啼', ext: { blockId: 'b1' } },
-        { id: 't5', text: '鳥', ext: { blockId: 'b1' } },
+        { id: 't1', text: '處' },
+        { id: 't2', text: '處' },
+        { id: 't3', text: '聞' },
+        { id: 't4', text: '啼' },
+        { id: 't5', text: '鳥' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3', 't4', 't5'] }],
       marks: [
         {
           type: 'yomigana',
@@ -652,9 +672,10 @@ describe('round-trip - multi-token', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '國', ext: { blockId: 'b1' } },
-        { id: 't2', text: '家', ext: { blockId: 'b1' } },
+        { id: 't1', text: '國' },
+        { id: 't2', text: '家' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
       marks: [
         {
           type: 'tateten',
@@ -680,10 +701,11 @@ describe('round-trip - multi-token', () => {
     const originalDoc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '風', ext: { blockId: 'b1' } },
-        { id: 't2', text: '雨', ext: { blockId: 'b1' } },
-        { id: 't3', text: '聲', ext: { blockId: 'b1' } },
+        { id: 't1', text: '風' },
+        { id: 't2', text: '雨' },
+        { id: 't3', text: '聲' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
       marks: [
         {
           type: 'emphasis',

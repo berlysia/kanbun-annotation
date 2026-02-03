@@ -13,6 +13,7 @@ describe('SKAM Examples', () => {
           { id: 't4', text: '習' },
           { id: 't5', text: '之' },
         ],
+        blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3', 't4', 't5'] }],
         marks: [
           { type: 'yomigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'まな' },
           { type: 'okurigana', id: 'm2', anchor: { from: 't1', to: 't1' }, value: 'びて' },
@@ -38,6 +39,7 @@ describe('SKAM Examples', () => {
           { id: 't1', text: '將' },
           { id: 't2', text: '死' },
         ],
+        blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
         marks: [
           {
             type: 'saidoku',
@@ -68,6 +70,7 @@ describe('SKAM Examples', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '國' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [
           {
             type: 'okototen',
@@ -95,7 +98,16 @@ describe('SKAM Examples', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'kutoten', id: 'm1', position: { after: 't1' }, value: '。', kind: 'ku' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [
+          {
+            type: 'kutoten',
+            id: 'm1',
+            position: { blockId: 'b1', after: 't1' },
+            value: '。',
+            kind: 'ku',
+          },
+        ],
         readings: [],
       };
 
@@ -103,7 +115,7 @@ describe('SKAM Examples', () => {
       expect(firstMark.type).toBe('kutoten');
       if (firstMark.type === 'kutoten') {
         expect(firstMark.kind).toBe('ku');
-        expect(firstMark.position).toEqual({ after: 't1' });
+        expect(firstMark.position).toEqual({ blockId: 'b1', after: 't1' });
       }
     });
   });
@@ -119,6 +131,7 @@ describe('SKAM Examples', () => {
           { id: 't4', text: '大' },
           { id: 't5', text: '事' },
         ],
+        blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3', 't4', 't5'] }],
         marks: [
           { type: 'tateten', id: 'm1', anchor: { from: 't1', to: 't2' } },
           { type: 'tateten', id: 'm2', anchor: { from: 't4', to: 't5' } },
@@ -146,6 +159,7 @@ describe('SKAM Examples', () => {
           { id: 't3', text: '不' },
           { id: 't4', text: '學' },
         ],
+        blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3', 't4'] }],
         marks: [
           { type: 'kaeri', id: 'm1', anchor: { from: 't2', to: 't2' }, value: '二' },
           { type: 'kaeri', id: 'm2', anchor: { from: 't4', to: 't4' }, value: '一レ' },

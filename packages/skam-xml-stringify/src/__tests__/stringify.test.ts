@@ -25,7 +25,8 @@ describe('stringify - basic', () => {
   it('should stringify minimal document', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '學' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [],
       readings: [],
     };
@@ -34,14 +35,15 @@ describe('stringify - basic', () => {
 
     expect(xml).toContain('<?xml version="1.0" encoding="UTF-8"?>');
     expect(xml).toContain('<skam:doc xmlns:skam="urn:skam:1">');
-    expect(xml).toContain('<skam:block>學</skam:block>');
+    expect(xml).toContain('<skam:block xml:id="b1">學</skam:block>');
     expect(xml).toContain('</skam:doc>');
   });
 
   it('should omit XML declaration when xmlDeclaration is false', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '學' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [],
       readings: [],
     };
@@ -55,7 +57,8 @@ describe('stringify - basic', () => {
   it('should use custom indent size', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '學' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [],
       readings: [],
     };
@@ -76,10 +79,11 @@ describe('stringify - kaeri', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '學', ext: { blockId: 'b1' } },
-        { id: 't2', text: '而', ext: { blockId: 'b1' } },
-        { id: 't3', text: '時', ext: { blockId: 'b1' } },
+        { id: 't1', text: '學' },
+        { id: 't2', text: '而' },
+        { id: 't3', text: '時' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
       marks: [
         {
           type: 'kaeri',
@@ -100,10 +104,11 @@ describe('stringify - kaeri', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '甲', ext: { blockId: 'b1' } },
-        { id: 't2', text: '乙', ext: { blockId: 'b1' } },
-        { id: 't3', text: '丙', ext: { blockId: 'b1' } },
+        { id: 't1', text: '甲' },
+        { id: 't2', text: '乙' },
+        { id: 't3', text: '丙' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
       marks: [
         { type: 'kaeri', id: 'm1', anchor: { from: 't1', to: 't1' }, value: '一' } as KaeriMark,
         { type: 'kaeri', id: 'm2', anchor: { from: 't2', to: 't2' }, value: '二' } as KaeriMark,
@@ -129,9 +134,10 @@ describe('stringify - okurigana', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '學', ext: { blockId: 'b1' } },
-        { id: 't2', text: '而', ext: { blockId: 'b1' } },
+        { id: 't1', text: '學' },
+        { id: 't2', text: '而' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
       marks: [
         {
           type: 'okurigana',
@@ -157,7 +163,8 @@ describe('stringify - yomigana', () => {
   it('should stringify yomigana', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '學' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [
         {
           type: 'yomigana',
@@ -183,7 +190,8 @@ describe('stringify - soegana', () => {
   it('should stringify soegana', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '之', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '之' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [
         {
           type: 'soegana',
@@ -209,7 +217,8 @@ describe('stringify - combined attributes', () => {
   it('should stringify yomi and okuri on same token', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '學' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [
         {
           type: 'yomigana',
@@ -237,7 +246,8 @@ describe('stringify - combined attributes', () => {
   it('should stringify yomi, okuri, and soe on same token', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '學' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [
         {
           type: 'yomigana',
@@ -278,10 +288,14 @@ describe('stringify - multiple blocks', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '學', ext: { blockId: 'b1' } },
-        { id: 't2', text: '而', ext: { blockId: 'b1' } },
-        { id: 't3', text: '時', ext: { blockId: 'b2' } },
-        { id: 't4', text: '習', ext: { blockId: 'b2' } },
+        { id: 't1', text: '學' },
+        { id: 't2', text: '而' },
+        { id: 't3', text: '時' },
+        { id: 't4', text: '習' },
+      ],
+      blocks: [
+        { id: 'b1', tokenIds: ['t1', 't2'] },
+        { id: 'b2', tokenIds: ['t3', 't4'] },
       ],
       marks: [],
       readings: [],
@@ -289,8 +303,8 @@ describe('stringify - multiple blocks', () => {
 
     const xml = stringify(doc);
 
-    expect(xml).toContain('<skam:block>學而</skam:block>');
-    expect(xml).toContain('<skam:block>時習</skam:block>');
+    expect(xml).toContain('<skam:block xml:id="b1">學而</skam:block>');
+    expect(xml).toContain('<skam:block xml:id="b2">時習</skam:block>');
   });
 });
 
@@ -303,14 +317,15 @@ describe('stringify - kutoten', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '學', ext: { blockId: 'b1' } },
-        { id: 't2', text: '而', ext: { blockId: 'b1' } },
+        { id: 't1', text: '學' },
+        { id: 't2', text: '而' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
       marks: [
         {
           type: 'kutoten',
           id: 'm1',
-          position: { after: 't2' },
+          position: { blockId: 'b1', after: 't2' },
           value: '。',
         } as KutotenMark,
       ],
@@ -325,12 +340,13 @@ describe('stringify - kutoten', () => {
   it('should stringify kutoten with kind', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '學' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [
         {
           type: 'kutoten',
           id: 'm1',
-          position: { after: 't1' },
+          position: { blockId: 'b1', after: 't1' },
           value: '、',
           kind: 'ten',
         } as KutotenMark,
@@ -354,9 +370,10 @@ describe('stringify - okimoji', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '學', ext: { blockId: 'b1' } },
-        { id: 't2', text: '而', ext: { blockId: 'b1' } },
+        { id: 't1', text: '學' },
+        { id: 't2', text: '而' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
       marks: [
         {
           type: 'okimoji',
@@ -382,9 +399,10 @@ describe('stringify - joji', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '學', ext: { blockId: 'b1' } },
-        { id: 't2', text: '之', ext: { blockId: 'b1' } },
+        { id: 't1', text: '學' },
+        { id: 't2', text: '之' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
       marks: [
         {
           type: 'joji',
@@ -409,7 +427,8 @@ describe('stringify - okototen', () => {
   it('should stringify okototen', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '學' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [
         {
           type: 'okototen',
@@ -443,7 +462,8 @@ describe('stringify - saidoku', () => {
   it('should stringify saidoku', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '將', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '將' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [
         {
           type: 'saidoku',
@@ -477,9 +497,10 @@ describe('stringify - emphasis', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '學', ext: { blockId: 'b1' } },
-        { id: 't2', text: '而', ext: { blockId: 'b1' } },
+        { id: 't1', text: '學' },
+        { id: 't2', text: '而' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
       marks: [
         {
           type: 'emphasis',
@@ -499,10 +520,11 @@ describe('stringify - emphasis', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '學', ext: { blockId: 'b1' } },
-        { id: 't2', text: '而', ext: { blockId: 'b1' } },
-        { id: 't3', text: '時', ext: { blockId: 'b1' } },
+        { id: 't1', text: '學' },
+        { id: 't2', text: '而' },
+        { id: 't3', text: '時' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
       marks: [
         {
           type: 'emphasis',
@@ -521,7 +543,8 @@ describe('stringify - emphasis', () => {
   it('should stringify emphasis with style', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '學' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [
         {
           type: 'emphasis',
@@ -549,10 +572,11 @@ describe('stringify - tateten', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '國', ext: { blockId: 'b1' } },
-        { id: 't2', text: '家', ext: { blockId: 'b1' } },
-        { id: 't3', text: '之', ext: { blockId: 'b1' } },
+        { id: 't1', text: '國' },
+        { id: 't2', text: '家' },
+        { id: 't3', text: '之' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
       marks: [
         {
           type: 'tateten',
@@ -578,10 +602,11 @@ describe('stringify - highlight', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '學', ext: { blockId: 'b1' } },
-        { id: 't2', text: '而', ext: { blockId: 'b1' } },
-        { id: 't3', text: '時', ext: { blockId: 'b1' } },
+        { id: 't1', text: '學' },
+        { id: 't2', text: '而' },
+        { id: 't3', text: '時' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
       marks: [
         {
           type: 'highlight',
@@ -602,9 +627,10 @@ describe('stringify - highlight', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '學', ext: { blockId: 'b1' } },
-        { id: 't2', text: '而', ext: { blockId: 'b1' } },
+        { id: 't1', text: '學' },
+        { id: 't2', text: '而' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
       marks: [
         {
           type: 'highlight',
@@ -633,12 +659,13 @@ describe('stringify - ref', () => {
   it('should stringify ref with format (empty element)', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '學' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [
         {
           type: 'ref',
           id: 'ref-1',
-          position: { after: 't1' },
+          position: { blockId: 'b1', after: 't1' },
           format: 'iroha-katakana',
         } as RefMark,
       ],
@@ -653,12 +680,13 @@ describe('stringify - ref', () => {
   it('should stringify ref with label', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '學' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [
         {
           type: 'ref',
           id: 'ref-1',
-          position: { after: 't1' },
+          position: { blockId: 'b1', after: 't1' },
           label: '(※)',
         } as RefMark,
       ],
@@ -673,7 +701,8 @@ describe('stringify - ref', () => {
   it('should stringify ref with yomigana on same token', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '學' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [
         {
           type: 'yomigana',
@@ -684,7 +713,7 @@ describe('stringify - ref', () => {
         {
           type: 'ref',
           id: 'ref-1',
-          position: { after: 't1' },
+          position: { blockId: 'b1', after: 't1' },
           format: 'iroha-katakana',
         } as RefMark,
       ],
@@ -703,7 +732,8 @@ describe('stringify - ref', () => {
   it('should stringify ref with okurigana on same token', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '學' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [
         {
           type: 'okurigana',
@@ -714,7 +744,7 @@ describe('stringify - ref', () => {
         {
           type: 'ref',
           id: 'ref-1',
-          position: { after: 't1' },
+          position: { blockId: 'b1', after: 't1' },
           format: 'alpha-upper',
         } as RefMark,
       ],
@@ -730,7 +760,8 @@ describe('stringify - ref', () => {
   it('should stringify ref with kaeri on same token', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '學' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [
         {
           type: 'kaeri',
@@ -741,7 +772,7 @@ describe('stringify - ref', () => {
         {
           type: 'ref',
           id: 'ref-1',
-          position: { after: 't1' },
+          position: { blockId: 'b1', after: 't1' },
           format: 'numeric-bracket',
         } as RefMark,
       ],
@@ -764,10 +795,11 @@ describe('stringify - nested range marks', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
-        { id: 't1', text: '國', ext: { blockId: 'b1' } },
-        { id: 't2', text: '家', ext: { blockId: 'b1' } },
-        { id: 't3', text: '之', ext: { blockId: 'b1' } },
+        { id: 't1', text: '國' },
+        { id: 't2', text: '家' },
+        { id: 't3', text: '之' },
       ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
       marks: [
         {
           type: 'emphasis',
@@ -799,7 +831,8 @@ describe('stringify - XML escaping', () => {
   it('should escape special characters in text', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '<>&"\'', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '<>&"\'' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [],
       readings: [],
     };
@@ -812,7 +845,8 @@ describe('stringify - XML escaping', () => {
   it('should escape special characters in attributes', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      tokens: [{ id: 't1', text: '學' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
       marks: [
         {
           type: 'yomigana',

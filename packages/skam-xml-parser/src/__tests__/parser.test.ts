@@ -414,6 +414,33 @@ describe('parse - valid fixtures', () => {
     });
   });
 
+  describe('ref-with-kun.xml', () => {
+    it('should parse ref following kun element', () => {
+      const xml = readFixture('valid', 'ref-with-kun.xml');
+      const doc = parse(xml);
+
+      const yomiganaMarks = doc.marks.filter((m) => m.type === 'yomigana');
+      const refMarks = doc.marks.filter((m) => m.type === 'ref');
+
+      expect(yomiganaMarks).toHaveLength(1);
+      expect(refMarks).toHaveLength(1);
+
+      const yomigana = yomiganaMarks[0]!;
+      const ref = refMarks[0]!;
+
+      // yomigana should anchor to 學
+      expect((yomigana as { value?: string }).value).toBe('まな');
+
+      // ref should anchor to 學 (preceding token)
+      expect(ref.id).toBe('ref-1');
+      expect((ref as { format?: string }).format).toBe('iroha-katakana');
+
+      // Both should anchor to the same token
+      expect(yomigana.anchor.from).toBe(ref.anchor.from);
+      expect(yomigana.anchor.to).toBe(ref.anchor.to);
+    });
+  });
+
   describe('all valid fixtures produce valid SKAMDocument', () => {
     const validFixtures = [
       'minimal.xml',

@@ -750,6 +750,126 @@ describe('stringify - ref', () => {
 
     expect(xml).toContain('label="(※)"');
   });
+
+  it('should stringify ref with yomigana on same token', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      marks: [
+        {
+          type: 'yomigana',
+          id: 'm1',
+          anchor: { from: 't1', to: 't1' },
+          value: 'まな',
+        } as YomiganaMark,
+        {
+          type: 'ref',
+          id: 'ref-1',
+          anchor: { from: 't1', to: 't1' },
+          format: 'iroha-katakana',
+        } as RefMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(doc);
+
+    // yomigana should be in kun element
+    expect(xml).toContain('yomi="まな"');
+    // ref should be after kun element (not inside)
+    expect(xml).toContain('<skam:ref xml:id="ref-1" format="iroha-katakana"/>');
+    // Complete expected pattern: <skam:kun yomi="...">...</skam:kun><skam:ref .../>
+    expect(xml).toContain(
+      '<skam:kun yomi="まな">學</skam:kun><skam:ref xml:id="ref-1" format="iroha-katakana"/>'
+    );
+  });
+
+  it('should stringify ref with okurigana on same token', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      marks: [
+        {
+          type: 'okurigana',
+          id: 'm1',
+          anchor: { from: 't1', to: 't1' },
+          value: 'びて',
+        } as OkuriganaMark,
+        {
+          type: 'ref',
+          id: 'ref-1',
+          anchor: { from: 't1', to: 't1' },
+          format: 'alpha-upper',
+        } as RefMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(doc);
+
+    expect(xml).toContain('okuri="びて"');
+    expect(xml).toContain('<skam:ref xml:id="ref-1" format="alpha-upper"/>');
+  });
+
+  it('should stringify ref with kaeri on same token', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      marks: [
+        {
+          type: 'kaeri',
+          id: 'm1',
+          anchor: { from: 't1', to: 't1' },
+          value: 'レ',
+        } as KaeriMark,
+        {
+          type: 'ref',
+          id: 'ref-1',
+          anchor: { from: 't1', to: 't1' },
+          format: 'numeric-bracket',
+        } as RefMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(doc);
+
+    expect(xml).toContain('<skam:kaeri kind="re"/>');
+    expect(xml).toContain('<skam:ref xml:id="ref-1" format="numeric-bracket"/>');
+  });
+
+  it('should round-trip ref with yomigana on same token', () => {
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學', ext: { blockId: 'b1' } }],
+      marks: [
+        {
+          type: 'yomigana',
+          id: 'm1',
+          anchor: { from: 't1', to: 't1' },
+          value: 'まな',
+        } as YomiganaMark,
+        {
+          type: 'ref',
+          id: 'ref-1',
+          anchor: { from: 't1', to: 't1' },
+          format: 'iroha-katakana',
+        } as RefMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+    const reparsedDoc = parse(xml);
+
+    const yomigana = reparsedDoc.marks.find((m) => m.type === 'yomigana');
+    const ref = reparsedDoc.marks.find((m) => m.type === 'ref');
+
+    expect(yomigana).toBeDefined();
+    expect((yomigana as YomiganaMark).value).toBe('まな');
+    expect(ref).toBeDefined();
+    expect((ref as RefMark).format).toBe('iroha-katakana');
+  });
 });
 
 // ============================================================================

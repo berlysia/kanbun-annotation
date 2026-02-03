@@ -1680,4 +1680,60 @@ describe('data-token-id attributes', () => {
     expect(result.html).toContain('朝廷');
     expect(result.html).toContain('ちょうてい');
   });
+
+  describe('ref with other marks', () => {
+    it('should render both ref and yomigana on same token', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        marks: [
+          {
+            type: 'yomigana',
+            id: 'm1',
+            anchor: { from: 't1', to: 't1' },
+            value: 'まな',
+          },
+          {
+            type: 'ref',
+            id: 'ref-1',
+            anchor: { from: 't1', to: 't1' },
+            format: 'iroha-katakana',
+          },
+        ],
+        readings: [],
+      };
+
+      const result = render(doc, { profile: PROFILES.full });
+
+      // Yomigana should be rendered
+      expect(result.html).toContain('まな');
+      // Ref should be rendered with イ (first iroha character)
+      expect(result.html).toContain('skam-ref');
+      expect(result.html).toContain('イ');
+    });
+
+    it('should render ref before token when position changed', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        marks: [
+          {
+            type: 'ref',
+            id: 'ref-1',
+            anchor: { from: 't1', to: 't1' },
+            format: 'alpha-upper',
+          },
+        ],
+        readings: [],
+      };
+
+      const result = render(doc, { profile: PROFILES.full });
+
+      // Ref marker should appear before the token content
+      const htmlContent = result.html;
+      const refIndex = htmlContent.indexOf('skam-ref');
+      const tokenIndex = htmlContent.indexOf('skam-base');
+      expect(refIndex).toBeLessThan(tokenIndex);
+    });
+  });
 });

@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1">
+  <skam:body>
+    <skam:block>
+      <skam:kun yomi="まな">學</skam:kun><skam:ref xml:id="ref-1" format="iroha-katakana"/>而時
+    </skam:block>
+  </skam:body>
+</skam:doc>

@@ -268,4 +268,81 @@ describe('getMarksForToken', () => {
     expect(result).toHaveLength(1);
     expect(result[0]?.id).toBe('m1');
   });
+
+  it('同じトークンにyomiganaとrefの両方があるとき両方を取得する', () => {
+    const doc = createTestDocument([
+      { type: 'yomigana', id: 'm1', anchor: { from: 't3', to: 't3' }, value: 'まな' },
+      { type: 'ref', id: 'ref-1', anchor: { from: 't3', to: 't3' }, format: 'iroha-katakana' },
+    ]);
+
+    const result = getMarksForToken(doc, 't3');
+
+    expect(result).toHaveLength(2);
+    expect(result.map((m) => m.type)).toContain('yomigana');
+    expect(result.map((m) => m.type)).toContain('ref');
+  });
+});
+
+describe('Playground scenario: yomiganaを追加してもrefは残る', () => {
+  it('refがついているトークンにyomiganaを追加してもrefは削除されない', () => {
+    // Initial state: token has ref mark
+    const initialDoc = createTestDocument([
+      { type: 'ref', id: 'ref-1', anchor: { from: 't3', to: 't3' }, format: 'iroha-katakana' },
+    ]);
+
+    // Simulate handleKanaApply: check for existing yomigana, remove if found, add new
+    const existingYomigana = getMarksForToken(initialDoc, 't3').find((m) => m.type === 'yomigana');
+
+    let newDoc = initialDoc;
+    if (existingYomigana?.id) {
+      newDoc = removeMark(newDoc, existingYomigana.id);
+    }
+
+    // Add new yomigana
+    newDoc = addMark(newDoc, {
+      type: 'yomigana',
+      anchor: { from: 't3', to: 't3' },
+      value: 'まな',
+    });
+
+    // Verify both marks exist
+    expect(newDoc.marks).toHaveLength(2);
+    const refMarks = newDoc.marks.filter((m) => m.type === 'ref');
+    const yomiganaMarks = newDoc.marks.filter((m) => m.type === 'yomigana');
+    expect(refMarks).toHaveLength(1);
+    expect(yomiganaMarks).toHaveLength(1);
+    expect(refMarks[0]?.id).toBe('ref-1');
+  });
+
+  it('yomiganaがついているトークンでyomiganaを変更してもrefは削除されない', () => {
+    // Initial state: token has both yomigana and ref
+    const initialDoc = createTestDocument([
+      { type: 'yomigana', id: 'm1', anchor: { from: 't3', to: 't3' }, value: 'がく' },
+      { type: 'ref', id: 'ref-1', anchor: { from: 't3', to: 't3' }, format: 'iroha-katakana' },
+    ]);
+
+    // Simulate handleKanaApply: find and remove existing yomigana, add new
+    const existingYomigana = getMarksForToken(initialDoc, 't3').find((m) => m.type === 'yomigana');
+
+    let newDoc = initialDoc;
+    if (existingYomigana?.id) {
+      newDoc = removeMark(newDoc, existingYomigana.id);
+    }
+
+    // Add new yomigana with different value
+    newDoc = addMark(newDoc, {
+      type: 'yomigana',
+      anchor: { from: 't3', to: 't3' },
+      value: 'まな',
+    });
+
+    // Verify ref is still present and yomigana is updated
+    expect(newDoc.marks).toHaveLength(2);
+    const refMarks = newDoc.marks.filter((m) => m.type === 'ref');
+    const yomiganaMarks = newDoc.marks.filter((m) => m.type === 'yomigana');
+    expect(refMarks).toHaveLength(1);
+    expect(yomiganaMarks).toHaveLength(1);
+    expect(refMarks[0]?.id).toBe('ref-1');
+    expect((yomiganaMarks[0] as { value?: string }).value).toBe('まな');
+  });
 });

@@ -404,6 +404,10 @@ function generateCommonStyles(prefix: string, vp: string): string {
  * box-shadow を使用して傍線を表示。
  * text-decoration は display: inline-block の子要素には伝播しないため、
  * box-shadow で代替実装。inset を使用し、spread で線の太さを制御。
+ *
+ * 構造:
+ *   .${prefix}-highlight           - 外側コンテナ（パディングで隣行との間隔を確保）
+ *   .${prefix}-highlight-content   - 内側コンテナ（傍線を描画）
  */
 :where(.${prefix}-highlight) {
   position: relative;
@@ -424,10 +428,11 @@ function generateCommonStyles(prefix: string, vp: string): string {
 }
 
 /* highlight内のラベル - 共通部分 */
-:where(.${prefix}-highlight > .${prefix}-ref) {
+:where(.${prefix}-highlight-content > .${prefix}-ref) {
   position: absolute;
   vertical-align: baseline;
   white-space: nowrap;
+  line-height: 1;
 }
 
 /*
@@ -499,20 +504,19 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
 
 /* Highlight (傍線部) - 縦書き: 右側に表示 */
 :where(.${prefix}-highlight) {
+  padding-right: 1em;
+}
+
+:where(.${prefix}-highlight-content) {
+  display: inline-block;
+  position: relative;
+}
+
+:where(.${prefix}-highlight[data-style="solid"]) > :where(.${prefix}-highlight-content) {
   box-shadow: inset -1px 0 0 0 currentColor;
-  padding-right: 0.5em;
 }
 
-/*
- * ルビ・送り仮名・添え仮名がない場合はパディングを詰める
- * 読み仮名(ruby)、送り仮名・添え仮名(suffix-right, suffix-left, suffix-kana)
- * がハイライト内に存在しない場合、本文と傍線の間の余白を0にする
- */
-:where(.${prefix}-highlight:not(:has(.${prefix}-ruby, .${prefix}-suffix-right, .${prefix}-suffix-left, .${prefix}-suffix-kana))) {
-  padding-right: 0;
-}
-
-:where(.${prefix}-highlight[data-style="dotted"]) {
+:where(.${prefix}-highlight[data-style="dotted"]) > :where(.${prefix}-highlight-content) {
   box-shadow: none;
   background-image: linear-gradient(to bottom, currentColor 2px, transparent 2px);
   background-size: 1px 4px;
@@ -520,7 +524,7 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: right;
 }
 
-:where(.${prefix}-highlight[data-style="dashed"]) {
+:where(.${prefix}-highlight[data-style="dashed"]) > :where(.${prefix}-highlight-content) {
   box-shadow: none;
   background-image: linear-gradient(to bottom, currentColor 4px, transparent 4px);
   background-size: 1px 8px;
@@ -528,7 +532,7 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: right;
 }
 
-:where(.${prefix}-highlight[data-style="wavy"]) {
+:where(.${prefix}-highlight[data-style="wavy"]) > :where(.${prefix}-highlight-content) {
   /*
    * Wavy line using repeating SVG pattern
    * SVG内でcurrentColorは効かないため、黒色を直接指定。
@@ -541,13 +545,13 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: right;
 }
 
-:where(.${prefix}-highlight[data-style="double"]) {
+:where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content) {
   box-shadow: none;
-  padding-right: 0.7em;
+  position: relative;
 }
 
-:where(.${prefix}-highlight[data-style="double"])::before,
-:where(.${prefix}-highlight[data-style="double"])::after {
+:where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::before,
+:where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::after {
   content: '';
   position: absolute;
   background-color: currentColor;
@@ -556,18 +560,18 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   width: 1px;
 }
 
-:where(.${prefix}-highlight[data-style="double"])::before {
+:where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::before {
   right: 0;
 }
 
-:where(.${prefix}-highlight[data-style="double"])::after {
+:where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::after {
   right: 3px;
 }
 
 /* Label - 縦書き: 傍線の開始位置（上）に配置 */
-:where(.${prefix}-highlight > .${prefix}-ref) {
+:where(.${prefix}-highlight-content > .${prefix}-ref) {
   inset-inline-start: 0;
-  inset-block-start: -1.5em;
+  inset-block-start: -1em;
 }
 
 /* Ref (参照ラベル) - 縦中横 */
@@ -594,18 +598,14 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
 
 /* Highlight (傍線) - 横書き: 下側に表示 */
 :where(.${prefix}-highlight) {
+  padding-bottom: 0.5em;
+}
+
+:where(.${prefix}-highlight-content) {
   box-shadow: inset 0 -1px 0 0 currentColor;
-  padding-bottom: 0.1em;
 }
 
-/*
- * ルビ・送り仮名・添え仮名がない場合はパディングを詰める
- */
-:where(.${prefix}-highlight:not(:has(.${prefix}-ruby, .${prefix}-suffix-right, .${prefix}-suffix-left, .${prefix}-suffix-kana))) {
-  padding-bottom: 0;
-}
-
-:where(.${prefix}-highlight[data-style="dotted"]) {
+:where(.${prefix}-highlight[data-style="dotted"]) > :where(.${prefix}-highlight-content) {
   box-shadow: none;
   background-image: linear-gradient(to right, currentColor 2px, transparent 2px);
   background-size: 4px 1px;
@@ -613,7 +613,7 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: bottom;
 }
 
-:where(.${prefix}-highlight[data-style="dashed"]) {
+:where(.${prefix}-highlight[data-style="dashed"]) > :where(.${prefix}-highlight-content) {
   box-shadow: none;
   background-image: linear-gradient(to right, currentColor 4px, transparent 4px);
   background-size: 8px 1px;
@@ -621,7 +621,7 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: bottom;
 }
 
-:where(.${prefix}-highlight[data-style="wavy"]) {
+:where(.${prefix}-highlight[data-style="wavy"]) > :where(.${prefix}-highlight-content) {
   /*
    * Wavy line using repeating SVG pattern
    * SVG内でcurrentColorは効かないため、黒色を直接指定。
@@ -634,13 +634,13 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   background-position: bottom;
 }
 
-:where(.${prefix}-highlight[data-style="double"]) {
+:where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content) {
   box-shadow: none;
-  padding-bottom: 0.3em;
+  position: relative;
 }
 
-:where(.${prefix}-highlight[data-style="double"])::before,
-:where(.${prefix}-highlight[data-style="double"])::after {
+:where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::before,
+:where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::after {
   content: '';
   position: absolute;
   background-color: currentColor;
@@ -649,18 +649,18 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   height: 1px;
 }
 
-:where(.${prefix}-highlight[data-style="double"])::before {
+:where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::before {
   bottom: 0;
 }
 
-:where(.${prefix}-highlight[data-style="double"])::after {
+:where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::after {
   bottom: 3px;
 }
 
 /* Label - 横書き: 傍線の開始位置（下）に配置 */
-:where(.${prefix}-highlight > .${prefix}-ref) {
+:where(.${prefix}-highlight-content > .${prefix}-ref) {
   inset-inline-start: 0;
-  inset-block-end: -1.5em;
+  inset-block-end: 0;
 }
 
 /* 横書きでは縦中横不要 */

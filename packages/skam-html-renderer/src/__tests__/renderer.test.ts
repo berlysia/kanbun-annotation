@@ -1520,7 +1520,8 @@ describe(':where() specificity', () => {
 
   it('should wrap attribute selectors with :where()', () => {
     const css = getDefaultStyles({ useLayer: false });
-    expect(css).toContain(':where(.skam-highlight[data-style="dotted"])');
+    // highlight[data-style] selectors now include :not(:has()) for ref handling
+    expect(css).toContain(':where(.skam-highlight[data-style="dotted"]');
     expect(css).toContain(':where(.skam-okototen[data-shape="dot"])');
   });
 

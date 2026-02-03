@@ -1735,5 +1735,37 @@ describe('data-token-id attributes', () => {
       const tokenIndex = htmlContent.indexOf('skam-base');
       expect(refIndex).toBeLessThan(tokenIndex);
     });
+
+    it('should render ref at block start (empty position)', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [
+          { id: 't1', text: '學', ext: { blockId: 'b1' } },
+          { id: 't2', text: '而', ext: { blockId: 'b1' } },
+        ],
+        marks: [
+          {
+            type: 'ref',
+            id: 'ref-1',
+            position: {},
+            format: 'alpha-upper',
+            ext: { blockId: 'b1' },
+          },
+        ],
+        readings: [],
+      };
+
+      const result = render(doc, { profile: PROFILES.full });
+
+      // Ref should be rendered
+      expect(result.html).toContain('skam-ref');
+      expect(result.html).toContain('A'); // alpha-upper first value
+
+      // Ref marker should appear before the first token content
+      const htmlContent = result.html;
+      const refIndex = htmlContent.indexOf('skam-ref');
+      const tokenIndex = htmlContent.indexOf('skam-base');
+      expect(refIndex).toBeLessThan(tokenIndex);
+    });
   });
 });

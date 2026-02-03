@@ -360,6 +360,37 @@ function getPositionAfterTokenId(position: Position): string | undefined {
   return undefined;
 }
 
+/** Check if a position-based mark is at block start (empty position) */
+function isBlockStartPosition(position: Position): boolean {
+  return !('after' in position) || position.after === undefined;
+}
+
+/** Get block-start position marks for a given blockId */
+function getBlockStartMarks(
+  blockId: string | null,
+  marks: Mark[]
+): { refs: RefMark[]; kutotenMarks: KutotenMark[] } {
+  const refs: RefMark[] = [];
+  const kutotenMarks: KutotenMark[] = [];
+
+  for (const mark of marks) {
+    if (!isPositionBasedMark(mark)) continue;
+    if (!isBlockStartPosition(mark.position)) continue;
+
+    // Check if this mark belongs to this block via ext.blockId
+    const markBlockId = (mark.ext?.['blockId'] as string | undefined) ?? null;
+    if (markBlockId !== blockId) continue;
+
+    if (mark.type === 'ref') {
+      refs.push(mark);
+    } else if (mark.type === 'kutoten') {
+      kutotenMarks.push(mark);
+    }
+  }
+
+  return { refs, kutotenMarks };
+}
+
 /**
  * Token IDから Markを取得
  *
@@ -1181,6 +1212,30 @@ function renderDisplayLayer(
     let groupTokens: string[] = [];
     let highlightTokens: string[] = [];
     let pendingHighlightKutoten = ''; // highlight終端のkutoten（highlight spanの外に出す）
+
+    // ブロック先頭の position-based マークを取得・レンダリング
+    const blockStartMarks = getBlockStartMarks(blockGroup.blockId, marks);
+    if (blockStartMarks.refs.length > 0 && profile.ref) {
+      for (const refMark of blockStartMarks.refs) {
+        if (highlightRefIds.has(refMark.id ?? '')) continue; // highlightから参照されているrefはスキップ
+        const refText = refValueMap.get(refMark) ?? '';
+        if (refText) {
+          const halfWidthClass = shouldApplyTateChuYoko(refText)
+            ? ` ${prefix}-ref--half-width`
+            : '';
+          renderedTokens.push(
+            `<span class="${prefix}-ref${halfWidthClass}">${escapeHtml(refText)}</span>`
+          );
+        }
+      }
+    }
+    if (blockStartMarks.kutotenMarks.length > 0 && profile.kutoten) {
+      for (const kutotenMark of blockStartMarks.kutotenMarks) {
+        renderedTokens.push(
+          `<span class="${prefix}-kutoten">${escapeHtml(kutotenMark.value)}</span>`
+        );
+      }
+    }
 
     // 処理済みトークンを追跡（範囲グループのスキップ用）
     const processedTokenIds = new Set<string>();

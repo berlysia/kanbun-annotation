@@ -503,6 +503,15 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
   padding-right: 0.5em;
 }
 
+/*
+ * ルビ・送り仮名・添え仮名がない場合はパディングを詰める
+ * 読み仮名(ruby)、送り仮名・添え仮名(suffix-right, suffix-left, suffix-kana)
+ * がハイライト内に存在しない場合、本文と傍線の間の余白を0にする
+ */
+:where(.${prefix}-highlight:not(:has(.${prefix}-ruby, .${prefix}-suffix-right, .${prefix}-suffix-left, .${prefix}-suffix-kana))) {
+  padding-right: 0;
+}
+
 :where(.${prefix}-highlight[data-style="dotted"]) {
   box-shadow: none;
   background-image: linear-gradient(to bottom, currentColor 2px, transparent 2px);
@@ -587,6 +596,13 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
 :where(.${prefix}-highlight) {
   box-shadow: inset 0 -1px 0 0 currentColor;
   padding-bottom: 0.1em;
+}
+
+/*
+ * ルビ・送り仮名・添え仮名がない場合はパディングを詰める
+ */
+:where(.${prefix}-highlight:not(:has(.${prefix}-ruby, .${prefix}-suffix-right, .${prefix}-suffix-left, .${prefix}-suffix-kana))) {
+  padding-bottom: 0;
 }
 
 :where(.${prefix}-highlight[data-style="dotted"]) {

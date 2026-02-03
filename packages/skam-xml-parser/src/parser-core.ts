@@ -644,8 +644,8 @@ function processSpan(element: Element, state: ParserState): string[] {
 }
 
 function processTateten(element: Element, state: ParserState): string[] {
-  const textContent = element.textContent ?? '';
-  const tokenIds = addTokensFromText(textContent, state);
+  // Process children recursively to handle inner elements like <skam:kaeri>
+  const tokenIds = processBlockChildren(element, state);
 
   if (tokenIds.length === 0) {
     throw new SKAMXMLParseError('<skam:tateten> must contain text');

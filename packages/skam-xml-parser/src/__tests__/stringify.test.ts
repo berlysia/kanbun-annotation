@@ -1109,6 +1109,393 @@ describe('stringify - round-trip (new marks)', () => {
 });
 
 // ============================================================================
+// Multi-token round-trip Tests
+// ============================================================================
+
+describe('stringify - multi-token round-trip', () => {
+  // --- kun系マーク（yomigana, okurigana, soegana） ---
+
+  it('should round-trip multi-token soegana', () => {
+    // 夜來<skam:kun soe="ノ">風雨</skam:kun>聲 相当
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '夜', ext: { blockId: 'b1' } },
+        { id: 't2', text: '來', ext: { blockId: 'b1' } },
+        { id: 't3', text: '風', ext: { blockId: 'b1' } },
+        { id: 't4', text: '雨', ext: { blockId: 'b1' } },
+        { id: 't5', text: '聲', ext: { blockId: 'b1' } },
+      ],
+      marks: [
+        {
+          type: 'soegana',
+          id: 'm1',
+          anchor: { from: 't3', to: 't4' },
+          value: 'ノ',
+        } as SoeganaMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+
+    // XML should contain the kun element wrapping both characters
+    expect(xml).toContain('<skam:kun soe="ノ">風雨</skam:kun>');
+
+    // Round-trip: parse should recover the mark
+    const reparsedDoc = parse(xml);
+    const soegana = reparsedDoc.marks.find((m) => m.type === 'soegana');
+    expect(soegana).toBeDefined();
+    expect((soegana as SoeganaMark).value).toBe('ノ');
+
+    // Anchor should span both tokens
+    const fromIndex = reparsedDoc.tokens.findIndex((t) => t.id === soegana!.anchor.from);
+    const toIndex = reparsedDoc.tokens.findIndex((t) => t.id === soegana!.anchor.to);
+    expect(fromIndex).not.toBe(-1);
+    expect(toIndex).not.toBe(-1);
+    expect(toIndex - fromIndex).toBe(1); // 2 tokens
+  });
+
+  it('should round-trip multi-token yomigana', () => {
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '風', ext: { blockId: 'b1' } },
+        { id: 't2', text: '雨', ext: { blockId: 'b1' } },
+      ],
+      marks: [
+        {
+          type: 'yomigana',
+          id: 'm1',
+          anchor: { from: 't1', to: 't2' },
+          value: 'ふうう',
+        } as YomiganaMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+    expect(xml).toContain('<skam:kun yomi="ふうう">風雨</skam:kun>');
+
+    const reparsedDoc = parse(xml);
+    const yomigana = reparsedDoc.marks.find((m) => m.type === 'yomigana');
+    expect(yomigana).toBeDefined();
+    expect((yomigana as YomiganaMark).value).toBe('ふうう');
+
+    const fromIndex = reparsedDoc.tokens.findIndex((t) => t.id === yomigana!.anchor.from);
+    const toIndex = reparsedDoc.tokens.findIndex((t) => t.id === yomigana!.anchor.to);
+    expect(toIndex - fromIndex).toBe(1);
+  });
+
+  it('should round-trip multi-token okurigana', () => {
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '風', ext: { blockId: 'b1' } },
+        { id: 't2', text: '雨', ext: { blockId: 'b1' } },
+      ],
+      marks: [
+        {
+          type: 'okurigana',
+          id: 'm1',
+          anchor: { from: 't1', to: 't2' },
+          value: 'の',
+        } as OkuriganaMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+    expect(xml).toContain('<skam:kun okuri="の">風雨</skam:kun>');
+
+    const reparsedDoc = parse(xml);
+    const okurigana = reparsedDoc.marks.find((m) => m.type === 'okurigana');
+    expect(okurigana).toBeDefined();
+    expect((okurigana as OkuriganaMark).value).toBe('の');
+  });
+
+  it('should round-trip multi-token kun with combined attributes', () => {
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '風', ext: { blockId: 'b1' } },
+        { id: 't2', text: '雨', ext: { blockId: 'b1' } },
+      ],
+      marks: [
+        {
+          type: 'yomigana',
+          id: 'm1',
+          anchor: { from: 't1', to: 't2' },
+          value: 'ふうう',
+        } as YomiganaMark,
+        {
+          type: 'soegana',
+          id: 'm2',
+          anchor: { from: 't1', to: 't2' },
+          value: 'ノ',
+        } as SoeganaMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+    expect(xml).toContain('yomi="ふうう"');
+    expect(xml).toContain('soe="ノ"');
+    expect(xml).toContain('>風雨</skam:kun>');
+
+    const reparsedDoc = parse(xml);
+    const yomigana = reparsedDoc.marks.find((m) => m.type === 'yomigana');
+    const soegana = reparsedDoc.marks.find((m) => m.type === 'soegana');
+    expect(yomigana).toBeDefined();
+    expect(soegana).toBeDefined();
+    expect((yomigana as YomiganaMark).value).toBe('ふうう');
+    expect((soegana as SoeganaMark).value).toBe('ノ');
+  });
+
+  // --- range系マーク（emphasis, tateten, highlight） ---
+
+  it('should round-trip multi-token emphasis with inner marks preserved', () => {
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '學', ext: { blockId: 'b1' } },
+        { id: 't2', text: '而', ext: { blockId: 'b1' } },
+        { id: 't3', text: '時', ext: { blockId: 'b1' } },
+      ],
+      marks: [
+        {
+          type: 'emphasis',
+          id: 'm1',
+          anchor: { from: 't1', to: 't2' },
+          style: 'filled dot',
+        } as EmphasisMark,
+        {
+          type: 'okurigana',
+          id: 'm2',
+          anchor: { from: 't1', to: 't1' },
+          value: 'びて',
+        } as OkuriganaMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+    const reparsedDoc = parse(xml);
+
+    const emphasis = reparsedDoc.marks.find((m) => m.type === 'emphasis');
+    const okurigana = reparsedDoc.marks.find((m) => m.type === 'okurigana');
+    expect(emphasis).toBeDefined();
+    expect(okurigana).toBeDefined();
+    expect((okurigana as OkuriganaMark).value).toBe('びて');
+  });
+
+  it('should round-trip multi-token tateten with kaeri', () => {
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '國', ext: { blockId: 'b1' } },
+        { id: 't2', text: '家', ext: { blockId: 'b1' } },
+        { id: 't3', text: '之', ext: { blockId: 'b1' } },
+      ],
+      marks: [
+        {
+          type: 'tateten',
+          id: 'm1',
+          anchor: { from: 't1', to: 't2' },
+        } as TatetenMark,
+        {
+          type: 'kaeri',
+          id: 'm2',
+          anchor: { from: 't1', to: 't1' },
+          value: 'レ',
+        } as KaeriMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+    const reparsedDoc = parse(xml);
+
+    const tateten = reparsedDoc.marks.find((m) => m.type === 'tateten');
+    const kaeri = reparsedDoc.marks.find((m) => m.type === 'kaeri');
+    expect(tateten).toBeDefined();
+    expect(kaeri).toBeDefined();
+    expect((kaeri as KaeriMark).value).toBe('レ');
+  });
+
+  it('should round-trip multi-token highlight with style', () => {
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '學', ext: { blockId: 'b1' } },
+        { id: 't2', text: '而', ext: { blockId: 'b1' } },
+        { id: 't3', text: '時', ext: { blockId: 'b1' } },
+      ],
+      marks: [
+        {
+          type: 'highlight',
+          id: 'm1',
+          anchor: { from: 't1', to: 't3' },
+          style: 'wavy',
+        } as HighlightMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+    const reparsedDoc = parse(xml);
+
+    const highlight = reparsedDoc.marks.find((m) => m.type === 'highlight');
+    expect(highlight).toBeDefined();
+    expect((highlight as HighlightMark).style).toBe('wavy');
+
+    const fromIndex = reparsedDoc.tokens.findIndex((t) => t.id === highlight!.anchor.from);
+    const toIndex = reparsedDoc.tokens.findIndex((t) => t.id === highlight!.anchor.to);
+    expect(toIndex - fromIndex).toBe(2); // 3 tokens
+  });
+
+  // --- position marks（kaeri等）とrangeの組み合わせ ---
+
+  it('should place kaeri after closing tag of multi-token kun range', () => {
+    // 處處<skam:kun yomi="き" okuri="ク">聞</skam:kun><skam:kaeri kind="ni"/>
+    //   <skam:kun yomi="ていてう" soe="ヲ">啼鳥</skam:kun><skam:kaeri kind="ichi"/>
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '處', ext: { blockId: 'b1' } },
+        { id: 't2', text: '處', ext: { blockId: 'b1' } },
+        { id: 't3', text: '聞', ext: { blockId: 'b1' } },
+        { id: 't4', text: '啼', ext: { blockId: 'b1' } },
+        { id: 't5', text: '鳥', ext: { blockId: 'b1' } },
+      ],
+      marks: [
+        {
+          type: 'yomigana',
+          id: 'm1',
+          anchor: { from: 't3', to: 't3' },
+          value: 'き',
+        } as YomiganaMark,
+        {
+          type: 'okurigana',
+          id: 'm2',
+          anchor: { from: 't3', to: 't3' },
+          value: 'ク',
+        } as OkuriganaMark,
+        {
+          type: 'kaeri',
+          id: 'm3',
+          anchor: { from: 't3', to: 't3' },
+          value: '二',
+        } as KaeriMark,
+        {
+          type: 'yomigana',
+          id: 'm4',
+          anchor: { from: 't4', to: 't5' },
+          value: 'ていてう',
+        } as YomiganaMark,
+        {
+          type: 'soegana',
+          id: 'm5',
+          anchor: { from: 't4', to: 't5' },
+          value: 'ヲ',
+        } as SoeganaMark,
+        {
+          type: 'kaeri',
+          id: 'm6',
+          anchor: { from: 't5', to: 't5' },
+          value: '一',
+        } as KaeriMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+
+    // kaeri should be OUTSIDE the kun range element, not inside
+    expect(xml).toContain('</skam:kun><skam:kaeri kind="ichi"/>');
+    // Specifically, it should NOT be inside the kun element
+    expect(xml).not.toContain('啼鳥<skam:kaeri kind="ichi"/></skam:kun>');
+
+    // Round-trip should preserve all marks
+    const reparsedDoc = parse(xml);
+    const kaeriMarks = reparsedDoc.marks.filter((m) => m.type === 'kaeri');
+    expect(kaeriMarks).toHaveLength(2);
+
+    const yomiganaMarks = reparsedDoc.marks.filter((m) => m.type === 'yomigana');
+    expect(yomiganaMarks).toHaveLength(2);
+
+    const soeganaMarks = reparsedDoc.marks.filter((m) => m.type === 'soegana');
+    expect(soeganaMarks).toHaveLength(1);
+  });
+
+  it('should keep kaeri inside range element when on non-last token', () => {
+    // <skam:tateten>國<skam:kaeri kind="re"/>家</skam:tateten> - kaeri on first token stays inside
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '國', ext: { blockId: 'b1' } },
+        { id: 't2', text: '家', ext: { blockId: 'b1' } },
+      ],
+      marks: [
+        {
+          type: 'tateten',
+          id: 'm1',
+          anchor: { from: 't1', to: 't2' },
+        } as TatetenMark,
+        {
+          type: 'kaeri',
+          id: 'm2',
+          anchor: { from: 't1', to: 't1' },
+          value: 'レ',
+        } as KaeriMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+
+    // kaeri should be INSIDE tateten (between tokens)
+    expect(xml).toContain('<skam:tateten>國<skam:kaeri kind="re"/>家</skam:tateten>');
+  });
+
+  // --- kun系 + range系の組み合わせ ---
+
+  it('should round-trip multi-token kun inside emphasis', () => {
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '風', ext: { blockId: 'b1' } },
+        { id: 't2', text: '雨', ext: { blockId: 'b1' } },
+        { id: 't3', text: '聲', ext: { blockId: 'b1' } },
+      ],
+      marks: [
+        {
+          type: 'emphasis',
+          id: 'm1',
+          anchor: { from: 't1', to: 't3' },
+        } as EmphasisMark,
+        {
+          type: 'soegana',
+          id: 'm2',
+          anchor: { from: 't1', to: 't2' },
+          value: 'ノ',
+        } as SoeganaMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+    const reparsedDoc = parse(xml);
+
+    const emphasis = reparsedDoc.marks.find((m) => m.type === 'emphasis');
+    const soegana = reparsedDoc.marks.find((m) => m.type === 'soegana');
+    expect(emphasis).toBeDefined();
+    expect(soegana).toBeDefined();
+    expect((soegana as SoeganaMark).value).toBe('ノ');
+  });
+});
+
+// ============================================================================
 // XML Escaping Tests
 // ============================================================================
 

@@ -269,14 +269,13 @@ function collectTokenAnnotations(
         annotation.wrappers.push({ type: 'saidoku', mark: mark as SaidokuMark });
         break;
       case 'ref': {
-        // 空要素 ref（anchor.from === anchor.to かつ content なし）
+        // 単一トークンへの ref は空要素として出力（content の有無に関わらず）
+        // content がある場合は stringifyNotes で別途 notes セクションに出力される
         const refMark = mark as RefMark;
-        if (!refMark.content) {
-          if (!annotation.refAfter) {
-            annotation.refAfter = [];
-          }
-          annotation.refAfter.push(refMark);
+        if (!annotation.refAfter) {
+          annotation.refAfter = [];
         }
+        annotation.refAfter.push(refMark);
         break;
       }
     }
@@ -289,6 +288,9 @@ function collectTokenAnnotations(
  * 範囲マークを収集（包囲要素として出力すべきマーク用）
  *
  * emphasis, tateten, highlight は単一トークンでも包囲要素として出力する。
+ *
+ * ref は anchor.from !== anchor.to の場合のみ包囲要素として扱う。
+ * 単一トークンへの ref（空要素形式）は collectTokenAnnotations で refAfter として処理される。
  */
 function collectRangeMarks(marks: Mark[], tokenIndexMap: Map<string, number>): RangeMark[] {
   const rangeMarks: RangeMark[] = [];
@@ -298,10 +300,12 @@ function collectRangeMarks(marks: Mark[], tokenIndexMap: Map<string, number>): R
     const isRangeElementType =
       mark.type === 'emphasis' || mark.type === 'tateten' || mark.type === 'highlight';
 
-    // ref は content がある場合のみ包囲要素
-    const isContentRef = mark.type === 'ref' && (mark as RefMark).content;
+    // ref は content があり、かつ複数トークンにまたがる場合のみ包囲要素
+    // 単一トークンへの ref（anchor.from === anchor.to）は空要素として扱う
+    const isRangeRef =
+      mark.type === 'ref' && (mark as RefMark).content && mark.anchor.from !== mark.anchor.to;
 
-    if (!isRangeElementType && !isContentRef) {
+    if (!isRangeElementType && !isRangeRef) {
       continue;
     }
 

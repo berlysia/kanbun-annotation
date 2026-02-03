@@ -428,6 +428,11 @@ function processKutoten(
     mark.kind = kind;
   }
 
+  // For block-start kutoten (empty position), store blockId for renderer
+  if (!precedingTokenId && state.currentBlockId) {
+    mark.ext = { blockId: state.currentBlockId };
+  }
+
   state.marks.push(mark);
 }
 
@@ -549,12 +554,20 @@ function processSpan(element: Element, state: ParserState): string[] {
   const type = getRequiredAttr(element, 'type', 'skam:span');
   const styleAttr = getAttr(element, 'style');
 
+  // Track marks count before processing to find refs added during span processing
+  const marksCountBefore = state.marks.length;
+
   // Process children to get tokens
   const tokenIds = processBlockChildren(element, state);
 
   if (tokenIds.length === 0) {
     throw new SKAMXMLParseError('<skam:span> must contain content');
   }
+
+  // Find refs added during this span's processing
+  const refsAddedInSpan = state.marks
+    .slice(marksCountBefore)
+    .filter((m): m is RefMark => m.type === 'ref');
 
   if (type === 'emphasis') {
     const mark: EmphasisMark = {
@@ -588,8 +601,41 @@ function processSpan(element: Element, state: ParserState): string[] {
     }
 
     if (refAttr) {
-      mark.ref = refAttr;
+      // highlight.ref が指定されている場合
+      // 指定されたidを持つrefが既に存在するかチェック
+      const existingRefWithId = state.marks.find(
+        (m): m is RefMark => m.type === 'ref' && m.id === refAttr
+      );
+
+      if (existingRefWithId) {
+        // 明示的な対応関係
+        mark.ref = refAttr;
+      } else if (refsAddedInSpan.length === 1) {
+        // highlight.ref あり + 内部refが1つ + 指定idのrefが存在しない
+        const singleRef = refsAddedInSpan[0]!;
+        const hasExplicitId = singleRef.id && !singleRef.id.startsWith('m');
+        if (!hasExplicitId) {
+          // ref.id がない → エラー
+          throw new SKAMXMLParseError(
+            `<skam:span type="highlight" ref="${refAttr}"> references a ref that does not exist. ` +
+              `Add xml:id="${refAttr}" to the <skam:ref> element inside the span.`
+          );
+        } else {
+          // ref.id あり → 対応しない、highlight.refはそのまま設定
+          mark.ref = refAttr;
+        }
+      } else {
+        // 内部refが複数 → 単独表示、highlight.refはそのまま設定
+        mark.ref = refAttr;
+      }
+    } else if (refsAddedInSpan.length === 1) {
+      // highlight.ref なし + 内部refが1つ → 対応関係
+      const singleRef = refsAddedInSpan[0]!;
+      if (singleRef.id) {
+        mark.ref = singleRef.id;
+      }
     }
+    // highlight.ref なし + 内部refが複数 + すべてid指定あり → 単独表示（何もしない）
 
     state.marks.push(mark);
   }
@@ -744,6 +790,11 @@ function processRef(element: Element, state: ParserState, precedingTokenId: stri
     id: xmlIdAttr || generateMarkId(state),
     position,
   };
+
+  // For block-start refs (empty position), store blockId for renderer
+  if (!precedingTokenId && state.currentBlockId) {
+    mark.ext = { ...mark.ext, blockId: state.currentBlockId };
+  }
 
   if (labelAttr) {
     mark.label = labelAttr;

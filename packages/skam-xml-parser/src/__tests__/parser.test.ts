@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -459,6 +459,95 @@ describe('parse - valid fixtures', () => {
       const position = (ref as { position?: { after?: string } }).position;
       expect(position).toEqual({}); // empty position means block start
       expect(position?.after).toBeUndefined();
+    });
+  });
+
+  describe('implicit ref-highlight association', () => {
+    it('should implicitly associate ref with highlight when both have no id/ref', () => {
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:span type="highlight"><skam:ref format="alpha-upper"/>學而</skam:span>
+    </skam:block>
+  </skam:body>
+</skam:doc>`;
+      const doc = parse(xml);
+
+      const highlights = doc.marks.filter((m) => m.type === 'highlight');
+      const refs = doc.marks.filter((m) => m.type === 'ref');
+
+      expect(highlights).toHaveLength(1);
+      expect(refs).toHaveLength(1);
+
+      const highlight = highlights[0] as { ref?: string };
+      const ref = refs[0] as { id?: string };
+
+      // Should be implicitly associated
+      expect(highlight.ref).toBeDefined();
+      expect(highlight.ref).toBe(ref.id);
+    });
+
+    it('should throw error when highlight.ref exists but ref.id does not', () => {
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:span type="highlight" ref="note-1"><skam:ref format="alpha-upper"/>學而</skam:span>
+    </skam:block>
+  </skam:body>
+</skam:doc>`;
+      // highlight.ref が指定されているが、対応するidを持つrefがない場合はエラー
+      expect(() => parse(xml)).toThrow(SKAMXMLParseError);
+      expect(() => parse(xml)).toThrow('does not exist');
+    });
+
+    it('should NOT associate when ref has explicit id but highlight has no ref', () => {
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:span type="highlight"><skam:ref xml:id="my-ref" format="alpha-upper"/>學而</skam:span>
+    </skam:block>
+  </skam:body>
+</skam:doc>`;
+      const doc = parse(xml);
+
+      const highlights = doc.marks.filter((m) => m.type === 'highlight');
+      const refs = doc.marks.filter((m) => m.type === 'ref');
+
+      expect(highlights).toHaveLength(1);
+      expect(refs).toHaveLength(1);
+
+      const highlight = highlights[0] as { ref?: string };
+      const ref = refs[0] as { id?: string };
+
+      // Single ref with explicit id - should be associated
+      expect(ref.id).toBe('my-ref');
+      expect(highlight.ref).toBe('my-ref');
+    });
+
+    it('should NOT associate when multiple refs exist in highlight', () => {
+      const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:span type="highlight"><skam:ref format="alpha-upper"/>學<skam:ref format="numeric-bracket"/>而</skam:span>
+    </skam:block>
+  </skam:body>
+</skam:doc>`;
+      const doc = parse(xml);
+
+      const highlights = doc.marks.filter((m) => m.type === 'highlight');
+      const refs = doc.marks.filter((m) => m.type === 'ref');
+
+      expect(highlights).toHaveLength(1);
+      expect(refs).toHaveLength(2);
+
+      const highlight = highlights[0] as { ref?: string };
+
+      // Multiple refs - should NOT be associated
+      expect(highlight.ref).toBeUndefined();
     });
   });
 

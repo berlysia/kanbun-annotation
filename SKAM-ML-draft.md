@@ -69,7 +69,7 @@ xmlns:skam="urn:skam:1"
 SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記述しない**。
 返り点等から計算される読み順などの導出情報は、**コンパイル時に SKAM JSON 側で生成**される。
 
-詳細は SKAM 仕様の「6. Derivations」を参照。
+詳細は SKAM 仕様の「7. Derivations」を参照。
 
 ---
 
@@ -81,16 +81,23 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 
 ### 5.2 `skam:block`
 
-段落・文ブロックの最小単位。
+段落・文ブロックの最小単位。SKAM JSON の `Block` オブジェクトに対応する。
 
 ```xml
 <skam:body>
-  <skam:block>學而時習之</skam:block>
+  <skam:block xml:id="b1">學而時習之</skam:block>
 </skam:body>
 ```
 
+#### 属性
+
+| 属性     | 必須 | 説明                                                 |
+| -------- | ---- | ---------------------------------------------------- |
+| `xml:id` | 任意 | ブロックの一意識別子。省略時はパーサーが自動生成する |
+
 - 改行・段落の意味は **構造情報としてのみ**扱う
 - 見た目の段落とは無関係
+- パーサーは各 `skam:block` から `Block` オブジェクト `{ id, tokenIds }` を生成する
 
 ---
 
@@ -145,12 +152,12 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 
 以下の要素は anchor ではなく **position** で配置位置を指定する：
 
-| 要素           | position の決定方法                                    |
-| -------------- | ------------------------------------------------------ |
-| `skam:kutoten` | 直前 token の後（`{ after: tokenId }`）、先頭なら `{}` |
-| `skam:ref`     | 直前 token の後（`{ after: tokenId }`）、先頭なら `{}` |
+| 要素           | position の決定方法                                                      |
+| -------------- | ------------------------------------------------------------------------ |
+| `skam:kutoten` | 直前 token の後（`{ blockId, after: tokenId }`）、先頭なら `{ blockId }` |
+| `skam:ref`     | 直前 token の後（`{ blockId, after: tokenId }`）、先頭なら `{ blockId }` |
 
-position は `{ after: tokenId }` または `{}`（ブロック先頭）の形式。
+position は `{ blockId, after: tokenId }` または `{ blockId }`（ブロック先頭）の形式。`blockId` は常に必須で、要素が属する `skam:block` の ID が設定される。
 
 ---
 
@@ -226,7 +233,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 - `okuri` 属性がある場合: `marks.type = "okurigana"`, `value = okuri属性`
 - `soe` 属性がある場合: `marks.type = "soegana"`, `value = soe属性`
 - 複数ある場合: 複数の mark が生成される（同一 anchor を共有）
-  - ※ 生成順序は SKAM 仕様 5.1節「同一 anchor を持つ marks の順序」を参照
+  - ※ 生成順序は SKAM 仕様 6.1節「同一 anchor を持つ marks の順序」を参照
 
 #### 内容モデル
 
@@ -280,7 +287,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 #### 正規化
 
 - `marks.type = "kutoten"`
-- `position = { after: 直前token }`（先頭の場合は `{}`）
+- `position = { blockId: ブロックID, after: 直前token }`（先頭の場合は `{ blockId: ブロックID }`）
 - `value = value属性`
 - `kind` があれば保持、なければパーサーが推論してもよい
 
@@ -307,7 +314,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 | `sound` | 任意 | 対応する音節                     |
 | `color` | 任意 | 朱点・墨点等の区別               |
 
-※ グリッド座標の詳細は SKAM 仕様 5.6節を参照。
+※ グリッド座標の詳細は SKAM 仕様 6.6節を参照。
 
 #### 正規化
 
@@ -489,7 +496,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 
 ※ `kunform` は `kun` の1回分に相当する。
 
-※ 主な再読文字の一覧は SKAM 仕様 5.5節を参照。
+※ 主な再読文字の一覧は SKAM 仕様 6.7節を参照。
 
 #### 正規化
 
@@ -543,12 +550,12 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 | `format` | label/format/内容のいずれか必須 | 自動番号フォーマット（labelと排他）            |
 
 ※ `label` と `format` は排他（併用禁止）
-※ format の値一覧は SKAM 仕様 5.11節を参照。
+※ format の値一覧は SKAM 仕様 6.11節を参照。
 
 #### 正規化
 
 - `marks.type = "ref"`
-- `position = { after: 直前token }`（先頭の場合は `{}`）
+- `position = { blockId: ブロックID, after: 直前token }`（先頭の場合は `{ blockId: ブロックID }`）
 - **空要素**: position のみ生成
 - **内容あり要素**: 内容を `content` フィールドに設定（内包テキストはトークン化しない）
 - `label`, `format`, `content` を保持
@@ -567,7 +574,7 @@ SKAM-ML で内容を持つ ref は、SKAM JSON では位置マーカー + conten
 // SKAM JSON
 {
   "type": "ref",
-  "position": { "after": "t5" },
+  "position": { "blockId": "b1", "after": "t5" },
   "format": "numeric-bracket",
   "content": "「之」は目的語として読む。"
 }

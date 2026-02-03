@@ -46,7 +46,7 @@ packages/
 
 ```typescript
 // 型定義
-import type { SKAMDocument, Token, Mark, Reading } from '@kanbun/skam';
+import type { SKAMDocument, Token, Block, Mark, Reading } from '@kanbun/skam';
 
 // バリデーション
 import { validateSKAMDocument, isSKAMDocument, assertSKAMDocument } from '@kanbun/skam';
@@ -81,7 +81,8 @@ const { html, css } = render(doc);
 
 ```
 SKAMDocument
-├── tokens[]     本文の token 列（字単位推奨）
+├── tokens[]     本文 token のマスター定義
+├── blocks[]     ブロック構造（原文順、tokenIds で token を参照）
 ├── marks[]      注記（返り点・送り仮名等）
 ├── derivations[]  導出情報（読み順等、計算結果キャッシュ）
 └── readings[]   読み層（書き下し文・読み上げ文）

@@ -669,8 +669,8 @@ describe('validateSKAMDocument', () => {
       }
     });
 
-    it('should reject position without before or after', () => {
-      const doc = {
+    it('should accept position without after (block start placement)', () => {
+      const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
         marks: [{ type: 'kutoten', position: {}, value: '。' }],
@@ -678,10 +678,7 @@ describe('validateSKAMDocument', () => {
       };
 
       const result = validateSKAMDocument(doc);
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.errors.some((e) => e.kind === 'MISSING_POSITION')).toBe(true);
-      }
+      expect(result.valid).toBe(true);
     });
 
     it('should reject position with unknown token reference', () => {
@@ -699,33 +696,14 @@ describe('validateSKAMDocument', () => {
       }
     });
 
-    it('should reject position with non-adjacent tokens', () => {
-      const doc = {
-        format: 'skam@0.1',
-        tokens: [
-          { id: 't1', text: '學' },
-          { id: 't2', text: '而' },
-          { id: 't3', text: '時' },
-        ],
-        marks: [{ type: 'kutoten', position: { after: 't1', before: 't3' }, value: '。' }],
-        readings: [],
-      };
-
-      const result = validateSKAMDocument(doc);
-      expect(result.valid).toBe(false);
-      if (!result.valid) {
-        expect(result.errors.some((e) => e.kind === 'NON_ADJACENT_POSITION')).toBe(true);
-      }
-    });
-
-    it('should validate position with adjacent tokens', () => {
+    it('should validate position between tokens (after only)', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [
           { id: 't1', text: '學' },
           { id: 't2', text: '而' },
         ],
-        marks: [{ type: 'kutoten', position: { after: 't1', before: 't2' }, value: '。' }],
+        marks: [{ type: 'kutoten', position: { after: 't1' }, value: '。' }],
         readings: [],
       };
 
@@ -733,11 +711,11 @@ describe('validateSKAMDocument', () => {
       expect(result.valid).toBe(true);
     });
 
-    it('should validate position with before only (beginning placement)', () => {
+    it('should validate ref at block start (empty position)', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
-        marks: [{ type: 'ref', position: { before: 't1' }, label: '(A)' }],
+        marks: [{ type: 'ref', position: {}, label: '(A)' }],
         readings: [],
       };
 

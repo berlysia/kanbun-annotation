@@ -408,28 +408,15 @@ function processKutoten(
   element: Element,
   state: ParserState,
   precedingTokenId: string | null,
-  followingTokenId: string | null
+  _followingTokenId: string | null
 ): void {
   const value = getRequiredAttr(element, 'value', 'skam:kutoten');
   const kind = getAttr(element, 'kind') as 'ku' | 'ten' | 'other' | null;
 
-  // Determine position based on context
-  // precedingTokenId: token before this kutoten
-  // followingTokenId: token after this kutoten (for adjacent position)
-  let position: Position;
-
-  if (precedingTokenId && followingTokenId) {
-    // Between two tokens
-    position = { after: precedingTokenId, before: followingTokenId };
-  } else if (precedingTokenId) {
-    // After a token (e.g., end of line)
-    position = { after: precedingTokenId };
-  } else if (followingTokenId) {
-    // Before a token (e.g., beginning of line - rare for kutoten)
-    position = { before: followingTokenId };
-  } else {
-    throw new SKAMXMLParseError('<skam:kutoten> requires at least one adjacent token');
-  }
+  // Position is determined by precedingTokenId only
+  // - { after: tokenId } - after the specified token
+  // - {} (empty) - at block start (no preceding token)
+  const position: Position = precedingTokenId ? { after: precedingTokenId } : {};
 
   const mark: KutotenMark = {
     type: 'kutoten',
@@ -707,7 +694,7 @@ function processRef(
   element: Element,
   state: ParserState,
   precedingTokenId: string | null,
-  followingTokenId: string | null
+  _followingTokenId: string | null
 ): void {
   const labelAttr = getAttr(element, 'label');
   const formatAttr = getAttr(element, 'format');
@@ -753,21 +740,10 @@ function processRef(
     );
   }
 
-  // Determine position based on context
-  let position: Position;
-
-  if (precedingTokenId && followingTokenId) {
-    // Between two tokens
-    position = { after: precedingTokenId, before: followingTokenId };
-  } else if (precedingTokenId) {
-    // After a token (e.g., end of line)
-    position = { after: precedingTokenId };
-  } else if (followingTokenId) {
-    // Before a token (e.g., beginning of line)
-    position = { before: followingTokenId };
-  } else {
-    throw new SKAMXMLParseError('<skam:ref> requires at least one adjacent token');
-  }
+  // Position is determined by precedingTokenId only
+  // - { after: tokenId } - after the specified token
+  // - {} (empty) - at block start (no preceding token)
+  const position: Position = precedingTokenId ? { after: precedingTokenId } : {};
 
   const mark: RefMark = {
     type: 'ref',

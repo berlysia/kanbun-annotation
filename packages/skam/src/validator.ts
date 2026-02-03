@@ -182,8 +182,8 @@ function validateAnchor(
  *
  * 有効なパターン:
  * - { before: string, after: string } - 2トークン間
- * - { before: string } - トークンの前（先頭配置可能）
- * - { after: string } - トークンの後（末尾配置可能）
+ * - { after: string } - そのトークンの後ろに配置
+ * - { } (after 省略) - ブロック先頭に配置
  */
 function validatePosition(
   position: unknown,
@@ -203,40 +203,9 @@ function validatePosition(
     return false;
   }
 
-  const hasBefore = 'before' in position && position['before'] !== undefined;
   const hasAfter = 'after' in position && position['after'] !== undefined;
 
-  // At least one of before or after is required
-  if (!hasBefore && !hasAfter) {
-    errors.push(
-      createValidationError(
-        'MISSING_POSITION',
-        path,
-        'Position requires at least one of: before, after',
-        'before and/or after',
-        'none'
-      )
-    );
-    return false;
-  }
-
-  let valid = true;
-
-  // Validate before if present
-  if (hasBefore && !isString(position['before'])) {
-    errors.push(
-      createValidationError(
-        'INVALID_TYPE',
-        `${path}.before`,
-        'before must be a string (token ID)',
-        'string',
-        typeof position['before']
-      )
-    );
-    valid = false;
-  }
-
-  // Validate after if present
+  // If after is present, it must be a string
   if (hasAfter && !isString(position['after'])) {
     errors.push(
       createValidationError(
@@ -247,10 +216,11 @@ function validatePosition(
         typeof position['after']
       )
     );
-    valid = false;
+    return false;
   }
 
-  return valid;
+  // Position can be empty object (meaning "at block start") or have after
+  return true;
 }
 
 function validateGlyphGridCoord(
@@ -816,33 +786,7 @@ function isPositionBasedMark(mark: Mark): mark is KutotenMark | RefMark {
 /**
  * Validate position adjacency (both before and after tokens must be adjacent)
  */
-function validatePositionAdjacency(
-  position: Position,
-  tokenIds: string[],
-  path: string,
-  errors: ValidationError[]
-): void {
-  if ('before' in position && 'after' in position && position.before && position.after) {
-    const beforeIndex = tokenIds.indexOf(position.before);
-    const afterIndex = tokenIds.indexOf(position.after);
-
-    // Both must exist (already checked in validatePosition reference check)
-    if (beforeIndex !== -1 && afterIndex !== -1) {
-      // after must immediately precede before (afterIndex + 1 === beforeIndex)
-      if (afterIndex + 1 !== beforeIndex) {
-        errors.push(
-          createValidationError(
-            'NON_ADJACENT_POSITION',
-            path,
-            `Tokens "${position.after}" and "${position.before}" are not adjacent`,
-            'adjacent tokens',
-            `${position.after} (index ${afterIndex}) and ${position.before} (index ${beforeIndex})`
-          )
-        );
-      }
-    }
-  }
-}
+// validatePositionAdjacency removed: Position now only has optional `after`
 
 function validateTokenReferences(
   tokens: Token[],
@@ -856,25 +800,11 @@ function validateTokenReferences(
   // Check mark references (anchor or position)
   marks.forEach((mark, index) => {
     if (isPositionBasedMark(mark)) {
-      // Position-based mark: check position references
+      // Position-based mark: check position.after reference if present
       const path = `marks[${index}].position`;
       const position = mark.position;
 
-      if ('before' in position && position.before !== undefined) {
-        if (!tokenIdSet.has(position.before)) {
-          errors.push(
-            createValidationError(
-              'UNKNOWN_TOKEN_REF',
-              `${path}.before`,
-              `Token "${position.before}" not found`,
-              'valid token ID',
-              position.before
-            )
-          );
-        }
-      }
-
-      if ('after' in position && position.after !== undefined) {
+      if (position.after !== undefined) {
         if (!tokenIdSet.has(position.after)) {
           errors.push(
             createValidationError(
@@ -887,9 +817,7 @@ function validateTokenReferences(
           );
         }
       }
-
-      // Validate adjacency if both before and after are present
-      validatePositionAdjacency(position, tokenIdList, path, errors);
+      // If after is undefined, mark is at block start - no reference to validate
     } else {
       // Anchor-based mark: check anchor references
       const path = `marks[${index}].anchor`;

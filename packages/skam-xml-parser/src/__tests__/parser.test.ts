@@ -455,9 +455,9 @@ describe('parse - valid fixtures', () => {
       expect(ref.id).toBe('ref-1');
       expect((ref as { format?: string }).format).toBe('alpha-upper');
 
-      // ref at block start should have position.before pointing to first token
-      const position = (ref as { position?: { before?: string; after?: string } }).position;
-      expect(position?.before).toBe('t1'); // before 學
+      // ref at block start should have empty position (no after property)
+      const position = (ref as { position?: { after?: string } }).position;
+      expect(position).toEqual({}); // empty position means block start
       expect(position?.after).toBeUndefined();
     });
   });

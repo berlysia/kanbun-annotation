@@ -52,14 +52,13 @@ export interface Anchor {
 /**
  * トークン間の位置を指定（position ベース Mark 用）
  *
- * - before と after の両方: 2トークン間（隣接必須）
- * - before のみ: トークンの前（先頭配置可能）
- * - after のみ: トークンの後（末尾配置可能）
+ * - after が指定されている: そのトークンの後ろに配置
+ * - after が未定義: ブロック先頭に配置
  */
-export type Position =
-  | { before: string; after: string }
-  | { before: string; after?: never }
-  | { after: string; before?: never };
+export interface Position {
+  /** この mark が配置されるトークンの ID。未定義の場合は先頭に配置。 */
+  after?: string;
+}
 
 // ============================================================================
 // Coordinate System

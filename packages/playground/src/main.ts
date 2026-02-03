@@ -15,7 +15,12 @@ import type { SKAMDocument, RefFormat, Mark } from '@kanbun/skam';
 import { SAMPLES } from './samples.js';
 import { ErrorPanel, type ParseError } from './editor/error-panel.js';
 import { XmlEditor } from './editor/xml-editor.js';
-import { addMark, removeMark, getMarksForToken } from './editor/document-operations.js';
+import {
+  addMark,
+  removeMark,
+  getMarksForToken,
+  getMarksForRange,
+} from './editor/document-operations.js';
 
 // ============================================================================
 // DOM Elements
@@ -159,8 +164,10 @@ let currentTatetenMarkId: string | null = null;
 
 // Current emphasis (傍点) state
 // - null: no emphasis for current selection
-// - string: mark ID of existing emphasis that matches selection range
+// - string: mark ID of existing emphasis that overlaps selection range
 let currentEmphasisMarkId: string | null = null;
+// Whether the emphasis mark exactly matches the selection range (vs partial overlap)
+let currentEmphasisIsExactMatch = false;
 
 // Selected emphasis style (CSS text-emphasis-style values)
 type EmphasisStyle =
@@ -183,8 +190,10 @@ let currentEmphasisStyle: EmphasisStyle = 'filled dot'; // CSS default
 
 // Current underline/highlight (傍線) state
 // - null: no underline for current selection
-// - string: mark ID of existing highlight that matches selection range
+// - string: mark ID of existing highlight that overlaps selection range
 let currentUnderlineMarkId: string | null = null;
+// Whether the underline mark exactly matches the selection range (vs partial overlap)
+let currentUnderlineIsExactMatch = false;
 
 // Selected underline style
 type UnderlineStyle = 'solid' | 'dotted' | 'dashed' | 'wavy' | 'double';
@@ -532,124 +541,6 @@ function findTatetenForSelection(
 }
 
 /**
- * Find an emphasis mark that exactly matches the given selection range
- */
-function findEmphasisForSelection(
-  doc: SKAMDocument,
-  fromId: string,
-  toId: string
-): { markId: string; style?: string } | null {
-  const tokens = doc.tokens;
-  const fromIndex = tokens.findIndex((t) => t.id === fromId);
-  const toIndex = tokens.findIndex((t) => t.id === toId);
-  if (fromIndex === -1 || toIndex === -1) return null;
-
-  const selStartIndex = Math.min(fromIndex, toIndex);
-  const selEndIndex = Math.max(fromIndex, toIndex);
-  const selStartId = tokens[selStartIndex]?.id;
-  const selEndId = tokens[selEndIndex]?.id;
-
-  for (const mark of doc.marks) {
-    if (mark.type !== 'emphasis') continue;
-    if (!mark.id) continue;
-
-    const markFromIndex = tokens.findIndex((t) => t.id === mark.anchor.from);
-    const markToIndex = tokens.findIndex((t) => t.id === mark.anchor.to);
-    if (markFromIndex === -1 || markToIndex === -1) continue;
-
-    const markStartIndex = Math.min(markFromIndex, markToIndex);
-    const markEndIndex = Math.max(markFromIndex, markToIndex);
-    const markStartToken = tokens[markStartIndex];
-    const markEndToken = tokens[markEndIndex];
-    if (!markStartToken || !markEndToken) continue;
-
-    const markStartId = markStartToken.id;
-    const markEndId = markEndToken.id;
-
-    // Check if selection exactly matches emphasis range
-    if (selStartId === markStartId && selEndId === markEndId) {
-      // Extract style from the mark's value
-      const style = 'value' in mark ? (mark.value as string | undefined) : undefined;
-      if (style) {
-        return { markId: mark.id, style };
-      }
-      return { markId: mark.id };
-    }
-  }
-
-  return null;
-}
-
-/**
- * Find a highlight (underline) mark that exactly matches the given selection range
- */
-function findHighlightForSelection(
-  doc: SKAMDocument,
-  fromId: string,
-  toId: string
-): {
-  markId: string;
-  style: UnderlineStyle | undefined;
-  ref: string | undefined;
-  refFormat: RefFormat | undefined;
-  refMarkId: string | undefined;
-} | null {
-  const tokens = doc.tokens;
-  const fromIndex = tokens.findIndex((t) => t.id === fromId);
-  const toIndex = tokens.findIndex((t) => t.id === toId);
-  if (fromIndex === -1 || toIndex === -1) return null;
-
-  const selStartIndex = Math.min(fromIndex, toIndex);
-  const selEndIndex = Math.max(fromIndex, toIndex);
-  const selStartId = tokens[selStartIndex]?.id;
-  const selEndId = tokens[selEndIndex]?.id;
-
-  for (const mark of doc.marks) {
-    if (mark.type !== 'highlight') continue;
-    if (!mark.id) continue;
-
-    const markFromIndex = tokens.findIndex((t) => t.id === mark.anchor.from);
-    const markToIndex = tokens.findIndex((t) => t.id === mark.anchor.to);
-    if (markFromIndex === -1 || markToIndex === -1) continue;
-
-    const markStartIndex = Math.min(markFromIndex, markToIndex);
-    const markEndIndex = Math.max(markFromIndex, markToIndex);
-    const markStartToken = tokens[markStartIndex];
-    const markEndToken = tokens[markEndIndex];
-    if (!markStartToken || !markEndToken) continue;
-
-    const markStartId = markStartToken.id;
-    const markEndId = markEndToken.id;
-
-    // Check if selection exactly matches highlight range
-    if (selStartId === markStartId && selEndId === markEndId) {
-      // Extract style and ref from the mark
-      const style = 'style' in mark ? (mark.style as UnderlineStyle | undefined) : undefined;
-      const ref = 'ref' in mark ? (mark.ref as string | undefined) : undefined;
-
-      // Find associated ref mark and its format
-      let refFormat: RefFormat | undefined;
-      let refMarkId: string | undefined;
-      if (ref) {
-        for (const refMark of doc.marks) {
-          if (refMark.type === 'ref' && refMark.id === ref) {
-            refMarkId = refMark.id;
-            if ('format' in refMark) {
-              refFormat = refMark.format as RefFormat | undefined;
-            }
-            break;
-          }
-        }
-      }
-
-      return { markId: mark.id, style, ref, refFormat, refMarkId };
-    }
-  }
-
-  return null;
-}
-
-/**
  * Update selection panel with current selection info
  */
 function updateSelectionPanel(fromId: string, toId: string): void {
@@ -688,27 +579,57 @@ function updateSelectionPanel(fromId: string, toId: string): void {
   const tatetenInfo = findTatetenForSelection(currentDocument, normalizedFromId, normalizedToId);
   currentTatetenMarkId = tatetenInfo?.markId ?? null;
 
-  // Determine emphasis state
-  const emphasisInfo = findEmphasisForSelection(currentDocument, normalizedFromId, normalizedToId);
-  currentEmphasisMarkId = emphasisInfo?.markId ?? null;
-  // If existing emphasis found, use its style; otherwise keep current style (default: sesame)
-  if (emphasisInfo?.style) {
-    currentEmphasisStyle = emphasisInfo.style as EmphasisStyle;
+  // Determine emphasis state via overlap detection
+  const emphasisMarks = getMarksForRange(currentDocument, normalizedFromId, normalizedToId).filter(
+    (m) => m.type === 'emphasis'
+  );
+  if (emphasisMarks.length > 0) {
+    const firstEmphasis = emphasisMarks[0]!;
+    currentEmphasisMarkId = firstEmphasis.id ?? null;
+    currentEmphasisIsExactMatch =
+      'anchor' in firstEmphasis &&
+      firstEmphasis.anchor.from === normalizedFromId &&
+      firstEmphasis.anchor.to === normalizedToId;
+    if ('style' in firstEmphasis && firstEmphasis.style) {
+      currentEmphasisStyle = firstEmphasis.style as EmphasisStyle;
+    }
+  } else {
+    currentEmphasisMarkId = null;
+    currentEmphasisIsExactMatch = false;
   }
 
-  // Determine underline/highlight state
-  const highlightInfo = findHighlightForSelection(
-    currentDocument,
-    normalizedFromId,
-    normalizedToId
+  // Determine underline/highlight state via overlap detection
+  const highlightMarks = getMarksForRange(currentDocument, normalizedFromId, normalizedToId).filter(
+    (m) => m.type === 'highlight'
   );
-  currentUnderlineMarkId = highlightInfo?.markId ?? null;
-  // If existing highlight found, use its style, ref and format; otherwise reset to defaults
-  if (highlightInfo) {
-    currentUnderlineStyle = highlightInfo.style ?? 'solid';
-    currentUnderlineRef = highlightInfo.ref ?? '';
-    currentUnderlineFormat = highlightInfo.refFormat ?? '';
+  if (highlightMarks.length > 0) {
+    const firstHighlight = highlightMarks[0]!;
+    currentUnderlineMarkId = firstHighlight.id ?? null;
+    currentUnderlineIsExactMatch =
+      'anchor' in firstHighlight &&
+      firstHighlight.anchor.from === normalizedFromId &&
+      firstHighlight.anchor.to === normalizedToId;
+    if ('style' in firstHighlight) {
+      currentUnderlineStyle = (firstHighlight.style as UnderlineStyle | undefined) ?? 'solid';
+    } else {
+      currentUnderlineStyle = 'solid';
+    }
+    // Extract ref info from highlight mark
+    const ref = 'ref' in firstHighlight ? (firstHighlight.ref as string | undefined) : undefined;
+    currentUnderlineRef = ref ?? '';
+    // Find associated ref mark for format
+    currentUnderlineFormat = '';
+    if (ref) {
+      for (const refMark of currentDocument.marks) {
+        if (refMark.type === 'ref' && refMark.id === ref && 'format' in refMark) {
+          currentUnderlineFormat = (refMark.format as RefFormat | undefined) ?? '';
+          break;
+        }
+      }
+    }
   } else {
+    currentUnderlineMarkId = null;
+    currentUnderlineIsExactMatch = false;
     currentUnderlineStyle = 'solid';
     currentUnderlineRef = '';
     currentUnderlineFormat = '';
@@ -738,15 +659,18 @@ function updateSelectionPanel(fromId: string, toId: string): void {
     }
   }
 
-  // Get kana marks for first token
+  // Get kana marks for the entire selection range
   let currentKanaType: 'yomigana' | 'okurigana' | 'soegana' = 'yomigana';
   currentKanaValues = { yomigana: '', okurigana: '', soegana: '' };
 
-  const firstTokenMarks = getMarksForToken(currentDocument, fromId);
-  for (const mark of firstTokenMarks) {
+  const rangeMarks = getMarksForRange(currentDocument, normalizedFromId, normalizedToId);
+  for (const mark of rangeMarks) {
     if ('value' in mark && typeof mark.value === 'string') {
       if (mark.type === 'yomigana' || mark.type === 'okurigana' || mark.type === 'soegana') {
-        currentKanaValues[mark.type] = mark.value;
+        // 同タイプで未設定の場合のみ（最初に見つかったものを採用）
+        if (!currentKanaValues[mark.type]) {
+          currentKanaValues[mark.type] = mark.value;
+        }
       }
     }
   }
@@ -963,19 +887,7 @@ function handleTatetenToggle(): void {
   const normalizedToId = tokens[endIndex]!.id;
 
   if (currentSelectionMode === 'tateten' && currentTatetenMarkId) {
-    // Remove existing tateten
-    // Also remove any kaeri attached to this tateten range
-    for (const mark of currentDocument.marks) {
-      if (
-        mark.type === 'kaeri' &&
-        mark.anchor.from === normalizedFromId &&
-        mark.anchor.to === normalizedToId &&
-        mark.id
-      ) {
-        newDoc = removeMark(newDoc, mark.id);
-        break;
-      }
-    }
+    // Remove existing tateten (kaeri is independent and not affected)
     newDoc = removeMark(newDoc, currentTatetenMarkId);
   } else if (currentSelectionMode === 'multi') {
     // Add new tateten
@@ -996,13 +908,17 @@ function updateEmphasisStyleButtons(): void {
   const buttons = selectionEmphasisStyles.querySelectorAll<HTMLButtonElement>(
     '.selection-emphasis-style-btn'
   );
+  // Disable style buttons when partial overlap (can't update style of partially overlapping mark)
+  const isPartialOverlap = currentEmphasisMarkId !== null && !currentEmphasisIsExactMatch;
   for (const btn of buttons) {
     const style = btn.dataset['style'] as EmphasisStyle;
-    // Only show active state if emphasis exists
     btn.classList.toggle(
       'active',
-      currentEmphasisMarkId !== null && style === currentEmphasisStyle
+      currentEmphasisMarkId !== null &&
+        currentEmphasisIsExactMatch &&
+        style === currentEmphasisStyle
     );
+    btn.disabled = isPartialOverlap;
   }
 }
 
@@ -1044,10 +960,24 @@ function handleEmphasisToggle(): void {
   const normalizedToId = tokens[endIndex]!.id;
 
   if (currentEmphasisMarkId) {
-    // Remove existing emphasis
-    newDoc = removeMark(newDoc, currentEmphasisMarkId);
+    if (currentEmphasisIsExactMatch) {
+      // Exact match: remove emphasis
+      newDoc = removeMark(newDoc, currentEmphasisMarkId);
+    } else {
+      // Partial overlap: confirm removal of entire mark
+      const mark = currentDocument.marks.find((m) => m.id === currentEmphasisMarkId);
+      const range = mark && 'anchor' in mark ? `${mark.anchor.from}〜${mark.anchor.to}` : '';
+      if (
+        !window.confirm(
+          `選択範囲より広い傍点マーク（${range}）が存在します。マーク全体を解除しますか？`
+        )
+      ) {
+        return;
+      }
+      newDoc = removeMark(newDoc, currentEmphasisMarkId);
+    }
   } else {
-    // Add new emphasis with current style
+    // No overlapping emphasis: add new
     newDoc = addMark(newDoc, {
       type: 'emphasis',
       style: currentEmphasisStyle,
@@ -1067,7 +997,8 @@ function updateExistingEmphasis(): void {
     !currentDocument ||
     !currentSelectionFromId ||
     !currentSelectionToId ||
-    !currentEmphasisMarkId
+    !currentEmphasisMarkId ||
+    !currentEmphasisIsExactMatch
   )
     return;
 
@@ -1105,13 +1036,17 @@ function updateUnderlineStyleButtons(): void {
   const buttons = selectionUnderlineStyles.querySelectorAll<HTMLButtonElement>(
     '.selection-underline-style-btn'
   );
+  // Disable style buttons when partial overlap (can't update style of partially overlapping mark)
+  const isPartialOverlap = currentUnderlineMarkId !== null && !currentUnderlineIsExactMatch;
   for (const btn of buttons) {
     const style = btn.dataset['style'] as UnderlineStyle;
-    // Only show active state if underline exists
     btn.classList.toggle(
       'active',
-      currentUnderlineMarkId !== null && style === currentUnderlineStyle
+      currentUnderlineMarkId !== null &&
+        currentUnderlineIsExactMatch &&
+        style === currentUnderlineStyle
     );
+    btn.disabled = isPartialOverlap;
   }
 }
 
@@ -1125,6 +1060,11 @@ function updateUnderlineButton(): void {
   // Update ref input and format select
   selectionUnderlineRefInput.value = currentUnderlineRef;
   selectionUnderlineFormatSelect.value = currentUnderlineFormat;
+
+  // Disable ref/format inputs when partial overlap
+  const isPartialOverlap = currentUnderlineMarkId !== null && !currentUnderlineIsExactMatch;
+  selectionUnderlineRefInput.disabled = isPartialOverlap;
+  selectionUnderlineFormatSelect.disabled = isPartialOverlap;
 
   if (currentUnderlineMarkId) {
     // Underline exists for this selection: show "解除" state
@@ -1145,7 +1085,8 @@ function updateExistingUnderline(): void {
     !currentDocument ||
     !currentSelectionFromId ||
     !currentSelectionToId ||
-    !currentUnderlineMarkId
+    !currentUnderlineMarkId ||
+    !currentUnderlineIsExactMatch
   )
     return;
 
@@ -1163,9 +1104,13 @@ function updateExistingUnderline(): void {
   const normalizedToId = tokens[endIndex]!.id;
 
   // Remove existing underline and associated ref mark
-  const highlightInfo = findHighlightForSelection(newDoc, normalizedFromId, normalizedToId);
-  if (highlightInfo?.refMarkId) {
-    newDoc = removeMark(newDoc, highlightInfo.refMarkId);
+  const existingHighlight = newDoc.marks.find((m) => m.id === currentUnderlineMarkId);
+  if (existingHighlight && 'ref' in existingHighlight && existingHighlight.ref) {
+    const refMarkId = existingHighlight.ref;
+    const refMark = newDoc.marks.find((m) => m.type === 'ref' && m.id === refMarkId);
+    if (refMark?.id) {
+      newDoc = removeMark(newDoc, refMark.id);
+    }
   }
   newDoc = removeMark(newDoc, currentUnderlineMarkId);
 
@@ -1261,14 +1206,30 @@ function handleUnderlineToggle(): void {
   const normalizedToId = tokens[endIndex]!.id;
 
   if (currentUnderlineMarkId) {
+    // Partial overlap: confirm removal of entire mark
+    if (!currentUnderlineIsExactMatch) {
+      const mark = currentDocument.marks.find((m) => m.id === currentUnderlineMarkId);
+      const range = mark && 'anchor' in mark ? `${mark.anchor.from}〜${mark.anchor.to}` : '';
+      if (
+        !window.confirm(
+          `選択範囲より広い傍線マーク（${range}）が存在します。マーク全体を解除しますか？`
+        )
+      ) {
+        return;
+      }
+    }
     // Remove existing underline and associated ref mark
-    const highlightInfo = findHighlightForSelection(newDoc, normalizedFromId, normalizedToId);
-    if (highlightInfo?.refMarkId) {
-      newDoc = removeMark(newDoc, highlightInfo.refMarkId);
+    const existingHighlight = newDoc.marks.find((m) => m.id === currentUnderlineMarkId);
+    if (existingHighlight && 'ref' in existingHighlight && existingHighlight.ref) {
+      const refMarkId = existingHighlight.ref;
+      const refMark = newDoc.marks.find((m) => m.type === 'ref' && m.id === refMarkId);
+      if (refMark?.id) {
+        newDoc = removeMark(newDoc, refMark.id);
+      }
     }
     newDoc = removeMark(newDoc, currentUnderlineMarkId);
   } else {
-    // Add new underline (highlight with selected style and optional ref)
+    // No overlapping underline: add new (highlight with selected style and optional ref)
     const refInputValue = selectionUnderlineRefInput.value.trim();
     const formatValue = selectionUnderlineFormatSelect.value as RefFormat | '';
 
@@ -1386,14 +1347,44 @@ function handleKanaApply(): void {
 
   if (!value) return;
 
+  // Normalize selection range
+  const tokens = currentDocument.tokens;
+  const fromIndex = tokens.findIndex((t) => t.id === currentSelectionFromId);
+  const toIndex = tokens.findIndex((t) => t.id === currentSelectionToId);
+  if (fromIndex === -1 || toIndex === -1) return;
+  const startIndex = Math.min(fromIndex, toIndex);
+  const endIndex = Math.max(fromIndex, toIndex);
+  const normalizedFromId = tokens[startIndex]!.id;
+  const normalizedToId = tokens[endIndex]!.id;
+
   let newDoc = currentDocument;
 
-  // Find and remove existing mark of the same type
-  const existingMark = getMarksForToken(currentDocument, currentSelectionFromId).find(
+  // Find existing marks of the same type within the selection range
+  const existingMarks = getMarksForRange(currentDocument, normalizedFromId, normalizedToId).filter(
     (m) => m.type === type
   );
-  if (existingMark?.id) {
-    newDoc = removeMark(newDoc, existingMark.id);
+
+  if (existingMarks.length > 0) {
+    // Check if any overlapping mark has partial overlap (not exact match)
+    const hasPartialOverlap = existingMarks.some(
+      (m) =>
+        !('anchor' in m) || m.anchor.from !== normalizedFromId || m.anchor.to !== normalizedToId
+    );
+
+    if (hasPartialOverlap) {
+      // Reject: partial overlap with existing same-type mark
+      window.alert(
+        '選択範囲と部分的に重なる同種のマークが存在します。先に既存のマークを解除してください。'
+      );
+      return;
+    }
+
+    // Exact match: remove all and replace
+    for (const mark of existingMarks) {
+      if (mark.id) {
+        newDoc = removeMark(newDoc, mark.id);
+      }
+    }
   }
 
   // Add new mark
@@ -1420,7 +1411,9 @@ function clearSelectionPanel(): void {
   currentKaeriOther = null;
   currentTatetenMarkId = null;
   currentEmphasisMarkId = null;
+  currentEmphasisIsExactMatch = false;
   currentUnderlineMarkId = null;
+  currentUnderlineIsExactMatch = false;
   currentSelectionMode = 'single';
   selectionInfo.innerHTML = '<p class="selection-empty">文字をクリックまたはドラッグで選択</p>';
   selectionActions.style.display = 'none';

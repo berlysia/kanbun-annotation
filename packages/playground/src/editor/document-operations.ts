@@ -196,3 +196,48 @@ export function getMarksForToken(doc: SKAMDocument, tokenId: string): Mark[] {
     return fromIndex <= targetIndex && targetIndex <= toIndex;
   });
 }
+
+/**
+ * 指定されたtoken範囲に重なるマークを全て取得
+ *
+ * anchor ベースのマーク: マークの [from, to] と指定範囲 [fromId, toId] が重なる場合にマッチ。
+ * position ベースのマーク（kutoten, ref）: position.after が指定範囲内にある場合にマッチ。
+ */
+export function getMarksForRange(doc: SKAMDocument, fromId: string, toId: string): Mark[] {
+  const tokenIndexMap = new Map<string, number>();
+  for (let i = 0; i < doc.tokens.length; i++) {
+    const token = doc.tokens[i];
+    if (token != null) {
+      tokenIndexMap.set(token.id, i);
+    }
+  }
+
+  const rangeFrom = tokenIndexMap.get(fromId);
+  const rangeTo = tokenIndexMap.get(toId);
+  if (rangeFrom === undefined || rangeTo === undefined) {
+    return [];
+  }
+
+  const rangeStart = Math.min(rangeFrom, rangeTo);
+  const rangeEnd = Math.max(rangeFrom, rangeTo);
+
+  return doc.marks.filter((mark) => {
+    if (isPositionBasedMark(mark)) {
+      const afterTokenId = getPositionAfterTokenId(mark.position);
+      if (afterTokenId === undefined) return false;
+      const afterIndex = tokenIndexMap.get(afterTokenId);
+      if (afterIndex === undefined) return false;
+      return rangeStart <= afterIndex && afterIndex <= rangeEnd;
+    }
+
+    const markFrom = tokenIndexMap.get(mark.anchor.from);
+    const markTo = tokenIndexMap.get(mark.anchor.to);
+    if (markFrom === undefined || markTo === undefined) return false;
+
+    const markStart = Math.min(markFrom, markTo);
+    const markEnd = Math.max(markFrom, markTo);
+
+    // 2つの範囲が重なるかどうか: !(markEnd < rangeStart || markStart > rangeEnd)
+    return markEnd >= rangeStart && markStart <= rangeEnd;
+  });
+}

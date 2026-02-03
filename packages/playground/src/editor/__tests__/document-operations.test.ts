@@ -6,6 +6,7 @@ import {
   updateMark,
   removeMark,
   getMarksForToken,
+  getMarksForRange,
   type MarkInput,
 } from '../document-operations';
 
@@ -346,5 +347,134 @@ describe('Playground scenario: yomiganaを追加してもrefは残る', () => {
     expect(yomiganaMarks).toHaveLength(1);
     expect(refMarks[0]?.id).toBe('ref-1');
     expect((yomiganaMarks[0] as { value?: string }).value).toBe('まな');
+  });
+});
+
+describe('getMarksForRange', () => {
+  it('範囲と完全一致するマークを取得する', () => {
+    const doc = createTestDocument([
+      { type: 'yomigana', id: 'm1', anchor: { from: 't1', to: 't3' }, value: 'しいわく' },
+    ]);
+
+    const result = getMarksForRange(doc, 't1', 't3');
+    expect(result).toHaveLength(1);
+    expect(result[0]?.id).toBe('m1');
+  });
+
+  it('範囲内に収まるマークを取得する', () => {
+    const doc = createTestDocument([
+      { type: 'yomigana', id: 'm1', anchor: { from: 't2', to: 't2' }, value: 'いわく' },
+    ]);
+
+    const result = getMarksForRange(doc, 't1', 't3');
+    expect(result).toHaveLength(1);
+    expect(result[0]?.id).toBe('m1');
+  });
+
+  it('範囲と部分的に重なるマーク（左側）を取得する', () => {
+    const doc = createTestDocument([
+      { type: 'yomigana', id: 'm1', anchor: { from: 't1', to: 't2' }, value: 'しいわく' },
+    ]);
+
+    const result = getMarksForRange(doc, 't2', 't3');
+    expect(result).toHaveLength(1);
+  });
+
+  it('範囲と部分的に重なるマーク（右側）を取得する', () => {
+    const doc = createTestDocument([
+      { type: 'yomigana', id: 'm1', anchor: { from: 't2', to: 't3' }, value: 'いわく' },
+    ]);
+
+    const result = getMarksForRange(doc, 't1', 't2');
+    expect(result).toHaveLength(1);
+  });
+
+  it('範囲より広いマークを取得する（superset）', () => {
+    const doc = createTestDocument([
+      { type: 'yomigana', id: 'm1', anchor: { from: 't1', to: 't3' }, value: 'しいわく' },
+    ]);
+
+    const result = getMarksForRange(doc, 't2', 't2');
+    expect(result).toHaveLength(1);
+  });
+
+  it('範囲外のマークは取得しない', () => {
+    const doc = createTestDocument([
+      { type: 'yomigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'し' },
+    ]);
+
+    const result = getMarksForRange(doc, 't2', 't3');
+    expect(result).toHaveLength(0);
+  });
+
+  it('隣接するが重ならないマークは取得しない', () => {
+    const doc = createTestDocument([
+      { type: 'yomigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'し' },
+      { type: 'yomigana', id: 'm2', anchor: { from: 't3', to: 't3' }, value: 'まなぶ' },
+    ]);
+
+    const result = getMarksForRange(doc, 't2', 't2');
+    expect(result).toHaveLength(0);
+  });
+
+  it('複数の重なるマークを全て取得する', () => {
+    const doc = createTestDocument([
+      { type: 'yomigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'し' },
+      { type: 'yomigana', id: 'm2', anchor: { from: 't2', to: 't3' }, value: 'いわく' },
+      { type: 'kaeri', id: 'm3', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+    ]);
+
+    const result = getMarksForRange(doc, 't1', 't3');
+    expect(result).toHaveLength(3);
+  });
+
+  it('position ベースのマーク（kutoten）が範囲内なら取得する', () => {
+    const doc = createTestDocument([
+      { type: 'kutoten', id: 'm1', position: { after: 't2' }, value: '。' },
+    ]);
+
+    const result = getMarksForRange(doc, 't1', 't3');
+    expect(result).toHaveLength(1);
+  });
+
+  it('position ベースのマークが範囲外なら取得しない', () => {
+    const doc = createTestDocument([
+      { type: 'kutoten', id: 'm1', position: { after: 't3' }, value: '。' },
+    ]);
+
+    const result = getMarksForRange(doc, 't1', 't2');
+    expect(result).toHaveLength(0);
+  });
+
+  it('存在しないtokenIdの場合は空配列を返す', () => {
+    const doc = createTestDocument([
+      { type: 'yomigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'し' },
+    ]);
+
+    const result = getMarksForRange(doc, 't999', 't1');
+    expect(result).toHaveLength(0);
+  });
+
+  it('無効なanchorを持つマークは除外する', () => {
+    const doc = createTestDocument([
+      { type: 'okurigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'ク' },
+      { type: 'okurigana', id: 'm2', anchor: { from: 'invalid', to: 'invalid' }, value: 'ク' },
+    ]);
+
+    const result = getMarksForRange(doc, 't1', 't3');
+    expect(result).toHaveLength(1);
+    expect(result[0]?.id).toBe('m1');
+  });
+
+  it('単一トークン範囲で getMarksForToken と同じ結果を返す', () => {
+    const doc = createTestDocument([
+      { type: 'yomigana', id: 'm1', anchor: { from: 't1', to: 't3' }, value: 'しいわく' },
+      { type: 'kaeri', id: 'm2', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+      { type: 'kutoten', id: 'm3', position: { after: 't2' }, value: '。' },
+    ]);
+
+    const rangeResult = getMarksForRange(doc, 't2', 't2');
+    const tokenResult = getMarksForToken(doc, 't2');
+    expect(rangeResult.map((m) => m.id).sort()).toEqual(tokenResult.map((m) => m.id).sort());
   });
 });

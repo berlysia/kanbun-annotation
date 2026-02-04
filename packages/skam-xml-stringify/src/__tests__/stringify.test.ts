@@ -486,6 +486,71 @@ describe('stringify - saidoku', () => {
     expect(xml).toContain('<skam:kunform n="2" okuri="す"/>');
     expect(xml).toContain('</skam:saidoku>');
   });
+
+  it('should place kaeri after saidoku element, not inside skam:base', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '將' },
+        { id: 't2', text: '死' },
+      ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
+      marks: [
+        {
+          type: 'saidoku',
+          id: 'm1',
+          anchor: { from: 't1', to: 't1' },
+          forms: [
+            { n: 1, yomi: 'まさ', okuri: 'に' },
+            { n: 2, okuri: 'す' },
+          ],
+        } as SaidokuMark,
+        {
+          type: 'kaeri',
+          id: 'm2',
+          anchor: { from: 't1', to: 't1' },
+          value: 'レ',
+        } as KaeriMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(doc);
+
+    expect(xml).toContain('</skam:saidoku><skam:kaeri kind="re"/>');
+    expect(xml).not.toContain('<skam:base>將<skam:kaeri');
+  });
+
+  it('should place kutoten after saidoku element', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '將' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+      marks: [
+        {
+          type: 'saidoku',
+          id: 'm1',
+          anchor: { from: 't1', to: 't1' },
+          forms: [
+            { n: 1, yomi: 'まさ', okuri: 'に' },
+            { n: 2, okuri: 'す' },
+          ],
+        } as SaidokuMark,
+        {
+          type: 'kutoten',
+          id: 'm2',
+          position: { blockId: 'b1', after: 't1' },
+          value: '。',
+        } as KutotenMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(doc);
+
+    expect(xml).toContain('</skam:saidoku><skam:kutoten');
+    expect(xml).not.toContain('<skam:base>將<skam:kutoten');
+  });
 });
 
 // ============================================================================
@@ -861,5 +926,48 @@ describe('stringify - XML escaping', () => {
     const xml = stringify(doc);
 
     expect(xml).toContain('yomi="&lt;test&gt;"');
+  });
+});
+
+// ============================================================================
+// Readings Tests
+// ============================================================================
+
+describe('stringify - readings', () => {
+  it('should stringify readings', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '學' },
+        { id: 't2', text: '而' },
+      ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
+      marks: [],
+      readings: [
+        { kind: 'kakikudashi', text: '学びて' },
+        { kind: 'yomiage', text: 'まなびて' },
+      ],
+    };
+
+    const xml = stringify(doc);
+
+    expect(xml).toContain('<skam:readings>');
+    expect(xml).toContain('<skam:reading kind="kakikudashi">学びて</skam:reading>');
+    expect(xml).toContain('<skam:reading kind="yomiage">まなびて</skam:reading>');
+    expect(xml).toContain('</skam:readings>');
+  });
+
+  it('should not output readings element when readings is empty', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+      marks: [],
+      readings: [],
+    };
+
+    const xml = stringify(doc);
+
+    expect(xml).not.toContain('<skam:readings>');
   });
 });

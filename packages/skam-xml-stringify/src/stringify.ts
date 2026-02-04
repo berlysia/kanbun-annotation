@@ -543,16 +543,13 @@ function buildContentTree(
 // ============================================================================
 
 /**
- * 単一トークンの XML を生成（wrapper なし、annotation のみ）
+ * 単一トークンのベース XML を生成（テキスト + kun 属性のみ、trailing marks なし）
  */
-function tokenContentToXml(text: string, annotation: TokenAnnotation): string {
-  const { yomi, okuri, soe, kaeriAfter, kutotenAfter, refAfter } = annotation;
+function tokenBaseToXml(text: string, annotation: TokenAnnotation): string {
+  const { yomi, okuri, soe } = annotation;
   const hasKunAttrs = yomi || okuri || soe;
 
-  let xml = '';
-
   if (hasKunAttrs) {
-    // skam:kun 要素で囲む
     const attrs: string[] = [];
     if (yomi) {
       attrs.push(`yomi="${escapeXml(yomi)}"`);
@@ -564,13 +561,19 @@ function tokenContentToXml(text: string, annotation: TokenAnnotation): string {
       attrs.push(`soe="${escapeXml(soe)}"`);
     }
 
-    xml += `<skam:kun ${attrs.join(' ')}>${escapeXml(text)}</skam:kun>`;
-  } else {
-    // プレーンテキスト
-    xml += escapeXml(text);
+    return `<skam:kun ${attrs.join(' ')}>${escapeXml(text)}</skam:kun>`;
   }
 
-  // 返り点を追加
+  return escapeXml(text);
+}
+
+/**
+ * trailing marks（kaeri/kutoten/ref）の XML を生成
+ */
+function tokenTrailingToXml(annotation: TokenAnnotation): string {
+  const { kaeriAfter, kutotenAfter, refAfter } = annotation;
+  let xml = '';
+
   if (kaeriAfter) {
     for (const kaeri of kaeriAfter) {
       const kind = kaeriValueToKind(kaeri.value);
@@ -578,7 +581,6 @@ function tokenContentToXml(text: string, annotation: TokenAnnotation): string {
     }
   }
 
-  // 句読点を追加
   if (kutotenAfter) {
     for (const kutoten of kutotenAfter) {
       let attrs = `value="${escapeXml(kutoten.value)}"`;
@@ -589,7 +591,6 @@ function tokenContentToXml(text: string, annotation: TokenAnnotation): string {
     }
   }
 
-  // 空要素 ref を追加
   if (refAfter) {
     for (const ref of refAfter) {
       xml += refMarkToXml(ref, true);
@@ -597,6 +598,13 @@ function tokenContentToXml(text: string, annotation: TokenAnnotation): string {
   }
 
   return xml;
+}
+
+/**
+ * 単一トークンの XML を生成（wrapper なし、annotation のみ）
+ */
+function tokenContentToXml(text: string, annotation: TokenAnnotation): string {
+  return tokenBaseToXml(text, annotation) + tokenTrailingToXml(annotation);
 }
 
 /**
@@ -687,6 +695,13 @@ function refMarkToXml(ref: RefMark, isEmpty: boolean): string {
 function contentNodeToXml(node: ContentNode): string {
   if (node.type === 'text') {
     // テキストノード：annotation を適用
+    // saidoku wrapper がある場合、trailing marks（kaeri/kutoten/ref）を
+    // <skam:base> 内ではなく <skam:saidoku> の後に配置する
+    if (node.annotation.wrappers?.some((w) => w.type === 'saidoku')) {
+      const baseXml = tokenBaseToXml(node.text, node.annotation);
+      const trailingXml = tokenTrailingToXml(node.annotation);
+      return applyWrappers(baseXml, node.annotation.wrappers) + trailingXml;
+    }
     const innerXml = tokenContentToXml(node.text, node.annotation);
     return applyWrappers(innerXml, node.annotation.wrappers);
   } else {
@@ -928,6 +943,18 @@ export function stringify(doc: SKAMDocument, options: StringifyOptions = {}): st
   if (notesLines.length > 0) {
     lines.push('');
     lines.push(...notesLines);
+  }
+
+  // readings 要素
+  if (doc.readings.length > 0) {
+    lines.push('');
+    lines.push(`${indentStr(1, indentSize)}<skam:readings>`);
+    for (const reading of doc.readings) {
+      lines.push(
+        `${indentStr(2, indentSize)}<skam:reading kind="${escapeXml(reading.kind)}">${escapeXml(reading.text)}</skam:reading>`
+      );
+    }
+    lines.push(`${indentStr(1, indentSize)}</skam:readings>`);
   }
 
   // ルート要素終了

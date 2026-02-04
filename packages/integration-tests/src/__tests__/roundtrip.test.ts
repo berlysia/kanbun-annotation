@@ -772,3 +772,84 @@ describe('round-trip - multi-token', () => {
     expect((soegana as SoeganaMark).value).toBe('ノ');
   });
 });
+
+// ============================================================================
+// Saidoku + trailing marks Round-trip Tests
+// ============================================================================
+
+describe('round-trip - saidoku with trailing marks', () => {
+  it('should round-trip saidoku with kaeri', () => {
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '將' },
+        { id: 't2', text: '死' },
+      ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
+      marks: [
+        {
+          type: 'saidoku',
+          id: 'm1',
+          anchor: { from: 't1', to: 't1' },
+          forms: [
+            { n: 1, yomi: 'まさ', okuri: 'に' },
+            { n: 2, okuri: 'す' },
+          ],
+        } as SaidokuMark,
+        {
+          type: 'kaeri',
+          id: 'm2',
+          anchor: { from: 't1', to: 't1' },
+          value: 'レ',
+        } as KaeriMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+
+    // kaeri should be after </skam:saidoku>, not inside <skam:base>
+    expect(xml).toContain('</skam:saidoku><skam:kaeri kind="re"/>');
+
+    const reparsedDoc = parse(xml);
+
+    const saidoku = reparsedDoc.marks.find((m) => m.type === 'saidoku');
+    const kaeri = reparsedDoc.marks.find((m) => m.type === 'kaeri');
+
+    expect(saidoku).toBeDefined();
+    expect((saidoku as SaidokuMark).forms).toHaveLength(2);
+    expect(kaeri).toBeDefined();
+    expect((kaeri as KaeriMark).value).toBe('レ');
+  });
+});
+
+// ============================================================================
+// Readings Round-trip Tests
+// ============================================================================
+
+describe('round-trip - readings', () => {
+  it('should round-trip readings', () => {
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '學' },
+        { id: 't2', text: '而' },
+      ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
+      marks: [],
+      readings: [
+        { kind: 'kakikudashi', text: '学びて' },
+        { kind: 'yomiage', text: 'まなびて' },
+      ],
+    };
+
+    const xml = stringify(originalDoc);
+    const reparsedDoc = parse(xml);
+
+    expect(reparsedDoc.readings).toHaveLength(2);
+    expect(reparsedDoc.readings[0]!.kind).toBe('kakikudashi');
+    expect(reparsedDoc.readings[0]!.text).toBe('学びて');
+    expect(reparsedDoc.readings[1]!.kind).toBe('yomiage');
+    expect(reparsedDoc.readings[1]!.text).toBe('まなびて');
+  });
+});

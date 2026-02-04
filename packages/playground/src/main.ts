@@ -12,10 +12,12 @@ import {
   PROFILES,
   type RenderProfile,
 } from '@kanbun/skam-html-renderer';
-import type { SKAMDocument, RefFormat, Mark } from '@kanbun/skam';
+import type { SKAMDocument, RefFormat, Mark, EmphasisMark, HighlightMark } from '@kanbun/skam';
 import {
   addMark,
+  addMarkWithResult,
   removeMark,
+  removeHighlightWithRef,
   updateMark,
   getMarksForToken,
   getMarksForRange,
@@ -25,8 +27,11 @@ import {
   getTokenIndex,
   getTokenByIndex,
   getAnchorText,
+  getAnchorRangeLabel,
   sortMarksByPosition,
   generateId,
+  hasMarkValue,
+  isExactAnchorMatch,
 } from '@kanbun/skam';
 import { SAMPLES } from './samples.js';
 import { ErrorPanel, type ParseError } from './editor/error-panel.js';
@@ -510,7 +515,8 @@ function findTatetenForSelection(
 
   // Find kaeri mark attached to the same range
   const kaeriMarks = getMarksExactRange(doc, fromId, toId, 'kaeri');
-  const kaeriValue = kaeriMarks[0] && 'value' in kaeriMarks[0] ? String(kaeriMarks[0].value) : null;
+  const firstKaeri = kaeriMarks[0];
+  const kaeriValue = firstKaeri && hasMarkValue(firstKaeri) ? String(firstKaeri.value) : null;
 
   return { markId: tateten.id, kaeriValue };
 }
@@ -589,16 +595,17 @@ function updateSelectionPanel(fromId: string, toId: string): void {
 
   // Determine emphasis state via overlap detection
   const emphasisMarks = getMarksForRange(currentDocument, normalizedFromId, normalizedToId).filter(
-    (m) => m.type === 'emphasis'
+    (m): m is EmphasisMark => m.type === 'emphasis'
   );
   if (emphasisMarks.length > 0) {
     const firstEmphasis = emphasisMarks[0]!;
     currentEmphasisMarkId = firstEmphasis.id ?? null;
-    currentEmphasisIsExactMatch =
-      'anchor' in firstEmphasis &&
-      firstEmphasis.anchor.from === normalizedFromId &&
-      firstEmphasis.anchor.to === normalizedToId;
-    if ('style' in firstEmphasis && firstEmphasis.style) {
+    currentEmphasisIsExactMatch = isExactAnchorMatch(
+      firstEmphasis,
+      normalizedFromId,
+      normalizedToId
+    );
+    if (firstEmphasis.style) {
       currentEmphasisStyle = firstEmphasis.style as EmphasisStyle;
     }
   } else {
@@ -608,27 +615,23 @@ function updateSelectionPanel(fromId: string, toId: string): void {
 
   // Determine underline/highlight state via overlap detection
   const highlightMarks = getMarksForRange(currentDocument, normalizedFromId, normalizedToId).filter(
-    (m) => m.type === 'highlight'
+    (m): m is HighlightMark => m.type === 'highlight'
   );
   if (highlightMarks.length > 0) {
     const firstHighlight = highlightMarks[0]!;
     currentUnderlineMarkId = firstHighlight.id ?? null;
-    currentUnderlineIsExactMatch =
-      'anchor' in firstHighlight &&
-      firstHighlight.anchor.from === normalizedFromId &&
-      firstHighlight.anchor.to === normalizedToId;
-    if ('style' in firstHighlight) {
-      currentUnderlineStyle = (firstHighlight.style as UnderlineStyle | undefined) ?? 'solid';
-    } else {
-      currentUnderlineStyle = 'solid';
-    }
+    currentUnderlineIsExactMatch = isExactAnchorMatch(
+      firstHighlight,
+      normalizedFromId,
+      normalizedToId
+    );
+    currentUnderlineStyle = (firstHighlight.style as UnderlineStyle | undefined) ?? 'solid';
     // Extract ref info from highlight mark
-    const ref = 'ref' in firstHighlight ? (firstHighlight.ref as string | undefined) : undefined;
-    currentUnderlineRef = ref ?? '';
+    currentUnderlineRef = firstHighlight.ref ?? '';
     // Find associated ref mark for format
     currentUnderlineFormat = '';
-    if (ref) {
-      const refMark = getMarkById(currentDocument, ref);
+    if (firstHighlight.ref) {
+      const refMark = getMarkById(currentDocument, firstHighlight.ref);
       if (refMark && refMark.type === 'ref' && 'format' in refMark) {
         currentUnderlineFormat = (refMark.format as RefFormat | undefined) ?? '';
       }
@@ -658,7 +661,7 @@ function updateSelectionPanel(fromId: string, toId: string): void {
     // For single selection, get kaeri from that token
     const firstTokenMarks = getMarksForToken(currentDocument, fromId);
     for (const mark of firstTokenMarks) {
-      if (mark.type === 'kaeri' && 'value' in mark) {
+      if (mark.type === 'kaeri' && hasMarkValue(mark)) {
         currentKaeriValue = String(mark.value);
         break;
       }
@@ -671,7 +674,7 @@ function updateSelectionPanel(fromId: string, toId: string): void {
 
   const rangeMarks = getMarksForRange(currentDocument, normalizedFromId, normalizedToId);
   for (const mark of rangeMarks) {
-    if ('value' in mark && typeof mark.value === 'string') {
+    if (hasMarkValue(mark)) {
       if (mark.type === 'yomigana' || mark.type === 'okurigana' || mark.type === 'soegana') {
         // 同タイプで未設定の場合のみ（最初に見つかったものを採用）
         if (!currentKanaValues[mark.type]) {
@@ -960,7 +963,7 @@ function handleEmphasisToggle(): void {
     } else {
       // Partial overlap: confirm removal of entire mark
       const mark = getMarkById(currentDocument, currentEmphasisMarkId);
-      const range = mark && 'anchor' in mark ? `${mark.anchor.from}〜${mark.anchor.to}` : '';
+      const range = mark ? getAnchorRangeLabel(mark) : '';
       if (
         !window.confirm(
           `選択範囲より広い傍点マーク（${range}）が存在します。マーク全体を解除しますか？`
@@ -1074,15 +1077,7 @@ function updateExistingUnderline(): void {
   const { fromId: normalizedFromId, toId: normalizedToId } = sel;
 
   // Remove existing underline and associated ref mark
-  const existingHighlight = getMarkById(newDoc, currentUnderlineMarkId);
-  if (existingHighlight && 'ref' in existingHighlight && existingHighlight.ref) {
-    const refMarkId = existingHighlight.ref;
-    const refMark = getMarkById(newDoc, refMarkId);
-    if (refMark?.id && refMark.type === 'ref') {
-      newDoc = removeMark(newDoc, refMark.id);
-    }
-  }
-  newDoc = removeMark(newDoc, currentUnderlineMarkId);
+  newDoc = removeHighlightWithRef(newDoc, currentUnderlineMarkId);
 
   // Add new underline with current settings
   const refInputValue = selectionUnderlineRefInput.value.trim();
@@ -1111,27 +1106,16 @@ function addUnderlineMarks(
 
   if (formatValue) {
     const effectiveRefId = refInputValue || generateId(newDoc, 'ref', '-');
-    refId = effectiveRefId;
     const refBlock = getBlockForToken(newDoc, toId);
     const refBlockId = refBlock?.id ?? '';
-    newDoc = addMark(newDoc, {
+    const result = addMarkWithResult(newDoc, {
       type: 'ref',
       id: effectiveRefId,
       format: formatValue,
       position: { blockId: refBlockId, after: toId },
     });
-    // Find the newly added ref mark to get its generated ID
-    const addedRefMark = newDoc.marks.find(
-      (m) =>
-        m.type === 'ref' &&
-        'format' in m &&
-        m.format === formatValue &&
-        'position' in m &&
-        m.position.after === toId
-    );
-    if (addedRefMark?.id) {
-      refId = addedRefMark.id;
-    }
+    newDoc = result.doc;
+    refId = result.markId;
   } else if (refInputValue) {
     refId = refInputValue;
   }
@@ -1169,7 +1153,7 @@ function handleUnderlineToggle(): void {
     // Partial overlap: confirm removal of entire mark
     if (!currentUnderlineIsExactMatch) {
       const mark = getMarkById(currentDocument, currentUnderlineMarkId);
-      const range = mark && 'anchor' in mark ? `${mark.anchor.from}〜${mark.anchor.to}` : '';
+      const range = mark ? getAnchorRangeLabel(mark) : '';
       if (
         !window.confirm(
           `選択範囲より広い傍線マーク（${range}）が存在します。マーク全体を解除しますか？`
@@ -1179,15 +1163,7 @@ function handleUnderlineToggle(): void {
       }
     }
     // Remove existing underline and associated ref mark
-    const existingHighlight = getMarkById(newDoc, currentUnderlineMarkId);
-    if (existingHighlight && 'ref' in existingHighlight && existingHighlight.ref) {
-      const refMarkId = existingHighlight.ref;
-      const refMark = getMarkById(newDoc, refMarkId);
-      if (refMark?.id && refMark.type === 'ref') {
-        newDoc = removeMark(newDoc, refMark.id);
-      }
-    }
-    newDoc = removeMark(newDoc, currentUnderlineMarkId);
+    newDoc = removeHighlightWithRef(newDoc, currentUnderlineMarkId);
   } else {
     // No overlapping underline: add new (highlight with selected style and optional ref)
     const refInputValue = selectionUnderlineRefInput.value.trim();
@@ -1223,16 +1199,10 @@ function applyKaeriValue(value: string | null): void {
   const anchorTo = currentSelectionMode === 'single' ? normalizedFromId : normalizedToId;
 
   // Find and remove existing kaeri mark for this range
-  for (const mark of currentDocument.marks) {
-    if (
-      mark.type === 'kaeri' &&
-      mark.anchor.from === anchorFrom &&
-      mark.anchor.to === anchorTo &&
-      mark.id
-    ) {
-      newDoc = removeMark(newDoc, mark.id);
-      break;
-    }
+  const existingKaeri = getMarksExactRange(newDoc, anchorFrom, anchorTo, 'kaeri');
+  const kaeriToRemove = existingKaeri[0];
+  if (kaeriToRemove?.id) {
+    newDoc = removeMark(newDoc, kaeriToRemove.id);
   }
 
   // Add new mark if value is provided
@@ -1386,7 +1356,7 @@ function updateMarksList(doc: SKAMDocument | null): void {
     const anchorText = getAnchorText(doc, mark);
 
     let value = '';
-    if ('value' in mark && mark.value !== undefined) {
+    if (hasMarkValue(mark)) {
       value = String(mark.value);
     }
 

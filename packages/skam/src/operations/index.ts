@@ -82,6 +82,16 @@ export type MarkUpdates<M extends Mark = Mark> = M extends unknown
   ? Partial<Omit<M, 'type' | 'id'>>
   : never;
 
+/** PersistedMark と Mark の MarkUpdates 互換性をコンパイルタイムで検証 */
+type _TestPersistedUpdates = MarkUpdates<PersistedMark>;
+type _TestMarkUpdates = MarkUpdates<Mark>;
+type _AssertUpdatesCompat = _TestPersistedUpdates extends _TestMarkUpdates
+  ? _TestMarkUpdates extends _TestPersistedUpdates
+    ? true
+    : never
+  : never;
+const _assertUpdatesCompat: _AssertUpdatesCompat = true;
+
 // ============================================================================
 // Token Index Utilities
 // ============================================================================

@@ -15,6 +15,7 @@ import type {
 import {
   isAnchorBasedMark,
   isMarkType,
+  filterMarksByType,
   hasMarkValue,
   getAnchorRangeLabel,
   isExactAnchorMatch,
@@ -277,5 +278,45 @@ describe('isMarkType', () => {
       // KutotenMark にナローされるので position にアクセス可能
       expect(mark.position.blockId).toBe('b1');
     }
+  });
+});
+
+// ============================================================================
+// filterMarksByType
+// ============================================================================
+
+describe('filterMarksByType', () => {
+  it('6.1: 指定 type のマークのみをフィルタリングする', () => {
+    const marks: Mark[] = [
+      { type: 'kaeri', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+      { type: 'okurigana', id: 'm2', anchor: { from: 't1', to: 't1' }, value: 'ク' },
+      { type: 'kaeri', id: 'm3', anchor: { from: 't2', to: 't2' }, value: '一' },
+    ];
+
+    const result = filterMarksByType(marks, 'kaeri');
+    expect(result).toHaveLength(2);
+    expect(result[0]?.value).toBe('レ');
+    expect(result[1]?.value).toBe('一');
+  });
+
+  it('6.2: マッチなしで空配列を返す', () => {
+    const marks: Mark[] = [
+      { type: 'kaeri', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+    ];
+
+    const result = filterMarksByType(marks, 'okurigana');
+    expect(result).toHaveLength(0);
+  });
+
+  it('6.3: position ベースマーク（kutoten）をフィルタリングする', () => {
+    const marks: Mark[] = [
+      { type: 'kaeri', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+      { type: 'kutoten', id: 'm2', position: { blockId: 'b1', after: 't1' }, value: '。' },
+      { type: 'kutoten', id: 'm3', position: { blockId: 'b1', after: 't2' }, value: '、' },
+    ];
+
+    const result = filterMarksByType(marks, 'kutoten');
+    expect(result).toHaveLength(2);
+    expect(result[0]?.position.blockId).toBe('b1');
   });
 });

@@ -497,6 +497,7 @@ export {
   isAnchorBasedMark,
   isPositionBasedMark,
   isMarkType,
+  filterMarksByType,
   hasMarkValue,
   isExactAnchorMatch,
   // Types

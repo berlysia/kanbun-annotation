@@ -595,6 +595,16 @@ export function isMarkType<T extends MarkType>(mark: Mark, type: T): mark is Mar
   return mark.type === type;
 }
 
+/**
+ * Mark 配列を type でフィルタリングし、型安全な配列を返す
+ */
+export function filterMarksByType<T extends MarkType>(
+  marks: readonly Mark[],
+  type: T
+): MarkTypeMap[T][] {
+  return marks.filter((m): m is MarkTypeMap[T] => m.type === type);
+}
+
 /** value プロパティを持つマーク型 */
 type MarkWithValue = KaeriMark | OkuriganaMark | YomiganaMark | SoeganaMark | KutotenMark;
 

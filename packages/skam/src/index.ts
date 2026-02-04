@@ -350,6 +350,14 @@ export interface MarkTypeMap {
 /** すべての注記型 */
 export type Mark = MarkTypeMap[keyof MarkTypeMap];
 
+/** anchor ベースの MarkType サブセット */
+export type AnchoredMarkType = {
+  [K in keyof MarkTypeMap]: MarkTypeMap[K] extends AnchoredMark ? K : never;
+}[keyof MarkTypeMap];
+
+/** position ベースの MarkType サブセット */
+export type PositionedMarkType = Exclude<MarkType, AnchoredMarkType>;
+
 /** MarkType と MarkTypeMap のキーの整合性を保証 */
 type _AssertKeysMatch = keyof MarkTypeMap extends MarkType
   ? MarkType extends keyof MarkTypeMap

@@ -454,9 +454,10 @@ export function getMarksForRange(doc: SKAMDocument, fromId: string, toId: string
 }
 
 /**
- * アンカーが指定範囲と完全一致するマークを取得
+ * 指定範囲と一致するマークを取得（anchor/position 両方対応）
  *
- * anchor ベースのマークのみ対象（position ベースは除外）。
+ * - anchor ベース: from/to が範囲と完全一致
+ * - position ベース: after トークンが範囲内にある
  * オプションで type フィルタが可能。
  */
 export function getMarksExactRange(
@@ -477,12 +478,19 @@ export function getMarksExactRange(
   const rangeEnd = Math.max(rangeFrom, rangeTo);
 
   return doc.marks.filter((mark) => {
-    // position ベースは除外
-    if (isPositionBasedMark(mark)) return false;
-
     // type フィルタ
     if (type !== undefined && mark.type !== type) return false;
 
+    // position ベース: after トークンが範囲内にあるか
+    if (isPositionBasedMark(mark)) {
+      const afterTokenId = getPositionAfterTokenId(mark.position);
+      if (afterTokenId === undefined) return false;
+      const afterIndex = tokenIndexMap.get(afterTokenId);
+      if (afterIndex === undefined) return false;
+      return rangeStart <= afterIndex && afterIndex <= rangeEnd;
+    }
+
+    // anchor ベース: 完全一致
     const markFrom = tokenIndexMap.get(mark.anchor.from);
     const markTo = tokenIndexMap.get(mark.anchor.to);
     if (markFrom === undefined || markTo === undefined) return false;

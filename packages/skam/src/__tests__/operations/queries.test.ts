@@ -448,11 +448,11 @@ describe('getMarksExactRange', () => {
     expect(getMarksExactRange(doc, 't1', 't2')).toHaveLength(2);
   });
 
-  it('15.8: position-based は除外', () => {
+  it('15.8: position-based も含む（after が範囲内）', () => {
     const doc = createTestDocument([
       { type: 'kutoten', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: '。' },
     ]);
-    expect(getMarksExactRange(doc, 't1', 't1')).toHaveLength(0);
+    expect(getMarksExactRange(doc, 't1', 't1')).toHaveLength(1);
   });
 
   it('15.9: 存在しないtokenId', () => {

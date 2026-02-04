@@ -141,17 +141,27 @@ export type MarkType =
  * - placementHint: 表示上の弱いヒント（解釈不能でも問題としない）
  * - ext: 拡張フィールド（round-trip保持推奨）
  */
-export interface BaseMark {
+export interface MarkBase {
   /** 注記種別 */
   type: MarkType;
   /** 一意識別子（任意だが推奨） */
   id?: string;
-  /** 対象 token 範囲 */
-  anchor: Anchor;
   /** 表示上の弱いヒント */
   placementHint?: string;
   /** 拡張フィールド（round-trip保持推奨） */
   ext?: Record<string, unknown>;
+}
+
+/** anchor ベースの注記（token 範囲に付随） */
+export interface AnchoredMark extends MarkBase {
+  /** 対象 token 範囲 */
+  anchor: Anchor;
+}
+
+/** position ベースの注記（token 間位置に配置） */
+export interface PositionedMark extends MarkBase {
+  /** 配置位置（トークン間） */
+  position: Position;
 }
 
 // ============================================================================
@@ -159,38 +169,38 @@ export interface BaseMark {
 // ============================================================================
 
 /** 返り点 */
-export interface KaeriMark extends BaseMark {
+export interface KaeriMark extends AnchoredMark {
   type: 'kaeri';
   /** 返り点記号（レ、一、二、上、下、甲、乙 等） */
   value: string;
 }
 
 /** 送り仮名 */
-export interface OkuriganaMark extends BaseMark {
+export interface OkuriganaMark extends AnchoredMark {
   type: 'okurigana';
   /** 送り仮名テキスト */
   value: string;
 }
 
 /** 読み仮名（ルビ） */
-export interface YomiganaMark extends BaseMark {
+export interface YomiganaMark extends AnchoredMark {
   type: 'yomigana';
   /** 読み仮名テキスト */
   value: string;
 }
 
 /** 置字（訓読時に読まない漢字をマーク） */
-export interface OkimojiMark extends BaseMark {
+export interface OkimojiMark extends AnchoredMark {
   type: 'okimoji';
 }
 
 /** 助字（文法的機能を持つ漢字の分類ラベル） */
-export interface JojiMark extends BaseMark {
+export interface JojiMark extends AnchoredMark {
   type: 'joji';
 }
 
 /** 添え仮名（訓読時に補う助詞・テニヲハ） */
-export interface SoeganaMark extends BaseMark {
+export interface SoeganaMark extends AnchoredMark {
   type: 'soegana';
   /** 添え仮名テキスト（を、に、は 等） */
   value: string;
@@ -201,20 +211,12 @@ export interface SoeganaMark extends BaseMark {
  *
  * トークン間の位置に配置される。anchor ではなく position を使用。
  */
-export interface KutotenMark {
+export interface KutotenMark extends PositionedMark {
   type: 'kutoten';
-  /** 一意識別子（任意だが推奨） */
-  id?: string;
-  /** 配置位置（トークン間） */
-  position: Position;
   /** 句読点記号（。、等） */
   value: string;
   /** 分類（任意） */
   kind?: 'ku' | 'ten' | 'other';
-  /** 表示上の弱いヒント */
-  placementHint?: string;
-  /** 拡張フィールド（round-trip保持推奨） */
-  ext?: Record<string, unknown>;
 }
 
 /**
@@ -242,7 +244,7 @@ export type EmphasisStyle =
   | (string & {}); // カスタム文字列も許可
 
 /** 傍点・圏点（後世の記述） */
-export interface EmphasisMark extends BaseMark {
+export interface EmphasisMark extends AnchoredMark {
   type: 'emphasis';
   /**
    * 傍点スタイル（CSS text-emphasis-style 準拠）
@@ -268,7 +270,7 @@ export type RefFormat =
 export type HighlightStyle = 'solid' | 'dotted' | 'dashed' | 'wavy' | 'double';
 
 /** 傍線・ハイライト（後世の記述、refを参照） */
-export interface HighlightMark extends BaseMark {
+export interface HighlightMark extends AnchoredMark {
   type: 'highlight';
   /** 傍線スタイル（CSS text-decoration-style 準拠、省略時は solid） */
   style?: HighlightStyle;
@@ -283,22 +285,14 @@ export interface HighlightMark extends BaseMark {
  * label / format / content のいずれか必須。
  * label と format は排他（併用禁止）。
  */
-export interface RefMark {
+export interface RefMark extends PositionedMark {
   type: 'ref';
-  /** 一意識別子（分離定義時は必須） */
-  id?: string;
-  /** 配置位置（トークン間） */
-  position: Position;
   /** 表示ラベル（明示値、format と排他） */
   label?: string;
   /** 自動番号フォーマット（label と排他） */
   format?: RefFormat;
   /** 注釈テキスト（任意） */
   content?: string;
-  /** 表示上の弱いヒント */
-  placementHint?: string;
-  /** 拡張フィールド（round-trip保持推奨） */
-  ext?: Record<string, unknown>;
 }
 
 /** 再読文字の語形（1回分の読み） */
@@ -312,14 +306,14 @@ export interface SaidokuForm {
 }
 
 /** 再読文字 */
-export interface SaidokuMark extends BaseMark {
+export interface SaidokuMark extends AnchoredMark {
   type: 'saidoku';
   /** 各回の語形 */
   forms: SaidokuForm[];
 }
 
 /** ヲコト点 */
-export interface OkototenMark extends BaseMark {
+export interface OkototenMark extends AnchoredMark {
   type: 'okototen';
   /** 字内座標（必須） */
   position: GlyphGridCoord;
@@ -332,7 +326,7 @@ export interface OkototenMark extends BaseMark {
 }
 
 /** たて点（熟語境界標識） */
-export interface TatetenMark extends BaseMark {
+export interface TatetenMark extends AnchoredMark {
   type: 'tateten';
 }
 

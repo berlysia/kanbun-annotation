@@ -56,6 +56,10 @@ export type MarkUpdates = {
   position?: Position;
   placementHint?: string;
   ext?: Record<string, unknown>;
+  /** Mark-specific: value (kaeri, okurigana, yomigana, etc.) */
+  value?: string;
+  /** Mark-specific: style (emphasis, highlight) */
+  style?: string;
 };
 
 // ============================================================================

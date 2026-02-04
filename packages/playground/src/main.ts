@@ -13,7 +13,21 @@ import {
   type RenderProfile,
 } from '@kanbun/skam-html-renderer';
 import type { SKAMDocument, RefFormat, Mark } from '@kanbun/skam';
-import { addMark, removeMark, getMarksForToken, getMarksForRange } from '@kanbun/skam';
+import {
+  addMark,
+  removeMark,
+  updateMark,
+  getMarksForToken,
+  getMarksForRange,
+  getMarksExactRange,
+  getMarkById,
+  getBlockForToken,
+  getTokenIndex,
+  getTokenByIndex,
+  getAnchorText,
+  sortMarksByPosition,
+  generateId,
+} from '@kanbun/skam';
 import { SAMPLES } from './samples.js';
 import { ErrorPanel, type ParseError } from './editor/error-panel.js';
 import { XmlEditor } from './editor/xml-editor.js';
@@ -490,50 +504,37 @@ function findTatetenForSelection(
   fromId: string,
   toId: string
 ): { markId: string; kaeriValue: string | null } | null {
-  const tokens = doc.tokens;
-  const fromIndex = tokens.findIndex((t) => t.id === fromId);
-  const toIndex = tokens.findIndex((t) => t.id === toId);
-  if (fromIndex === -1 || toIndex === -1) return null;
+  const tatetenMarks = getMarksExactRange(doc, fromId, toId, 'tateten');
+  const tateten = tatetenMarks[0];
+  if (!tateten?.id) return null;
 
-  const selStartIndex = Math.min(fromIndex, toIndex);
-  const selEndIndex = Math.max(fromIndex, toIndex);
-  const selStartId = tokens[selStartIndex]?.id;
-  const selEndId = tokens[selEndIndex]?.id;
+  // Find kaeri mark attached to the same range
+  const kaeriMarks = getMarksExactRange(doc, fromId, toId, 'kaeri');
+  const kaeriValue = kaeriMarks[0] && 'value' in kaeriMarks[0] ? String(kaeriMarks[0].value) : null;
 
-  for (const mark of doc.marks) {
-    if (mark.type !== 'tateten') continue;
-    if (!mark.id) continue; // Skip marks without ID
+  return { markId: tateten.id, kaeriValue };
+}
 
-    const markFromIndex = tokens.findIndex((t) => t.id === mark.anchor.from);
-    const markToIndex = tokens.findIndex((t) => t.id === mark.anchor.to);
-    if (markFromIndex === -1 || markToIndex === -1) continue;
+/**
+ * Normalize a selection range to canonical (blocks) order
+ * Returns null if either token ID is invalid
+ */
+function normalizeSelection(
+  doc: SKAMDocument,
+  fromId: string,
+  toId: string
+): { fromId: string; toId: string; fromIndex: number; toIndex: number } | null {
+  const fromIdx = getTokenIndex(doc, fromId);
+  const toIdx = getTokenIndex(doc, toId);
+  if (fromIdx === undefined || toIdx === undefined) return null;
 
-    const markStartIndex = Math.min(markFromIndex, markToIndex);
-    const markEndIndex = Math.max(markFromIndex, markToIndex);
-    const markStartToken = tokens[markStartIndex];
-    const markEndToken = tokens[markEndIndex];
-    if (!markStartToken || !markEndToken) continue;
+  const startIndex = Math.min(fromIdx, toIdx);
+  const endIndex = Math.max(fromIdx, toIdx);
+  const startToken = getTokenByIndex(doc, startIndex);
+  const endToken = getTokenByIndex(doc, endIndex);
+  if (!startToken || !endToken) return null;
 
-    const markStartId = markStartToken.id;
-    const markEndId = markEndToken.id;
-
-    // Check if selection exactly matches tateten range
-    if (selStartId === markStartId && selEndId === markEndId) {
-      // Find kaeri mark attached to this tateten range
-      let kaeriValue: string | null = null;
-      for (const m of doc.marks) {
-        if (m.type === 'kaeri' && m.anchor.from === markStartId && m.anchor.to === markEndId) {
-          if ('value' in m) {
-            kaeriValue = String(m.value);
-          }
-          break;
-        }
-      }
-      return { markId: mark.id, kaeriValue };
-    }
-  }
-
-  return null;
+  return { fromId: startToken.id, toId: endToken.id, fromIndex: startIndex, toIndex: endIndex };
 }
 
 /**
@@ -545,12 +546,11 @@ function updateSelectionPanel(fromId: string, toId: string): void {
     return;
   }
 
-  // Get tokens in range
-  const tokens = currentDocument.tokens;
-  const fromIndex = tokens.findIndex((t) => t.id === fromId);
-  const toIndex = tokens.findIndex((t) => t.id === toId);
+  // Get token indices in canonical (blocks) order
+  const fromIndex = getTokenIndex(currentDocument, fromId);
+  const toIndex = getTokenIndex(currentDocument, toId);
 
-  if (fromIndex === -1 || toIndex === -1) {
+  if (fromIndex === undefined || toIndex === undefined) {
     clearSelectionPanel();
     return;
   }
@@ -560,16 +560,28 @@ function updateSelectionPanel(fromId: string, toId: string): void {
 
   // Update current selection state (position-based)
   currentSelectionRange = { fromIndex: startIndex, toIndex: endIndex };
-  // Also update tokenID-based state (for backward compatibility during migration)
-  currentSelectionFromId = tokens[startIndex]!.id;
-  currentSelectionToId = tokens[endIndex]!.id;
-  const selectedTokens = tokens.slice(startIndex, endIndex + 1);
-  const count = selectedTokens.length;
-  const chars = selectedTokens.map((t) => t.text).join('');
+
+  const startToken = getTokenByIndex(currentDocument, startIndex);
+  const endToken = getTokenByIndex(currentDocument, endIndex);
+  if (!startToken || !endToken) {
+    clearSelectionPanel();
+    return;
+  }
+
+  // Update tokenID-based state
+  currentSelectionFromId = startToken.id;
+  currentSelectionToId = endToken.id;
+  const count = endIndex - startIndex + 1;
+  const chars: string[] = [];
+  for (let i = startIndex; i <= endIndex; i++) {
+    const t = getTokenByIndex(currentDocument, i);
+    if (t) chars.push(t.text);
+  }
+  const charsText = chars.join('');
 
   // Normalize selection to start/end order
-  const normalizedFromId = tokens[startIndex]!.id;
-  const normalizedToId = tokens[endIndex]!.id;
+  const normalizedFromId = startToken.id;
+  const normalizedToId = endToken.id;
 
   // Determine selection mode and tateten state
   const tatetenInfo = findTatetenForSelection(currentDocument, normalizedFromId, normalizedToId);
@@ -616,11 +628,9 @@ function updateSelectionPanel(fromId: string, toId: string): void {
     // Find associated ref mark for format
     currentUnderlineFormat = '';
     if (ref) {
-      for (const refMark of currentDocument.marks) {
-        if (refMark.type === 'ref' && refMark.id === ref && 'format' in refMark) {
-          currentUnderlineFormat = (refMark.format as RefFormat | undefined) ?? '';
-          break;
-        }
+      const refMark = getMarkById(currentDocument, ref);
+      if (refMark && refMark.type === 'ref' && 'format' in refMark) {
+        currentUnderlineFormat = (refMark.format as RefFormat | undefined) ?? '';
       }
     }
   } else {
@@ -686,7 +696,7 @@ function updateSelectionPanel(fromId: string, toId: string): void {
   const html = `
     <div class="selection-summary">
       <div class="selection-count">${count}文字選択</div>
-      <div class="selection-chars">${chars}</div>
+      <div class="selection-chars">${charsText}</div>
     </div>
   `;
 
@@ -871,16 +881,10 @@ function handleTatetenToggle(): void {
 
   let newDoc = currentDocument;
 
-  // Normalize selection range
-  const tokens = currentDocument.tokens;
-  const fromIndex = tokens.findIndex((t) => t.id === currentSelectionFromId);
-  const toIndex = tokens.findIndex((t) => t.id === currentSelectionToId);
-  if (fromIndex === -1 || toIndex === -1) return;
-
-  const startIndex = Math.min(fromIndex, toIndex);
-  const endIndex = Math.max(fromIndex, toIndex);
-  const normalizedFromId = tokens[startIndex]!.id;
-  const normalizedToId = tokens[endIndex]!.id;
+  // Normalize selection range using canonical (blocks) order
+  const sel = normalizeSelection(currentDocument, currentSelectionFromId, currentSelectionToId);
+  if (!sel) return;
+  const { fromId: normalizedFromId, toId: normalizedToId } = sel;
 
   if (currentSelectionMode === 'tateten' && currentTatetenMarkId) {
     // Remove existing tateten (kaeri is independent and not affected)
@@ -944,16 +948,10 @@ function handleEmphasisToggle(): void {
 
   let newDoc = currentDocument;
 
-  // Normalize selection range
-  const tokens = currentDocument.tokens;
-  const fromIndex = tokens.findIndex((t) => t.id === currentSelectionFromId);
-  const toIndex = tokens.findIndex((t) => t.id === currentSelectionToId);
-  if (fromIndex === -1 || toIndex === -1) return;
-
-  const startIndex = Math.min(fromIndex, toIndex);
-  const endIndex = Math.max(fromIndex, toIndex);
-  const normalizedFromId = tokens[startIndex]!.id;
-  const normalizedToId = tokens[endIndex]!.id;
+  // Normalize selection range using canonical (blocks) order
+  const sel = normalizeSelection(currentDocument, currentSelectionFromId, currentSelectionToId);
+  if (!sel) return;
+  const { fromId: normalizedFromId, toId: normalizedToId } = sel;
 
   if (currentEmphasisMarkId) {
     if (currentEmphasisIsExactMatch) {
@@ -961,7 +959,7 @@ function handleEmphasisToggle(): void {
       newDoc = removeMark(newDoc, currentEmphasisMarkId);
     } else {
       // Partial overlap: confirm removal of entire mark
-      const mark = currentDocument.marks.find((m) => m.id === currentEmphasisMarkId);
+      const mark = getMarkById(currentDocument, currentEmphasisMarkId);
       const range = mark && 'anchor' in mark ? `${mark.anchor.from}〜${mark.anchor.to}` : '';
       if (
         !window.confirm(
@@ -998,27 +996,9 @@ function updateExistingEmphasis(): void {
   )
     return;
 
-  let newDoc = currentDocument;
-
-  // Normalize selection range
-  const tokens = currentDocument.tokens;
-  const fromIndex = tokens.findIndex((t) => t.id === currentSelectionFromId);
-  const toIndex = tokens.findIndex((t) => t.id === currentSelectionToId);
-  if (fromIndex === -1 || toIndex === -1) return;
-
-  const startIndex = Math.min(fromIndex, toIndex);
-  const endIndex = Math.max(fromIndex, toIndex);
-  const normalizedFromId = tokens[startIndex]!.id;
-  const normalizedToId = tokens[endIndex]!.id;
-
-  // Remove existing emphasis
-  newDoc = removeMark(newDoc, currentEmphasisMarkId);
-
-  // Add new emphasis with current style
-  newDoc = addMark(newDoc, {
-    type: 'emphasis',
+  // Update emphasis style using updateMark
+  const newDoc = updateMark(currentDocument, currentEmphasisMarkId, {
     style: currentEmphasisStyle,
-    anchor: { from: normalizedFromId, to: normalizedToId },
   });
 
   updateXmlFromDocument(newDoc);
@@ -1088,23 +1068,17 @@ function updateExistingUnderline(): void {
 
   let newDoc = currentDocument;
 
-  // Normalize selection range
-  const tokens = currentDocument.tokens;
-  const fromIndex = tokens.findIndex((t) => t.id === currentSelectionFromId);
-  const toIndex = tokens.findIndex((t) => t.id === currentSelectionToId);
-  if (fromIndex === -1 || toIndex === -1) return;
-
-  const startIndex = Math.min(fromIndex, toIndex);
-  const endIndex = Math.max(fromIndex, toIndex);
-  const normalizedFromId = tokens[startIndex]!.id;
-  const normalizedToId = tokens[endIndex]!.id;
+  // Normalize selection range using canonical (blocks) order
+  const sel = normalizeSelection(currentDocument, currentSelectionFromId, currentSelectionToId);
+  if (!sel) return;
+  const { fromId: normalizedFromId, toId: normalizedToId } = sel;
 
   // Remove existing underline and associated ref mark
-  const existingHighlight = newDoc.marks.find((m) => m.id === currentUnderlineMarkId);
+  const existingHighlight = getMarkById(newDoc, currentUnderlineMarkId);
   if (existingHighlight && 'ref' in existingHighlight && existingHighlight.ref) {
     const refMarkId = existingHighlight.ref;
-    const refMark = newDoc.marks.find((m) => m.type === 'ref' && m.id === refMarkId);
-    if (refMark?.id) {
+    const refMark = getMarkById(newDoc, refMarkId);
+    if (refMark?.id && refMark.type === 'ref') {
       newDoc = removeMark(newDoc, refMark.id);
     }
   }
@@ -1114,23 +1088,38 @@ function updateExistingUnderline(): void {
   const refInputValue = selectionUnderlineRefInput.value.trim();
   const formatValue = selectionUnderlineFormatSelect.value as RefFormat | '';
 
-  // If format is specified, create a ref mark
+  // Build ref mark and highlight mark with optional ref
+  newDoc = addUnderlineMarks(newDoc, normalizedFromId, normalizedToId, refInputValue, formatValue);
+
+  updateXmlFromDocument(newDoc);
+  // parseAndRender handles selection restoration automatically
+}
+
+/**
+ * Add underline (highlight) marks and optional ref mark to document
+ * Shared between updateExistingUnderline and handleUnderlineToggle
+ */
+function addUnderlineMarks(
+  doc: SKAMDocument,
+  fromId: string,
+  toId: string,
+  refInputValue: string,
+  formatValue: RefFormat | ''
+): SKAMDocument {
+  let newDoc = doc;
   let refId: string | undefined;
+
   if (formatValue) {
-    refId = refInputValue || generateRefId(newDoc);
-    const refBlockId = newDoc.blocks.find((b) => b.tokenIds.includes(normalizedToId))?.id ?? '';
-    const refMark: {
-      type: 'ref';
-      id?: string;
-      format: RefFormat;
-      position: { blockId: string; after: string };
-    } = {
+    const effectiveRefId = refInputValue || generateId(newDoc, 'ref', '-');
+    refId = effectiveRefId;
+    const refBlock = getBlockForToken(newDoc, toId);
+    const refBlockId = refBlock?.id ?? '';
+    newDoc = addMark(newDoc, {
       type: 'ref',
-      id: refId,
+      id: effectiveRefId,
       format: formatValue,
-      position: { blockId: refBlockId, after: normalizedToId },
-    };
-    newDoc = addMark(newDoc, refMark);
+      position: { blockId: refBlockId, after: toId },
+    });
     // Find the newly added ref mark to get its generated ID
     const addedRefMark = newDoc.marks.find(
       (m) =>
@@ -1138,7 +1127,7 @@ function updateExistingUnderline(): void {
         'format' in m &&
         m.format === formatValue &&
         'position' in m &&
-        m.position.after === normalizedToId
+        m.position.after === toId
     );
     if (addedRefMark?.id) {
       refId = addedRefMark.id;
@@ -1155,32 +1144,12 @@ function updateExistingUnderline(): void {
   } = {
     type: 'highlight',
     style: currentUnderlineStyle,
-    anchor: { from: normalizedFromId, to: normalizedToId },
+    anchor: { from: fromId, to: toId },
   };
   if (refId) {
     highlightMark.ref = refId;
   }
-  newDoc = addMark(newDoc, highlightMark);
-
-  updateXmlFromDocument(newDoc);
-  // parseAndRender handles selection restoration automatically
-}
-
-/**
- * Generate a unique ref ID based on existing marks
- */
-function generateRefId(doc: SKAMDocument): string {
-  let maxNum = 0;
-  for (const mark of doc.marks) {
-    if (mark.type === 'ref' && mark.id) {
-      const match = /^ref-(\d+)$/.exec(mark.id);
-      if (match?.[1]) {
-        const num = parseInt(match[1], 10);
-        if (num > maxNum) maxNum = num;
-      }
-    }
-  }
-  return `ref-${maxNum + 1}`;
+  return addMark(newDoc, highlightMark);
 }
 
 /**
@@ -1191,21 +1160,15 @@ function handleUnderlineToggle(): void {
 
   let newDoc = currentDocument;
 
-  // Normalize selection range
-  const tokens = currentDocument.tokens;
-  const fromIndex = tokens.findIndex((t) => t.id === currentSelectionFromId);
-  const toIndex = tokens.findIndex((t) => t.id === currentSelectionToId);
-  if (fromIndex === -1 || toIndex === -1) return;
-
-  const startIndex = Math.min(fromIndex, toIndex);
-  const endIndex = Math.max(fromIndex, toIndex);
-  const normalizedFromId = tokens[startIndex]!.id;
-  const normalizedToId = tokens[endIndex]!.id;
+  // Normalize selection range using canonical (blocks) order
+  const sel = normalizeSelection(currentDocument, currentSelectionFromId, currentSelectionToId);
+  if (!sel) return;
+  const { fromId: normalizedFromId, toId: normalizedToId } = sel;
 
   if (currentUnderlineMarkId) {
     // Partial overlap: confirm removal of entire mark
     if (!currentUnderlineIsExactMatch) {
-      const mark = currentDocument.marks.find((m) => m.id === currentUnderlineMarkId);
+      const mark = getMarkById(currentDocument, currentUnderlineMarkId);
       const range = mark && 'anchor' in mark ? `${mark.anchor.from}〜${mark.anchor.to}` : '';
       if (
         !window.confirm(
@@ -1216,11 +1179,11 @@ function handleUnderlineToggle(): void {
       }
     }
     // Remove existing underline and associated ref mark
-    const existingHighlight = newDoc.marks.find((m) => m.id === currentUnderlineMarkId);
+    const existingHighlight = getMarkById(newDoc, currentUnderlineMarkId);
     if (existingHighlight && 'ref' in existingHighlight && existingHighlight.ref) {
       const refMarkId = existingHighlight.ref;
-      const refMark = newDoc.marks.find((m) => m.type === 'ref' && m.id === refMarkId);
-      if (refMark?.id) {
+      const refMark = getMarkById(newDoc, refMarkId);
+      if (refMark?.id && refMark.type === 'ref') {
         newDoc = removeMark(newDoc, refMark.id);
       }
     }
@@ -1229,56 +1192,13 @@ function handleUnderlineToggle(): void {
     // No overlapping underline: add new (highlight with selected style and optional ref)
     const refInputValue = selectionUnderlineRefInput.value.trim();
     const formatValue = selectionUnderlineFormatSelect.value as RefFormat | '';
-
-    // If format is specified, create a ref mark
-    let refId: string | undefined;
-    if (formatValue) {
-      refId = refInputValue || generateRefId(newDoc);
-      const refBlockId = newDoc.blocks.find((b) => b.tokenIds.includes(normalizedToId))?.id ?? '';
-      const refMark: {
-        type: 'ref';
-        id?: string;
-        format: RefFormat;
-        position: { blockId: string; after: string };
-      } = {
-        type: 'ref',
-        id: refId,
-        format: formatValue,
-        position: { blockId: refBlockId, after: normalizedToId },
-      };
-      newDoc = addMark(newDoc, refMark);
-      // Update refId to match the generated mark ID (addMark generates new IDs)
-      // We need to find the newly added ref mark
-      const addedRefMark = newDoc.marks.find(
-        (m) =>
-          m.type === 'ref' &&
-          'format' in m &&
-          m.format === formatValue &&
-          'position' in m &&
-          m.position.after === normalizedToId
-      );
-      if (addedRefMark?.id) {
-        refId = addedRefMark.id;
-      }
-    } else if (refInputValue) {
-      // Just use the ref ID without creating a ref mark
-      refId = refInputValue;
-    }
-
-    const highlightMark: {
-      type: 'highlight';
-      style: UnderlineStyle;
-      anchor: { from: string; to: string };
-      ref?: string;
-    } = {
-      type: 'highlight',
-      style: currentUnderlineStyle,
-      anchor: { from: normalizedFromId, to: normalizedToId },
-    };
-    if (refId) {
-      highlightMark.ref = refId;
-    }
-    newDoc = addMark(newDoc, highlightMark);
+    newDoc = addUnderlineMarks(
+      newDoc,
+      normalizedFromId,
+      normalizedToId,
+      refInputValue,
+      formatValue
+    );
   }
 
   updateXmlFromDocument(newDoc);
@@ -1293,16 +1213,10 @@ function applyKaeriValue(value: string | null): void {
 
   let newDoc = currentDocument;
 
-  // Normalize selection range
-  const tokens = currentDocument.tokens;
-  const fromIndex = tokens.findIndex((t) => t.id === currentSelectionFromId);
-  const toIndex = tokens.findIndex((t) => t.id === currentSelectionToId);
-  if (fromIndex === -1 || toIndex === -1) return;
-
-  const startIndex = Math.min(fromIndex, toIndex);
-  const endIndex = Math.max(fromIndex, toIndex);
-  const normalizedFromId = tokens[startIndex]!.id;
-  const normalizedToId = tokens[endIndex]!.id;
+  // Normalize selection range using canonical (blocks) order
+  const sel = normalizeSelection(currentDocument, currentSelectionFromId, currentSelectionToId);
+  if (!sel) return;
+  const { fromId: normalizedFromId, toId: normalizedToId } = sel;
 
   // For single selection or tateten range, apply kaeri to the full range
   const anchorFrom = currentSelectionMode === 'single' ? normalizedFromId : normalizedFromId;
@@ -1345,15 +1259,10 @@ function handleKanaApply(): void {
 
   if (!value) return;
 
-  // Normalize selection range
-  const tokens = currentDocument.tokens;
-  const fromIndex = tokens.findIndex((t) => t.id === currentSelectionFromId);
-  const toIndex = tokens.findIndex((t) => t.id === currentSelectionToId);
-  if (fromIndex === -1 || toIndex === -1) return;
-  const startIndex = Math.min(fromIndex, toIndex);
-  const endIndex = Math.max(fromIndex, toIndex);
-  const normalizedFromId = tokens[startIndex]!.id;
-  const normalizedToId = tokens[endIndex]!.id;
+  // Normalize selection range using canonical (blocks) order
+  const sel = normalizeSelection(currentDocument, currentSelectionFromId, currentSelectionToId);
+  if (!sel) return;
+  const { fromId: normalizedFromId, toId: normalizedToId } = sel;
 
   let newDoc = currentDocument;
 
@@ -1460,53 +1369,6 @@ function getMarkTypeLabel(type: string): string {
 }
 
 /**
- * Get the sort index for a mark (for ordering by document position)
- */
-function getMarkSortIndex(mark: Mark, tokens: SKAMDocument['tokens']): number {
-  // Position-based marks (kutoten, ref)
-  if (mark.type === 'kutoten' || mark.type === 'ref') {
-    const position = mark.position;
-    if ('after' in position && position.after) {
-      return tokens.findIndex((t) => t.id === position.after);
-    }
-    if ('before' in position && position.before) {
-      return tokens.findIndex((t) => t.id === position.before) - 0.5;
-    }
-    return -1;
-  }
-  // Anchor-based marks
-  return tokens.findIndex((t) => t.id === mark.anchor.from);
-}
-
-/**
- * Get the anchor text for a mark
- */
-function getMarkAnchorText(mark: Mark, tokens: SKAMDocument['tokens']): string {
-  // Position-based marks (kutoten, ref)
-  if (mark.type === 'kutoten' || mark.type === 'ref') {
-    const position = mark.position;
-    const afterTokenId = 'after' in position ? position.after : undefined;
-    if (afterTokenId) {
-      const token = tokens.find((t) => t.id === afterTokenId);
-      return token?.text ?? '';
-    }
-    return '';
-  }
-  // Anchor-based marks
-  const fromIndex = tokens.findIndex((t) => t.id === mark.anchor.from);
-  const toIndex = tokens.findIndex((t) => t.id === mark.anchor.to);
-  if (fromIndex !== -1 && toIndex !== -1) {
-    const startIdx = Math.min(fromIndex, toIndex);
-    const endIdx = Math.max(fromIndex, toIndex);
-    return tokens
-      .slice(startIdx, endIdx + 1)
-      .map((t) => t.text)
-      .join('');
-  }
-  return '';
-}
-
-/**
  * Update marks list panel with all marks from the document
  */
 function updateMarksList(doc: SKAMDocument | null): void {
@@ -1516,14 +1378,12 @@ function updateMarksList(doc: SKAMDocument | null): void {
   }
 
   // Sort marks by their position in the document (appearance order)
-  const sortedMarks = [...doc.marks].sort((a, b) => {
-    return getMarkSortIndex(a, doc.tokens) - getMarkSortIndex(b, doc.tokens);
-  });
+  const sortedMarks = sortMarksByPosition(doc);
 
   // Build HTML - display in appearance order with type inline
   let html = '';
   for (const mark of sortedMarks) {
-    const anchorText = getMarkAnchorText(mark, doc.tokens);
+    const anchorText = getAnchorText(doc, mark);
 
     let value = '';
     if ('value' in mark && mark.value !== undefined) {
@@ -1626,10 +1486,12 @@ function parseAndRender(): void {
   try {
     const doc = parse(xmlText);
 
-    // Try to restore selection from position
-    if (savedRange && doc.tokens[savedRange.fromIndex] && doc.tokens[savedRange.toIndex]) {
-      const fromId = doc.tokens[savedRange.fromIndex]!.id;
-      const toId = doc.tokens[savedRange.toIndex]!.id;
+    // Try to restore selection from position (using canonical blocks order)
+    const fromToken = savedRange ? getTokenByIndex(doc, savedRange.fromIndex) : undefined;
+    const toToken = savedRange ? getTokenByIndex(doc, savedRange.toIndex) : undefined;
+    if (fromToken && toToken) {
+      const fromId = fromToken.id;
+      const toId = toToken.id;
       renderDocument(doc);
       updateSelectionPanel(fromId, toId);
       setSelectionClasses(renderOutput, fromId, toId);

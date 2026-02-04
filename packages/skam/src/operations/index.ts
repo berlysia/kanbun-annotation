@@ -9,6 +9,8 @@ import type {
   PositionedMark,
   PersistedMark,
   MarkTypeMap,
+  AnchoredMarkType,
+  PositionedMarkType,
   KaeriMark,
   OkuriganaMark,
   YomiganaMark,
@@ -489,6 +491,101 @@ export function getMarksExactRange(
     const markEnd = Math.max(markFrom, markTo);
 
     return markStart === rangeStart && markEnd === rangeEnd;
+  });
+}
+
+/**
+ * anchor ベースマーク専用: アンカーが指定範囲と完全一致するマークを取得
+ *
+ * 戻り型が AnchoredMark (のサブタイプ) なので anchor プロパティに安全にアクセス可能。
+ */
+export function getAnchoredMarksExactRange(
+  doc: SKAMDocument,
+  fromId: string,
+  toId: string
+): Extract<Mark, AnchoredMark>[];
+export function getAnchoredMarksExactRange<T extends AnchoredMarkType>(
+  doc: SKAMDocument,
+  fromId: string,
+  toId: string,
+  type: T
+): MarkTypeMap[T][];
+export function getAnchoredMarksExactRange(
+  doc: SKAMDocument,
+  fromId: string,
+  toId: string,
+  type?: AnchoredMarkType
+): Extract<Mark, AnchoredMark>[] {
+  const tokenIndexMap = buildTokenIndexMap(doc);
+
+  const rangeFrom = tokenIndexMap.get(fromId);
+  const rangeTo = tokenIndexMap.get(toId);
+  if (rangeFrom === undefined || rangeTo === undefined) {
+    return [];
+  }
+
+  const rangeStart = Math.min(rangeFrom, rangeTo);
+  const rangeEnd = Math.max(rangeFrom, rangeTo);
+
+  return doc.marks.filter((mark): mark is Extract<Mark, AnchoredMark> => {
+    if (isPositionBasedMark(mark)) return false;
+    if (type !== undefined && mark.type !== type) return false;
+
+    const markFrom = tokenIndexMap.get(mark.anchor.from);
+    const markTo = tokenIndexMap.get(mark.anchor.to);
+    if (markFrom === undefined || markTo === undefined) return false;
+
+    const markStart = Math.min(markFrom, markTo);
+    const markEnd = Math.max(markFrom, markTo);
+
+    return markStart === rangeStart && markEnd === rangeEnd;
+  });
+}
+
+/**
+ * position ベースマーク専用: after トークンが指定範囲内にあるマークを取得
+ *
+ * 戻り型が PositionedMark (のサブタイプ) なので position プロパティに安全にアクセス可能。
+ * after が未定義のマークはマッチしない。
+ */
+export function getPositionedMarksInRange(
+  doc: SKAMDocument,
+  fromId: string,
+  toId: string
+): Extract<Mark, PositionedMark>[];
+export function getPositionedMarksInRange<T extends PositionedMarkType>(
+  doc: SKAMDocument,
+  fromId: string,
+  toId: string,
+  type: T
+): MarkTypeMap[T][];
+export function getPositionedMarksInRange(
+  doc: SKAMDocument,
+  fromId: string,
+  toId: string,
+  type?: PositionedMarkType
+): Extract<Mark, PositionedMark>[] {
+  const tokenIndexMap = buildTokenIndexMap(doc);
+
+  const rangeFrom = tokenIndexMap.get(fromId);
+  const rangeTo = tokenIndexMap.get(toId);
+  if (rangeFrom === undefined || rangeTo === undefined) {
+    return [];
+  }
+
+  const rangeStart = Math.min(rangeFrom, rangeTo);
+  const rangeEnd = Math.max(rangeFrom, rangeTo);
+
+  return doc.marks.filter((mark): mark is Extract<Mark, PositionedMark> => {
+    if (!isPositionBasedMark(mark)) return false;
+    if (type !== undefined && mark.type !== type) return false;
+
+    const afterTokenId = getPositionAfterTokenId(mark.position);
+    if (afterTokenId === undefined) return false;
+    const afterIndex = tokenIndexMap.get(afterTokenId);
+    if (afterIndex === undefined) return false;
+
+    return rangeStart <= afterIndex && afterIndex <= rangeEnd;
   });
 }
 

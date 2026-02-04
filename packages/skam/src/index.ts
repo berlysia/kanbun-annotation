@@ -488,6 +488,8 @@ export {
   getMarksForToken,
   getMarksForRange,
   getMarksExactRange,
+  getAnchoredMarksExactRange,
+  getPositionedMarksInRange,
   // Mark display utilities
   getAnchorText,
   getAnchorRangeLabel,

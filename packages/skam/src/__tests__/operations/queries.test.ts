@@ -3,6 +3,8 @@ import {
   getMarksForToken,
   getMarksForRange,
   getMarksExactRange,
+  getAnchoredMarksExactRange,
+  getPositionedMarksInRange,
   getMarkById,
   getBlockForToken,
 } from '../../operations/index.js';
@@ -474,5 +476,99 @@ describe('getMarksExactRange', () => {
 
     const result = getMarksExactRange(doc, 't2', 't2', 'kaeri');
     expect(result).toHaveLength(1);
+  });
+});
+
+// ============================================================================
+// 16. getAnchoredMarksExactRange
+// ============================================================================
+
+describe('getAnchoredMarksExactRange', () => {
+  it('16.1: anchor ベースマークの完全一致を取得', () => {
+    const doc = createTestDocument([
+      { type: 'tateten', id: 'm1', anchor: { from: 't1', to: 't2' } },
+      { type: 'kaeri', id: 'm2', anchor: { from: 't1', to: 't2' }, value: '一' },
+    ]);
+
+    const result = getAnchoredMarksExactRange(doc, 't1', 't2');
+    expect(result).toHaveLength(2);
+    // 戻り値は anchor プロパティに安全にアクセス可能
+    expect(result[0]?.anchor.from).toBe('t1');
+  });
+
+  it('16.2: position ベースマークは除外', () => {
+    const doc = createTestDocument([
+      { type: 'kutoten', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: '。' },
+    ]);
+
+    expect(getAnchoredMarksExactRange(doc, 't1', 't1')).toHaveLength(0);
+  });
+
+  it('16.3: type パラメータで特定 type にナロー', () => {
+    const doc = createTestDocument([
+      { type: 'tateten', id: 'm1', anchor: { from: 't1', to: 't2' } },
+      { type: 'kaeri', id: 'm2', anchor: { from: 't1', to: 't2' }, value: '一' },
+    ]);
+
+    const result = getAnchoredMarksExactRange(doc, 't1', 't2', 'kaeri');
+    expect(result).toHaveLength(1);
+    expect(result[0]?.value).toBe('一');
+  });
+});
+
+// ============================================================================
+// 17. getPositionedMarksInRange
+// ============================================================================
+
+describe('getPositionedMarksInRange', () => {
+  it('17.1: after が範囲内にある position ベースマークを取得', () => {
+    const doc = createTestDocument([
+      { type: 'kutoten', id: 'm1', position: { blockId: 'b1', after: 't2' }, value: '。' },
+    ]);
+
+    const result = getPositionedMarksInRange(doc, 't1', 't3');
+    expect(result).toHaveLength(1);
+    // 戻り値は position プロパティに安全にアクセス可能
+    expect(result[0]?.position.blockId).toBe('b1');
+  });
+
+  it('17.2: after が範囲外のマークは除外', () => {
+    const doc = createTestDocument([
+      { type: 'kutoten', id: 'm1', position: { blockId: 'b1', after: 't3' }, value: '。' },
+    ]);
+
+    expect(getPositionedMarksInRange(doc, 't1', 't2')).toHaveLength(0);
+  });
+
+  it('17.3: after 未定義はマッチしない', () => {
+    const doc = createTestDocument([
+      { type: 'kutoten', id: 'm1', position: { blockId: 'b1' }, value: '。' },
+    ]);
+
+    expect(getPositionedMarksInRange(doc, 't1', 't3')).toHaveLength(0);
+  });
+
+  it('17.4: type パラメータで kutoten のみフィルタ', () => {
+    const doc = createTestDocument([
+      { type: 'kutoten', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: '。' },
+      {
+        type: 'ref',
+        id: 'm2',
+        position: { blockId: 'b1', after: 't2' },
+        format: 'iroha-katakana',
+      },
+    ]);
+
+    const result = getPositionedMarksInRange(doc, 't1', 't3', 'kutoten');
+    expect(result).toHaveLength(1);
+    expect(result[0]?.value).toBe('。');
+  });
+
+  it('17.5: anchor ベースマークは除外', () => {
+    const doc = createTestDocument([
+      { type: 'kaeri', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+    ]);
+
+    expect(getPositionedMarksInRange(doc, 't1', 't3')).toHaveLength(0);
   });
 });

@@ -460,6 +460,13 @@ export function getMarksForRange(doc: SKAMDocument, fromId: string, toId: string
  * - position ベース: after トークンが範囲内にある
  * オプションで type フィルタが可能。
  */
+export function getMarksExactRange(doc: SKAMDocument, fromId: string, toId: string): Mark[];
+export function getMarksExactRange<T extends MarkType>(
+  doc: SKAMDocument,
+  fromId: string,
+  toId: string,
+  type: T
+): MarkTypeMap[T][];
 export function getMarksExactRange(
   doc: SKAMDocument,
   fromId: string,

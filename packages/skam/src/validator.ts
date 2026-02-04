@@ -29,6 +29,7 @@ import {
   createValidationError,
   SKAMValidationError,
 } from './errors.js';
+import { isPositionBasedMark } from './operations/index.js';
 
 const VALID_FORMAT: SKAMVersion = 'skam@0.1';
 
@@ -403,9 +404,9 @@ function validateMark(mark: unknown, index: number, errors: ValidationError[]): 
   }
 
   // Position-based marks (kutoten, ref) require position instead of anchor
-  const isPositionBasedMark = markType === 'kutoten' || markType === 'ref';
+  const isPositionBased = markType === 'kutoten' || markType === 'ref';
 
-  if (isPositionBasedMark) {
+  if (isPositionBased) {
     // position (required for position-based marks)
     if (!validatePosition(mark['position'], `${path}.position`, errors)) {
       valid = false;
@@ -852,11 +853,6 @@ function validateBlock(block: unknown, index: number, errors: ValidationError[])
 // ============================================================================
 // Token Reference Validation
 // ============================================================================
-
-/** Type guard for position-based marks */
-function isPositionBasedMark(mark: Mark): mark is KutotenMark | RefMark {
-  return mark.type === 'kutoten' || mark.type === 'ref';
-}
 
 /**
  * Block-Token 整合性検証

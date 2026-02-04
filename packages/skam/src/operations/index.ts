@@ -25,7 +25,7 @@ import type {
  * 注意: `'position' in mark` による判定は使用しないこと。
  * OkototenMark も position プロパティを持つが anchor ベース。
  */
-function isPositionBasedMark(mark: Mark): mark is Extract<Mark, PositionedMark> {
+export function isPositionBasedMark(mark: Mark): mark is Extract<Mark, PositionedMark> {
   return mark.type === 'kutoten' || mark.type === 'ref';
 }
 

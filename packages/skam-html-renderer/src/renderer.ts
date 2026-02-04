@@ -26,6 +26,7 @@ import type {
   RefFormat,
   Reading,
 } from '@kanbun/skam';
+import { isPositionBasedMark } from '@kanbun/skam';
 import { getDefaultStyles } from './styles.js';
 
 // ============================================================================
@@ -346,11 +347,6 @@ function escapeHtml(text: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#x27;');
-}
-
-/** Type guard for position-based marks (kutoten, ref) */
-function isPositionBasedMark(mark: Mark): mark is KutotenMark | RefMark {
-  return mark.type === 'kutoten' || mark.type === 'ref';
 }
 
 /** Get the token ID that a position-based mark is attached to (after) */

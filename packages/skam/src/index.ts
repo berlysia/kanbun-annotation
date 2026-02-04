@@ -472,6 +472,7 @@ export {
   sortMarksByPosition,
   // Mark type guards
   isAnchorBasedMark,
+  isPositionBasedMark,
   hasMarkValue,
   isExactAnchorMatch,
   // Types

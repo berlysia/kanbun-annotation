@@ -38,6 +38,7 @@ import type {
   RefMark,
   TatetenMark,
 } from '@kanbun/skam';
+import { isAnchorBasedMark } from '@kanbun/skam';
 
 // ============================================================================
 // Constants
@@ -179,11 +180,6 @@ function kaeriValueToKind(value: string): string {
 // ============================================================================
 // Annotation Collection
 // ============================================================================
-
-/** Type guard for anchor-based marks */
-function isAnchorBasedMark(mark: Mark): mark is Exclude<Mark, KutotenMark | RefMark> {
-  return mark.type !== 'kutoten' && mark.type !== 'ref';
-}
 
 /** Get the token ID that a position-based mark should be attached to (for 'after' position) */
 function getPositionAfterTokenId(position: Position): string | undefined {

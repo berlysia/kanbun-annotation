@@ -7,6 +7,7 @@ import type {
   Block,
   AnchoredMark,
   PositionedMark,
+  PersistedMark,
   KaeriMark,
   OkuriganaMark,
   YomiganaMark,
@@ -144,8 +145,9 @@ export function getTokenByIndex(doc: SKAMDocument, index: number): Token | undef
  *
  * @returns 指定IDのMark。見つからない場合は undefined
  */
-export function getMarkById(doc: SKAMDocument, markId: string): Mark | undefined {
-  return doc.marks.find((m) => m.id === markId);
+export function getMarkById(doc: SKAMDocument, markId: string): PersistedMark | undefined {
+  // id でフィルタリングしているため、結果は必ず id を持つ
+  return doc.marks.find((m) => m.id === markId) as PersistedMark | undefined;
 }
 
 /**

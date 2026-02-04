@@ -330,21 +330,33 @@ export interface TatetenMark extends AnchoredMark {
   type: 'tateten';
 }
 
+/** Mark type 文字列から concrete Mark 型へのマッピング */
+export interface MarkTypeMap {
+  kaeri: KaeriMark;
+  okurigana: OkuriganaMark;
+  yomigana: YomiganaMark;
+  soegana: SoeganaMark;
+  okimoji: OkimojiMark;
+  joji: JojiMark;
+  kutoten: KutotenMark;
+  saidoku: SaidokuMark;
+  okototen: OkototenMark;
+  tateten: TatetenMark;
+  emphasis: EmphasisMark;
+  highlight: HighlightMark;
+  ref: RefMark;
+}
+
 /** すべての注記型 */
-export type Mark =
-  | KaeriMark
-  | OkuriganaMark
-  | YomiganaMark
-  | OkimojiMark
-  | JojiMark
-  | SoeganaMark
-  | KutotenMark
-  | EmphasisMark
-  | SaidokuMark
-  | OkototenMark
-  | TatetenMark
-  | HighlightMark
-  | RefMark;
+export type Mark = MarkTypeMap[keyof MarkTypeMap];
+
+/** MarkType と MarkTypeMap のキーの整合性を保証 */
+type _AssertKeysMatch = keyof MarkTypeMap extends MarkType
+  ? MarkType extends keyof MarkTypeMap
+    ? true
+    : never
+  : never;
+const _assertKeysMatch: _AssertKeysMatch = true;
 
 // ============================================================================
 // Derivations

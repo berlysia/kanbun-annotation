@@ -14,6 +14,7 @@ import type {
 } from '../../index.js';
 import {
   isAnchorBasedMark,
+  isMarkType,
   hasMarkValue,
   getAnchorRangeLabel,
   isExactAnchorMatch,
@@ -229,5 +230,52 @@ describe('isExactAnchorMatch', () => {
     };
 
     expect(isExactAnchorMatch(kutoten, 't1', 't1')).toBe(false);
+  });
+});
+
+// ============================================================================
+// isMarkType
+// ============================================================================
+
+describe('isMarkType', () => {
+  it('5.1: type が一致する anchor ベースマークで true を返し、型がナローされる', () => {
+    const mark: Mark = {
+      type: 'kaeri',
+      id: 'm1',
+      anchor: { from: 't1', to: 't1' },
+      value: 'レ',
+    };
+
+    expect(isMarkType(mark, 'kaeri')).toBe(true);
+    if (isMarkType(mark, 'kaeri')) {
+      // KaeriMark にナローされるので value にアクセス可能
+      expect(mark.value).toBe('レ');
+    }
+  });
+
+  it('5.2: type が一致しないマークで false を返す', () => {
+    const mark: Mark = {
+      type: 'kaeri',
+      id: 'm1',
+      anchor: { from: 't1', to: 't1' },
+      value: 'レ',
+    };
+
+    expect(isMarkType(mark, 'okurigana')).toBe(false);
+  });
+
+  it('5.3: position ベースマーク（kutoten）で正しくナローされる', () => {
+    const mark: Mark = {
+      type: 'kutoten',
+      id: 'm1',
+      position: { blockId: 'b1', after: 't1' },
+      value: '。',
+    };
+
+    expect(isMarkType(mark, 'kutoten')).toBe(true);
+    if (isMarkType(mark, 'kutoten')) {
+      // KutotenMark にナローされるので position にアクセス可能
+      expect(mark.position.blockId).toBe('b1');
+    }
   });
 });

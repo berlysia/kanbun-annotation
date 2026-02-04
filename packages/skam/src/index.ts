@@ -496,6 +496,7 @@ export {
   // Mark type guards
   isAnchorBasedMark,
   isPositionBasedMark,
+  isMarkType,
   hasMarkValue,
   isExactAnchorMatch,
   // Types

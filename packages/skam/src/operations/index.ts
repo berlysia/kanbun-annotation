@@ -8,6 +8,7 @@ import type {
   AnchoredMark,
   PositionedMark,
   PersistedMark,
+  MarkTypeMap,
   KaeriMark,
   OkuriganaMark,
   YomiganaMark,
@@ -572,6 +573,13 @@ export function sortMarksByPosition(doc: SKAMDocument): Mark[] {
  */
 export function isAnchorBasedMark(mark: Mark): mark is Extract<Mark, AnchoredMark> {
   return !isPositionBasedMark(mark);
+}
+
+/**
+ * 指定した type の Mark かどうかを判定し、具体的な Mark サブタイプにナローする
+ */
+export function isMarkType<T extends MarkType>(mark: Mark, type: T): mark is MarkTypeMap[T] {
+  return mark.type === type;
 }
 
 /** value プロパティを持つマーク型 */

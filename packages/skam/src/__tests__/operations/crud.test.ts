@@ -2,9 +2,11 @@ import { describe, it, expect } from 'vitest';
 import type { KaeriMark, EmphasisMark, HighlightMark, OkuriganaMark } from '../../index.js';
 import {
   addMark,
+  addMarkWithResult,
   updateMark,
   replaceMark,
   removeMark,
+  removeHighlightWithRef,
   type MarkInput,
 } from '../../operations/index.js';
 import { assertValidDocument, createTestDocument, createMultiBlockDocument } from './helpers.js';
@@ -164,6 +166,74 @@ describe('addMark', () => {
     expect(result.marks).toHaveLength(1);
     const mark = result.marks[0];
     expect(mark != null && 'anchor' in mark && mark.anchor.from).toBe('t4');
+  });
+});
+
+// ============================================================================
+// 2b. addMarkWithResult
+// ============================================================================
+
+describe('addMarkWithResult', () => {
+  it('2b.1: doc と markId を返す', () => {
+    const doc = createTestDocument([]);
+    assertValidDocument(doc);
+    const newMark: MarkInput = {
+      type: 'okurigana',
+      anchor: { from: 't1', to: 't1' },
+      value: 'ク',
+    };
+
+    const result = addMarkWithResult(doc, newMark);
+    assertValidDocument(result.doc);
+
+    expect(result.markId).toBe('m1');
+    expect(result.doc.marks).toHaveLength(1);
+    expect(result.doc.marks[0]?.id).toBe('m1');
+  });
+
+  it('2b.2: addMark と同じドキュメントを返す', () => {
+    const doc = createTestDocument([]);
+    const newMark: MarkInput = {
+      type: 'kaeri',
+      anchor: { from: 't1', to: 't1' },
+      value: 'レ',
+    };
+
+    const withResult = addMarkWithResult(doc, newMark);
+    const withoutResult = addMark(doc, newMark);
+
+    expect(withResult.doc).toEqual(withoutResult);
+  });
+
+  it('2b.3: 元のドキュメントは変更されない（イミュータブル）', () => {
+    const doc = createTestDocument([]);
+    addMarkWithResult(doc, {
+      type: 'okurigana',
+      anchor: { from: 't1', to: 't1' },
+      value: 'ク',
+    });
+
+    expect(doc.marks).toHaveLength(0);
+  });
+
+  it('2b.4: 既存マークがある場合はユニークな markId を返す', () => {
+    const existing: KaeriMark = {
+      type: 'kaeri',
+      id: 'm1',
+      anchor: { from: 't1', to: 't1' },
+      value: 'レ',
+    };
+    const doc = createTestDocument([existing]);
+    assertValidDocument(doc);
+
+    const result = addMarkWithResult(doc, {
+      type: 'okurigana',
+      anchor: { from: 't2', to: 't2' },
+      value: 'ク',
+    });
+
+    expect(result.markId).toBe('m2');
+    expect(result.doc.marks).toHaveLength(2);
   });
 });
 
@@ -443,5 +513,138 @@ describe('removeMark', () => {
 
     expect(result.marks).toHaveLength(1);
     expect(result.marks[0]?.id).toBe('m1');
+  });
+});
+
+// ============================================================================
+// 6. removeHighlightWithRef
+// ============================================================================
+
+describe('removeHighlightWithRef', () => {
+  it('6.1: highlight と参照先 ref を両方削除する', () => {
+    const doc = createTestDocument([
+      {
+        type: 'highlight',
+        id: 'm1',
+        anchor: { from: 't1', to: 't2' },
+        style: 'solid',
+        ref: 'ref-1',
+      } as HighlightMark,
+      {
+        type: 'ref',
+        id: 'ref-1',
+        position: { blockId: 'b1', after: 't2' },
+        format: 'iroha-katakana',
+      },
+    ]);
+    assertValidDocument(doc);
+
+    const result = removeHighlightWithRef(doc, 'm1');
+    assertValidDocument(result);
+
+    expect(result.marks).toHaveLength(0);
+  });
+
+  it('6.2: ref がない highlight のみ削除する', () => {
+    const doc = createTestDocument([
+      {
+        type: 'highlight',
+        id: 'm1',
+        anchor: { from: 't1', to: 't2' },
+        style: 'solid',
+      } as HighlightMark,
+    ]);
+    assertValidDocument(doc);
+
+    const result = removeHighlightWithRef(doc, 'm1');
+    assertValidDocument(result);
+
+    expect(result.marks).toHaveLength(0);
+  });
+
+  it('6.3: 他のマークは残る', () => {
+    const doc = createTestDocument([
+      {
+        type: 'highlight',
+        id: 'm1',
+        anchor: { from: 't1', to: 't2' },
+        style: 'solid',
+        ref: 'ref-1',
+      } as HighlightMark,
+      {
+        type: 'ref',
+        id: 'ref-1',
+        position: { blockId: 'b1', after: 't2' },
+        format: 'iroha-katakana',
+      },
+      {
+        type: 'okurigana',
+        id: 'm2',
+        anchor: { from: 't3', to: 't3' },
+        value: 'ブ',
+      },
+    ]);
+    assertValidDocument(doc);
+
+    const result = removeHighlightWithRef(doc, 'm1');
+    assertValidDocument(result);
+
+    expect(result.marks).toHaveLength(1);
+    expect(result.marks[0]?.id).toBe('m2');
+  });
+
+  it('6.4: 存在しない markId の場合は元のドキュメントを返す', () => {
+    const doc = createTestDocument([
+      {
+        type: 'highlight',
+        id: 'm1',
+        anchor: { from: 't1', to: 't2' },
+        style: 'solid',
+      } as HighlightMark,
+    ]);
+
+    const result = removeHighlightWithRef(doc, 'm999');
+
+    expect(result).toBe(doc);
+  });
+
+  it('6.5: ref が指す先が既に存在しない場合は highlight のみ削除する', () => {
+    const doc = createTestDocument([
+      {
+        type: 'highlight',
+        id: 'm1',
+        anchor: { from: 't1', to: 't2' },
+        style: 'solid',
+        ref: 'ref-missing',
+      } as HighlightMark,
+    ]);
+    assertValidDocument(doc);
+
+    const result = removeHighlightWithRef(doc, 'm1');
+    assertValidDocument(result);
+
+    expect(result.marks).toHaveLength(0);
+  });
+
+  it('6.6: 元のドキュメントは変更されない（イミュータブル）', () => {
+    const doc = createTestDocument([
+      {
+        type: 'highlight',
+        id: 'm1',
+        anchor: { from: 't1', to: 't2' },
+        style: 'solid',
+        ref: 'ref-1',
+      } as HighlightMark,
+      {
+        type: 'ref',
+        id: 'ref-1',
+        position: { blockId: 'b1', after: 't2' },
+        format: 'iroha-katakana',
+      },
+    ]);
+
+    removeHighlightWithRef(doc, 'm1');
+
+    expect(doc.marks).toHaveLength(2);
   });
 });

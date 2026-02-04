@@ -454,9 +454,12 @@ export {
   generateMarkId,
   // CRUD
   addMark,
+  addMarkWithResult,
   updateMark,
   replaceMark,
   removeMark,
+  // Compound operations
+  removeHighlightWithRef,
   // Token utilities
   buildTokenIndexMap,
   getTokenIndex,
@@ -470,9 +473,15 @@ export {
   getMarksExactRange,
   // Mark display utilities
   getAnchorText,
+  getAnchorRangeLabel,
   getMarkSortIndex,
   sortMarksByPosition,
+  // Mark type guards
+  isAnchorBasedMark,
+  hasMarkValue,
+  isExactAnchorMatch,
   // Types
   type MarkInput,
   type MarkUpdates,
+  type AddMarkResult,
 } from './operations/index.js';

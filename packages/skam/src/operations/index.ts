@@ -6,6 +6,10 @@ import type {
   Position,
   Token,
   Block,
+  KaeriMark,
+  OkuriganaMark,
+  YomiganaMark,
+  SoeganaMark,
   KutotenMark,
   RefMark,
 } from '../index.js';
@@ -43,6 +47,16 @@ function getPositionAfterTokenId(position: Position): string | undefined {
  * 型レベルではMarkを受け入れつつ、idを省略可能とする。
  */
 export type MarkInput = Mark;
+
+/**
+ * addMarkWithResult の戻り値型
+ */
+export interface AddMarkResult {
+  /** マーク追加後のドキュメント */
+  doc: SKAMDocument;
+  /** 自動生成されたマークID */
+  markId: string;
+}
 
 /**
  * updateMarkで使用する更新用の型
@@ -194,20 +208,32 @@ export function generateMarkId(doc: SKAMDocument): string {
 // ============================================================================
 
 /**
+ * マークを追加し、生成されたIDも返す
+ *
+ * イミュータブルに新しいドキュメントを返す。
+ * 渡されたmarkにidが含まれていても、新しいidで上書きされる。
+ */
+export function addMarkWithResult(doc: SKAMDocument, mark: MarkInput): AddMarkResult {
+  const newId = generateMarkId(doc);
+  const newMark = { ...mark, id: newId };
+
+  return {
+    doc: {
+      ...doc,
+      marks: [...doc.marks, newMark],
+    },
+    markId: newId,
+  };
+}
+
+/**
  * マークを追加（markIdは自動生成）
  *
  * イミュータブルに新しいドキュメントを返す。
  * 渡されたmarkにidが含まれていても、新しいidで上書きされる。
  */
 export function addMark(doc: SKAMDocument, mark: MarkInput): SKAMDocument {
-  const newId = generateMarkId(doc);
-  // 既存のidを上書きして新しいidを付与
-  const newMark = { ...mark, id: newId };
-
-  return {
-    ...doc,
-    marks: [...doc.marks, newMark],
-  };
+  return addMarkWithResult(doc, mark).doc;
 }
 
 /**
@@ -283,6 +309,27 @@ export function removeMark(doc: SKAMDocument, markId: string): SKAMDocument {
     ...doc,
     marks: newMarks,
   };
+}
+
+/**
+ * highlight マークとその参照先 ref マークをまとめて削除
+ *
+ * highlight マークの ref プロパティが ref マークを参照している場合、
+ * ref マークも一緒に削除する。
+ * highlight が見つからない場合は removeMark にフォールバック（no-op）。
+ */
+export function removeHighlightWithRef(doc: SKAMDocument, highlightMarkId: string): SKAMDocument {
+  const highlight = getMarkById(doc, highlightMarkId);
+  if (!highlight) return removeMark(doc, highlightMarkId);
+
+  let newDoc = doc;
+  if (highlight.type === 'highlight' && highlight.ref) {
+    const refMark = getMarkById(newDoc, highlight.ref);
+    if (refMark?.id && refMark.type === 'ref') {
+      newDoc = removeMark(newDoc, refMark.id);
+    }
+  }
+  return removeMark(newDoc, highlightMarkId);
 }
 
 // ============================================================================
@@ -481,4 +528,50 @@ export function getMarkSortIndex(doc: SKAMDocument, mark: Mark): number {
  */
 export function sortMarksByPosition(doc: SKAMDocument): Mark[] {
   return [...doc.marks].sort((a, b) => getMarkSortIndex(doc, a) - getMarkSortIndex(doc, b));
+}
+
+// ============================================================================
+// Mark Type Guards & Utilities
+// ============================================================================
+
+/**
+ * anchor ベースのマークかどうかを判定
+ *
+ * KutotenMark, RefMark 以外の全 Mark が anchor ベース。
+ */
+export function isAnchorBasedMark(mark: Mark): mark is Exclude<Mark, KutotenMark | RefMark> {
+  return !isPositionBasedMark(mark);
+}
+
+/** value プロパティを持つマーク型 */
+type MarkWithValue = KaeriMark | OkuriganaMark | YomiganaMark | SoeganaMark | KutotenMark;
+
+/**
+ * value プロパティを持つマークかどうかを判定
+ *
+ * KaeriMark, OkuriganaMark, YomiganaMark, SoeganaMark, KutotenMark が該当。
+ */
+export function hasMarkValue(mark: Mark): mark is MarkWithValue {
+  return 'value' in mark;
+}
+
+/**
+ * マークのアンカー範囲をラベル文字列で返す
+ *
+ * anchor ベースのマーク: "from〜to" 形式（例: "t1〜t3"）
+ * position ベースのマーク: 空文字列
+ */
+export function getAnchorRangeLabel(mark: Mark): string {
+  if (isPositionBasedMark(mark)) return '';
+  return `${mark.anchor.from}〜${mark.anchor.to}`;
+}
+
+/**
+ * マークのアンカーが指定範囲と完全一致するか判定
+ *
+ * position ベースのマークは常に false を返す。
+ */
+export function isExactAnchorMatch(mark: Mark, fromId: string, toId: string): boolean {
+  if (isPositionBasedMark(mark)) return false;
+  return mark.anchor.from === fromId && mark.anchor.to === toId;
 }

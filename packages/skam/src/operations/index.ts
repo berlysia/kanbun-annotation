@@ -5,6 +5,8 @@ import type {
   Position,
   Token,
   Block,
+  AnchoredMark,
+  PositionedMark,
   KaeriMark,
   OkuriganaMark,
   YomiganaMark,
@@ -19,8 +21,11 @@ import type {
 
 /**
  * position ベースのマーク（kutoten, ref）かどうかを判定
+ *
+ * 注意: `'position' in mark` による判定は使用しないこと。
+ * OkototenMark も position プロパティを持つが anchor ベース。
  */
-function isPositionBasedMark(mark: Mark): mark is KutotenMark | RefMark {
+function isPositionBasedMark(mark: Mark): mark is Extract<Mark, PositionedMark> {
   return mark.type === 'kutoten' || mark.type === 'ref';
 }
 
@@ -549,8 +554,11 @@ export function sortMarksByPosition(doc: SKAMDocument): Mark[] {
  * anchor ベースのマークかどうかを判定
  *
  * KutotenMark, RefMark 以外の全 Mark が anchor ベース。
+ *
+ * 注意: `'anchor' in mark` による判定は使用しないこと。
+ * 型ガードの一貫性を保つため、この関数を使うこと。
  */
-export function isAnchorBasedMark(mark: Mark): mark is Exclude<Mark, KutotenMark | RefMark> {
+export function isAnchorBasedMark(mark: Mark): mark is Extract<Mark, AnchoredMark> {
   return !isPositionBasedMark(mark);
 }
 

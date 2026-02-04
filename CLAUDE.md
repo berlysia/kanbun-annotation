@@ -123,12 +123,13 @@ SKAMDocument
 
 #### Mark 配置方式
 
-anchor ベースと position ベースは型レベルで分離（`BaseMark` vs 独自定義）。
+anchor ベースと position ベースは共通基底 `MarkBase` から対等に分岐。
 
-- anchor ベース (11 種): `BaseMark` を extends。`anchor: { from, to }` で token 範囲に付随
-- position ベース (kutoten, ref): `BaseMark` を extends しない。`position: { blockId, after? }` で token 間に配置
+- `MarkBase`: 共通フィールド（type, id?, placementHint?, ext?）
+- anchor ベース (11 種): `AnchoredMark extends MarkBase` を extends。`anchor: { from, to }` で token 範囲に付随
+- position ベース (kutoten, ref): `PositionedMark extends MarkBase` を extends。`position: { blockId, after? }` で token 間に配置
 
-型ガード: `isAnchorBasedMark(mark)` で判定可能
+型ガード: `isAnchorBasedMark(mark)` / `isPositionBasedMark(mark)` で判定可能
 
 #### イミュータブル操作
 

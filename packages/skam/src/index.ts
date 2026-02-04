@@ -449,13 +449,30 @@ export { validateSKAMDocument, isSKAMDocument, assertSKAMDocument } from './vali
 // ============================================================================
 
 export {
+  // ID generation
+  generateId,
   generateMarkId,
+  // CRUD
   addMark,
   updateMark,
   replaceMark,
   removeMark,
+  // Token utilities
+  buildTokenIndexMap,
+  getTokenIndex,
+  getTokenByIndex,
+  // Mark lookup
+  getMarkById,
+  getBlockForToken,
+  // Mark queries
   getMarksForToken,
   getMarksForRange,
+  getMarksExactRange,
+  // Mark display utilities
+  getAnchorText,
+  getMarkSortIndex,
+  sortMarksByPosition,
+  // Types
   type MarkInput,
   type MarkUpdates,
 } from './operations/index.js';

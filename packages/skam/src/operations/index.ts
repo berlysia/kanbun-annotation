@@ -1,4 +1,18 @@
-import type { SKAMDocument, Mark, Anchor, Position, KutotenMark, RefMark } from '../index.js';
+import type {
+  SKAMDocument,
+  Mark,
+  MarkType,
+  Anchor,
+  Position,
+  Token,
+  Block,
+  KutotenMark,
+  RefMark,
+} from '../index.js';
+
+// ============================================================================
+// Internal Utilities
+// ============================================================================
 
 /**
  * position ベースのマーク（kutoten, ref）かどうかを判定
@@ -16,6 +30,10 @@ function getPositionAfterTokenId(position: Position): string | undefined {
   }
   return undefined;
 }
+
+// ============================================================================
+// Types
+// ============================================================================
 
 /**
  * idを含まないMark用の入力型
@@ -40,18 +58,104 @@ export type MarkUpdates = {
   ext?: Record<string, unknown>;
 };
 
+// ============================================================================
+// Token Index Utilities
+// ============================================================================
+
 /**
- * 新しいmarkIdを生成
+ * blocks.tokenIds の連結順でトークンの位置インデックスマップを構築
  *
- * 既存のmarkIdから最大の数値を取得し、それに1を加えた形式で生成する。
- * 形式: `m{number}`
+ * SKAM仕様: tokens配列の順序は無意味。原文順序はblocks[].tokenIdsの連結順で規定。
+ * このマップはその仕様に従い、ドキュメント内でのトークンのグローバル位置を提供する。
  */
-export function generateMarkId(doc: SKAMDocument): string {
+export function buildTokenIndexMap(doc: SKAMDocument): Map<string, number> {
+  const tokenIndexMap = new Map<string, number>();
+  let globalIndex = 0;
+  for (const block of doc.blocks) {
+    for (const tid of block.tokenIds) {
+      tokenIndexMap.set(tid, globalIndex++);
+    }
+  }
+  return tokenIndexMap;
+}
+
+/**
+ * blocks.tokenIds の連結順でトークンの位置を取得
+ *
+ * @returns トークンの0-basedグローバル位置。見つからない場合は undefined
+ */
+export function getTokenIndex(doc: SKAMDocument, tokenId: string): number | undefined {
+  const indexMap = buildTokenIndexMap(doc);
+  return indexMap.get(tokenId);
+}
+
+/**
+ * blocks.tokenIds の連結順でインデックスからトークンを取得
+ *
+ * @returns 指定位置のToken。範囲外の場合は undefined
+ */
+export function getTokenByIndex(doc: SKAMDocument, index: number): Token | undefined {
+  const tokenMap = new Map<string, Token>();
+  for (const token of doc.tokens) {
+    tokenMap.set(token.id, token);
+  }
+
+  let currentIndex = 0;
+  for (const block of doc.blocks) {
+    for (const tid of block.tokenIds) {
+      if (currentIndex === index) {
+        return tokenMap.get(tid);
+      }
+      currentIndex++;
+    }
+  }
+  return undefined;
+}
+
+// ============================================================================
+// Mark Lookup
+// ============================================================================
+
+/**
+ * マークをIDで取得
+ *
+ * @returns 指定IDのMark。見つからない場合は undefined
+ */
+export function getMarkById(doc: SKAMDocument, markId: string): Mark | undefined {
+  return doc.marks.find((m) => m.id === markId);
+}
+
+/**
+ * トークンが属するブロックを取得
+ *
+ * @returns トークンが属するBlock。見つからない場合は undefined
+ */
+export function getBlockForToken(doc: SKAMDocument, tokenId: string): Block | undefined {
+  return doc.blocks.find((b) => b.tokenIds.includes(tokenId));
+}
+
+// ============================================================================
+// ID Generation
+// ============================================================================
+
+/**
+ * 汎用ID生成
+ *
+ * 既存のマークIDから指定プレフィックス+デリミタ+数値のパターンを検索し、
+ * 最大の数値+1で新しいIDを生成する。
+ *
+ * @param doc ドキュメント
+ * @param prefix IDプレフィックス（デフォルト: 'm'）
+ * @param delimiter プレフィックスと数値の間の区切り文字（デフォルト: ''）
+ * @returns 新しいID（例: 'm1', 'ref-1'）
+ */
+export function generateId(doc: SKAMDocument, prefix = 'm', delimiter = ''): string {
   let maxNum = 0;
+  const pattern = new RegExp(`^${escapeRegExp(prefix)}${escapeRegExp(delimiter)}(\\d+)$`);
 
   for (const mark of doc.marks) {
     if (mark.id != null) {
-      const match = /^m(\d+)$/.exec(mark.id);
+      const match = pattern.exec(mark.id);
       if (match != null && match[1] != null) {
         const num = parseInt(match[1], 10);
         if (num > maxNum) {
@@ -61,8 +165,29 @@ export function generateMarkId(doc: SKAMDocument): string {
     }
   }
 
-  return `m${maxNum + 1}`;
+  return `${prefix}${delimiter}${maxNum + 1}`;
 }
+
+/**
+ * RegExp特殊文字をエスケープ
+ */
+function escapeRegExp(s: string): string {
+  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+/**
+ * 新しいmarkIdを生成
+ *
+ * generateId(doc, 'm') のエイリアス。後方互換のため維持。
+ * 形式: `m{number}`
+ */
+export function generateMarkId(doc: SKAMDocument): string {
+  return generateId(doc, 'm');
+}
+
+// ============================================================================
+// Mark CRUD
+// ============================================================================
 
 /**
  * マークを追加（markIdは自動生成）
@@ -156,6 +281,10 @@ export function removeMark(doc: SKAMDocument, markId: string): SKAMDocument {
   };
 }
 
+// ============================================================================
+// Mark Queries
+// ============================================================================
+
 /**
  * tokenIdに関連するマークを取得
  *
@@ -164,14 +293,7 @@ export function removeMark(doc: SKAMDocument, markId: string): SKAMDocument {
  * token ID の順序は blocks.tokenIds の連結順で判定する。
  */
 export function getMarksForToken(doc: SKAMDocument, tokenId: string): Mark[] {
-  // blocks の tokenIds 順にインデックスマップを作成
-  const tokenIndexMap = new Map<string, number>();
-  let globalIndex = 0;
-  for (const block of doc.blocks) {
-    for (const tid of block.tokenIds) {
-      tokenIndexMap.set(tid, globalIndex++);
-    }
-  }
+  const tokenIndexMap = buildTokenIndexMap(doc);
 
   const targetIndex = tokenIndexMap.get(tokenId);
   if (targetIndex === undefined) {
@@ -204,13 +326,7 @@ export function getMarksForToken(doc: SKAMDocument, tokenId: string): Mark[] {
  * position ベースのマーク（kutoten, ref）: position.after が指定範囲内にある場合にマッチ。
  */
 export function getMarksForRange(doc: SKAMDocument, fromId: string, toId: string): Mark[] {
-  const tokenIndexMap = new Map<string, number>();
-  let globalIndex = 0;
-  for (const block of doc.blocks) {
-    for (const tid of block.tokenIds) {
-      tokenIndexMap.set(tid, globalIndex++);
-    }
-  }
+  const tokenIndexMap = buildTokenIndexMap(doc);
 
   const rangeFrom = tokenIndexMap.get(fromId);
   const rangeTo = tokenIndexMap.get(toId);
@@ -240,4 +356,125 @@ export function getMarksForRange(doc: SKAMDocument, fromId: string, toId: string
     // 2つの範囲が重なるかどうか: !(markEnd < rangeStart || markStart > rangeEnd)
     return markEnd >= rangeStart && markStart <= rangeEnd;
   });
+}
+
+/**
+ * アンカーが指定範囲と完全一致するマークを取得
+ *
+ * anchor ベースのマークのみ対象（position ベースは除外）。
+ * オプションで type フィルタが可能。
+ */
+export function getMarksExactRange(
+  doc: SKAMDocument,
+  fromId: string,
+  toId: string,
+  type?: MarkType
+): Mark[] {
+  const tokenIndexMap = buildTokenIndexMap(doc);
+
+  const rangeFrom = tokenIndexMap.get(fromId);
+  const rangeTo = tokenIndexMap.get(toId);
+  if (rangeFrom === undefined || rangeTo === undefined) {
+    return [];
+  }
+
+  const rangeStart = Math.min(rangeFrom, rangeTo);
+  const rangeEnd = Math.max(rangeFrom, rangeTo);
+
+  return doc.marks.filter((mark) => {
+    // position ベースは除外
+    if (isPositionBasedMark(mark)) return false;
+
+    // type フィルタ
+    if (type !== undefined && mark.type !== type) return false;
+
+    const markFrom = tokenIndexMap.get(mark.anchor.from);
+    const markTo = tokenIndexMap.get(mark.anchor.to);
+    if (markFrom === undefined || markTo === undefined) return false;
+
+    const markStart = Math.min(markFrom, markTo);
+    const markEnd = Math.max(markFrom, markTo);
+
+    return markStart === rangeStart && markEnd === rangeEnd;
+  });
+}
+
+// ============================================================================
+// Mark Display Utilities
+// ============================================================================
+
+/**
+ * マークが対象とするトークンのテキストを連結して返す
+ *
+ * - anchor ベース: from〜to のトークンテキストを連結（blocks順で解決）
+ * - position ベース: after のトークンテキストを返す（after 未定義なら空文字列）
+ */
+export function getAnchorText(doc: SKAMDocument, mark: Mark): string {
+  const tokenMap = new Map<string, Token>();
+  for (const token of doc.tokens) {
+    tokenMap.set(token.id, token);
+  }
+
+  // position ベースのマーク
+  if (isPositionBasedMark(mark)) {
+    const afterTokenId = getPositionAfterTokenId(mark.position);
+    if (afterTokenId) {
+      const token = tokenMap.get(afterTokenId);
+      return token?.text ?? '';
+    }
+    return '';
+  }
+
+  // anchor ベースのマーク
+  const tokenIndexMap = buildTokenIndexMap(doc);
+  const fromIndex = tokenIndexMap.get(mark.anchor.from);
+  const toIndex = tokenIndexMap.get(mark.anchor.to);
+  if (fromIndex === undefined || toIndex === undefined) return '';
+
+  const startIdx = Math.min(fromIndex, toIndex);
+  const endIdx = Math.max(fromIndex, toIndex);
+
+  // blocks 順でトークンを収集
+  const texts: string[] = [];
+  let currentIndex = 0;
+  for (const block of doc.blocks) {
+    for (const tid of block.tokenIds) {
+      if (currentIndex >= startIdx && currentIndex <= endIdx) {
+        const token = tokenMap.get(tid);
+        if (token) {
+          texts.push(token.text);
+        }
+      }
+      currentIndex++;
+    }
+  }
+
+  return texts.join('');
+}
+
+/**
+ * マークのドキュメント内表示位置を数値で返す
+ *
+ * - anchor ベース: from の位置
+ * - position ベース: after の位置（after 未定義なら -1）
+ */
+export function getMarkSortIndex(doc: SKAMDocument, mark: Mark): number {
+  const tokenIndexMap = buildTokenIndexMap(doc);
+
+  if (isPositionBasedMark(mark)) {
+    const afterTokenId = getPositionAfterTokenId(mark.position);
+    if (afterTokenId === undefined) return -1;
+    return tokenIndexMap.get(afterTokenId) ?? -1;
+  }
+
+  return tokenIndexMap.get(mark.anchor.from) ?? -1;
+}
+
+/**
+ * マークをドキュメント内の出現順にソートして返す
+ *
+ * 元の marks 配列は変更しない。
+ */
+export function sortMarksByPosition(doc: SKAMDocument): Mark[] {
+  return [...doc.marks].sort((a, b) => getMarkSortIndex(doc, a) - getMarkSortIndex(doc, b));
 }

@@ -2,7 +2,6 @@ import type {
   SKAMDocument,
   Mark,
   MarkType,
-  Anchor,
   Position,
   Token,
   Block,
@@ -61,20 +60,21 @@ export interface AddMarkResult {
 /**
  * updateMarkで使用する更新用の型
  *
- * id, type を除いた共通プロパティのみ更新可能。
- * 各Mark固有のプロパティ（value等）は型システムで保証できないため、
- * 実行時に適切な値を渡す責任は呼び出し側にある。
+ * ジェネリクスにより、対象Markの型に応じた更新プロパティのみを許可する。
+ * 分散条件型で discriminated union の各メンバーに個別に Omit + Partial を適用。
+ *
+ * @example
+ * // 型パラメータ指定で厳密な検証
+ * MarkUpdates<KaeriMark>     // { anchor?, value?, placementHint?, ext? }
+ * MarkUpdates<EmphasisMark>  // { anchor?, style?: EmphasisStyle, placementHint?, ext? }
+ * MarkUpdates<KutotenMark>   // { position?, value?, kind?, placementHint?, ext? }
+ *
+ * // デフォルト（Mark）は全型の union（後方互換）
+ * MarkUpdates                // = MarkUpdates<Mark>
  */
-export type MarkUpdates = {
-  anchor?: Anchor;
-  position?: Position;
-  placementHint?: string;
-  ext?: Record<string, unknown>;
-  /** Mark-specific: value (kaeri, okurigana, yomigana, etc.) */
-  value?: string;
-  /** Mark-specific: style (emphasis, highlight) */
-  style?: string;
-};
+export type MarkUpdates<M extends Mark = Mark> = M extends unknown
+  ? Partial<Omit<M, 'type' | 'id'>>
+  : never;
 
 // ============================================================================
 // Token Index Utilities
@@ -241,8 +241,19 @@ export function addMark(doc: SKAMDocument, mark: MarkInput): SKAMDocument {
  *
  * イミュータブルに新しいドキュメントを返す。
  * 指定されたmarkIdが見つからない場合は元のドキュメントをそのまま返す。
+ *
+ * 型パラメータ M を指定すると、updates が対象 Mark 型に適した
+ * プロパティのみに制限される。省略時は全 Mark 型の union（後方互換）。
+ *
+ * @example
+ * updateMark<EmphasisMark>(doc, 'm1', { style: 'filled sesame' });
+ * updateMark<KaeriMark>(doc, 'm2', { value: 'レ' });
  */
-export function updateMark(doc: SKAMDocument, markId: string, updates: MarkUpdates): SKAMDocument {
+export function updateMark<M extends Mark = Mark>(
+  doc: SKAMDocument,
+  markId: string,
+  updates: MarkUpdates<M>
+): SKAMDocument {
   const markIndex = doc.marks.findIndex((m) => m.id === markId);
 
   if (markIndex === -1) {

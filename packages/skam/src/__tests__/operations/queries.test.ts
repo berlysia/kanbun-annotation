@@ -340,6 +340,25 @@ describe('getMarkById', () => {
     expect(result).toBeDefined();
     expect(result?.type).toBe('kaeri');
   });
+
+  it('10.6: type パラメータで型を指定して取得', () => {
+    const doc = createTestDocument([
+      { type: 'kaeri', id: 'mk1', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+    ]);
+
+    const result = getMarkById(doc, 'mk1', 'kaeri');
+    expect(result).toBeDefined();
+    expect(result?.value).toBe('レ');
+  });
+
+  it('10.7: type が一致しない場合 undefined を返す', () => {
+    const doc = createTestDocument([
+      { type: 'kaeri', id: 'mk1', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+    ]);
+
+    const result = getMarkById(doc, 'mk1', 'kutoten');
+    expect(result).toBeUndefined();
+  });
 });
 
 // ============================================================================

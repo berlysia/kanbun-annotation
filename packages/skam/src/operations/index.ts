@@ -156,9 +156,22 @@ export function getTokenByIndex(doc: SKAMDocument, index: number): Token | undef
  *
  * @returns 指定IDのMark。見つからない場合は undefined
  */
-export function getMarkById(doc: SKAMDocument, markId: string): PersistedMark | undefined {
+export function getMarkById(doc: SKAMDocument, markId: string): PersistedMark | undefined;
+export function getMarkById<T extends MarkType>(
+  doc: SKAMDocument,
+  markId: string,
+  type: T
+): (MarkTypeMap[T] & { id: string }) | undefined;
+export function getMarkById(
+  doc: SKAMDocument,
+  markId: string,
+  type?: MarkType
+): PersistedMark | undefined {
   // id でフィルタリングしているため、結果は必ず id を持つ
-  return doc.marks.find((m) => m.id === markId) as PersistedMark | undefined;
+  const found = doc.marks.find((m) => m.id === markId);
+  if (!found) return undefined;
+  if (type !== undefined && found.type !== type) return undefined;
+  return found as PersistedMark;
 }
 
 /**

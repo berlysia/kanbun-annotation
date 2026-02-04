@@ -350,6 +350,9 @@ export interface MarkTypeMap {
 /** すべての注記型 */
 export type Mark = MarkTypeMap[keyof MarkTypeMap];
 
+/** id が確定済みの Mark（getMarkById の戻り型等） */
+export type PersistedMark = Mark & { id: string };
+
 /** anchor ベースの MarkType サブセット */
 export type AnchoredMarkType = {
   [K in keyof MarkTypeMap]: MarkTypeMap[K] extends AnchoredMark ? K : never;

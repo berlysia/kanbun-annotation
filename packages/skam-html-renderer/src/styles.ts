@@ -225,6 +225,8 @@ function generateCommonStyles(prefix: string, vp: string): string {
   display: inline-grid;
   grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) 1em calc(var(--${vp}-ruby-ratio) * 1em);
   line-height: 1;
+  /* text-emphasis は継承するため、親要素の傍点が添字・送り仮名に伝播するのを防止 */
+  text-emphasis: none;
   /* Chrome 用（デフォルト） */
   vertical-align: calc(var(--${vp}-ruby-ratio) * 0.5em + 0.5em);
 }

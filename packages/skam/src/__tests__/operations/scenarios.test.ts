@@ -108,7 +108,7 @@ describe('操作連鎖', () => {
     let doc = createTestDocument([]);
 
     doc = addMark(doc, { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'ク' });
-    doc = addMark(doc, { type: 'kaeri', anchor: { from: 't2', to: 't2' }, value: 'レ' });
+    doc = addMark(doc, { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' });
     doc = addMark(doc, { type: 'yomigana', anchor: { from: 't3', to: 't3' }, value: 'まな' });
     assertValidDocument(doc);
     const ids = doc.marks.map((m) => m.id);
@@ -152,7 +152,7 @@ describe('Playground シナリオ（拡充）', () => {
 
       const result = addMark(doc, {
         type: 'kaeri',
-        anchor: { from: 't2', to: 't2' },
+        position: { blockId: 'b1', after: 't2' },
         value: 'レ',
       });
       assertValidDocument(result);
@@ -164,7 +164,7 @@ describe('Playground シナリオ（拡充）', () => {
 
     it('20.1b: 返り点削除', () => {
       const doc = createTestDocument([
-        { type: 'kaeri', id: 'm1', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+        { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
         { type: 'okurigana', id: 'm2', anchor: { from: 't3', to: 't3' }, value: 'ブ' },
       ]);
 
@@ -176,13 +176,13 @@ describe('Playground シナリオ（拡充）', () => {
 
     it('20.1c: 返り点値変更（remove + add）', () => {
       const doc = createTestDocument([
-        { type: 'kaeri', id: 'm1', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+        { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
       ]);
 
       let result = removeMark(doc, 'm1');
       result = addMark(result, {
         type: 'kaeri',
-        anchor: { from: 't2', to: 't2' },
+        position: { blockId: 'b1', after: 't2' },
         value: '一レ',
       });
       assertValidDocument(result);
@@ -204,7 +204,7 @@ describe('Playground シナリオ（拡充）', () => {
     it('20.2b: たて点解除（kaeri残存）', () => {
       const doc = createTestDocument([
         { type: 'tateten', id: 'm1', anchor: { from: 't1', to: 't2' } },
-        { type: 'kaeri', id: 'm2', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+        { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
       ]);
 
       const result = removeMark(doc, 'm1');
@@ -216,10 +216,11 @@ describe('Playground シナリオ（拡充）', () => {
     it('20.2c: たて点+返り点共存', () => {
       let doc = createTestDocument([]);
       doc = addMark(doc, { type: 'tateten', anchor: { from: 't1', to: 't2' } });
-      doc = addMark(doc, { type: 'kaeri', anchor: { from: 't1', to: 't2' }, value: '一' });
+      doc = addMark(doc, { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '一' });
       assertValidDocument(doc);
 
       expect(getMarksExactRange(doc, 't1', 't2', 'tateten')).toHaveLength(1);
+      // tateten (anchor t1-t2 exact) + kaeri (position after t1, within range 0-1)
       expect(getMarksExactRange(doc, 't1', 't2')).toHaveLength(2);
     });
   });

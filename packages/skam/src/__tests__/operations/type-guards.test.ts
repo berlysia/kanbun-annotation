@@ -28,7 +28,6 @@ import {
 describe('isAnchorBasedMark', () => {
   it('anchor ベースのマークに true を返す', () => {
     const marks: Mark[] = [
-      { type: 'kaeri', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'レ' },
       { type: 'okurigana', id: 'm2', anchor: { from: 't1', to: 't1' }, value: 'ク' },
       { type: 'emphasis', id: 'm3', anchor: { from: 't1', to: 't2' } },
       { type: 'highlight', id: 'm4', anchor: { from: 't1', to: 't2' }, style: 'solid' },
@@ -41,7 +40,13 @@ describe('isAnchorBasedMark', () => {
     }
   });
 
-  it('position ベースのマーク（kutoten, ref）に false を返す', () => {
+  it('position ベースのマーク（kaeri, kutoten, ref）に false を返す', () => {
+    const kaeri: KaeriMark = {
+      type: 'kaeri',
+      id: 'm0',
+      position: { blockId: 'b1', after: 't1' },
+      value: 'レ',
+    };
     const kutoten: KutotenMark = {
       type: 'kutoten',
       id: 'm1',
@@ -55,6 +60,7 @@ describe('isAnchorBasedMark', () => {
       format: 'iroha-katakana',
     };
 
+    expect(isAnchorBasedMark(kaeri)).toBe(false);
     expect(isAnchorBasedMark(kutoten)).toBe(false);
     expect(isAnchorBasedMark(ref)).toBe(false);
   });
@@ -69,7 +75,7 @@ describe('hasMarkValue', () => {
     const kaeri: KaeriMark = {
       type: 'kaeri',
       id: 'm1',
-      anchor: { from: 't1', to: 't1' },
+      position: { blockId: 'b1', after: 't1' },
       value: 'レ',
     };
     const okurigana: OkuriganaMark = {
@@ -146,15 +152,15 @@ describe('hasMarkValue', () => {
 // ============================================================================
 
 describe('getAnchorRangeLabel', () => {
-  it('anchor ベースのマークで "from〜to" 形式のラベルを返す', () => {
+  it('position ベースの kaeri で空文字列を返す', () => {
     const mark: KaeriMark = {
       type: 'kaeri',
       id: 'm1',
-      anchor: { from: 't1', to: 't3' },
+      position: { blockId: 'b1', after: 't1' },
       value: '一',
     };
 
-    expect(getAnchorRangeLabel(mark)).toBe('t1〜t3');
+    expect(getAnchorRangeLabel(mark)).toBe('');
   });
 
   it('from と to が同じ場合も正しく返す', () => {
@@ -239,11 +245,11 @@ describe('isExactAnchorMatch', () => {
 // ============================================================================
 
 describe('isMarkType', () => {
-  it('5.1: type が一致する anchor ベースマークで true を返し、型がナローされる', () => {
+  it('5.1: type が一致する position ベースマーク (kaeri) で true を返し、型がナローされる', () => {
     const mark: Mark = {
       type: 'kaeri',
       id: 'm1',
-      anchor: { from: 't1', to: 't1' },
+      position: { blockId: 'b1', after: 't1' },
       value: 'レ',
     };
 
@@ -258,7 +264,7 @@ describe('isMarkType', () => {
     const mark: Mark = {
       type: 'kaeri',
       id: 'm1',
-      anchor: { from: 't1', to: 't1' },
+      position: { blockId: 'b1', after: 't1' },
       value: 'レ',
     };
 
@@ -288,9 +294,9 @@ describe('isMarkType', () => {
 describe('filterMarksByType', () => {
   it('6.1: 指定 type のマークのみをフィルタリングする', () => {
     const marks: Mark[] = [
-      { type: 'kaeri', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+      { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
       { type: 'okurigana', id: 'm2', anchor: { from: 't1', to: 't1' }, value: 'ク' },
-      { type: 'kaeri', id: 'm3', anchor: { from: 't2', to: 't2' }, value: '一' },
+      { type: 'kaeri', id: 'm3', position: { blockId: 'b1', after: 't2' }, value: '一' },
     ];
 
     const result = filterMarksByType(marks, 'kaeri');
@@ -301,7 +307,7 @@ describe('filterMarksByType', () => {
 
   it('6.2: マッチなしで空配列を返す', () => {
     const marks: Mark[] = [
-      { type: 'kaeri', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+      { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
     ];
 
     const result = filterMarksByType(marks, 'okurigana');
@@ -310,7 +316,7 @@ describe('filterMarksByType', () => {
 
   it('6.3: position ベースマーク（kutoten）をフィルタリングする', () => {
     const marks: Mark[] = [
-      { type: 'kaeri', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+      { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
       { type: 'kutoten', id: 'm2', position: { blockId: 'b1', after: 't1' }, value: '。' },
       { type: 'kutoten', id: 'm3', position: { blockId: 'b1', after: 't2' }, value: '、' },
     ];

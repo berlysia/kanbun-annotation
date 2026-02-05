@@ -206,9 +206,9 @@ function collectTokenAnnotations(
 
   // Mark を処理
   for (const mark of marks) {
-    // Position-based marks (kutoten, ref) are handled separately
+    // Position-based marks (kaeri, kutoten, ref) are handled separately
     if (!isAnchorBasedMark(mark)) {
-      const positionMark = mark as KutotenMark | RefMark;
+      const positionMark = mark as KaeriMark | KutotenMark | RefMark;
       const tokenId = getPositionAfterTokenId(positionMark.position);
       if (!tokenId) {
         // before-only position marks are not attached to a token annotation
@@ -219,7 +219,12 @@ function collectTokenAnnotations(
         continue;
       }
 
-      if (mark.type === 'kutoten') {
+      if (mark.type === 'kaeri') {
+        if (!annotation.kaeriAfter) {
+          annotation.kaeriAfter = [];
+        }
+        annotation.kaeriAfter.push(mark as KaeriMark);
+      } else if (mark.type === 'kutoten') {
         if (!annotation.kutotenAfter) {
           annotation.kutotenAfter = [];
         }
@@ -254,12 +259,6 @@ function collectTokenAnnotations(
         break;
       case 'soegana':
         annotation.soe = (mark as SoeganaMark).value;
-        break;
-      case 'kaeri':
-        if (!annotation.kaeriAfter) {
-          annotation.kaeriAfter = [];
-        }
-        annotation.kaeriAfter.push(mark as KaeriMark);
         break;
       case 'okimoji':
         if (!annotation.wrappers) {

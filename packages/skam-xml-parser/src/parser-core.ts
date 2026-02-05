@@ -344,7 +344,7 @@ function processKaeri(element: Element, state: ParserState, precedingTokenId: st
   const mark: KaeriMark = {
     type: 'kaeri',
     id: generateMarkId(state),
-    anchor: { from: precedingTokenId, to: precedingTokenId },
+    position: { blockId: state.currentBlockId!, after: precedingTokenId },
     value,
   };
 

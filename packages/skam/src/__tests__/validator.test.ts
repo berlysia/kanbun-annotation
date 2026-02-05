@@ -24,7 +24,7 @@ const validCompleteDocument: SKAMDocument = {
   blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
   marks: [
     { type: 'okurigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'びて' },
-    { type: 'kaeri', id: 'm2', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+    { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
   ],
   derivations: [{ kind: 'readingOrder', method: 'manual', result: ['t1', 't2'] }],
   readings: [{ kind: 'kakikudashi', text: '学びて' }],
@@ -55,7 +55,7 @@ describe('validateSKAMDocument', () => {
         tokens: [{ id: 't1', text: '國' }],
         blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [
-          { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+          { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
           { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'び' },
           { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'くに' },
           { type: 'okimoji', anchor: { from: 't1', to: 't1' } },
@@ -692,7 +692,7 @@ describe('validateSKAMDocument', () => {
       }
     });
 
-    it('should reject mark with missing anchor', () => {
+    it('should reject mark with missing position (kaeri)', () => {
       const doc = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
@@ -704,7 +704,7 @@ describe('validateSKAMDocument', () => {
       const result = validateSKAMDocument(doc);
       expect(result.valid).toBe(false);
       if (!result.valid) {
-        expect(result.errors.some((e) => e.path === 'marks[0].anchor')).toBe(true);
+        expect(result.errors.some((e) => e.path === 'marks[0].position')).toBe(true);
       }
     });
 
@@ -713,7 +713,7 @@ describe('validateSKAMDocument', () => {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
         blocks: [{ id: 'b1', tokenIds: ['t1'] }],
-        marks: [{ type: 'kaeri', anchor: { from: 'unknown', to: 't1' }, value: 'レ' }],
+        marks: [{ type: 'kaeri', position: { blockId: 'b1', after: 'unknown' }, value: 'レ' }],
         readings: [],
       };
 
@@ -729,7 +729,7 @@ describe('validateSKAMDocument', () => {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
         blocks: [{ id: 'b1', tokenIds: ['t1'] }],
-        marks: [{ type: 'kaeri', anchor: { from: 't1', to: 't1' } }],
+        marks: [{ type: 'kaeri', position: { blockId: 'b1', after: 't1' } }],
         readings: [],
       };
 
@@ -823,8 +823,8 @@ describe('validateSKAMDocument', () => {
         tokens: [{ id: 't1', text: '學' }],
         blocks: [{ id: 'b1', tokenIds: ['t1'] }],
         marks: [
-          { type: 'kaeri', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'レ' },
-          { type: 'kaeri', id: 'm1', anchor: { from: 't1', to: 't1' }, value: '一' },
+          { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+          { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: '一' },
         ],
         readings: [],
       };

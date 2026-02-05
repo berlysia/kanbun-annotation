@@ -1194,12 +1194,12 @@ function applyKaeriValue(value: string | null): void {
   if (!sel) return;
   const { fromId: normalizedFromId, toId: normalizedToId } = sel;
 
-  // For single selection or tateten range, apply kaeri to the full range
-  const anchorFrom = currentSelectionMode === 'single' ? normalizedFromId : normalizedFromId;
-  const anchorTo = currentSelectionMode === 'single' ? normalizedFromId : normalizedToId;
+  // For single selection or tateten range, determine kaeri position
+  const afterTokenId = normalizedFromId;
+  const searchTo = currentSelectionMode === 'single' ? normalizedFromId : normalizedToId;
 
   // Find and remove existing kaeri mark for this range
-  const existingKaeri = getMarksExactRange(newDoc, anchorFrom, anchorTo, 'kaeri');
+  const existingKaeri = getMarksExactRange(newDoc, afterTokenId, searchTo, 'kaeri');
   const kaeriToRemove = existingKaeri[0];
   if (kaeriToRemove?.id) {
     newDoc = removeMark(newDoc, kaeriToRemove.id);
@@ -1207,10 +1207,12 @@ function applyKaeriValue(value: string | null): void {
 
   // Add new mark if value is provided
   if (value) {
+    const block = getBlockForToken(newDoc, afterTokenId);
+    if (!block) return;
     newDoc = addMark(newDoc, {
       type: 'kaeri',
       value: value,
-      anchor: { from: anchorFrom, to: anchorTo },
+      position: { blockId: block.id, after: afterTokenId },
     });
   }
 

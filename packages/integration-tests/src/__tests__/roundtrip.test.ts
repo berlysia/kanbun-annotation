@@ -58,7 +58,7 @@ describe('round-trip - basic', () => {
         {
           type: 'kaeri',
           id: 'm1',
-          anchor: { from: 't2', to: 't2' },
+          position: { blockId: 'b1', after: 't2' },
           value: 'レ',
         } as KaeriMark,
       ],
@@ -87,13 +87,13 @@ describe('round-trip - basic', () => {
         {
           type: 'kaeri',
           id: 'm1',
-          anchor: { from: 't1', to: 't1' },
+          position: { blockId: 'b1', after: 't1' },
           value: '一レ',
         } as KaeriMark,
         {
           type: 'kaeri',
           id: 'm2',
-          anchor: { from: 't3', to: 't3' },
+          position: { blockId: 'b1', after: 't3' },
           value: 'レ',
         } as KaeriMark,
       ],
@@ -591,7 +591,7 @@ describe('round-trip - multi-token', () => {
         {
           type: 'kaeri',
           id: 'm2',
-          anchor: { from: 't1', to: 't1' },
+          position: { blockId: 'b1', after: 't1' },
           value: 'レ',
         } as KaeriMark,
       ],
@@ -667,7 +667,7 @@ describe('round-trip - multi-token', () => {
         {
           type: 'kaeri',
           id: 'm3',
-          anchor: { from: 't3', to: 't3' },
+          position: { blockId: 'b1', after: 't3' },
           value: '二',
         } as KaeriMark,
         {
@@ -685,7 +685,7 @@ describe('round-trip - multi-token', () => {
         {
           type: 'kaeri',
           id: 'm6',
-          anchor: { from: 't5', to: 't5' },
+          position: { blockId: 'b1', after: 't5' },
           value: '一',
         } as KaeriMark,
       ],
@@ -725,7 +725,7 @@ describe('round-trip - multi-token', () => {
         {
           type: 'kaeri',
           id: 'm2',
-          anchor: { from: 't1', to: 't1' },
+          position: { blockId: 'b1', after: 't1' },
           value: 'レ',
         } as KaeriMark,
       ],
@@ -799,7 +799,7 @@ describe('round-trip - saidoku with trailing marks', () => {
         {
           type: 'kaeri',
           id: 'm2',
-          anchor: { from: 't1', to: 't1' },
+          position: { blockId: 'b1', after: 't1' },
           value: 'レ',
         } as KaeriMark,
       ],

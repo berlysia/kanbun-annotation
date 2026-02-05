@@ -91,12 +91,12 @@ describe('getMarkSortIndex', () => {
     expect(getMarkSortIndex(doc, mark)).toBe(0);
   });
 
-  it('17.2: anchor中間', () => {
+  it('17.2: position-based (kaeri after t2)', () => {
     const doc = createTestDocument([]);
     const mark: Mark = {
       type: 'kaeri',
       id: 'm1',
-      anchor: { from: 't2', to: 't2' },
+      position: { blockId: 'b1', after: 't2' },
       value: 'レ',
     };
     expect(getMarkSortIndex(doc, mark)).toBe(1);
@@ -154,7 +154,7 @@ describe('getMarkSortIndex', () => {
 describe('sortMarksByPosition', () => {
   it('18.1: ドキュメント内の出現順にソート', () => {
     const doc = createTestDocument([
-      { type: 'kaeri', id: 'm1', anchor: { from: 't3', to: 't3' }, value: 'レ' },
+      { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't3' }, value: 'レ' },
       { type: 'okurigana', id: 'm2', anchor: { from: 't1', to: 't1' }, value: 'ク' },
       { type: 'yomigana', id: 'm3', anchor: { from: 't2', to: 't2' }, value: 'いわく' },
     ]);
@@ -166,7 +166,7 @@ describe('sortMarksByPosition', () => {
   it('18.2: position-based混在', () => {
     const doc = createTestDocument([
       { type: 'kutoten', id: 'm1', position: { blockId: 'b1', after: 't3' }, value: '。' },
-      { type: 'kaeri', id: 'm2', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+      { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
       { type: 'kutoten', id: 'm3', position: { blockId: 'b1', after: 't1' }, value: '、' },
     ]);
 
@@ -178,7 +178,7 @@ describe('sortMarksByPosition', () => {
 
   it('18.3: イミュータブル', () => {
     const doc = createTestDocument([
-      { type: 'kaeri', id: 'm1', anchor: { from: 't3', to: 't3' }, value: 'レ' },
+      { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't3' }, value: 'レ' },
       { type: 'okurigana', id: 'm2', anchor: { from: 't1', to: 't1' }, value: 'ク' },
     ]);
 

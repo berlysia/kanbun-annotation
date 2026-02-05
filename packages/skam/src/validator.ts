@@ -403,8 +403,8 @@ function validateMark(mark: unknown, index: number, errors: ValidationError[]): 
     valid = false;
   }
 
-  // Position-based marks (kutoten, ref) require position instead of anchor
-  const isPositionBased = markType === 'kutoten' || markType === 'ref';
+  // Position-based marks (kaeri, kutoten, ref) require position instead of anchor
+  const isPositionBased = markType === 'kaeri' || markType === 'kutoten' || markType === 'ref';
 
   if (isPositionBased) {
     // position (required for position-based marks)

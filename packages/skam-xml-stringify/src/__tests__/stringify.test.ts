@@ -88,7 +88,7 @@ describe('stringify - kaeri', () => {
         {
           type: 'kaeri',
           id: 'm1',
-          anchor: { from: 't2', to: 't2' },
+          position: { blockId: 'b1', after: 't2' },
           value: 'レ',
         } as KaeriMark,
       ],
@@ -110,9 +110,24 @@ describe('stringify - kaeri', () => {
       ],
       blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
       marks: [
-        { type: 'kaeri', id: 'm1', anchor: { from: 't1', to: 't1' }, value: '一' } as KaeriMark,
-        { type: 'kaeri', id: 'm2', anchor: { from: 't2', to: 't2' }, value: '二' } as KaeriMark,
-        { type: 'kaeri', id: 'm3', anchor: { from: 't3', to: 't3' }, value: '上' } as KaeriMark,
+        {
+          type: 'kaeri',
+          id: 'm1',
+          position: { blockId: 'b1', after: 't1' },
+          value: '一',
+        } as KaeriMark,
+        {
+          type: 'kaeri',
+          id: 'm2',
+          position: { blockId: 'b1', after: 't2' },
+          value: '二',
+        } as KaeriMark,
+        {
+          type: 'kaeri',
+          id: 'm3',
+          position: { blockId: 'b1', after: 't3' },
+          value: '上',
+        } as KaeriMark,
       ],
       readings: [],
     };
@@ -508,7 +523,7 @@ describe('stringify - saidoku', () => {
         {
           type: 'kaeri',
           id: 'm2',
-          anchor: { from: 't1', to: 't1' },
+          position: { blockId: 'b1', after: 't1' },
           value: 'レ',
         } as KaeriMark,
       ],
@@ -831,7 +846,7 @@ describe('stringify - ref', () => {
         {
           type: 'kaeri',
           id: 'm1',
-          anchor: { from: 't1', to: 't1' },
+          position: { blockId: 'b1', after: 't1' },
           value: 'レ',
         } as KaeriMark,
         {

@@ -198,7 +198,7 @@ position は `{ blockId, after: tokenId }` または `{ blockId }`（ブロッ�
 
 - `marks.type = "kaeri"`
 - `marks.value = kind に対応する記号`（上記対応表参照）
-- `anchor = 直前token`
+- `position = { blockId: 現在のブロック, after: 直前token }`
 
 ---
 

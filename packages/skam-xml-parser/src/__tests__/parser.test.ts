@@ -54,8 +54,8 @@ describe('parse - valid fixtures', () => {
       expect(kaeri.type).toBe('kaeri');
       if (kaeri.type === 'kaeri') {
         expect(kaeri.value).toBe('レ');
-        expect(kaeri.anchor.from).toBe('t2'); // 而
-        expect(kaeri.anchor.to).toBe('t2');
+        expect(kaeri.position.blockId).toBe('b1');
+        expect(kaeri.position.after).toBe('t2'); // 而
       }
     });
   });

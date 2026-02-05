@@ -486,7 +486,7 @@ describe('MarkPopup', () => {
       const existingMark: KaeriMark = {
         type: 'kaeri',
         id: 'm1',
-        anchor: { from: 't1', to: 't1' },
+        position: { blockId: 'b1', after: 't1' },
         value: 'レ',
       };
 
@@ -500,7 +500,7 @@ describe('MarkPopup', () => {
       const existingMark: KaeriMark = {
         type: 'kaeri',
         id: 'm1',
-        anchor: { from: 't1', to: 't1' },
+        position: { blockId: 'b1', after: 't1' },
         value: '一',
       };
 
@@ -515,7 +515,7 @@ describe('MarkPopup', () => {
       const existingMark: KaeriMark = {
         type: 'kaeri',
         id: 'm1',
-        anchor: { from: 't1', to: 't1' },
+        position: { blockId: 'b1', after: 't1' },
         value: 'レ',
       };
 
@@ -529,7 +529,7 @@ describe('MarkPopup', () => {
       const existingMark: KaeriMark = {
         type: 'kaeri',
         id: 'm5',
-        anchor: { from: 't1', to: 't1' },
+        position: { blockId: 'b1', after: 't1' },
         value: 'レ',
       };
 
@@ -587,7 +587,7 @@ describe('MarkPopup', () => {
       const existingMark: KaeriMark = {
         type: 'kaeri',
         id: 'm1',
-        anchor: { from: 't1', to: 't1' },
+        position: { blockId: 'b1', after: 't1' },
         value: 'レ',
       };
 
@@ -915,7 +915,7 @@ describe('MarkPopup', () => {
       const existingMark: KaeriMark = {
         type: 'kaeri',
         id: 'm1',
-        anchor: { from: 't1', to: 't1' },
+        position: { blockId: 'b1', after: 't1' },
         value: 'レ',
       };
 

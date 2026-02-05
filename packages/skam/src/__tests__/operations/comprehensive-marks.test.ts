@@ -158,23 +158,23 @@ describe('Multi-token anchor marks', () => {
     });
   });
 
-  describe('kaeri on multi-token range', () => {
-    it('2-token range: add and validate', () => {
+  describe('kaeri (position-based)', () => {
+    it('add kaeri after t1 and validate', () => {
       const doc = createTestDocument([]);
       const result = addMark(doc, {
         type: 'kaeri',
-        anchor: { from: 't1', to: 't2' },
+        position: { blockId: 'b1', after: 't1' },
         value: '一',
       });
       assertValidDocument(result);
       expect(result.marks).toHaveLength(1);
     });
 
-    it('compound kaeri on 2-token range', () => {
+    it('compound kaeri after t2', () => {
       const doc = createTestDocument([]);
       const result = addMark(doc, {
         type: 'kaeri',
-        anchor: { from: 't2', to: 't3' },
+        position: { blockId: 'b1', after: 't2' },
         value: '一レ',
       });
       assertValidDocument(result);
@@ -302,7 +302,7 @@ describe('Mark coexistence matrix', () => {
     it('yomigana + kaeri on same token', () => {
       let doc = createTestDocument([]);
       doc = addMark(doc, { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'し' });
-      doc = addMark(doc, { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: 'レ' });
+      doc = addMark(doc, { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' });
       assertValidDocument(doc);
       expect(doc.marks).toHaveLength(2);
       expect(getMarksForToken(doc, 't1')).toHaveLength(2);
@@ -319,7 +319,7 @@ describe('Mark coexistence matrix', () => {
     it('okurigana + kaeri on same token', () => {
       let doc = createTestDocument([]);
       doc = addMark(doc, { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'ク' });
-      doc = addMark(doc, { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: '二' });
+      doc = addMark(doc, { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '二' });
       assertValidDocument(doc);
       expect(getMarksForToken(doc, 't1')).toHaveLength(2);
     });
@@ -334,7 +334,7 @@ describe('Mark coexistence matrix', () => {
 
     it('kaeri + soegana on same token', () => {
       let doc = createTestDocument([]);
-      doc = addMark(doc, { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: 'レ' });
+      doc = addMark(doc, { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' });
       doc = addMark(doc, { type: 'soegana', anchor: { from: 't1', to: 't1' }, value: 'を' });
       assertValidDocument(doc);
       expect(getMarksForToken(doc, 't1')).toHaveLength(2);
@@ -342,7 +342,7 @@ describe('Mark coexistence matrix', () => {
 
     it('kaeri + okimoji on same token', () => {
       let doc = createTestDocument([]);
-      doc = addMark(doc, { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: '一' });
+      doc = addMark(doc, { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '一' });
       doc = addMark(doc, { type: 'okimoji', anchor: { from: 't1', to: 't1' } });
       assertValidDocument(doc);
       expect(getMarksForToken(doc, 't1')).toHaveLength(2);
@@ -350,7 +350,7 @@ describe('Mark coexistence matrix', () => {
 
     it('kaeri + joji on same token', () => {
       let doc = createTestDocument([]);
-      doc = addMark(doc, { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: '上' });
+      doc = addMark(doc, { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '上' });
       doc = addMark(doc, { type: 'joji', anchor: { from: 't1', to: 't1' } });
       assertValidDocument(doc);
       expect(getMarksForToken(doc, 't1')).toHaveLength(2);
@@ -375,7 +375,7 @@ describe('Mark coexistence matrix', () => {
         anchor: { from: 't1', to: 't1' },
         style: 'filled dot',
       });
-      doc = addMark(doc, { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: 'レ' });
+      doc = addMark(doc, { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' });
       assertValidDocument(doc);
       expect(getMarksForToken(doc, 't1')).toHaveLength(2);
     });
@@ -411,7 +411,7 @@ describe('Mark coexistence matrix', () => {
         anchor: { from: 't1', to: 't3' },
         style: 'solid',
       });
-      doc = addMark(doc, { type: 'kaeri', anchor: { from: 't2', to: 't2' }, value: 'レ' });
+      doc = addMark(doc, { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' });
       assertValidDocument(doc);
       expect(getMarksForToken(doc, 't2')).toHaveLength(2);
     });
@@ -448,8 +448,9 @@ describe('Mark coexistence matrix', () => {
     it('tateten + kaeri on same range', () => {
       let doc = createTestDocument([]);
       doc = addMark(doc, { type: 'tateten', anchor: { from: 't1', to: 't2' } });
-      doc = addMark(doc, { type: 'kaeri', anchor: { from: 't1', to: 't2' }, value: '一' });
+      doc = addMark(doc, { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '一' });
       assertValidDocument(doc);
+      // tateten is anchor-based (exact range t1-t2), kaeri is position-based (after t1, within range 0-1)
       expect(getMarksExactRange(doc, 't1', 't2')).toHaveLength(2);
     });
 
@@ -463,7 +464,7 @@ describe('Mark coexistence matrix', () => {
           { n: 2, okuri: 'す' },
         ],
       });
-      doc = addMark(doc, { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: '二' });
+      doc = addMark(doc, { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '二' });
       assertValidDocument(doc);
       expect(getMarksForToken(doc, 't1')).toHaveLength(2);
     });
@@ -492,7 +493,7 @@ describe('Mark coexistence matrix', () => {
         position: { system: 'glyph-grid', grid: '5x5', x: 4, y: 4 },
         shape: 'dot',
       });
-      doc = addMark(doc, { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: 'レ' });
+      doc = addMark(doc, { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' });
       assertValidDocument(doc);
       expect(getMarksForToken(doc, 't1')).toHaveLength(2);
     });
@@ -503,7 +504,7 @@ describe('Mark coexistence matrix', () => {
       let doc = createTestDocument([]);
       doc = addMark(doc, { type: 'yomigana', anchor: { from: 't3', to: 't3' }, value: 'まな' });
       doc = addMark(doc, { type: 'okurigana', anchor: { from: 't3', to: 't3' }, value: 'ブ' });
-      doc = addMark(doc, { type: 'kaeri', anchor: { from: 't3', to: 't3' }, value: 'レ' });
+      doc = addMark(doc, { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: 'レ' });
       assertValidDocument(doc);
 
       const marks = getMarksForToken(doc, 't3');
@@ -515,7 +516,7 @@ describe('Mark coexistence matrix', () => {
       let doc = createTestDocument([]);
       doc = addMark(doc, { type: 'yomigana', anchor: { from: 't3', to: 't3' }, value: 'まな' });
       doc = addMark(doc, { type: 'okurigana', anchor: { from: 't3', to: 't3' }, value: 'ブ' });
-      doc = addMark(doc, { type: 'kaeri', anchor: { from: 't3', to: 't3' }, value: 'レ' });
+      doc = addMark(doc, { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: 'レ' });
       doc = addMark(doc, { type: 'soegana', anchor: { from: 't3', to: 't3' }, value: 'を' });
       assertValidDocument(doc);
 
@@ -527,7 +528,7 @@ describe('Mark coexistence matrix', () => {
       let doc = createTestDocument([]);
       doc = addMark(doc, { type: 'yomigana', anchor: { from: 't3', to: 't3' }, value: 'まな' });
       doc = addMark(doc, { type: 'okurigana', anchor: { from: 't3', to: 't3' }, value: 'ブ' });
-      doc = addMark(doc, { type: 'kaeri', anchor: { from: 't3', to: 't3' }, value: 'レ' });
+      doc = addMark(doc, { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: 'レ' });
       doc = addMark(doc, {
         type: 'emphasis',
         anchor: { from: 't3', to: 't3' },
@@ -544,7 +545,7 @@ describe('Mark coexistence matrix', () => {
       doc = addMark(doc, { type: 'yomigana', anchor: { from: 't3', to: 't3' }, value: 'まな' });
       doc = addMark(doc, { type: 'okurigana', anchor: { from: 't3', to: 't3' }, value: 'ブ' });
       doc = addMark(doc, { type: 'soegana', anchor: { from: 't3', to: 't3' }, value: 'を' });
-      doc = addMark(doc, { type: 'kaeri', anchor: { from: 't3', to: 't3' }, value: 'レ' });
+      doc = addMark(doc, { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: 'レ' });
       doc = addMark(doc, {
         type: 'emphasis',
         anchor: { from: 't3', to: 't3' },
@@ -567,7 +568,7 @@ describe('Mark coexistence matrix', () => {
       doc = addMark(doc, { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'し' });
       doc = addMark(doc, { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'の' });
       // t2: kaeri + okimoji
-      doc = addMark(doc, { type: 'kaeri', anchor: { from: 't2', to: 't2' }, value: 'レ' });
+      doc = addMark(doc, { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' });
       doc = addMark(doc, { type: 'okimoji', anchor: { from: 't2', to: 't2' } });
       // t3: soegana + emphasis
       doc = addMark(doc, { type: 'soegana', anchor: { from: 't3', to: 't3' }, value: 'を' });
@@ -771,14 +772,14 @@ describe('Complex queries on rich documents', () => {
       // t1: yomigana, okurigana
       { type: 'yomigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'し' },
       { type: 'okurigana', id: 'm2', anchor: { from: 't1', to: 't1' }, value: 'の' },
-      // t2: kaeri, okimoji
-      { type: 'kaeri', id: 'm3', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+      // t2: kaeri (position-based), okimoji
+      { type: 'kaeri', id: 'm3', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
       { type: 'okimoji', id: 'm4', anchor: { from: 't2', to: 't2' } },
-      // t3: yomigana, okurigana, soegana, kaeri
+      // t3: yomigana, okurigana, soegana, kaeri (position-based)
       { type: 'yomigana', id: 'm5', anchor: { from: 't3', to: 't3' }, value: 'まな' },
       { type: 'okurigana', id: 'm6', anchor: { from: 't3', to: 't3' }, value: 'ブ' },
       { type: 'soegana', id: 'm7', anchor: { from: 't3', to: 't3' }, value: 'を' },
-      { type: 'kaeri', id: 'm8', anchor: { from: 't3', to: 't3' }, value: '二' },
+      { type: 'kaeri', id: 'm8', position: { blockId: 'b1', after: 't3' }, value: '二' },
       // range marks
       { type: 'emphasis', id: 'm9', anchor: { from: 't1', to: 't3' }, style: 'filled dot' },
       { type: 'highlight', id: 'm10', anchor: { from: 't1', to: 't2' }, style: 'solid' },
@@ -810,7 +811,7 @@ describe('Complex queries on rich documents', () => {
   it('getMarksForToken: t2 returns overlapping range marks', () => {
     const doc = createRichDocument();
     const marks = getMarksForToken(doc, 't2');
-    // m3 (kaeri t2), m4 (okimoji t2), m9 (emphasis t1-t3), m10 (highlight t1-t2)
+    // m3 (kaeri after t2), m4 (okimoji t2), m9 (emphasis t1-t3), m10 (highlight t1-t2)
     expect(marks).toHaveLength(4);
     expect(marks.map((m) => m.id).sort()).toEqual(['m10', 'm3', 'm4', 'm9']);
   });
@@ -818,7 +819,7 @@ describe('Complex queries on rich documents', () => {
   it('getMarksForToken: t3 returns all marks on t3', () => {
     const doc = createRichDocument();
     const marks = getMarksForToken(doc, 't3');
-    // m5 (yomigana t3), m6 (okurigana t3), m7 (soegana t3), m8 (kaeri t3),
+    // m5 (yomigana t3), m6 (okurigana t3), m7 (soegana t3), m8 (kaeri after t3),
     // m9 (emphasis t1-t3), m11 (kutoten after t3)
     expect(marks).toHaveLength(6);
   });
@@ -832,8 +833,9 @@ describe('Complex queries on rich documents', () => {
   it('getMarksForRange: partial range t1-t2', () => {
     const doc = createRichDocument();
     const marks = getMarksForRange(doc, 't1', 't2');
-    // m1-m4 (single token on t1/t2), m9 (overlaps), m10 (exact), m12 (ref after t1)
-    // Does NOT include: m5-m8 (on t3), m11 (after t3)
+    // m1 (yomigana t1), m2 (okurigana t1), m3 (kaeri after t2), m4 (okimoji t2),
+    // m9 (emphasis t1-t3 overlaps), m10 (highlight t1-t2 exact), m12 (ref after t1)
+    // Does NOT include: m5-m7 (on t3), m8 (kaeri after t3), m11 (kutoten after t3)
     const ids = marks.map((m) => m.id).sort();
     expect(ids).toContain('m1');
     expect(ids).toContain('m2');
@@ -842,6 +844,7 @@ describe('Complex queries on rich documents', () => {
     expect(ids).toContain('m9');
     expect(ids).toContain('m10');
     expect(ids).toContain('m12');
+    expect(ids).not.toContain('m8'); // kaeri after t3 is out of range
     expect(ids).not.toContain('m11'); // kutoten after t3 is out of range
   });
 
@@ -855,11 +858,12 @@ describe('Complex queries on rich documents', () => {
   it('getMarksExactRange: range exact match', () => {
     const doc = createRichDocument();
     const marks = getMarksExactRange(doc, 't1', 't2');
-    // m10 (highlight t1-t2) + m12 (ref, after: t1 is within range 0-1)
-    expect(marks).toHaveLength(2);
+    // m10 (highlight t1-t2) + m12 (ref, after: t1 is within range 0-1) + m3 (kaeri, after: t2 is within range 0-1)
+    expect(marks).toHaveLength(3);
     const ids = marks.map((m) => m.id);
     expect(ids).toContain('m10');
     expect(ids).toContain('m12');
+    expect(ids).toContain('m3');
   });
 
   it('getAnchoredMarksExactRange: excludes position-based', () => {
@@ -873,8 +877,8 @@ describe('Complex queries on rich documents', () => {
   it('getPositionedMarksInRange: returns position-based marks in range', () => {
     const doc = createRichDocument();
     const marks = getPositionedMarksInRange(doc, 't1', 't3');
-    // m11 (kutoten after t3), m12 (ref after t1)
-    expect(marks).toHaveLength(2);
+    // m3 (kaeri after t2), m8 (kaeri after t3), m11 (kutoten after t3), m12 (ref after t1)
+    expect(marks).toHaveLength(4);
     expect(marks.every((m) => isPositionBasedMark(m))).toBe(true);
   });
 
@@ -980,11 +984,11 @@ describe('Display utilities with complex marks', () => {
   });
 
   describe('getAnchorRangeLabel', () => {
-    it('single token: returns token id', () => {
+    it('position-based kaeri: returns empty string', () => {
       const doc = createTestDocument([
-        { type: 'kaeri', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+        { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
       ]);
-      expect(getAnchorRangeLabel(doc.marks[0]!)).toBe('t1〜t1');
+      expect(getAnchorRangeLabel(doc.marks[0]!)).toBe('');
     });
 
     it('2-token range: returns range label', () => {
@@ -1008,9 +1012,9 @@ describe('Display utilities with complex marks', () => {
   });
 
   describe('sortMarksByPosition', () => {
-    it('sorts marks by document position (anchor from)', () => {
+    it('sorts marks by document position (anchor from / position after)', () => {
       const doc = createTestDocument([
-        { type: 'kaeri', id: 'm3', anchor: { from: 't3', to: 't3' }, value: 'レ' },
+        { type: 'kaeri', id: 'm3', position: { blockId: 'b1', after: 't3' }, value: 'レ' },
         { type: 'yomigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'し' },
         { type: 'okurigana', id: 'm2', anchor: { from: 't2', to: 't2' }, value: 'ク' },
       ]);
@@ -1022,7 +1026,7 @@ describe('Display utilities with complex marks', () => {
 
     it('sorts mixed anchor + position marks', () => {
       const doc = createTestDocument([
-        { type: 'kaeri', id: 'm2', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+        { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
         { type: 'kutoten', id: 'm3', position: { blockId: 'b1', after: 't3' }, value: '。' },
         { type: 'yomigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'し' },
       ]);
@@ -1101,7 +1105,7 @@ describe('Multi-block operations', () => {
     const doc = createMultiBlockDocument([
       { type: 'yomigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'し' },
       { type: 'yomigana', id: 'm2', anchor: { from: 't4', to: 't4' }, value: 'しかして' },
-      { type: 'kaeri', id: 'm3', anchor: { from: 't5', to: 't5' }, value: 'レ' },
+      { type: 'kaeri', id: 'm3', position: { blockId: 'b2', after: 't5' }, value: 'レ' },
     ]);
 
     // b1 tokens
@@ -1115,7 +1119,7 @@ describe('Multi-block operations', () => {
   it('range query within single block', () => {
     const doc = createMultiBlockDocument([
       { type: 'yomigana', id: 'm1', anchor: { from: 't4', to: 't5' }, value: 'しかとき' },
-      { type: 'kaeri', id: 'm2', anchor: { from: 't6', to: 't6' }, value: 'レ' },
+      { type: 'kaeri', id: 'm2', position: { blockId: 'b2', after: 't6' }, value: 'レ' },
     ]);
 
     const b2Range = getMarksForRange(doc, 't4', 't6');
@@ -1425,7 +1429,7 @@ describe('Kaeri value variations', () => {
       const doc = createTestDocument([]);
       const result = addMark(doc, {
         type: 'kaeri',
-        anchor: { from: 't1', to: 't1' },
+        position: { blockId: 'b1', after: 't1' },
         value,
       });
       assertValidDocument(result);
@@ -1439,7 +1443,7 @@ describe('Kaeri value variations', () => {
       const doc = createTestDocument([]);
       const result = addMark(doc, {
         type: 'kaeri',
-        anchor: { from: 't1', to: 't1' },
+        position: { blockId: 'b1', after: 't1' },
         value,
       });
       assertValidDocument(result);
@@ -1680,7 +1684,7 @@ describe('CRUD operations preserve validity', () => {
     let doc = createTestDocument([]);
     doc = addMark(doc, { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'し' });
     doc = addMark(doc, { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'の' });
-    doc = addMark(doc, { type: 'kaeri', anchor: { from: 't2', to: 't2' }, value: 'レ' });
+    doc = addMark(doc, { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' });
     doc = addMark(doc, { type: 'yomigana', anchor: { from: 't3', to: 't3' }, value: 'まな' });
     doc = addMark(doc, { type: 'okurigana', anchor: { from: 't3', to: 't3' }, value: 'ブ' });
     doc = addMark(doc, {
@@ -1700,7 +1704,7 @@ describe('CRUD operations preserve validity', () => {
   it('remove marks one by one maintains valid document', () => {
     let doc = createTestDocument([
       { type: 'yomigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'し' },
-      { type: 'kaeri', id: 'm2', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+      { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
       { type: 'okurigana', id: 'm3', anchor: { from: 't3', to: 't3' }, value: 'ブ' },
       { type: 'kutoten', id: 'm4', position: { blockId: 'b1', after: 't3' }, value: '。' },
     ]);
@@ -1757,7 +1761,7 @@ describe('CRUD operations preserve validity', () => {
 
     const { doc: newDoc, markId } = addMarkWithResult(doc, {
       type: 'kaeri',
-      anchor: { from: 't2', to: 't2' },
+      position: { blockId: 'b1', after: 't2' },
       value: 'レ',
     });
     assertValidDocument(newDoc);
@@ -1803,7 +1807,7 @@ describe('Ext field preservation', () => {
 
     const result = addMark(doc, {
       type: 'kaeri',
-      anchor: { from: 't2', to: 't2' },
+      position: { blockId: 'b1', after: 't2' },
       value: 'レ',
     });
     assertValidDocument(result);
@@ -1880,7 +1884,7 @@ describe('Readings in documents with marks', () => {
 
   it('document with marks and multiple reading kinds', () => {
     const doc = createTestDocument([
-      { type: 'kaeri', id: 'm1', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+      { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
     ]);
     const withReadings = {
       ...doc,
@@ -1902,7 +1906,7 @@ describe('Readings in documents with marks', () => {
 describe('Derivations in documents with marks', () => {
   it('document with readingOrder derivation', () => {
     const doc = createTestDocument([
-      { type: 'kaeri', id: 'm1', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+      { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
     ]);
     const withDerivations = {
       ...doc,

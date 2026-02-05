@@ -134,11 +134,11 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 
 ```json
 {
-  "type": "kaeri",
+  "type": "okurigana",
   "id": "m1",
   "anchor": { "from": "t3", "to": "t3" },
-  "value": "レ",
-  "placementHint": "right-bottom",
+  "value": "ぶ",
+  "placementHint": "right",
   "ext": {}
 }
 ```
@@ -176,8 +176,7 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 1. `yomigana`（読み仮名）
 2. `okurigana`（送り仮名）
 3. `soegana`（添え仮名）
-4. `kaeri`（返り点）
-5. その他
+4. その他
 
 ※ 順序に依存しない実装を推奨するが、round-trip の安定性のため上記順序を推奨。
 
@@ -198,7 +197,7 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 
 | type        | 意味                               | 参照方式     | value                                 |
 | ----------- | ---------------------------------- | ------------ | ------------------------------------- |
-| `kaeri`     | 返り点                             | anchor       | 必須（レ、一、二、上、下、甲、乙 等） |
+| `kaeri`     | 返り点                             | **position** | 必須（レ、一、二、上、下、甲、乙 等） |
 | `okurigana` | 送り仮名                           | anchor       | 必須（送り仮名テキスト）              |
 | `yomigana`  | 読み仮名（ルビ）                   | anchor       | 必須（読み仮名テキスト）              |
 | `soegana`   | 添え仮名（訓読時に補う助詞）       | anchor       | 必須（助詞テキスト）                  |
@@ -213,7 +212,7 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 | `ref`       | 参照識別子・注釈                   | **position** | label/format/contentのいずれか必須    |
 
 ※ `type` の追加は後方互換で許可される。
-※ **position** 参照の Mark はトークン間の位置に存在し、anchor を持たない。
+※ **position** 参照の Mark（kaeri, kutoten, ref）はトークン間の位置に存在し、anchor を持たない。
 
 ---
 
@@ -795,7 +794,7 @@ SKAM データは常に完全な情報を保持し、用途に応じた情報の
 ```json
 {
   "type": "kaeri",
-  "anchor": { "from": "t7", "to": "t7" },
+  "position": { "blockId": "b1", "after": "t7" },
   "value": "レ",
   "ext": {
     "skam-editor": { "color": "red" },
@@ -864,7 +863,7 @@ SKAM データは常に完全な情報を保持し、用途に応じた情報の
     {
       "type": "kaeri",
       "id": "m5",
-      "anchor": { "from": "t5", "to": "t5" },
+      "position": { "blockId": "b1", "after": "t5" },
       "value": "レ"
     }
   ],
@@ -984,13 +983,13 @@ SKAM データは常に完全な情報を保持し、用途に応じた情報の
     {
       "type": "kaeri",
       "id": "m1",
-      "anchor": { "from": "t2", "to": "t2" },
+      "position": { "blockId": "b1", "after": "t2" },
       "value": "二"
     },
     {
       "type": "kaeri",
       "id": "m2",
-      "anchor": { "from": "t4", "to": "t4" },
+      "position": { "blockId": "b1", "after": "t4" },
       "value": "一レ"
     },
     {
@@ -1092,7 +1091,7 @@ SKAM データは常に完全な情報を保持し、用途に応じた情報の
     {
       "type": "kaeri",
       "id": "m7",
-      "anchor": { "from": "t5", "to": "t5" },
+      "position": { "blockId": "b1", "after": "t5" },
       "value": "レ"
     }
   ],

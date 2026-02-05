@@ -290,7 +290,7 @@ describe('仮名の適用: 選択範囲に対する仮名マークの追加・�
 
     it('返り点など他種のマークは影響を受けない', () => {
       const doc = createDoc([
-        { type: 'kaeri', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+        { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
       ]);
 
       const result = applyKana(doc, 't1', 't1', 'yomigana', 'し');
@@ -507,7 +507,7 @@ describe('返り点の操作', () => {
    *
    * 実装（main.ts:1332-1376）:
    *   1. 選択範囲を正規化
-   *   2. anchorFrom/anchorTo を決定（single: 同一トークン、tateten: 範囲全体）
+   *   2. position（blockId/after）を決定（single: 先頭トークン、tateten: 末尾トークン）
    *   3. 完全一致する既存返り点を検索して削除
    *   4. 新しい返り点を追加
    */
@@ -530,15 +530,18 @@ describe('返り点の操作', () => {
     const normalizedFromId = tokens[startIndex]!.id;
     const normalizedToId = tokens[endIndex]!.id;
 
-    const anchorFrom = mode === 'single' ? normalizedFromId : normalizedFromId;
-    const anchorTo = mode === 'single' ? normalizedFromId : normalizedToId;
+    // position ベース: after は single モードでは先頭トークン、tateten モードでは末尾トークン
+    const afterTokenId = mode === 'single' ? normalizedFromId : normalizedToId;
+    // blockId は先頭トークンが属するブロックから決定
+    const block = doc.blocks.find((b) => b.tokenIds.includes(normalizedFromId));
+    const blockId = block?.id ?? 'b1';
 
     // 既存の返り点を完全一致で検索して削除
     for (const mark of doc.marks) {
       if (
         mark.type === 'kaeri' &&
-        mark.anchor.from === anchorFrom &&
-        mark.anchor.to === anchorTo &&
+        mark.position.blockId === blockId &&
+        mark.position.after === afterTokenId &&
         mark.id
       ) {
         newDoc = removeMark(newDoc, mark.id);
@@ -550,7 +553,7 @@ describe('返り点の操作', () => {
       newDoc = addMark(newDoc, {
         type: 'kaeri',
         value,
-        anchor: { from: anchorFrom, to: anchorTo },
+        position: { blockId, after: afterTokenId },
       });
     }
 
@@ -567,14 +570,14 @@ describe('返り点の操作', () => {
       expect(marks).toHaveLength(1);
       expect(marks[0]).toMatchObject({
         type: 'kaeri',
-        anchor: { from: 't1', to: 't1' },
+        position: { blockId: 'b1', after: 't1' },
         value: 'レ',
       });
     });
 
     it('既存あり → 置換', () => {
       const doc = createDoc([
-        { type: 'kaeri', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+        { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
       ]);
 
       const result = applyKaeri(doc, 't1', 't1', '一', 'single');
@@ -586,7 +589,7 @@ describe('返り点の操作', () => {
 
     it('null で既存を削除', () => {
       const doc = createDoc([
-        { type: 'kaeri', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+        { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
       ]);
 
       const result = applyKaeri(doc, 't1', 't1', null, 'single');
@@ -594,7 +597,7 @@ describe('返り点の操作', () => {
       expect(getMarksByType(result, 'kaeri')).toHaveLength(0);
     });
 
-    it('single モードでは from=to（複数トークン選択でも最初のトークンだけ）', () => {
+    it('single モードでは先頭トークンの after に配置（複数トークン選択でも最初のトークンだけ）', () => {
       // t1-t3 を選択しているが single モード
       const doc = createDoc([]);
 
@@ -602,9 +605,9 @@ describe('返り点の操作', () => {
 
       const marks = getMarksByType(result, 'kaeri');
       expect(marks).toHaveLength(1);
-      // single モードでは anchor.from === anchor.to === normalizedFromId
+      // single モードでは after === normalizedFromId
       expect(marks[0]).toMatchObject({
-        anchor: { from: 't1', to: 't1' },
+        position: { blockId: 'b1', after: 't1' },
       });
     });
   });
@@ -619,7 +622,7 @@ describe('返り点の操作', () => {
       expect(marks).toHaveLength(1);
       expect(marks[0]).toMatchObject({
         type: 'kaeri',
-        anchor: { from: 't1', to: 't2' },
+        position: { blockId: 'b1', after: 't2' },
         value: '一',
       });
     });
@@ -627,7 +630,7 @@ describe('返り点の操作', () => {
     it('竪点範囲の返り点を更新', () => {
       const doc = createDoc([
         { type: 'tateten', id: 'm1', anchor: { from: 't1', to: 't2' } },
-        { type: 'kaeri', id: 'm2', anchor: { from: 't1', to: 't2' }, value: '一' },
+        { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: '一' },
       ]);
 
       const result = applyKaeri(doc, 't1', 't2', '二', 'tateten');
@@ -642,7 +645,7 @@ describe('返り点の操作', () => {
     it('竪点範囲の返り点を削除しても竪点は残る', () => {
       const doc = createDoc([
         { type: 'tateten', id: 'm1', anchor: { from: 't1', to: 't2' } },
-        { type: 'kaeri', id: 'm2', anchor: { from: 't1', to: 't2' }, value: '一' },
+        { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: '一' },
       ]);
 
       const result = applyKaeri(doc, 't1', 't2', null, 'tateten');
@@ -717,7 +720,7 @@ describe('竪点の操作', () => {
   it('竪点を解除しても関連する返り点は独立して残る', () => {
     const doc = createDoc([
       { type: 'tateten', id: 'm1', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', id: 'm2', anchor: { from: 't1', to: 't2' }, value: '一' },
+      { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: '一' },
     ]);
 
     const result = toggleTateten(doc, 't1', 't2', 'tateten', 'm1');
@@ -729,7 +732,7 @@ describe('竪点の操作', () => {
   it('竪点を解除しても他のマークは影響を受けない', () => {
     const doc = createDoc([
       { type: 'tateten', id: 'm1', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', id: 'm2', anchor: { from: 't1', to: 't2' }, value: '一' },
+      { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: '一' },
       { type: 'yomigana', id: 'm3', anchor: { from: 't1', to: 't2' }, value: 'しいわく' },
     ]);
 
@@ -748,7 +751,7 @@ describe('竪点の操作', () => {
 describe('仮名と他マークの相互作用', () => {
   it('返り点のあるトークンに仮名を追加しても返り点は残る', () => {
     const doc = createDoc([
-      { type: 'kaeri', id: 'm1', anchor: { from: 't3', to: 't3' }, value: 'レ' },
+      { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't3' }, value: 'レ' },
     ]);
 
     const result = applyKana(doc, 't3', 't3', 'yomigana', 'まな');

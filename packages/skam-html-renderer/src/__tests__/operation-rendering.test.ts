@@ -52,7 +52,7 @@ describe('1. addMark → レンダリング反映', () => {
 
     const afterDoc = addMark(doc, {
       type: 'kaeri',
-      anchor: { from: 't3', to: 't3' },
+      position: { blockId: 'b1', after: 't3' },
       value: 'レ',
     });
     const afterHtml = render(afterDoc).html;
@@ -279,7 +279,7 @@ describe('2. removeMark → レンダリング反映', () => {
       {
         type: 'kaeri',
         id: 'mk1',
-        anchor: { from: 't3', to: 't3' },
+        position: { blockId: 'b1', after: 't3' },
         value: 'レ',
       },
     ]);
@@ -556,7 +556,7 @@ describe('3. updateMark → レンダリング反映', () => {
       {
         type: 'kaeri',
         id: 'mk1',
-        anchor: { from: 't3', to: 't3' },
+        position: { blockId: 'b1', after: 't3' },
         value: 'レ',
       },
     ]);
@@ -713,7 +713,7 @@ describe('5. 複合オペレーション → レンダリング反映', () => {
     // Step 1: 返り点追加
     doc = addMark(doc, {
       type: 'kaeri',
-      anchor: { from: 't3', to: 't3' },
+      position: { blockId: 'b1', after: 't3' },
       value: 'レ',
     });
 
@@ -760,7 +760,7 @@ describe('5. 複合オペレーション → レンダリング反映', () => {
   it('5.4 複数mark追加 → 1つ削除: 残りのmark要素は保持されている', () => {
     const { doc: doc1, markId: kaeriId } = addMarkWithResult(createBaseDocument(), {
       type: 'kaeri',
-      anchor: { from: 't3', to: 't3' },
+      position: { blockId: 'b1', after: 't3' },
       value: 'レ',
     });
 
@@ -788,7 +788,7 @@ describe('5. 複合オペレーション → レンダリング反映', () => {
   it('5.5 kaeri値変更（remove+add）: 返り点Unicode文字の変化を検証', () => {
     const { doc: doc1, markId: kaeriId } = addMarkWithResult(createBaseDocument(), {
       type: 'kaeri',
-      anchor: { from: 't3', to: 't3' },
+      position: { blockId: 'b1', after: 't3' },
       value: 'レ',
     });
     const beforeHtml = render(doc1).html;
@@ -798,7 +798,7 @@ describe('5. 複合オペレーション → レンダリング反映', () => {
     const doc2 = removeMark(doc1, kaeriId);
     const doc3 = addMark(doc2, {
       type: 'kaeri',
-      anchor: { from: 't3', to: 't3' },
+      position: { blockId: 'b1', after: 't3' },
       value: '一',
     });
     const afterHtml = render(doc3).html;
@@ -837,7 +837,7 @@ describe('6. プロファイル×オペレーション', () => {
 
     const afterDoc = addMark(doc, {
       type: 'kaeri',
-      anchor: { from: 't3', to: 't3' },
+      position: { blockId: 'b1', after: 't3' },
       value: 'レ',
     });
     const html = render(afterDoc, { profile: { kaeriten: false } }).html;
@@ -854,7 +854,7 @@ describe('6. プロファイル×オペレーション', () => {
 
     doc = addMark(doc, {
       type: 'kaeri',
-      anchor: { from: 't3', to: 't3' },
+      position: { blockId: 'b1', after: 't3' },
       value: 'レ',
     });
     doc = addMark(doc, {

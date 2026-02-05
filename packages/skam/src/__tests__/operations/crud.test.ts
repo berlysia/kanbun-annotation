@@ -54,7 +54,7 @@ describe('addMark', () => {
     const existingMark: KaeriMark = {
       type: 'kaeri',
       id: 'm1',
-      anchor: { from: 't1', to: 't1' },
+      position: { blockId: 'b1', after: 't1' },
       value: 'レ',
     };
     const doc = createTestDocument([existingMark]);
@@ -195,7 +195,7 @@ describe('addMarkWithResult', () => {
     const doc = createTestDocument([]);
     const newMark: MarkInput = {
       type: 'kaeri',
-      anchor: { from: 't1', to: 't1' },
+      position: { blockId: 'b1', after: 't1' },
       value: 'レ',
     };
 
@@ -224,7 +224,7 @@ describe('addMarkWithResult', () => {
     const existing: KaeriMark = {
       type: 'kaeri',
       id: 'm1',
-      anchor: { from: 't1', to: 't1' },
+      position: { blockId: 'b1', after: 't1' },
       value: 'レ',
     };
     const doc = createTestDocument([existing]);
@@ -433,14 +433,14 @@ describe('replaceMark', () => {
   it('4.6: 配列内の位置を維持する', () => {
     const doc = createTestDocument([
       { type: 'okurigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'ク' },
-      { type: 'kaeri', id: 'm2', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+      { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
       { type: 'okurigana', id: 'm3', anchor: { from: 't3', to: 't3' }, value: 'ブ' },
     ]);
     assertValidDocument(doc);
 
     const result = replaceMark(doc, 'm2', {
       type: 'kaeri',
-      anchor: { from: 't2', to: 't2' },
+      position: { blockId: 'b1', after: 't2' },
       value: '一',
     });
     assertValidDocument(result);
@@ -462,7 +462,7 @@ describe('removeMark', () => {
   it('5.1: マークを削除し、新しいドキュメントを返す', () => {
     const doc = createTestDocument([
       { type: 'okurigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'ク' },
-      { type: 'kaeri', id: 'm2', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+      { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
     ]);
     assertValidDocument(doc);
 

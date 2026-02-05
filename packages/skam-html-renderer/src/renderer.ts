@@ -397,7 +397,11 @@ function getBlockStartMarks(
  * Position-basedマーク（kutoten, ref）の処理:
  * - position.afterで返す（トークンの後に配置）
  */
-function getMarksForToken(tokenId: string, marks: Mark[], tokens: Token[]): Map<Mark['type'], Mark[]> {
+function getMarksForToken(
+  tokenId: string,
+  marks: Mark[],
+  tokens: Token[]
+): Map<Mark['type'], Mark[]> {
   const result = new Map<Mark['type'], Mark[]>();
 
   // anchor.fromで返すマーク（先頭に付く）
@@ -406,7 +410,7 @@ function getMarksForToken(tokenId: string, marks: Mark[], tokens: Token[]): Map<
   const endMarks = new Set(['okurigana', 'soegana']);
 
   for (const mark of marks) {
-    // Position-based marks (kutoten, ref)
+    // Position-based marks (kaeri, kutoten, ref)
     if (isPositionBasedMark(mark)) {
       const afterTokenId = getPositionAfterTokenId(mark.position);
       if (afterTokenId === tokenId) {
@@ -436,9 +440,9 @@ function getMarksForToken(tokenId: string, marks: Mark[], tokens: Token[]): Map<
       // 他のマーク: from/toの完全一致に加え、範囲内の中間トークンもマッチ
       let matched = mark.anchor.from === tokenId || mark.anchor.to === tokenId;
       if (!matched && mark.anchor.from !== mark.anchor.to) {
-        const fromIdx = tokens.findIndex(t => t.id === mark.anchor.from);
-        const toIdx = tokens.findIndex(t => t.id === mark.anchor.to);
-        const tokenIdx = tokens.findIndex(t => t.id === tokenId);
+        const fromIdx = tokens.findIndex((t) => t.id === mark.anchor.from);
+        const toIdx = tokens.findIndex((t) => t.id === mark.anchor.to);
+        const tokenIdx = tokens.findIndex((t) => t.id === tokenId);
         if (fromIdx !== -1 && toIdx !== -1 && tokenIdx !== -1) {
           matched = tokenIdx > fromIdx && tokenIdx < toIdx;
         }
@@ -768,9 +772,12 @@ function renderTokenWithRuby(
   // 熟語ルビの場合はbaseTextを使用
   const displayText = baseText ?? token.text;
   // tateten重複時は個別トークンテキストをセパレータで結合
-  const baseContent = tatetenTokenTexts && tatetenTokenTexts.length > 1
-    ? tatetenTokenTexts.map(t => escapeHtml(t)).join(`<span class="${prefix}-tateten-mark"></span>`)
-    : escapeHtml(displayText);
+  const baseContent =
+    tatetenTokenTexts && tatetenTokenTexts.length > 1
+      ? tatetenTokenTexts
+          .map((t) => escapeHtml(t))
+          .join(`<span class="${prefix}-tateten-mark"></span>`)
+      : escapeHtml(displayText);
   if (yomigana) {
     return `<ruby><rb class="${prefix}-base"${dataAttrs}>${baseContent}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>`;
   } else {
@@ -995,11 +1002,14 @@ function renderToken(
 
   // 置字チェック（trailing marks を合算）
   const okimojiMarks = (tokenMarks.get('okimoji') ?? []) as OkimojiMark[];
-  const isOkimoji = profile.okimoji && (okimojiMarks.length > 0 || (rangeCtx?.trailingOkimojiMarks ?? []).length > 0);
+  const isOkimoji =
+    profile.okimoji &&
+    (okimojiMarks.length > 0 || (rangeCtx?.trailingOkimojiMarks ?? []).length > 0);
 
   // 助字チェック（trailing marks を合算）
   const jojiMarks = (tokenMarks.get('joji') ?? []) as JojiMark[];
-  const isJoji = profile.joji && (jojiMarks.length > 0 || (rangeCtx?.trailingJojiMarks ?? []).length > 0);
+  const isJoji =
+    profile.joji && (jojiMarks.length > 0 || (rangeCtx?.trailingJojiMarks ?? []).length > 0);
 
   // Token本体のHTML
   let baseHtml: string;
@@ -1012,7 +1022,13 @@ function renderToken(
     baseHtml = renderSaidokuToken(token, saidokuMark, fullCtx);
   } else {
     // 範囲グループがある場合は熟語全体のテキストを使用し、範囲情報も渡す
-    baseHtml = renderTokenWithRuby(token, fullCtx, rangeBaseText, rangeCtx?.rangeTokenInfo, rangeCtx?.tatetenTokenTexts);
+    baseHtml = renderTokenWithRuby(
+      token,
+      fullCtx,
+      rangeBaseText,
+      rangeCtx?.rangeTokenInfo,
+      rangeCtx?.tatetenTokenTexts
+    );
   }
 
   // ヲコト点追加
@@ -1384,7 +1400,9 @@ function renderDisplayLayer(
       if (rangeCtx && !rangeCtx.tatetenTokenTexts) {
         const activeGroup = yomiganaGroup ?? okuriganaGroup ?? soeganaGroup;
         if (activeGroup && activeGroup.tokenIds[0] === token.id) {
-          const hasTatetenOverlap = activeGroup.tokenIds.some((tid: string) => tatetenGroups.has(tid));
+          const hasTatetenOverlap = activeGroup.tokenIds.some((tid: string) =>
+            tatetenGroups.has(tid)
+          );
           if (hasTatetenOverlap) {
             const tatetenTokenTexts = activeGroup.tokenIds.map((tid: string) => {
               const t = tokens.find((tok) => tok.id === tid);

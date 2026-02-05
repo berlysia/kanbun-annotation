@@ -90,14 +90,14 @@ SKAMDocument
 
 **Stand-off 方式**: 注記は本文テキストを直接分断しない。配置方式は 2 種:
 
-- **anchor ベース** (11 種): `anchor: { from, to }` で token 範囲を参照
-- **position ベース** (kutoten, ref): `position: { blockId, after? }` で token 間位置を参照
+- **anchor ベース** (10 種): `anchor: { from, to }` で token 範囲を参照
+- **position ベース** (kaeri, kutoten, ref): `position: { blockId, after? }` で token 間位置を参照
 
 ### Mark Types (v0.1)
 
 | type        | 配置 | 用途                                     |
 | ----------- | ---- | ---------------------------------------- |
-| `kaeri`     | A    | 返り点（レ、一二、上下、甲乙）           |
+| `kaeri`     | P    | 返り点（レ、一二、上下、甲乙）           |
 | `okurigana` | A    | 送り仮名                                 |
 | `yomigana`  | A    | 読み仮名（ルビ）                         |
 | `soegana`   | A    | 添え仮名（訓読時に補う助詞・テニヲハ）   |
@@ -126,8 +126,8 @@ SKAMDocument
 anchor ベースと position ベースは共通基底 `MarkBase` から対等に分岐。
 
 - `MarkBase`: 共通フィールド（type, id?, placementHint?, ext?）
-- anchor ベース (11 種): `AnchoredMark extends MarkBase` を extends。`anchor: { from, to }` で token 範囲に付随
-- position ベース (kutoten, ref): `PositionedMark extends MarkBase` を extends。`position: { blockId, after? }` で token 間に配置
+- anchor ベース (10 種): `AnchoredMark extends MarkBase` を extends。`anchor: { from, to }` で token 範囲に付随
+- position ベース (kaeri, kutoten, ref): `PositionedMark extends MarkBase` を extends。`position: { blockId, after? }` で token 間に配置
 
 型ガード: `isAnchorBasedMark(mark)` / `isPositionBasedMark(mark)` で判定可能
 

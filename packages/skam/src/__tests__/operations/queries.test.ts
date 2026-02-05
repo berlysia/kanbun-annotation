@@ -18,7 +18,7 @@ describe('getMarksForToken', () => {
   it('6.1: 特定のtokenに関連するマークを取得する', () => {
     const doc = createTestDocument([
       { type: 'okurigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'ク' },
-      { type: 'kaeri', id: 'm2', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+      { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
       { type: 'yomigana', id: 'm3', anchor: { from: 't3', to: 't3' }, value: 'まなぶ' },
     ]);
 
@@ -30,7 +30,7 @@ describe('getMarksForToken', () => {
   it('6.2: 範囲を跨ぐマークも取得する', () => {
     const doc = createTestDocument([
       { type: 'yomigana', id: 'm1', anchor: { from: 't1', to: 't3' }, value: 'しいわく' },
-      { type: 'kaeri', id: 'm2', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+      { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
     ]);
 
     const result = getMarksForToken(doc, 't2');
@@ -213,7 +213,7 @@ describe('getMarksForRange', () => {
     const doc = createTestDocument([
       { type: 'yomigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'し' },
       { type: 'yomigana', id: 'm2', anchor: { from: 't2', to: 't3' }, value: 'いわく' },
-      { type: 'kaeri', id: 'm3', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+      { type: 'kaeri', id: 'm3', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
     ]);
     expect(getMarksForRange(doc, 't1', 't3')).toHaveLength(3);
   });
@@ -253,7 +253,7 @@ describe('getMarksForRange', () => {
   it('7.13: 単一トークン範囲=getMarksForToken', () => {
     const doc = createTestDocument([
       { type: 'yomigana', id: 'm1', anchor: { from: 't1', to: 't3' }, value: 'しいわく' },
-      { type: 'kaeri', id: 'm2', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+      { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
       { type: 'kutoten', id: 'm3', position: { blockId: 'b1', after: 't2' }, value: '。' },
     ]);
 
@@ -301,7 +301,7 @@ describe('getMarkById', () => {
   it('10.1: 存在するIDでマークを取得する', () => {
     const doc = createTestDocument([
       { type: 'okurigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'ク' },
-      { type: 'kaeri', id: 'm2', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+      { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
     ]);
 
     const result = getMarkById(doc, 'm1');
@@ -335,7 +335,7 @@ describe('getMarkById', () => {
   it('10.5: idなしマーク混在でもIDで正しく取得', () => {
     const doc = createTestDocument([
       { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'ク' },
-      { type: 'kaeri', id: 'm2', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+      { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
     ]);
 
     const result = getMarkById(doc, 'm2');
@@ -345,7 +345,7 @@ describe('getMarkById', () => {
 
   it('10.6: type パラメータで型を指定して取得', () => {
     const doc = createTestDocument([
-      { type: 'kaeri', id: 'mk1', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+      { type: 'kaeri', id: 'mk1', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
     ]);
 
     const result = getMarkById(doc, 'mk1', 'kaeri');
@@ -355,7 +355,7 @@ describe('getMarkById', () => {
 
   it('10.7: type が一致しない場合 undefined を返す', () => {
     const doc = createTestDocument([
-      { type: 'kaeri', id: 'mk1', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+      { type: 'kaeri', id: 'mk1', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
     ]);
 
     const result = getMarkById(doc, 'mk1', 'kutoten');
@@ -425,7 +425,7 @@ describe('getMarksExactRange', () => {
   it('15.5: type フィルタ: マッチ', () => {
     const doc = createTestDocument([
       { type: 'tateten', id: 'm1', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', id: 'm2', anchor: { from: 't1', to: 't2' }, value: '一' },
+      { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't1' }, value: '一' },
     ]);
 
     const result = getMarksExactRange(doc, 't1', 't2', 'tateten');
@@ -443,8 +443,9 @@ describe('getMarksExactRange', () => {
   it('15.7: type フィルタなしで全マッチ', () => {
     const doc = createTestDocument([
       { type: 'tateten', id: 'm1', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', id: 'm2', anchor: { from: 't1', to: 't2' }, value: '一' },
+      { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't1' }, value: '一' },
     ]);
+    // tateten (anchor t1-t2 exact) + kaeri (position after t1, within range 0-1)
     expect(getMarksExactRange(doc, 't1', 't2')).toHaveLength(2);
   });
 
@@ -469,9 +470,9 @@ describe('getMarksExactRange', () => {
     expect(getMarksExactRange(doc, 't4', 't5')).toHaveLength(1);
   });
 
-  it('15.11: 単一トークン完全一致', () => {
+  it('15.11: 単一トークン完全一致 (position-based kaeri)', () => {
     const doc = createTestDocument([
-      { type: 'kaeri', id: 'm1', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+      { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
     ]);
 
     const result = getMarksExactRange(doc, 't2', 't2', 'kaeri');
@@ -484,15 +485,15 @@ describe('getMarksExactRange', () => {
 // ============================================================================
 
 describe('getAnchoredMarksExactRange', () => {
-  it('16.1: anchor ベースマークの完全一致を取得', () => {
+  it('16.1: anchor ベースマークの完全一致を取得 (kaeri excluded as position-based)', () => {
     const doc = createTestDocument([
       { type: 'tateten', id: 'm1', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', id: 'm2', anchor: { from: 't1', to: 't2' }, value: '一' },
+      { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't1' }, value: '一' },
     ]);
 
     const result = getAnchoredMarksExactRange(doc, 't1', 't2');
-    expect(result).toHaveLength(2);
-    // 戻り値は anchor プロパティに安全にアクセス可能
+    // Only tateten (anchor-based), kaeri is now position-based and excluded
+    expect(result).toHaveLength(1);
     expect(result[0]?.anchor.from).toBe('t1');
   });
 
@@ -507,12 +508,12 @@ describe('getAnchoredMarksExactRange', () => {
   it('16.3: type パラメータで特定 type にナロー', () => {
     const doc = createTestDocument([
       { type: 'tateten', id: 'm1', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', id: 'm2', anchor: { from: 't1', to: 't2' }, value: '一' },
+      { type: 'yomigana', id: 'm2', anchor: { from: 't1', to: 't2' }, value: 'しいわく' },
     ]);
 
-    const result = getAnchoredMarksExactRange(doc, 't1', 't2', 'kaeri');
+    const result = getAnchoredMarksExactRange(doc, 't1', 't2', 'yomigana');
     expect(result).toHaveLength(1);
-    expect(result[0]?.value).toBe('一');
+    expect(result[0]?.value).toBe('しいわく');
   });
 });
 
@@ -564,11 +565,12 @@ describe('getPositionedMarksInRange', () => {
     expect(result[0]?.value).toBe('。');
   });
 
-  it('17.5: anchor ベースマークは除外', () => {
+  it('17.5: kaeri (position-based) は含まれる', () => {
     const doc = createTestDocument([
-      { type: 'kaeri', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+      { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
     ]);
 
-    expect(getPositionedMarksInRange(doc, 't1', 't3')).toHaveLength(0);
+    expect(getPositionedMarksInRange(doc, 't1', 't3')).toHaveLength(1);
+    expect(getPositionedMarksInRange(doc, 't1', 't3')[0]?.type).toBe('kaeri');
   });
 });

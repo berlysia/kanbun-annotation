@@ -168,8 +168,8 @@ export interface PositionedMark extends MarkBase {
 // Concrete Mark Types
 // ============================================================================
 
-/** 返り点 */
-export interface KaeriMark extends AnchoredMark {
+/** 返り点（position ベース: トークン間の位置に配置） */
+export interface KaeriMark extends PositionedMark {
   type: 'kaeri';
   /** 返り点記号（レ、一、二、上、下、甲、乙 等） */
   value: string;

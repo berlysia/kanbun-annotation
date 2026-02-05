@@ -276,14 +276,14 @@ describe('Multi-token range rendering', () => {
   });
 
   describe('multi-token kaeri', () => {
-    it('3-token kaeri range: all tokens should have kaeriten', () => {
+    it('3-token kaeri range: kaeriten should be rendered', () => {
       const doc = createThreeTokenDoc('不', '可', '得', [
-        { type: 'kaeri', anchor: { from: 't1', to: 't3' }, value: '一' },
+        { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: '一' },
       ]);
       const { html } = render(doc);
-      // All 3 tokens should have kaeriten applied
+      // Kaeriten should be applied
       const kaeriCount = (html.match(/skam-kaeriten/g) ?? []).length;
-      expect(kaeriCount).toBeGreaterThanOrEqual(3);
+      expect(kaeriCount).toBeGreaterThanOrEqual(1);
     });
   });
 });
@@ -308,7 +308,7 @@ describe('Mark combination rendering', () => {
   it('yomigana + kaeri on same token', () => {
     const doc = createSingleTokenDoc('習', [
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'なら' },
-      { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
     ]);
     const { html } = render(doc);
     expect(html).toContain('なら');
@@ -320,7 +320,7 @@ describe('Mark combination rendering', () => {
     const doc = createSingleTokenDoc('習', [
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'なら' },
       { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'ふ' },
-      { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
     ]);
     const { html } = render(doc);
     expect(html).toContain('なら');
@@ -335,7 +335,7 @@ describe('Mark combination rendering', () => {
     const doc = createSingleTokenDoc('學', [
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
       { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'ブ' },
-      { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: '二' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '二' },
       { type: 'soegana', anchor: { from: 't1', to: 't1' }, value: 'を' },
     ]);
     const { html } = render(doc);
@@ -364,7 +364,7 @@ describe('Mark combination rendering', () => {
   it('okimoji + kaeri on same token', () => {
     const doc = createSingleTokenDoc('而', [
       { type: 'okimoji', anchor: { from: 't1', to: 't1' } },
-      { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: '一' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '一' },
     ]);
     const { html } = render(doc);
     expect(html).toContain('skam-okimoji');
@@ -421,7 +421,7 @@ describe('Mark combination rendering', () => {
     const doc = createThreeTokenDoc('不', '能', '爲', [
       { type: 'highlight', anchor: { from: 't1', to: 't3' }, style: 'solid' },
       { type: 'okurigana', anchor: { from: 't2', to: 't2' }, value: 'ハズ' },
-      { type: 'kaeri', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
     ]);
     const { html } = render(doc);
     expect(html).toContain('skam-highlight');
@@ -567,7 +567,7 @@ describe('Kaeri value rendering variations', () => {
   for (const { value, unicode, label } of kaeriExpected) {
     it(`kaeri ${label}（${value}）→ Unicode ${unicode.codePointAt(0)?.toString(16)}`, () => {
       const doc = createSingleTokenDoc('漢', [
-        { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value },
+        { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value },
       ]);
       const { html } = render(doc);
       expect(html).toContain('skam-kaeriten');
@@ -578,7 +578,7 @@ describe('Kaeri value rendering variations', () => {
   describe('compound kaeri values', () => {
     it('一レ → 一 + レ Unicode', () => {
       const doc = createSingleTokenDoc('不', [
-        { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: '一レ' },
+        { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '一レ' },
       ]);
       const { html } = render(doc);
       expect(html).toContain('\u3192\u3191'); // 一レ
@@ -586,7 +586,7 @@ describe('Kaeri value rendering variations', () => {
 
     it('二レ → 二 + レ Unicode', () => {
       const doc = createSingleTokenDoc('不', [
-        { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: '二レ' },
+        { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '二レ' },
       ]);
       const { html } = render(doc);
       expect(html).toContain('\u3193\u3191'); // 二レ
@@ -594,7 +594,7 @@ describe('Kaeri value rendering variations', () => {
 
     it('上レ → 上 + レ Unicode', () => {
       const doc = createSingleTokenDoc('不', [
-        { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: '上レ' },
+        { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '上レ' },
       ]);
       const { html } = render(doc);
       expect(html).toContain('\u3196\u3191'); // 上レ
@@ -602,7 +602,7 @@ describe('Kaeri value rendering variations', () => {
 
     it('甲レ → 甲 + レ Unicode', () => {
       const doc = createSingleTokenDoc('不', [
-        { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: '甲レ' },
+        { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '甲レ' },
       ]);
       const { html } = render(doc);
       expect(html).toContain('\u3199\u3191'); // 甲レ
@@ -610,7 +610,7 @@ describe('Kaeri value rendering variations', () => {
 
     it('天レ → 天 + レ Unicode', () => {
       const doc = createSingleTokenDoc('不', [
-        { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: '天レ' },
+        { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '天レ' },
       ]);
       const { html } = render(doc);
       expect(html).toContain('\u319D\u3191'); // 天レ
@@ -950,7 +950,7 @@ describe('Saidoku rendering variations', () => {
           { n: 2, okuri: 'す' },
         ],
       },
-      { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: '二' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '二' },
     ]);
     const { html } = render(doc);
     expect(html).toContain('skam-saidoku');
@@ -1101,7 +1101,7 @@ describe('Complex document rendering', () => {
       { type: 'yomigana', anchor: { from: 't3', to: 't3' }, value: 'とき' },
       { type: 'okurigana', anchor: { from: 't3', to: 't3' }, value: 'に' },
       { type: 'soegana', anchor: { from: 't5', to: 't5' }, value: 'を' },
-      { type: 'kaeri', anchor: { from: 't4', to: 't4' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't4' }, value: 'レ' },
       { type: 'yomigana', anchor: { from: 't4', to: 't4' }, value: 'なら' },
       { type: 'okurigana', anchor: { from: 't4', to: 't4' }, value: 'ふ' },
       { type: 'kutoten', position: { blockId: 'b1', after: 't5' }, value: '。', kind: 'ku' },
@@ -1139,7 +1139,7 @@ describe('Complex document rendering', () => {
     const doc = createFiveTokenDoc([
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
       { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'ブ' },
-      { type: 'kaeri', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
       { type: 'okimoji', anchor: { from: 't2', to: 't2' } },
       { type: 'soegana', anchor: { from: 't3', to: 't3' }, value: 'を' },
       { type: 'emphasis', anchor: { from: 't4', to: 't4' }, style: 'filled dot' },
@@ -1188,7 +1188,7 @@ describe('Complex document rendering', () => {
     const doc = createMultiBlockDoc([
       // Block 1: yomigana + kaeri
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'し' },
-      { type: 'kaeri', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
       { type: 'kutoten', position: { blockId: 'b1', after: 't3' }, value: '。' },
       // Block 2: emphasis + okurigana
       { type: 'emphasis', anchor: { from: 't4', to: 't5' }, style: 'filled dot' },
@@ -1249,7 +1249,7 @@ describe('Writing mode × mark type', () => {
 
   it('vertical mode with kaeriten', () => {
     const doc = createSingleTokenDoc('習', [
-      { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
     ]);
     const { html } = render(doc, { writingMode: 'vertical' });
     expect(html).toContain('skam-kaeriten');
@@ -1258,7 +1258,7 @@ describe('Writing mode × mark type', () => {
 
   it('horizontal mode with kaeriten', () => {
     const doc = createSingleTokenDoc('習', [
-      { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
     ]);
     const { html } = render(doc, { writingMode: 'horizontal' });
     expect(html).toContain('skam-kaeriten');
@@ -1338,7 +1338,7 @@ describe('Profile × mark type interactions', () => {
 
     it('shows kaeriten', () => {
       const doc = createSingleTokenDoc('習', [
-        { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+        { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
       ]);
       const { html } = render(doc, { profile: PROFILES.learningBasic });
       expect(html).toContain('skam-kaeriten');
@@ -1391,7 +1391,7 @@ describe('Profile × mark type interactions', () => {
 
     it('shows kaeriten', () => {
       const doc = createSingleTokenDoc('習', [
-        { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+        { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
       ]);
       const { html } = render(doc, { profile: PROFILES.learningHint });
       expect(html).toContain('\u3191');
@@ -1403,7 +1403,7 @@ describe('Profile × mark type interactions', () => {
       const doc = createFiveTokenDoc([
         { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
         { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'ブ' },
-        { type: 'kaeri', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+        { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
         { type: 'soegana', anchor: { from: 't3', to: 't3' }, value: 'を' },
         { type: 'emphasis', anchor: { from: 't4', to: 't4' }, style: 'filled dot' },
         { type: 'highlight', anchor: { from: 't4', to: 't5' }, style: 'solid' },
@@ -1536,7 +1536,7 @@ describe('Inline mode with various marks', () => {
 
   it('inline mode with kaeriten', () => {
     const doc = createSingleTokenDoc('習', [
-      { type: 'kaeri', anchor: { from: 't1', to: 't1' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
     ]);
     const { html } = render(doc, { inline: true });
     expect(html).toContain('skam-kaeriten');
@@ -1621,7 +1621,7 @@ describe('Interactive mode with mark combinations', () => {
   it('interactive: multiple tokens each with marks', () => {
     const doc = createThreeTokenDoc('子', '曰', '學', [
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'し' },
-      { type: 'kaeri', anchor: { from: 't2', to: 't2' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
       { type: 'yomigana', anchor: { from: 't3', to: 't3' }, value: 'まな' },
     ]);
     const { html } = render(doc, { interactive: true });

@@ -36,9 +36,11 @@ pnpm playground:preview  # ビルド結果のプレビュー
 
 ```
 packages/
-├── skam/               # @kanbun/skam - SKAM v0.1 型定義・バリデーター
+├── skam/               # @kanbun/skam - SKAM v0.1 型定義・バリデーター・操作
 ├── skam-xml-parser/    # @kanbun/skam-xml-parser - SKAM-ML/XML パーサー
+├── skam-xml-stringify/ # @kanbun/skam-xml-stringify - SKAM JSON → SKAM-ML/XML シリアライザー
 ├── skam-html-renderer/ # @kanbun/skam-html-renderer - HTML レンダラー
+├── integration-tests/  # @kanbun/integration-tests - パッケージ間統合テスト（parse/stringify roundtrip 等）
 └── playground/         # @kanbun/playground - インタラクティブデモ (GitHub Pages)
 ```
 
@@ -46,15 +48,46 @@ packages/
 
 ```typescript
 // 型定義
-import type { SKAMDocument, Token, Block, Mark, Reading } from '@kanbun/skam';
+import type {
+  SKAMDocument,
+  Token,
+  Block,
+  Mark,
+  PersistedMark,
+  Reading,
+  MarkType,
+  MarkTypeMap,
+  AnchoredMark,
+  PositionedMark,
+  AnchoredMarkType,
+  PositionedMarkType,
+} from '@kanbun/skam';
 
 // バリデーション
 import { validateSKAMDocument, isSKAMDocument, assertSKAMDocument } from '@kanbun/skam';
 
-const result = validateSKAMDocument(input);
-if (result.valid) {
-  const doc: SKAMDocument = result.document;
-}
+// ID 生成
+import { createRandomIdGenerator, createSequentialIdGenerator } from '@kanbun/skam';
+
+// CRUD 操作
+import { addMark, updateMark, replaceMark, removeMark } from '@kanbun/skam';
+
+// クエリ・ユーティリティ
+import {
+  getMarkById,
+  getMarksForToken,
+  getMarksForRange,
+  getMarksExactRange,
+  getAnchoredMarksExactRange,
+  getPositionedMarksInRange,
+  buildTokenIndexMap,
+  getTokenIndex,
+  getTokenByIndex,
+  isAnchorBasedMark,
+  isPositionBasedMark,
+  isMarkType,
+  filterMarksByType,
+} from '@kanbun/skam';
 ```
 
 ### @kanbun/skam-xml-parser 主要 API
@@ -66,15 +99,33 @@ import { parse } from '@kanbun/skam-xml-parser';
 const doc = parse(xmlString);
 ```
 
+### @kanbun/skam-xml-stringify 主要 API
+
+```typescript
+import { stringify } from '@kanbun/skam-xml-stringify';
+
+// SKAM JSON → XML
+const xml = stringify(doc);
+```
+
 ### @kanbun/skam-html-renderer 主要 API
 
 ```typescript
-import { render, getDefaultStyles, PROFILES } from '@kanbun/skam-html-renderer';
+import {
+  render,
+  renderHTML,
+  generateCSS,
+  getDefaultStyles,
+  PROFILES,
+} from '@kanbun/skam-html-renderer';
 
-// SKAM → HTML（縦書きがデフォルト）
+// SKAM → HTML + CSS（縦書きがデフォルト）
 const { html, css } = render(doc);
 // 横書き: render(doc, { writingMode: 'horizontal' })
 // プロファイル: PROFILES.full | PROFILES.learningBasic | PROFILES.learningHint
+
+// ブラウザ環境: インタラクティブイベントハンドラ
+import { attachInteractiveHandlers } from '@kanbun/skam-html-renderer';
 ```
 
 ### SKAM データモデル
@@ -141,10 +192,11 @@ anchor ベースと position ベースは共通基底 `MarkBase` から対等に
 - `createMultiBlockDocument(marks)`: 6 token (t1-t6) / 2 block (b1, b2)
 - `assertValidDocument(doc)`: バリデーター呼び出しラッパー
 
-### 仕様書
+### 仕様書・設計文書
 
 - `SKAM-draft.md` - SKAM v0.1 仕様（JSON 形式、正規表現）
 - `SKAM-ML-draft.md` - SKAM-ML/XML 仕様（人間編集用マークアップ）
+- `docs/decisions/` - Architecture Decision Records
 
 ## TypeScript Configuration
 

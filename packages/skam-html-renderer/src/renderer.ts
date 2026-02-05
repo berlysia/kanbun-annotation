@@ -397,7 +397,7 @@ function getBlockStartMarks(
  * Position-basedマーク（kutoten, ref）の処理:
  * - position.afterで返す（トークンの後に配置）
  */
-function getMarksForToken(tokenId: string, marks: Mark[]): Map<Mark['type'], Mark[]> {
+function getMarksForToken(tokenId: string, marks: Mark[], tokens: Token[]): Map<Mark['type'], Mark[]> {
   const result = new Map<Mark['type'], Mark[]>();
 
   // anchor.fromで返すマーク（先頭に付く）
@@ -433,8 +433,17 @@ function getMarksForToken(tokenId: string, marks: Mark[]): Map<Mark['type'], Mar
         result.set(mark.type, existing);
       }
     } else {
-      // 他のマークは従来通り
-      if (mark.anchor.from === tokenId || mark.anchor.to === tokenId) {
+      // 他のマーク: from/toの完全一致に加え、範囲内の中間トークンもマッチ
+      let matched = mark.anchor.from === tokenId || mark.anchor.to === tokenId;
+      if (!matched && mark.anchor.from !== mark.anchor.to) {
+        const fromIdx = tokens.findIndex(t => t.id === mark.anchor.from);
+        const toIdx = tokens.findIndex(t => t.id === mark.anchor.to);
+        const tokenIdx = tokens.findIndex(t => t.id === tokenId);
+        if (fromIdx !== -1 && toIdx !== -1 && tokenIdx !== -1) {
+          matched = tokenIdx > fromIdx && tokenIdx < toIdx;
+        }
+      }
+      if (matched) {
         const existing = result.get(mark.type) ?? [];
         existing.push(mark);
         result.set(mark.type, existing);
@@ -710,6 +719,7 @@ function getHighlightGroups(tokens: Token[], marks: Mark[]): Map<string, Highlig
 interface TokenRenderContext {
   prefix: string;
   profile: RenderProfile;
+  tokens: Token[];
   tokenMarks: Map<Mark['type'], Mark[]>;
   interactive: boolean;
 }
@@ -733,7 +743,8 @@ function renderTokenWithRuby(
   token: Token,
   ctx: TokenRenderContext,
   baseText?: string,
-  rangeInfo?: RangeTokenInfo
+  rangeInfo?: RangeTokenInfo,
+  tatetenTokenTexts?: string[]
 ): string {
   const { prefix, profile, tokenMarks, interactive } = ctx;
 
@@ -756,10 +767,14 @@ function renderTokenWithRuby(
   // ルビ（読み仮名）が必要な場合はruby要素を使用
   // 熟語ルビの場合はbaseTextを使用
   const displayText = baseText ?? token.text;
+  // tateten重複時は個別トークンテキストをセパレータで結合
+  const baseContent = tatetenTokenTexts && tatetenTokenTexts.length > 1
+    ? tatetenTokenTexts.map(t => escapeHtml(t)).join(`<span class="${prefix}-tateten-mark"></span>`)
+    : escapeHtml(displayText);
   if (yomigana) {
-    return `<ruby><rb class="${prefix}-base"${dataAttrs}>${escapeHtml(displayText)}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>`;
+    return `<ruby><rb class="${prefix}-base"${dataAttrs}>${baseContent}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>`;
   } else {
-    return `<span class="${prefix}-base"${dataAttrs}>${escapeHtml(displayText)}</span>`;
+    return `<span class="${prefix}-base"${dataAttrs}>${baseContent}</span>`;
   }
 }
 
@@ -851,6 +866,14 @@ interface RangeMarkContext {
   trailingKutotenMarks?: KutotenMark[];
   /** 範囲グループ内の後続トークンに付いているrefマーク */
   trailingRefMarks?: RefMark[];
+  /** 範囲グループ内の後続トークンに付いている置字マーク */
+  trailingOkimojiMarks?: OkimojiMark[];
+  /** 範囲グループ内の後続トークンに付いている助字マーク */
+  trailingJojiMarks?: JojiMark[];
+  /** 範囲グループ内の後続トークンに付いている傍点マーク */
+  trailingEmphasisMarks?: EmphasisMark[];
+  /** tateten重複時の個別トークンテキスト（セパレータ挿入用） */
+  tatetenTokenTexts?: string[];
   /** 範囲のトークンID情報（熟語ルビ等でdata-token-from/to出力用） */
   rangeTokenInfo?: RangeTokenInfo;
 }
@@ -869,7 +892,7 @@ function renderToken(
   highlightRefIds?: Set<string>
 ): TokenRenderResult {
   const { prefix, profile } = ctx;
-  const tokenMarks = getMarksForToken(token.id, marks);
+  const tokenMarks = getMarksForToken(token.id, marks, ctx.tokens);
 
   const fullCtx: TokenRenderContext = { ...ctx, tokenMarks };
 
@@ -877,9 +900,10 @@ function renderToken(
   const saidokuMarks = (tokenMarks.get('saidoku') ?? []) as SaidokuMark[];
   const saidokuMark = saidokuMarks[0];
 
-  // 傍点チェック
+  // 傍点チェック（trailing marks を合算）
   const emphasisMarks = (tokenMarks.get('emphasis') ?? []) as EmphasisMark[];
-  const hasEmphasis = profile.emphasis && emphasisMarks.length > 0;
+  const allEmphasisMarks = [...emphasisMarks, ...(rangeCtx?.trailingEmphasisMarks ?? [])];
+  const hasEmphasis = profile.emphasis && allEmphasisMarks.length > 0;
 
   // ヲコト点チェック
   const okototenMarks = (tokenMarks.get('okototen') ?? []) as OkototenMark[];
@@ -969,13 +993,13 @@ function renderToken(
           .join('')
       : '';
 
-  // 置字チェック
+  // 置字チェック（trailing marks を合算）
   const okimojiMarks = (tokenMarks.get('okimoji') ?? []) as OkimojiMark[];
-  const isOkimoji = profile.okimoji && okimojiMarks.length > 0;
+  const isOkimoji = profile.okimoji && (okimojiMarks.length > 0 || (rangeCtx?.trailingOkimojiMarks ?? []).length > 0);
 
-  // 助字チェック
+  // 助字チェック（trailing marks を合算）
   const jojiMarks = (tokenMarks.get('joji') ?? []) as JojiMark[];
-  const isJoji = profile.joji && jojiMarks.length > 0;
+  const isJoji = profile.joji && (jojiMarks.length > 0 || (rangeCtx?.trailingJojiMarks ?? []).length > 0);
 
   // Token本体のHTML
   let baseHtml: string;
@@ -988,7 +1012,7 @@ function renderToken(
     baseHtml = renderSaidokuToken(token, saidokuMark, fullCtx);
   } else {
     // 範囲グループがある場合は熟語全体のテキストを使用し、範囲情報も渡す
-    baseHtml = renderTokenWithRuby(token, fullCtx, rangeBaseText, rangeCtx?.rangeTokenInfo);
+    baseHtml = renderTokenWithRuby(token, fullCtx, rangeBaseText, rangeCtx?.rangeTokenInfo, rangeCtx?.tatetenTokenTexts);
   }
 
   // ヲコト点追加
@@ -1048,7 +1072,7 @@ function renderToken(
   // 傍点スタイル（インラインスタイル、デフォルト: filled dot）
   let emphasisInlineStyle = '';
   if (hasEmphasis) {
-    const emphasisStyle = emphasisMarks[0]?.style ?? 'filled dot';
+    const emphasisStyle = allEmphasisMarks[0]?.style ?? 'filled dot';
     emphasisInlineStyle = ` style="text-emphasis-style: ${escapeHtml(emphasisStyle)};"`;
   }
 
@@ -1160,7 +1184,7 @@ function renderDisplayLayer(
   interactive: boolean
 ): { tokens: string; prefix: string } {
   const { tokens, marks } = doc;
-  const ctx = { prefix, profile, interactive };
+  const ctx = { prefix, profile, tokens, interactive };
 
   // refマークの値を事前計算
   const refValueMap = profile.ref ? resolveRefValues(tokens, marks) : new Map();
@@ -1355,6 +1379,22 @@ function renderDisplayLayer(
         }
       }
 
+      // tateten重複検出: 範囲仮名とtatetenが同じトークン範囲にある場合、
+      // <rb>内でセパレータを挿入するために個別トークンテキストを保持
+      if (rangeCtx && !rangeCtx.tatetenTokenTexts) {
+        const activeGroup = yomiganaGroup ?? okuriganaGroup ?? soeganaGroup;
+        if (activeGroup && activeGroup.tokenIds[0] === token.id) {
+          const hasTatetenOverlap = activeGroup.tokenIds.some((tid: string) => tatetenGroups.has(tid));
+          if (hasTatetenOverlap) {
+            const tatetenTokenTexts = activeGroup.tokenIds.map((tid: string) => {
+              const t = tokens.find((tok) => tok.id === tid);
+              return t?.text ?? '';
+            });
+            rangeCtx = { ...rangeCtx, tatetenTokenTexts };
+          }
+        }
+      }
+
       // 範囲グループの後続トークンに付いているマーク（返り点、句読点、ref）を収集
       // rangeCtxに追加してrenderToken内でsuffix-row等にまとめて出力
       const allRangeTokenIds = new Set<string>();
@@ -1377,8 +1417,11 @@ function renderDisplayLayer(
         const trailingKaeriMarks: KaeriMark[] = [];
         const trailingKutotenMarks: KutotenMark[] = [];
         const trailingRefMarks: RefMark[] = [];
+        const trailingOkimojiMarks: OkimojiMark[] = [];
+        const trailingJojiMarks: JojiMark[] = [];
+        const trailingEmphasisMarks: EmphasisMark[] = [];
         for (const tid of allRangeTokenIds) {
-          const trailingTokenMarks = getMarksForToken(tid, marks);
+          const trailingTokenMarks = getMarksForToken(tid, marks, tokens);
           if (profile.kaeriten) {
             const kaeri = trailingTokenMarks.get('kaeri') as KaeriMark[] | undefined;
             if (kaeri) trailingKaeriMarks.push(...kaeri);
@@ -1391,12 +1434,27 @@ function renderDisplayLayer(
             const ref = trailingTokenMarks.get('ref') as RefMark[] | undefined;
             if (ref) trailingRefMarks.push(...ref);
           }
+          {
+            const okimoji = trailingTokenMarks.get('okimoji') as OkimojiMark[] | undefined;
+            if (okimoji) trailingOkimojiMarks.push(...okimoji);
+          }
+          {
+            const joji = trailingTokenMarks.get('joji') as JojiMark[] | undefined;
+            if (joji) trailingJojiMarks.push(...joji);
+          }
+          if (profile.emphasis) {
+            const emphasis = trailingTokenMarks.get('emphasis') as EmphasisMark[] | undefined;
+            if (emphasis) trailingEmphasisMarks.push(...emphasis);
+          }
         }
         rangeCtx = {
           ...rangeCtx,
           trailingKaeriMarks,
           trailingKutotenMarks,
           trailingRefMarks,
+          ...(trailingOkimojiMarks.length > 0 ? { trailingOkimojiMarks } : {}),
+          ...(trailingJojiMarks.length > 0 ? { trailingJojiMarks } : {}),
+          ...(trailingEmphasisMarks.length > 0 ? { trailingEmphasisMarks } : {}),
         };
       }
 

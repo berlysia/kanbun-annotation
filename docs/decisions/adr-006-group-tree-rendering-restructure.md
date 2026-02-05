@@ -2,7 +2,7 @@
 
 ## ステータス
 
-Proposed
+Phase A Complete（Phase B は移行基準の安定性・動機条件待ち）
 
 ## コンテキスト
 

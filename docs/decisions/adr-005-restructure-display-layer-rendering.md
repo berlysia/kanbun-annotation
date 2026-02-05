@@ -2,7 +2,7 @@
 
 ## ステータス
 
-Proposed
+Accepted (Phase 1 完了 — Phase 2 以降は ADR-006 に移管)
 
 ## コンテキスト
 
@@ -122,10 +122,12 @@ interface TokenItem {
 
 1. **Phase 0（完了済み）**: 直近のバグ修正パッチ適用
 2. **Phase 1**: 選択肢 A — フラッシュヘルパーの抽出と統一
-3. **Phase 2（将来）**: テストカバレッジの拡充（highlight + たて点 + 範囲仮名の複合ケース）
-4. **Phase 3（将来）**: 選択肢 B — グループツリーへの再構築
+3. **Phase 2（将来）**: テストカバレッジの拡充（highlight + たて点 + 範囲仮名の複合ケース） → ADR-006 Phase A に移管
+4. **Phase 3（将来）**: 選択肢 B — グループツリーへの再構築 → ADR-006 Phase B に移管
 
 ### Phase 3（選択肢 B）への移行基準
+
+> **注**: 以下は ADR-005 策定時の基準。ADR-006 で具体化・更新されている。
 
 以下の条件が**すべて**満たされた場合に Phase 3 を開始する:
 
@@ -155,5 +157,6 @@ interface TokenItem {
 ## 参考
 
 - ADR-002: マルチトークン範囲マークのレンダリング修正（先行する修正）
+- ADR-006: Display 層グループツリーレンダリングへの再構築（Phase 2 以降の具体化）
 - `renderDisplayLayer` 関数: `packages/skam-html-renderer/src/renderer.ts` (~line 1195-1631)
 - 既存テスト: `comprehensive-rendering.test.ts`, `renderer.test.ts`, `operation-rendering.test.ts`

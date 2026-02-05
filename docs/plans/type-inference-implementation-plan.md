@@ -1,6 +1,6 @@
 # SKAM 型推論改善 実装計画 (Phase 1-3)
 
-基づく設計ドキュメント: `docs/type-inference-improvement-plan.md`
+基づく設計ドキュメント: `docs/plans/type-inference-improvement-plan.md`
 TypeScript: 5.9.3
 
 ## 概要

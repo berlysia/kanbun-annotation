@@ -4,7 +4,7 @@
 
 `@kanbun/skam` のオペレーション（CRUD）適用後のドキュメントを `@kanbun/skam-html-renderer` の `render()` に通した結果が、操作内容を正しく反映しているかを検証する統合テストを追加する。
 
-関連 ADR: [ADR-001](decisions/adr-001-operation-renderer-integration-tests.md)
+関連 ADR: [ADR-001](../decisions/adr-001-operation-renderer-integration-tests.md)
 
 ## ファイル構成
 

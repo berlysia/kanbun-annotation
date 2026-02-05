@@ -177,6 +177,8 @@ function generateCommonStyles(prefix: string, vp: string): string {
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   font-family: var(--${vp}-font-family-ruby);
   color: var(--${vp}-color-ruby);
+  /* text-emphasis は継承するため、親要素の傍点がルビに伝播するのを防止 */
+  text-emphasis: none;
   user-select: none;
 }
 

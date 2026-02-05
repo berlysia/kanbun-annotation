@@ -1189,6 +1189,14 @@ function groupTokensByBlock(
   return groups;
 }
 
+interface FlushState {
+  currentTatetenGroup: TatetenMark | undefined;
+  currentHighlightGroup: HighlightMark | undefined;
+  groupTokens: string[];
+  highlightTokens: string[];
+  pendingHighlightKutoten: string;
+}
+
 /**
  * Display層のHTMLを生成
  */
@@ -1263,11 +1271,59 @@ function renderDisplayLayer(
   for (const blockGroup of blockGroups) {
     const blockTokens = blockGroup.tokens;
     const renderedTokens: string[] = [];
-    let currentTatetenGroup: TatetenMark | undefined;
-    let currentHighlightGroup: HighlightMark | undefined;
-    let groupTokens: string[] = [];
-    let highlightTokens: string[] = [];
-    let pendingHighlightKutoten = ''; // highlight終端のkutoten（highlight spanの外に出す）
+    const flushState: FlushState = {
+      currentTatetenGroup: undefined,
+      currentHighlightGroup: undefined,
+      groupTokens: [],
+      highlightTokens: [],
+      pendingHighlightKutoten: '',
+    };
+    /**
+     * たて点グループのアキュムレータ（groupTokens）をフラッシュする。
+     * @param toHighlightBuffer - true なら highlightTokens へ、false なら renderedTokens へ出力
+     * @param resetGroup - true の場合 currentTatetenGroup も undefined にリセット
+     */
+    function flushTatetenGroup(toHighlightBuffer: boolean, resetGroup = true): void {
+      if (!flushState.currentTatetenGroup || flushState.groupTokens.length === 0) return;
+      const html = `<span class="${prefix}-tateten-group">${flushState.groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`;
+      if (toHighlightBuffer) {
+        flushState.highlightTokens.push(html);
+      } else {
+        renderedTokens.push(html);
+      }
+      flushState.groupTokens = [];
+      if (resetGroup) {
+        flushState.currentTatetenGroup = undefined;
+      }
+    }
+
+    /**
+     * highlight グループのアキュムレータ（highlightTokens）をフラッシュする。
+     * 残存するたて点グループを先にフラッシュしてから highlight を閉じる。
+     * @param resetGroup - true の場合 currentHighlightGroup も undefined にリセット
+     */
+    function flushHighlightGroup(resetGroup = true): void {
+      if (
+        !flushState.currentHighlightGroup ||
+        (flushState.highlightTokens.length === 0 && flushState.groupTokens.length === 0)
+      ) {
+        return;
+      }
+      // 依存連鎖: たて点 → highlight の順でフラッシュ
+      flushTatetenGroup(/* toHighlightBuffer */ true);
+
+      const style = flushState.currentHighlightGroup.style ?? 'solid';
+      const refHtml = getRefTextForHighlight(flushState.currentHighlightGroup);
+      const styleClass = ` ${prefix}-highlight--${style}`;
+      renderedTokens.push(
+        `<span class="${prefix}-highlight${styleClass}" data-style="${style}"><span class="${prefix}-highlight-content">${refHtml}${flushState.highlightTokens.join('')}</span></span>${flushState.pendingHighlightKutoten}`
+      );
+      flushState.highlightTokens = [];
+      flushState.pendingHighlightKutoten = '';
+      if (resetGroup) {
+        flushState.currentHighlightGroup = undefined;
+      }
+    }
 
     // ブロック先頭の position-based マークを取得・レンダリング
     const blockStartMarks = getBlockStartMarks(blockGroup.blockId, marks);
@@ -1480,29 +1536,12 @@ function renderDisplayLayer(
 
       // highlight グループ処理
       if (profile.highlight && highlightGroup) {
-        if (currentHighlightGroup !== highlightGroup) {
+        if (flushState.currentHighlightGroup !== highlightGroup) {
           // 新しい highlight グループ開始（前のグループがあれば閉じる）
           // groupTokens にも未フラッシュのトークンがある場合がある
           // （processedTokenIds で中間トークンがスキップされた範囲仮名 + tateten の場合）
-          if (currentHighlightGroup && (highlightTokens.length > 0 || groupTokens.length > 0)) {
-            // たて点グループも閉じる（highlightTokens にフラッシュ）
-            if (currentTatetenGroup && groupTokens.length > 0) {
-              highlightTokens.push(
-                `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
-              );
-              groupTokens = [];
-              currentTatetenGroup = undefined;
-            }
-            const style = currentHighlightGroup.style ?? 'solid';
-            const refHtml = getRefTextForHighlight(currentHighlightGroup);
-            const styleClass = ` ${prefix}-highlight--${style}`;
-            renderedTokens.push(
-              `<span class="${prefix}-highlight${styleClass}" data-style="${style}"><span class="${prefix}-highlight-content">${refHtml}${highlightTokens.join('')}</span></span>${pendingHighlightKutoten}`
-            );
-            highlightTokens = [];
-            pendingHighlightKutoten = '';
-          }
-          currentHighlightGroup = highlightGroup;
+          flushHighlightGroup(/* resetGroup */ false);
+          flushState.currentHighlightGroup = highlightGroup;
         }
 
         // 次のtokenが同じhighlight内かどうかを判定（highlight終端のkutotenを外に出すため）
@@ -1518,103 +1557,48 @@ function renderDisplayLayer(
 
         if (isLastInHighlight) {
           // highlight終端のkutotenを保存（highlight spanの外に出す）
-          pendingHighlightKutoten = tokenResult.kutotenHtml;
+          flushState.pendingHighlightKutoten = tokenResult.kutotenHtml;
         }
 
         // highlight グループ内のトークンを蓄積（たて点処理も考慮）
         if (profile.tateten && tokenGroup) {
-          if (currentTatetenGroup !== tokenGroup) {
-            if (currentTatetenGroup && groupTokens.length > 0) {
-              highlightTokens.push(
-                `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
-              );
-              groupTokens = [];
-            }
-            currentTatetenGroup = tokenGroup;
+          if (flushState.currentTatetenGroup !== tokenGroup) {
+            flushTatetenGroup(/* toHighlightBuffer */ true, /* resetGroup */ false);
+            flushState.currentTatetenGroup = tokenGroup;
           }
-          groupTokens.push(tokenHtmlForHighlight);
+          flushState.groupTokens.push(tokenHtmlForHighlight);
         } else {
-          if (currentTatetenGroup && groupTokens.length > 0) {
-            highlightTokens.push(
-              `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
-            );
-            groupTokens = [];
-            currentTatetenGroup = undefined;
-          }
-          highlightTokens.push(tokenHtmlForHighlight);
+          flushTatetenGroup(/* toHighlightBuffer */ true);
+          flushState.highlightTokens.push(tokenHtmlForHighlight);
         }
       } else {
         // highlight グループ外
         const tokenHtml = tokenResult.html + tokenResult.kutotenHtml;
 
         // 前の highlight グループを閉じる
-        // groupTokens にも未フラッシュのトークンがある場合がある
-        // （processedTokenIds で中間トークンがスキップされた範囲仮名 + tateten の場合）
-        if (currentHighlightGroup && (highlightTokens.length > 0 || groupTokens.length > 0)) {
-          // たて点グループも閉じる（highlightTokens にフラッシュ）
-          if (currentTatetenGroup && groupTokens.length > 0) {
-            highlightTokens.push(
-              `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
-            );
-            groupTokens = [];
-            currentTatetenGroup = undefined;
-          }
-          const style = currentHighlightGroup.style ?? 'solid';
-          const refHtml = getRefTextForHighlight(currentHighlightGroup);
-          const styleClass = ` ${prefix}-highlight--${style}`;
-          renderedTokens.push(
-            `<span class="${prefix}-highlight${styleClass}" data-style="${style}"><span class="${prefix}-highlight-content">${refHtml}${highlightTokens.join('')}</span></span>${pendingHighlightKutoten}`
-          );
-          highlightTokens = [];
-          pendingHighlightKutoten = '';
-          currentHighlightGroup = undefined;
-        }
+        flushHighlightGroup();
 
         // たて点グループ処理
         if (profile.tateten && tokenGroup) {
-          if (currentTatetenGroup !== tokenGroup) {
-            if (currentTatetenGroup && groupTokens.length > 0) {
-              renderedTokens.push(
-                `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
-              );
-              groupTokens = [];
-            }
-            currentTatetenGroup = tokenGroup;
+          if (flushState.currentTatetenGroup !== tokenGroup) {
+            flushTatetenGroup(/* toHighlightBuffer */ false, /* resetGroup */ false);
+            flushState.currentTatetenGroup = tokenGroup;
           }
-          groupTokens.push(tokenHtml);
+          flushState.groupTokens.push(tokenHtml);
         } else {
-          if (currentTatetenGroup && groupTokens.length > 0) {
-            renderedTokens.push(
-              `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
-            );
-            groupTokens = [];
-            currentTatetenGroup = undefined;
-          }
+          flushTatetenGroup(/* toHighlightBuffer */ false);
           renderedTokens.push(tokenHtml);
         }
       }
     }
 
     // 最後のグループを閉じる
-    if (currentTatetenGroup && groupTokens.length > 0) {
-      if (currentHighlightGroup) {
-        highlightTokens.push(
-          `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
-        );
-      } else {
-        renderedTokens.push(
-          `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
-        );
-      }
-    }
-
-    if (currentHighlightGroup && highlightTokens.length > 0) {
-      const style = currentHighlightGroup.style ?? 'solid';
-      const refHtml = getRefTextForHighlight(currentHighlightGroup);
-      const styleClass = ` ${prefix}-highlight--${style}`;
-      renderedTokens.push(
-        `<span class="${prefix}-highlight${styleClass}" data-style="${style}"><span class="${prefix}-highlight-content">${refHtml}${highlightTokens.join('')}</span></span>${pendingHighlightKutoten}`
-      );
+    if (flushState.currentHighlightGroup) {
+      // highlight 内: tateten → highlight の順でフラッシュ（flushHighlightGroup が内部で処理）
+      flushHighlightGroup(/* resetGroup */ false);
+    } else {
+      // highlight 外: tateten のみフラッシュ
+      flushTatetenGroup(/* toHighlightBuffer */ false, /* resetGroup */ false);
     }
 
     // ブロックをラップして追加

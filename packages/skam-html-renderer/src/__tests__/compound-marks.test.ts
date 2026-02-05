@@ -1,0 +1,311 @@
+import { describe, it, expect } from 'vitest';
+import type { SKAMDocument, Mark } from '@kanbun/skam';
+import { render, PROFILES } from '../index.js';
+
+// ============================================================================
+// Shared helpers
+// ============================================================================
+
+function createSingleTokenDoc(text: string, marks: Mark[] = []): SKAMDocument {
+  return {
+    format: 'skam@0.1',
+    tokens: [{ id: 't1', text }],
+    blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+    marks,
+    readings: [],
+  };
+}
+
+function createThreeTokenDoc(
+  text1: string,
+  text2: string,
+  text3: string,
+  marks: Mark[] = []
+): SKAMDocument {
+  return {
+    format: 'skam@0.1',
+    tokens: [
+      { id: 't1', text: text1 },
+      { id: 't2', text: text2 },
+      { id: 't3', text: text3 },
+    ],
+    blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
+    marks,
+    readings: [],
+  };
+}
+
+function createFiveTokenDoc(marks: Mark[] = []): SKAMDocument {
+  return {
+    format: 'skam@0.1',
+    tokens: [
+      { id: 't1', text: '夜' },
+      { id: 't2', text: '來' },
+      { id: 't3', text: '風' },
+      { id: 't4', text: '雨' },
+      { id: 't5', text: '聲' },
+    ],
+    blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3', 't4', 't5'] }],
+    marks,
+    readings: [],
+  };
+}
+
+function createSixTokenDoc(marks: Mark[] = []): SKAMDocument {
+  return {
+    format: 'skam@0.1',
+    tokens: [
+      { id: 't1', text: '春' },
+      { id: 't2', text: '眠' },
+      { id: 't3', text: '不' },
+      { id: 't4', text: '覺' },
+      { id: 't5', text: '曉' },
+      { id: 't6', text: '處' },
+    ],
+    blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3', 't4', 't5', 't6'] }],
+    marks,
+    readings: [],
+  };
+}
+
+function createMultiBlockDoc(marks: Mark[] = []): SKAMDocument {
+  return {
+    format: 'skam@0.1',
+    tokens: [
+      { id: 't1', text: '天' },
+      { id: 't2', text: '地' },
+      { id: 't3', text: '人' },
+      { id: 't4', text: '仁' },
+      { id: 't5', text: '義' },
+      { id: 't6', text: '禮' },
+    ],
+    blocks: [
+      { id: 'b1', tokenIds: ['t1', 't2', 't3'] },
+      { id: 'b2', tokenIds: ['t4', 't5', 't6'] },
+    ],
+    marks,
+    readings: [],
+  };
+}
+
+// ============================================================================
+// 1. Three-element compound: range kana + tateten + emphasis
+// ============================================================================
+
+describe('Three-element compound: range kana + tateten + emphasis', () => {
+  it('yomigana + tateten + emphasis', () => {
+    const doc = createThreeTokenDoc('天', '地', '人', [
+      { type: 'yomigana', anchor: { from: 't1', to: 't3' }, value: 'てんちじん' },
+      { type: 'tateten', anchor: { from: 't1', to: 't3' } },
+      { type: 'emphasis', anchor: { from: 't1', to: 't3' }, style: 'filled dot' },
+    ]);
+    const { html } = render(doc);
+    expect(html).toContain('てんちじん');
+    expect(html).toContain('skam-tateten');
+    expect(html).toContain('skam-emphasis');
+    expect(html).toContain('text-emphasis-style');
+  });
+
+  it('okurigana + tateten + emphasis', () => {
+    const doc = createThreeTokenDoc('不', '能', '爲', [
+      { type: 'okurigana', anchor: { from: 't1', to: 't3' }, value: 'ハズ' },
+      { type: 'tateten', anchor: { from: 't1', to: 't3' } },
+      { type: 'emphasis', anchor: { from: 't1', to: 't3' }, style: 'filled dot' },
+    ]);
+    const { html } = render(doc);
+    expect(html).toContain('ハズ');
+    expect(html).toContain('skam-tateten');
+    expect(html).toContain('skam-emphasis');
+    expect(html).toContain('text-emphasis-style');
+  });
+
+  it('soegana + tateten + emphasis', () => {
+    const doc = createThreeTokenDoc('天', '地', '人', [
+      { type: 'soegana', anchor: { from: 't1', to: 't3' }, value: 'を' },
+      { type: 'tateten', anchor: { from: 't1', to: 't3' } },
+      { type: 'emphasis', anchor: { from: 't1', to: 't3' }, style: 'filled dot' },
+    ]);
+    const { html } = render(doc);
+    expect(html).toContain('を');
+    expect(html).toContain('skam-tateten');
+    expect(html).toContain('skam-emphasis');
+    expect(html).toContain('text-emphasis-style');
+  });
+});
+
+// ============================================================================
+// 2. Highlight + ref compound
+// ============================================================================
+
+describe('Highlight + ref compound', () => {
+  it('range yomigana + highlight with ref', () => {
+    const doc = createThreeTokenDoc('重', '要', '語', [
+      { type: 'yomigana', anchor: { from: 't1', to: 't3' }, value: 'じゅうようご' },
+      {
+        type: 'highlight',
+        id: 'hl1',
+        anchor: { from: 't1', to: 't3' },
+        style: 'solid',
+        ref: 'ref1',
+      },
+      {
+        type: 'ref',
+        id: 'ref1',
+        position: { blockId: 'b1', after: 't3' },
+        format: 'alpha-upper',
+      },
+    ]);
+    const { html } = render(doc);
+    expect(html).toContain('じゅうようご');
+    expect(html).toContain('skam-highlight');
+    expect(html).toContain('skam-ref');
+    expect(html).toContain('(A)');
+  });
+});
+
+// ============================================================================
+// 3. Range kana + position-based marks (kutoten/okimoji/joji)
+// ============================================================================
+
+describe('Range kana + position-based marks (kutoten/okimoji/joji)', () => {
+  it('range okurigana + tateten + adjacent kutoten', () => {
+    const doc = createThreeTokenDoc('不', '能', '爲', [
+      { type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'ズ' },
+      { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      { type: 'kutoten', position: { blockId: 'b1', after: 't2' }, value: '。' },
+    ]);
+    const { html } = render(doc);
+    expect(html).toContain('ズ');
+    expect(html).toContain('skam-tateten');
+    expect(html).toContain('skam-kutoten');
+  });
+
+  it('range yomigana + okimoji on middle token + tateten', () => {
+    const doc = createThreeTokenDoc('於', '是', '乎', [
+      { type: 'yomigana', anchor: { from: 't1', to: 't3' }, value: 'ここに' },
+      { type: 'okimoji', anchor: { from: 't2', to: 't2' } },
+      { type: 'tateten', anchor: { from: 't1', to: 't3' } },
+    ]);
+    const { html } = render(doc);
+    expect(html).toContain('ここに');
+    expect(html).toContain('skam-okimoji');
+    expect(html).toContain('skam-tateten');
+  });
+
+  it('range yomigana + joji on middle token + highlight', () => {
+    const doc = createThreeTokenDoc('不', '之', '得', [
+      { type: 'yomigana', anchor: { from: 't1', to: 't3' }, value: 'えざる' },
+      { type: 'joji', anchor: { from: 't2', to: 't2' } },
+      { type: 'highlight', anchor: { from: 't1', to: 't3' }, style: 'solid' },
+    ]);
+    const { html } = render(doc);
+    expect(html).toContain('えざる');
+    expect(html).toContain('skam-joji');
+    expect(html).toContain('skam-highlight');
+  });
+});
+
+// ============================================================================
+// 4. Cross-block and mode-specific compounds
+// ============================================================================
+
+describe('Cross-block and mode-specific compounds', () => {
+  it('multi-block: independent marks per block', () => {
+    const doc = createMultiBlockDoc([
+      { type: 'highlight', anchor: { from: 't1', to: 't3' }, style: 'solid' },
+      { type: 'tateten', anchor: { from: 't4', to: 't6' } },
+      { type: 'yomigana', anchor: { from: 't4', to: 't6' }, value: 'じんぎれい' },
+    ]);
+    const { html } = render(doc);
+    expect(html).toContain('skam-highlight');
+    expect(html).toContain('skam-tateten');
+    expect(html).toContain('じんぎれい');
+    // highlight should only be on block 1 tokens
+    expect(html).toContain('天');
+    expect(html).toContain('地');
+    expect(html).toContain('人');
+  });
+
+  it('learningBasic profile interaction', () => {
+    const doc = createThreeTokenDoc('天', '地', '人', [
+      { type: 'yomigana', anchor: { from: 't1', to: 't3' }, value: 'てんちじん' },
+      { type: 'tateten', anchor: { from: 't1', to: 't3' } },
+      { type: 'highlight', anchor: { from: 't1', to: 't3' }, style: 'solid' },
+    ]);
+    const { html } = render(doc, { profile: PROFILES.learningBasic });
+    // learningBasic: yomigana=false, tateten=false, highlight=true
+    expect(html).not.toContain('てんちじん');
+    expect(html).not.toContain('skam-tateten');
+    expect(html).toContain('skam-highlight');
+  });
+
+  it('interactive mode with compound marks', () => {
+    const doc = createThreeTokenDoc('天', '地', '人', [
+      { type: 'yomigana', anchor: { from: 't1', to: 't3' }, value: 'てんちじん' },
+      { type: 'tateten', anchor: { from: 't1', to: 't3' } },
+      { type: 'highlight', anchor: { from: 't1', to: 't3' }, style: 'solid' },
+    ]);
+    const { html } = render(doc, { interactive: true });
+    expect(html).toContain('てんちじん');
+    expect(html).toContain('skam-tateten');
+    expect(html).toContain('skam-highlight');
+    expect(html).toContain('data-token-from="t1"');
+    expect(html).toContain('data-token-to="t3"');
+  });
+});
+
+// ============================================================================
+// 5. Four-element compound and saidoku compound
+// ============================================================================
+
+describe('Four-element compound and saidoku compound', () => {
+  it('yomigana + tateten + emphasis + highlight with ref', () => {
+    const doc = createThreeTokenDoc('重', '要', '語', [
+      { type: 'yomigana', anchor: { from: 't1', to: 't3' }, value: 'じゅうようご' },
+      { type: 'tateten', anchor: { from: 't1', to: 't3' } },
+      { type: 'emphasis', anchor: { from: 't1', to: 't3' }, style: 'filled dot' },
+      {
+        type: 'highlight',
+        id: 'hl1',
+        anchor: { from: 't1', to: 't3' },
+        style: 'solid',
+        ref: 'ref1',
+      },
+      {
+        type: 'ref',
+        id: 'ref1',
+        position: { blockId: 'b1', after: 't3' },
+        format: 'alpha-upper',
+      },
+    ]);
+    const { html } = render(doc);
+    expect(html).toContain('じゅうようご');
+    expect(html).toContain('skam-tateten');
+    expect(html).toContain('skam-emphasis');
+    expect(html).toContain('skam-highlight');
+    expect(html).toContain('skam-ref');
+    expect(html).toContain('(A)');
+  });
+
+  it('saidoku + yomigana on same token', () => {
+    const doc = createSingleTokenDoc('將', [
+      {
+        type: 'saidoku',
+        anchor: { from: 't1', to: 't1' },
+        forms: [
+          { n: 1, yomi: 'まさ', okuri: 'に' },
+          { n: 2, okuri: 'す' },
+        ],
+      },
+      { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'ショウ' },
+    ]);
+    const { html } = render(doc);
+    expect(html).toContain('skam-saidoku');
+    expect(html).toContain('まさ');
+    expect(html).toContain('に');
+    expect(html).toContain('す');
+    // saidoku forms take precedence over yomigana on the same token;
+    // yomigana 'ショウ' is not rendered when saidoku is present
+    expect(html).not.toContain('ショウ');
+  });
+});

@@ -2,7 +2,7 @@
 
 ## ステータス
 
-Proposed
+Accepted (実装完了)
 
 ## コンテキスト
 

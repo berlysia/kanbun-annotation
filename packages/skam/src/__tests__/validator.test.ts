@@ -50,10 +50,14 @@ describe('validateSKAMDocument', () => {
     });
 
     it('should validate document with all mark types', () => {
+      // saidoku は t2 に配置（t1 の yomigana/okurigana と衝突を回避）
       const doc: SKAMDocument = {
         format: 'skam@0.1',
-        tokens: [{ id: 't1', text: '國' }],
-        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        tokens: [
+          { id: 't1', text: '國' },
+          { id: 't2', text: '將' },
+        ],
+        blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
         marks: [
           { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
           { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'び' },
@@ -65,7 +69,7 @@ describe('validateSKAMDocument', () => {
           { type: 'emphasis', anchor: { from: 't1', to: 't1' } },
           {
             type: 'saidoku',
-            anchor: { from: 't1', to: 't1' },
+            anchor: { from: 't2', to: 't2' },
             forms: [{ yomi: 'まさ', okuri: 'に' }],
           },
           {
@@ -1186,6 +1190,130 @@ describe('validateSKAMDocument', () => {
       if (!result.valid) {
         expect(result.errors.length).toBeGreaterThan(1);
       }
+    });
+  });
+
+  describe('マーク衝突検出 - saidoku と yomigana/okurigana', () => {
+    it('should reject saidoku + yomigana on same anchor', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '將' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [
+          {
+            type: 'saidoku',
+            anchor: { from: 't1', to: 't1' },
+            forms: [
+              { n: 1, yomi: 'まさ', okuri: 'に' },
+              { n: 2, okuri: 'す' },
+            ],
+          },
+          { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'ショウ' },
+        ],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.kind === 'MARK_CONFLICT')).toBe(true);
+        expect(result.errors.some((e) => e.message.includes('yomigana'))).toBe(true);
+      }
+    });
+
+    it('should reject saidoku + okurigana on same anchor', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '將' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [
+          {
+            type: 'saidoku',
+            anchor: { from: 't1', to: 't1' },
+            forms: [
+              { n: 1, yomi: 'まさ', okuri: 'に' },
+              { n: 2, okuri: 'す' },
+            ],
+          },
+          { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'に' },
+        ],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(false);
+      if (!result.valid) {
+        expect(result.errors.some((e) => e.kind === 'MARK_CONFLICT')).toBe(true);
+        expect(result.errors.some((e) => e.message.includes('okurigana'))).toBe(true);
+      }
+    });
+
+    it('should allow saidoku + soegana on same anchor', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '將' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [
+          {
+            type: 'saidoku',
+            anchor: { from: 't1', to: 't1' },
+            forms: [
+              { n: 1, yomi: 'まさ', okuri: 'に' },
+              { n: 2, okuri: 'す' },
+            ],
+          },
+          { type: 'soegana', anchor: { from: 't1', to: 't1' }, value: 'は' },
+        ],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(true);
+    });
+
+    it('should allow saidoku alone', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '將' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [
+          {
+            type: 'saidoku',
+            anchor: { from: 't1', to: 't1' },
+            forms: [
+              { n: 1, yomi: 'まさ', okuri: 'に' },
+              { n: 2, okuri: 'す' },
+            ],
+          },
+        ],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(true);
+    });
+
+    it('should allow saidoku + kaeri on same token', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '將' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [
+          {
+            type: 'saidoku',
+            anchor: { from: 't1', to: 't1' },
+            forms: [
+              { n: 1, yomi: 'まさ', okuri: 'に' },
+              { n: 2, okuri: 'す' },
+            ],
+          },
+          { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+        ],
+        readings: [],
+      };
+
+      const result = validateSKAMDocument(doc);
+      expect(result.valid).toBe(true);
     });
   });
 });

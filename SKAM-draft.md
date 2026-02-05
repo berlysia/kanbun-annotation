@@ -378,6 +378,13 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 | `yomi`     | 任意 | 読み仮名                 |
 | `okuri`    | 任意 | 送り仮名                 |
 
+#### 制約
+
+- saidoku は `forms[].yomi` で読み仮名を、`forms[].okuri` で送り仮名を内包する
+- 同一 anchor に `yomigana` を併用できない（`MARK_CONFLICT`）
+- 同一 anchor に `okurigana` を併用できない（`MARK_CONFLICT`）
+- `soegana` は性質が異なるため共存可能
+
 #### 主な再読文字
 
 | 文字   | 1回目        | 2回目  | 意味                 |

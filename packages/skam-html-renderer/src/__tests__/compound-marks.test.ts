@@ -304,8 +304,30 @@ describe('Four-element compound and saidoku compound', () => {
     expect(html).toContain('まさ');
     expect(html).toContain('に');
     expect(html).toContain('す');
-    // saidoku forms take precedence over yomigana on the same token;
-    // yomigana 'ショウ' is not rendered when saidoku is present
+    // モデル層で MARK_CONFLICT とされる組み合わせだが、
+    // レンダラーは防御的に saidoku 優先で動作する
     expect(html).not.toContain('ショウ');
+  });
+
+  it('saidoku + soegana on same token', () => {
+    const doc = createSingleTokenDoc('將', [
+      {
+        type: 'saidoku',
+        anchor: { from: 't1', to: 't1' },
+        forms: [
+          { n: 1, yomi: 'まさ', okuri: 'に' },
+          { n: 2, okuri: 'す' },
+        ],
+      },
+      { type: 'soegana', anchor: { from: 't1', to: 't1' }, value: 'は' },
+    ]);
+    const { html } = render(doc);
+    expect(html).toContain('skam-saidoku');
+    expect(html).toContain('まさ');
+    expect(html).toContain('に');
+    expect(html).toContain('す');
+    // soegana は saidoku と共存可能で、正しくレンダリングされるべき
+    expect(html).toContain('は');
+    expect(html).toContain('skam-soegana');
   });
 });

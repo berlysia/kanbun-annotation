@@ -1108,6 +1108,64 @@ function validateTokenReferences(
 // ID Uniqueness Validation
 // ============================================================================
 
+// ============================================================================
+// Mark Conflict Validation
+// ============================================================================
+
+/**
+ * マーク間の意味的衝突を検出
+ *
+ * 同一 anchor 上で saidoku と yomigana/okurigana が共存する場合エラー
+ * （saidoku は forms[].yomi / forms[].okuri で読み仮名・送り仮名を内包するため）
+ */
+function validateMarkConflicts(marks: Mark[], errors: ValidationError[]): void {
+  // anchor-based marks を anchor key でグループ化
+  const anchorGroups = new Map<string, { type: string; index: number }[]>();
+
+  marks.forEach((mark, index) => {
+    if (!isPositionBasedMark(mark)) {
+      const key = `${mark.anchor.from}:${mark.anchor.to}`;
+      const group = anchorGroups.get(key);
+      if (group) {
+        group.push({ type: mark.type, index });
+      } else {
+        anchorGroups.set(key, [{ type: mark.type, index }]);
+      }
+    }
+  });
+
+  // 各グループ内で saidoku と yomigana/okurigana の衝突を検出
+  for (const [, group] of anchorGroups) {
+    const hasSaidoku = group.some((m) => m.type === 'saidoku');
+    if (!hasSaidoku) continue;
+
+    for (const m of group) {
+      if (m.type === 'yomigana') {
+        errors.push(
+          createValidationError(
+            'MARK_CONFLICT',
+            `marks[${m.index}]`,
+            'yomigana cannot coexist with saidoku on the same anchor (saidoku includes readings via forms[].yomi)',
+            'no yomigana with saidoku',
+            'yomigana'
+          )
+        );
+      }
+      if (m.type === 'okurigana') {
+        errors.push(
+          createValidationError(
+            'MARK_CONFLICT',
+            `marks[${m.index}]`,
+            'okurigana cannot coexist with saidoku on the same anchor (saidoku includes suffixes via forms[].okuri)',
+            'no okurigana with saidoku',
+            'okurigana'
+          )
+        );
+      }
+    }
+  }
+}
+
 function validateUniqueIds(tokens: Token[], marks: Mark[], errors: ValidationError[]): void {
   // Token IDs
   const tokenIdCounts = new Map<string, number>();
@@ -1300,6 +1358,7 @@ export function validateSKAMDocument(input: unknown): ValidationResult<SKAMDocum
       errors
     );
     validateAnchorBlockConstraints(blocks as Block[], marks as Mark[], errors);
+    validateMarkConflicts(marks as Mark[], errors);
   }
 
   if (errors.length > 0) {

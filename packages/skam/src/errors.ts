@@ -13,7 +13,8 @@ export type ValidationErrorKind =
   | 'INVALID_ANCHOR'
   | 'INVALID_POSITION'
   | 'UNKNOWN_TOKEN_REF'
-  | 'INVALID_VALUE';
+  | 'INVALID_VALUE'
+  | 'MARK_CONFLICT';
 
 /** 検証エラー */
 export interface ValidationError {

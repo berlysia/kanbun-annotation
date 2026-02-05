@@ -977,7 +977,7 @@ function renderToken(
   // col1(右): 送り仮名・添え仮名、再読1回目送り仮名
   // col2(中央): 返り点
   // col3(左): 再読2回目送り仮名
-  const suffixRight = saidokuOkuri1 || okurigana + soegana; // 右列
+  const suffixRight = (saidokuOkuri1 || okurigana) + soegana; // 右列
   const suffixCenter = kaeriten; // 中央列
   const suffixLeft = saidokuOkuri2; // 左列
 

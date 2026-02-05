@@ -29,9 +29,9 @@ describe('addMark', () => {
     assertValidDocument(result);
 
     expect(result.marks).toHaveLength(1);
-    expect(result.marks[0]).toEqual({
+    expect(result.marks[0]?.id).toMatch(/^m-[0-9a-f]{8}$/);
+    expect(result.marks[0]).toMatchObject({
       type: 'okurigana',
-      id: 'm1',
       anchor: { from: 't1', to: 't1' },
       value: 'ク',
     });
@@ -70,7 +70,7 @@ describe('addMark', () => {
 
     expect(result.marks).toHaveLength(2);
     expect(result.marks[0]).toEqual(existingMark);
-    expect(result.marks[1]?.id).toBe('m2');
+    expect(result.marks[1]?.id).toMatch(/^m-[0-9a-f]{8}$/);
   });
 
   it('2.4: 渡されたmarkにidがあっても新しいidで上書きされる', () => {
@@ -84,7 +84,7 @@ describe('addMark', () => {
 
     const result = addMark(doc, newMark);
 
-    expect(result.marks[0]?.id).toBe('m1');
+    expect(result.marks[0]?.id).toMatch(/^m-[0-9a-f]{8}$/);
     expect(result.marks[0]?.id).not.toBe('old-id');
   });
 
@@ -186,12 +186,12 @@ describe('addMarkWithResult', () => {
     const result = addMarkWithResult(doc, newMark);
     assertValidDocument(result.doc);
 
-    expect(result.markId).toBe('m1');
+    expect(result.markId).toMatch(/^m-[0-9a-f]{8}$/);
     expect(result.doc.marks).toHaveLength(1);
-    expect(result.doc.marks[0]?.id).toBe('m1');
+    expect(result.doc.marks[0]?.id).toBe(result.markId);
   });
 
-  it('2b.2: addMark と同じドキュメントを返す', () => {
+  it('2b.2: addMark と同じ構造のドキュメントを返す', () => {
     const doc = createTestDocument([]);
     const newMark: MarkInput = {
       type: 'kaeri',
@@ -202,7 +202,11 @@ describe('addMarkWithResult', () => {
     const withResult = addMarkWithResult(doc, newMark);
     const withoutResult = addMark(doc, newMark);
 
-    expect(withResult.doc).toEqual(withoutResult);
+    // ランダムIDのため完全一致は不可。構造が同じことを検証
+    expect(withResult.doc.tokens).toEqual(withoutResult.tokens);
+    expect(withResult.doc.blocks).toEqual(withoutResult.blocks);
+    expect(withResult.doc.marks).toHaveLength(withoutResult.marks.length);
+    expect(withResult.doc.marks[0]?.type).toBe(withoutResult.marks[0]?.type);
   });
 
   it('2b.3: 元のドキュメントは変更されない（イミュータブル）', () => {
@@ -232,7 +236,7 @@ describe('addMarkWithResult', () => {
       value: 'ク',
     });
 
-    expect(result.markId).toBe('m2');
+    expect(result.markId).toMatch(/^m-[0-9a-f]{8}$/);
     expect(result.doc.marks).toHaveLength(2);
   });
 });

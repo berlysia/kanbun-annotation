@@ -111,11 +111,15 @@ describe('操作連鎖', () => {
     doc = addMark(doc, { type: 'kaeri', anchor: { from: 't2', to: 't2' }, value: 'レ' });
     doc = addMark(doc, { type: 'yomigana', anchor: { from: 't3', to: 't3' }, value: 'まな' });
     assertValidDocument(doc);
-    expect(doc.marks.map((m) => m.id)).toEqual(['m1', 'm2', 'm3']);
+    const ids = doc.marks.map((m) => m.id);
+    expect(ids).toHaveLength(3);
+    for (const id of ids) {
+      expect(id).toMatch(/^m-[0-9a-f]{8}$/);
+    }
 
-    doc = removeMark(doc, 'm3');
-    doc = removeMark(doc, 'm2');
-    doc = removeMark(doc, 'm1');
+    doc = removeMark(doc, ids[2]!);
+    doc = removeMark(doc, ids[1]!);
+    doc = removeMark(doc, ids[0]!);
     assertValidDocument(doc);
     expect(doc.marks).toHaveLength(0);
   });

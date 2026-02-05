@@ -1105,7 +1105,7 @@ function addUnderlineMarks(
   let refId: string | undefined;
 
   if (formatValue) {
-    const effectiveRefId = refInputValue || generateId(newDoc, 'ref', '-');
+    const effectiveRefId = refInputValue || generateId(newDoc, 'ref');
     const refBlock = getBlockForToken(newDoc, toId);
     const refBlockId = refBlock?.id ?? '';
     const result = addMarkWithResult(newDoc, {

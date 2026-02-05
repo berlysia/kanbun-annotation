@@ -1482,8 +1482,10 @@ function renderDisplayLayer(
       if (profile.highlight && highlightGroup) {
         if (currentHighlightGroup !== highlightGroup) {
           // 新しい highlight グループ開始（前のグループがあれば閉じる）
-          if (currentHighlightGroup && highlightTokens.length > 0) {
-            // たて点グループも閉じる
+          // groupTokens にも未フラッシュのトークンがある場合がある
+          // （processedTokenIds で中間トークンがスキップされた範囲仮名 + tateten の場合）
+          if (currentHighlightGroup && (highlightTokens.length > 0 || groupTokens.length > 0)) {
+            // たて点グループも閉じる（highlightTokens にフラッシュ）
             if (currentTatetenGroup && groupTokens.length > 0) {
               highlightTokens.push(
                 `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`
@@ -1546,8 +1548,10 @@ function renderDisplayLayer(
         const tokenHtml = tokenResult.html + tokenResult.kutotenHtml;
 
         // 前の highlight グループを閉じる
-        if (currentHighlightGroup && highlightTokens.length > 0) {
-          // たて点グループも閉じる
+        // groupTokens にも未フラッシュのトークンがある場合がある
+        // （processedTokenIds で中間トークンがスキップされた範囲仮名 + tateten の場合）
+        if (currentHighlightGroup && (highlightTokens.length > 0 || groupTokens.length > 0)) {
+          // たて点グループも閉じる（highlightTokens にフラッシュ）
           if (currentTatetenGroup && groupTokens.length > 0) {
             highlightTokens.push(
               `<span class="${prefix}-tateten-group">${groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`

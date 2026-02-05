@@ -462,6 +462,16 @@ export {
 export { validateSKAMDocument, isSKAMDocument, assertSKAMDocument } from './validator.js';
 
 // ============================================================================
+// ID Generator
+// ============================================================================
+
+export {
+  type IdGenerator,
+  createRandomIdGenerator,
+  createSequentialIdGenerator,
+} from './id-generator.js';
+
+// ============================================================================
 // Operations
 // ============================================================================
 

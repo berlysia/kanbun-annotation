@@ -190,47 +190,29 @@ export function getBlockForToken(doc: SKAMDocument, tokenId: string): Block | un
 // ============================================================================
 
 /**
- * 汎用ID生成
+ * ランダムIDを生成する。
+ * 形式: `{prefix}-{8hex}`（例: 'm-a7f3b2c1', 'ref-5e2d1a9b'）
  *
- * 既存のマークIDから指定プレフィックス+デリミタ+数値のパターンを検索し、
- * 最大の数値+1で新しいIDを生成する。
+ * 既存のマークIDとの衝突を回避する。
  *
  * @param doc ドキュメント
  * @param prefix IDプレフィックス（デフォルト: 'm'）
- * @param delimiter プレフィックスと数値の間の区切り文字（デフォルト: ''）
- * @returns 新しいID（例: 'm1', 'ref-1'）
+ * @returns 新しいID
  */
-export function generateId(doc: SKAMDocument, prefix = 'm', delimiter = ''): string {
-  let maxNum = 0;
-  const pattern = new RegExp(`^${escapeRegExp(prefix)}${escapeRegExp(delimiter)}(\\d+)$`);
-
-  for (const mark of doc.marks) {
-    if (mark.id != null) {
-      const match = pattern.exec(mark.id);
-      if (match != null && match[1] != null) {
-        const num = parseInt(match[1], 10);
-        if (num > maxNum) {
-          maxNum = num;
-        }
-      }
-    }
-  }
-
-  return `${prefix}${delimiter}${maxNum + 1}`;
-}
-
-/**
- * RegExp特殊文字をエスケープ
- */
-function escapeRegExp(s: string): string {
-  return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+export function generateId(doc: SKAMDocument, prefix = 'm'): string {
+  const existingIds = new Set(doc.marks.filter((m) => m.id != null).map((m) => m.id!));
+  let id: string;
+  do {
+    const hex = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
+    id = `${prefix}-${hex}`;
+  } while (existingIds.has(id));
+  return id;
 }
 
 /**
  * 新しいmarkIdを生成
  *
- * generateId(doc, 'm') のエイリアス。後方互換のため維持。
- * 形式: `m{number}`
+ * generateId(doc, 'm') のエイリアス。
  */
 export function generateMarkId(doc: SKAMDocument): string {
   return generateId(doc, 'm');

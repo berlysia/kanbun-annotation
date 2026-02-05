@@ -1761,7 +1761,7 @@ describe('CRUD operations preserve validity', () => {
       value: 'レ',
     });
     assertValidDocument(newDoc);
-    expect(markId).toBe('m2');
+    expect(markId).toMatch(/^m-[0-9a-f]{8}$/);
     expect(newDoc.marks).toHaveLength(2);
   });
 });

@@ -3,7 +3,8 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse, SKAMXMLParseError } from '../index.js';
-import { validateSKAMDocument } from '@kanbun/skam';
+import type { ParseOptions } from '../index.js';
+import { validateSKAMDocument, createSequentialIdGenerator } from '@kanbun/skam';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const VALID_FIXTURES = join(__dirname, 'fixtures', 'valid');
@@ -14,6 +15,11 @@ function readFixture(category: 'valid' | 'invalid', name: string): string {
   return readFileSync(join(dir, name), 'utf-8');
 }
 
+/** Sequential ID generator で parse（t1, t2, b1, m1 等の連番IDを生成） */
+function parseSeq(xml: string, opts: Partial<ParseOptions> = {}) {
+  return parse(xml, { ...opts, idGenerator: createSequentialIdGenerator() });
+}
+
 // ============================================================================
 // Valid Fixtures Tests
 // ============================================================================
@@ -22,7 +28,7 @@ describe('parse - valid fixtures', () => {
   describe('minimal.xml', () => {
     it('should parse minimal document', () => {
       const xml = readFixture('valid', 'minimal.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       expect(doc.format).toBe('skam@0.1');
       expect(doc.tokens).toHaveLength(1);
@@ -39,7 +45,7 @@ describe('parse - valid fixtures', () => {
   describe('kaeri-basic.xml', () => {
     it('should parse kaeri (レ点)', () => {
       const xml = readFixture('valid', 'kaeri-basic.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       expect(doc.tokens).toHaveLength(5);
       expect(doc.marks).toHaveLength(1);
@@ -57,7 +63,7 @@ describe('parse - valid fixtures', () => {
   describe('kaeri-all-kinds.xml', () => {
     it('should parse all kaeri kinds', () => {
       const xml = readFixture('valid', 'kaeri-all-kinds.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       const kaeriMarks = doc.marks.filter((m) => m.type === 'kaeri');
       expect(kaeriMarks.length).toBeGreaterThanOrEqual(4);
@@ -78,7 +84,7 @@ describe('parse - valid fixtures', () => {
   describe('kaeri-compound.xml', () => {
     it('should parse compound kaeri kinds', () => {
       const xml = readFixture('valid', 'kaeri-compound.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       const kaeriMarks = doc.marks.filter((m) => m.type === 'kaeri');
       expect(kaeriMarks).toHaveLength(3);
@@ -93,7 +99,7 @@ describe('parse - valid fixtures', () => {
   describe('kun-reading-okuri.xml', () => {
     it('should parse kun with reading and okuri', () => {
       const xml = readFixture('valid', 'kun-reading-okuri.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       // Find yomigana and okurigana marks
       const yomigana = doc.marks.find((m) => m.type === 'yomigana');
@@ -115,7 +121,7 @@ describe('parse - valid fixtures', () => {
   describe('kun-reading-only.xml', () => {
     it('should parse kun with reading only', () => {
       const xml = readFixture('valid', 'kun-reading-only.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       const yomigana = doc.marks.find((m) => m.type === 'yomigana');
       const okurigana = doc.marks.find((m) => m.type === 'okurigana');
@@ -132,7 +138,7 @@ describe('parse - valid fixtures', () => {
   describe('kun-okuri-only.xml', () => {
     it('should parse kun with okuri only', () => {
       const xml = readFixture('valid', 'kun-okuri-only.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       const yomigana = doc.marks.find((m) => m.type === 'yomigana');
       const okurigana = doc.marks.find((m) => m.type === 'okurigana');
@@ -149,7 +155,7 @@ describe('parse - valid fixtures', () => {
   describe('yomigana-only.xml', () => {
     it('should parse standalone yomigana element', () => {
       const xml = readFixture('valid', 'yomigana-only.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       const yomigana = doc.marks.find((m) => m.type === 'yomigana');
       expect(yomigana).toBeDefined();
@@ -163,7 +169,7 @@ describe('parse - valid fixtures', () => {
   describe('kutoten.xml', () => {
     it('should parse kutoten marks', () => {
       const xml = readFixture('valid', 'kutoten.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       const kutotenMarks = doc.marks.filter((m) => m.type === 'kutoten');
       expect(kutotenMarks.length).toBeGreaterThanOrEqual(2);
@@ -187,7 +193,7 @@ describe('parse - valid fixtures', () => {
   describe('okototen.xml', () => {
     it('should parse okototen with grid coordinates', () => {
       const xml = readFixture('valid', 'okototen.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       const okototenMarks = doc.marks.filter((m) => m.type === 'okototen');
       expect(okototenMarks.length).toBeGreaterThanOrEqual(1);
@@ -205,7 +211,7 @@ describe('parse - valid fixtures', () => {
 
     it('should parse okototen with optional color', () => {
       const xml = readFixture('valid', 'okototen.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       const markWithColor = doc.marks.find(
         (m) => m.type === 'okototen' && (m as { color?: string }).color !== undefined
@@ -221,7 +227,7 @@ describe('parse - valid fixtures', () => {
   describe('soegana.xml', () => {
     it('should parse soegana mark', () => {
       const xml = readFixture('valid', 'soegana.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       const soegana = doc.marks.find((m) => m.type === 'soegana');
       expect(soegana).toBeDefined();
@@ -235,7 +241,7 @@ describe('parse - valid fixtures', () => {
   describe('span-emphasis.xml', () => {
     it('should parse emphasis marks', () => {
       const xml = readFixture('valid', 'span-emphasis.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       const emphasisMarks = doc.marks.filter((m) => m.type === 'emphasis');
       expect(emphasisMarks.length).toBeGreaterThanOrEqual(1);
@@ -249,7 +255,7 @@ describe('parse - valid fixtures', () => {
   describe('tateten.xml', () => {
     it('should parse tateten marks', () => {
       const xml = readFixture('valid', 'tateten.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       const tatetenMarks = doc.marks.filter((m) => m.type === 'tateten');
       expect(tatetenMarks.length).toBeGreaterThanOrEqual(1);
@@ -263,7 +269,7 @@ describe('parse - valid fixtures', () => {
   describe('saidoku.xml', () => {
     it('should parse saidoku with forms', () => {
       const xml = readFixture('valid', 'saidoku.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       const saidoku = doc.marks.find((m) => m.type === 'saidoku');
       expect(saidoku).toBeDefined();
@@ -282,7 +288,7 @@ describe('parse - valid fixtures', () => {
   describe('saidoku-minimal.xml', () => {
     it('should parse saidoku without n attribute', () => {
       const xml = readFixture('valid', 'saidoku-minimal.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       const saidoku = doc.marks.find((m) => m.type === 'saidoku');
       expect(saidoku).toBeDefined();
@@ -296,7 +302,7 @@ describe('parse - valid fixtures', () => {
   describe('ref-note.xml', () => {
     it('should parse and resolve ref content references', () => {
       const xml = readFixture('valid', 'ref-note.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       const ref = doc.marks.find((m) => m.type === 'ref');
       expect(ref).toBeDefined();
@@ -310,7 +316,7 @@ describe('parse - valid fixtures', () => {
   describe('readings.xml', () => {
     it('should parse multiple reading kinds', () => {
       const xml = readFixture('valid', 'readings.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       expect(doc.readings).toHaveLength(3);
 
@@ -324,7 +330,7 @@ describe('parse - valid fixtures', () => {
   describe('meta-tokenization.xml', () => {
     it('should parse document with meta element', () => {
       const xml = readFixture('valid', 'meta-tokenization.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       // Meta is currently ignored, but document should parse correctly
       expect(doc.format).toBe('skam@0.1');
@@ -335,7 +341,7 @@ describe('parse - valid fixtures', () => {
   describe('multiple-blocks.xml', () => {
     it('should parse multiple blocks', () => {
       const xml = readFixture('valid', 'multiple-blocks.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       // Should have tokens from all blocks
       expect(doc.tokens.length).toBeGreaterThan(10);
@@ -353,7 +359,7 @@ describe('parse - valid fixtures', () => {
   describe('highlight-basic.xml', () => {
     it('should parse highlight element', () => {
       const xml = readFixture('valid', 'highlight-basic.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       const highlightMarks = doc.marks.filter((m) => m.type === 'highlight');
       expect(highlightMarks).toHaveLength(1);
@@ -366,7 +372,7 @@ describe('parse - valid fixtures', () => {
   describe('highlight-style.xml', () => {
     it('should parse highlight with style attributes', () => {
       const xml = readFixture('valid', 'highlight-style.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       const highlightMarks = doc.marks.filter((m) => m.type === 'highlight');
       expect(highlightMarks.length).toBeGreaterThanOrEqual(5);
@@ -383,7 +389,7 @@ describe('parse - valid fixtures', () => {
   describe('ref-label.xml', () => {
     it('should parse ref with label attribute', () => {
       const xml = readFixture('valid', 'ref-label.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       const refMarks = doc.marks.filter((m) => m.type === 'ref');
       expect(refMarks.length).toBeGreaterThanOrEqual(3);
@@ -398,7 +404,7 @@ describe('parse - valid fixtures', () => {
   describe('ref-format.xml', () => {
     it('should parse ref with format attribute', () => {
       const xml = readFixture('valid', 'ref-format.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       const refMarks = doc.marks.filter((m) => m.type === 'ref');
       expect(refMarks.length).toBeGreaterThanOrEqual(4);
@@ -413,7 +419,7 @@ describe('parse - valid fixtures', () => {
   describe('highlight-ref-combined.xml', () => {
     it('should parse highlight with ref reference', () => {
       const xml = readFixture('valid', 'highlight-ref-combined.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       const highlightMarks = doc.marks.filter((m) => m.type === 'highlight');
       const refMarks = doc.marks.filter((m) => m.type === 'ref');
@@ -434,7 +440,7 @@ describe('parse - valid fixtures', () => {
   describe('ref-with-kun.xml', () => {
     it('should parse ref following kun element', () => {
       const xml = readFixture('valid', 'ref-with-kun.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       const yomiganaMarks = doc.marks.filter((m) => m.type === 'yomigana');
       const refMarks = doc.marks.filter((m) => m.type === 'ref');
@@ -462,7 +468,7 @@ describe('parse - valid fixtures', () => {
   describe('ref-at-block-start.xml', () => {
     it('should parse ref at the beginning of a block', () => {
       const xml = readFixture('valid', 'ref-at-block-start.xml');
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       expect(doc.tokens).toHaveLength(3); // 學而時
       expect(doc.marks).toHaveLength(1);
@@ -489,7 +495,7 @@ describe('parse - valid fixtures', () => {
     </skam:block>
   </skam:body>
 </skam:doc>`;
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       const highlights = doc.marks.filter((m) => m.type === 'highlight');
       const refs = doc.marks.filter((m) => m.type === 'ref');
@@ -528,7 +534,7 @@ describe('parse - valid fixtures', () => {
     </skam:block>
   </skam:body>
 </skam:doc>`;
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       const highlights = doc.marks.filter((m) => m.type === 'highlight');
       const refs = doc.marks.filter((m) => m.type === 'ref');
@@ -553,7 +559,7 @@ describe('parse - valid fixtures', () => {
     </skam:block>
   </skam:body>
 </skam:doc>`;
-      const doc = parse(xml);
+      const doc = parseSeq(xml);
 
       const highlights = doc.marks.filter((m) => m.type === 'highlight');
       const refs = doc.marks.filter((m) => m.type === 'ref');
@@ -602,7 +608,7 @@ describe('parse - valid fixtures', () => {
     for (const fixture of validFixtures) {
       it(`${fixture} produces valid SKAMDocument`, () => {
         const xml = readFixture('valid', fixture);
-        const doc = parse(xml);
+        const doc = parseSeq(xml);
         expect(validateSKAMDocument(doc).valid).toBe(true);
       });
     }
@@ -686,7 +692,7 @@ describe('parse - edge cases', () => {
         </skam:body>
       </skam:doc>`;
 
-    const doc = parse(xml);
+    const doc = parseSeq(xml);
     // Whitespace between characters should be skipped
     expect(doc.tokens).toHaveLength(2);
     expect(doc.tokens[0]!.text).toBe('學');
@@ -701,7 +707,7 @@ describe('parse - edge cases', () => {
         </skam:body>
       </skam:doc>`;
 
-    const doc = parse(xml);
+    const doc = parseSeq(xml);
     const ids = doc.tokens.map((t) => t.id);
     const uniqueIds = [...new Set(ids)];
     expect(ids).toEqual(uniqueIds);
@@ -718,7 +724,7 @@ describe('parse - edge cases', () => {
         </skam:body>
       </skam:doc>`;
 
-    const doc = parse(xml);
+    const doc = parseSeq(xml);
     const ids = doc.marks.map((m) => m.id);
     const uniqueIds = [...new Set(ids)];
     expect(ids).toEqual(uniqueIds);
@@ -732,14 +738,14 @@ describe('parse - edge cases', () => {
 describe('parse - position tracking', () => {
   it('should not include position info when trackPositions is false (default)', () => {
     const xml = readFixture('valid', 'minimal.xml');
-    const doc = parse(xml);
+    const doc = parseSeq(xml);
 
     expect(doc.tokens[0]?.ext?.['position']).toBeUndefined();
   });
 
   it('should include position info when trackPositions is true', () => {
     const xml = readFixture('valid', 'minimal.xml');
-    const doc = parse(xml, { trackPositions: true });
+    const doc = parseSeq(xml, { trackPositions: true });
 
     const token = doc.tokens[0];
     expect(token).toBeDefined();
@@ -768,7 +774,7 @@ describe('parse - position tracking', () => {
   </skam:body>
 </skam:doc>`;
 
-    const doc = parse(xml, { trackPositions: true });
+    const doc = parseSeq(xml, { trackPositions: true });
 
     expect(doc.tokens).toHaveLength(2);
 
@@ -801,7 +807,7 @@ describe('parse - position tracking', () => {
   </skam:body>
 </skam:doc>`;
 
-    const doc = parse(xml, { trackPositions: true });
+    const doc = parseSeq(xml, { trackPositions: true });
 
     expect(doc.tokens).toHaveLength(2);
 
@@ -834,7 +840,7 @@ describe('parse - position tracking', () => {
   </skam:body>
 </skam:doc>`;
 
-    const doc = parse(xml, { trackPositions: true });
+    const doc = parseSeq(xml, { trackPositions: true });
 
     expect(doc.tokens).toHaveLength(2);
 
@@ -865,7 +871,7 @@ describe('parse - position tracking', () => {
   </skam:body>
 </skam:doc>`;
 
-    const doc = parse(xml, { trackPositions: true });
+    const doc = parseSeq(xml, { trackPositions: true });
 
     expect(doc.tokens).toHaveLength(1);
     const token = doc.tokens[0]!;
@@ -882,7 +888,7 @@ describe('parse - position tracking', () => {
 
   it('should have blocks alongside position tracking', () => {
     const xml = readFixture('valid', 'minimal.xml');
-    const doc = parse(xml, { trackPositions: true });
+    const doc = parseSeq(xml, { trackPositions: true });
 
     const token = doc.tokens[0]!;
     // blockId is now managed via blocks array, not token.ext

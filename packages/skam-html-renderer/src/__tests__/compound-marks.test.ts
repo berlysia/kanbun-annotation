@@ -358,9 +358,11 @@ describe('Tateten + kaeri: non-レ kaeri alongside tateten separator', () => {
     const { html } = render(doc);
     // レ点は suffix-center に残る
     expect(html).toContain('skam-kaeriten');
-    // tateten-sep は生成されない（非レ kaeri がないため）
-    expect(html).not.toContain('skam-tateten-sep');
+    // tateten-sep は常に生成される（tateten-mark のラッパー）
+    expect(html).toContain('skam-tateten-sep');
     expect(html).toContain('skam-tateten-mark');
+    // ただし kaeriten は tateten-sep 内ではなく suffix-center に配置
+    expect(html).not.toMatch(/skam-tateten-sep.*skam-kaeriten/s);
   });
 
   it('tateten + mixed kaeri (レ on mid + non-レ on last): split correctly', () => {
@@ -423,5 +425,101 @@ describe('Tateten + kaeri: non-レ kaeri alongside tateten separator', () => {
     expect(html).toMatch(/skam-tateten-sep.*\u3192/s); // 一 unicode
     // レ部分は suffix-center に配置
     expect(html).toMatch(/skam-suffix-center.*\u3191/s); // レ unicode
+  });
+});
+
+// ============================================================================
+// 読み範囲 + tateten + kaeri の複合（regression: kaeri が消える問題）
+// ============================================================================
+
+describe('Range kana + tateten + kaeri: kaeri must not disappear', () => {
+  it('yomigana + tateten + kaeri: kaeri is preserved in tateten-sep', () => {
+    const doc = createThreeTokenDoc('春', '風', '吹', [
+      { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しゅんぷう' },
+      { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '二' },
+    ]);
+    const { html } = render(doc);
+    // kaeri が出力に存在する
+    expect(html).toContain('skam-kaeriten');
+    // tateten-sep 内に kaeri が配置される
+    expect(html).toMatch(/skam-tateten-sep.*skam-kaeriten/s);
+    // yomigana（ruby）も存在する
+    expect(html).toContain('skam-ruby');
+    expect(html).toContain('しゅんぷう');
+  });
+
+  it('yomigana + tateten: ruby wraps tateten-group structure', () => {
+    const doc = createThreeTokenDoc('春', '風', '吹', [
+      { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しゅんぷう' },
+      { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+    ]);
+    const { html } = render(doc);
+    // <ruby> が tateten-group を含む
+    expect(html).toMatch(/<ruby>.*skam-tateten-group.*<\/ruby>/s);
+    // 個別トークンが tateten-group 内にある（インライン結合ではない）
+    expect(html).toMatch(/skam-tateten-group.*skam-base.*春.*skam-tateten-sep.*skam-base.*風/s);
+    // rt に読み仮名
+    expect(html).toMatch(/<rt class="skam-ruby">しゅんぷう<\/rt>/);
+  });
+
+  it('yomigana + tateten + compound kaeri (一レ): split correctly', () => {
+    const doc = createThreeTokenDoc('春', '風', '吹', [
+      { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しゅんぷう' },
+      { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '一レ' },
+    ]);
+    const { html } = render(doc);
+    // 一部分は tateten-sep に配置
+    expect(html).toMatch(/skam-tateten-sep.*\u3192/s);
+    // レ部分は suffix-center に配置
+    expect(html).toMatch(/skam-suffix-center.*\u3191/s);
+    // yomigana も存在
+    expect(html).toContain('しゅんぷう');
+  });
+
+  it('okurigana + tateten + kaeri: kaeri is preserved', () => {
+    const doc = createThreeTokenDoc('不', '能', '爲', [
+      { type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'ず' },
+      { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '二' },
+    ]);
+    const { html } = render(doc);
+    // kaeri が存在
+    expect(html).toContain('skam-kaeriten');
+    // tateten-sep 内に kaeri
+    expect(html).toMatch(/skam-tateten-sep.*skam-kaeriten/s);
+    // 送り仮名も存在
+    expect(html).toContain('skam-okuri');
+    expect(html).toContain('ず');
+  });
+
+  it('soegana + tateten + kaeri: kaeri is preserved', () => {
+    const doc = createThreeTokenDoc('天', '地', '人', [
+      { type: 'soegana', anchor: { from: 't1', to: 't2' }, value: 'ノ' },
+      { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '二' },
+    ]);
+    const { html } = render(doc);
+    // kaeri が存在
+    expect(html).toContain('skam-kaeriten');
+    // tateten-sep 内に kaeri
+    expect(html).toMatch(/skam-tateten-sep.*skam-kaeriten/s);
+    // 添え仮名も存在
+    expect(html).toContain('skam-soegana');
+    expect(html).toContain('ノ');
+  });
+
+  it('yomigana + tateten + レ kaeri on mid token: レ in suffix, not in sep', () => {
+    const doc = createThreeTokenDoc('春', '風', '吹', [
+      { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しゅんぷう' },
+      { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+    ]);
+    const { html } = render(doc);
+    // レ kaeri は suffix-center に配置
+    expect(html).toMatch(/skam-suffix-center.*skam-kaeriten/s);
+    // tateten-sep 内に kaeri はない
+    expect(html).not.toMatch(/skam-tateten-sep.*skam-kaeriten/s);
   });
 });

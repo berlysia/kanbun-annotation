@@ -157,7 +157,10 @@ describe('Partial range: multi-token kun + highlight + tateten with surrounding 
     expect(highlightCount).toBe(1);
 
     // 夜 and 聲 should NOT be inside highlight
-    const highlightMatch = html.match(/skam-highlight-content">(.*?)<\/span><\/span>/s);
+    // highlight-content の中身を抽出（ネストした span に対応するため greedy + 末端でマッチ）
+    const highlightMatch = html.match(
+      /skam-highlight-content">(.*)<\/span><\/span><span class="skam-token/s
+    );
     expect(highlightMatch).toBeTruthy();
     const highlightContent = highlightMatch![1]!;
     expect(highlightContent).not.toContain('夜');

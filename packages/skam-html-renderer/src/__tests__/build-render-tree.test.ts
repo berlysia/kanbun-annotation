@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import type { SKAMDocument, Mark, HighlightMark, RefMark } from '@kanbun/skam';
+import type { SKAMDocument, Mark, Token, HighlightMark, RefMark } from '@kanbun/skam';
 import { buildBlockRenderTree } from '../build-render-tree.js';
+import type { BuildTreeContext } from '../build-render-tree.js';
 import {
   resolveRefValues,
   getTatetenGroups,
@@ -334,7 +335,7 @@ describe('buildBlockRenderTree', () => {
   });
 
   describe('compound cases', () => {
-    it('range + tateten overlap sets tatetenTokenTexts', () => {
+    it('range + tateten overlap: items kept separate, rangeCtx on group', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [
@@ -351,20 +352,19 @@ describe('buildBlockRenderTree', () => {
       const ctx = createBuildCtx(doc);
       const tree = buildBlockRenderTree('b1', blockTokens(doc), ctx);
 
-      // Range merge: 2 tokens → 1 TokenItem (inside a tateten group is not possible
-      // since range merge collapses them into 1 item)
-      // With range merge, tateten overlap is detected and tatetenTokenTexts is set
+      // tateten + 読み重複時: 後続トークンは skip されず個別 items に残る
       expect(tree.items).toHaveLength(1);
-      // Range merge collapses the items, so the tateten group wraps 1 item
-      // Actually, since range-merge comes first, t2 is skipped → 1 TokenItem
-      // The tatetenMark is still associated, so it becomes TatetenGroupNode with 1 item
       const node = tree.items[0]!;
+      expect(node.type).toBe('tateten-group');
       if (node.type === 'tateten-group') {
-        expect(node.items).toHaveLength(1);
-        expect(node.items[0]!.rangeCtx!.tatetenTokenTexts).toEqual(['春', '風']);
-      } else {
-        // If single-item tateten group is collapsed to TokenItem
-        expect((node as TokenItem).rangeCtx!.tatetenTokenTexts).toEqual(['春', '風']);
+        // items は個別トークン
+        expect(node.items).toHaveLength(2);
+        expect(node.items[0]!.token.text).toBe('春');
+        expect(node.items[1]!.token.text).toBe('風');
+        // rangeCtx はグループレベルに設定
+        expect(node.rangeCtx).toBeDefined();
+        expect(node.rangeCtx!.yomiganaBaseText).toBe('春風');
+        expect(node.rangeCtx!.rangeTokenInfo).toEqual({ from: 't1', to: 't2' });
       }
     });
 

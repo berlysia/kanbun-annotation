@@ -363,6 +363,41 @@ function generateCommonStyles(prefix: string, vp: string): string {
   vertical-align: middle;
 }
 
+/*
+ * Tateten Separator (竪点セパレータ)
+ *
+ * 竪点マークと非レ返り点を並置するためのグリッドコンテナ。
+ * suffix-row と同じ inline-grid パターンで、竪点を中央行に配置。
+ *
+ * 縦書き (vertical-rl) での物理配置:
+ *   Row 1 (::before) → 右列（本文側余白）
+ *   Row 2 (tateten-mark) → 中央列
+ *   Row 3 (kaeriten) → 左列（注記側）
+ */
+:where(.${prefix}-tateten-sep) {
+  display: inline-grid;
+  grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) auto calc(var(--${vp}-ruby-ratio) * 1em);
+  line-height: 1;
+  vertical-align: middle;
+}
+
+:where(.${prefix}-tateten-sep)::before {
+  content: '';
+  grid-row: 1;
+}
+
+:where(.${prefix}-tateten-sep) > :where(.${prefix}-tateten-mark) {
+  grid-row: 2;
+  align-self: center;
+}
+
+:where(.${prefix}-tateten-sep) > :where(.${prefix}-kaeriten) {
+  grid-row: 3;
+  font-size: calc(var(--${vp}-ruby-ratio) * 1em);
+  align-self: center;
+  user-select: none;
+}
+
 /* Ref (参照ラベル) */
 :where(.${prefix}-ref) {
   font-size: 0.7em;

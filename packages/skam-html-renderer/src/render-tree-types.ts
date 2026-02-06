@@ -25,6 +25,8 @@ export interface TokenRenderResult {
   html: string;
   /** 句読点のHTML（highlight終端で外に出す用） */
   kutotenHtml: string;
+  /** 竪点セパレータに並置する非レ返り点のHTML */
+  tatetenKaeriHtml: string;
 }
 
 export interface RangeTokenInfo {

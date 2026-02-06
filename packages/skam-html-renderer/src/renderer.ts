@@ -864,7 +864,8 @@ export function renderToken(
   ctx: Omit<TokenRenderContext, 'tokenMarks'>,
   rangeCtx?: RangeMarkContext,
   refValueMap?: Map<RefMark, string>,
-  highlightRefIds?: Set<string>
+  highlightRefIds?: Set<string>,
+  extractTatetenKaeri?: boolean
 ): TokenRenderResult {
   const { prefix, profile } = ctx;
   const tokenMarks = getMarksForToken(token.id, marks, ctx.tokens);
@@ -929,11 +930,34 @@ export function renderToken(
   }
 
   // 返り点（現在のトークン + 範囲グループ後続トークンの返り点）
+  // extractTatetenKaeri=true の場合、非レ返り点を tatetenKaeriHtml に分離
   const kaeriMarks = (tokenMarks.get('kaeri') ?? []) as KaeriMark[];
   const allKaeriMarks = [...kaeriMarks, ...(rangeCtx?.trailingKaeriMarks ?? [])];
+
+  let suffixKaeriMarks: KaeriMark[];
+  let tatetenKaeriMarksList: KaeriMark[];
+  if (extractTatetenKaeri && profile.kaeriten) {
+    // レ点のみ suffix に残す、それ以外（一二上下甲乙、複合返り点等）は竪点セパレータへ
+    suffixKaeriMarks = allKaeriMarks.filter((m) => m.value === 'レ');
+    tatetenKaeriMarksList = allKaeriMarks.filter((m) => m.value !== 'レ');
+  } else {
+    suffixKaeriMarks = allKaeriMarks;
+    tatetenKaeriMarksList = [];
+  }
+
   const kaeriten =
-    profile.kaeriten && allKaeriMarks.length > 0
-      ? allKaeriMarks
+    profile.kaeriten && suffixKaeriMarks.length > 0
+      ? suffixKaeriMarks
+          .map(
+            (m) =>
+              `<span class="${prefix}-kaeriten" aria-hidden="true">${convertKaeriToUnicode(m.value)}</span>`
+          )
+          .join('')
+      : '';
+
+  const tatetenKaeriHtml =
+    tatetenKaeriMarksList.length > 0
+      ? tatetenKaeriMarksList
           .map(
             (m) =>
               `<span class="${prefix}-kaeriten" aria-hidden="true">${convertKaeriToUnicode(m.value)}</span>`
@@ -1063,6 +1087,7 @@ export function renderToken(
   return {
     html: `${refHtml}<span class="${classes.join(' ')}"${tokenIdAttr}${emphasisInlineStyle}>${baseHtml}${okototenHtml}${suffixRowHtml}</span>`,
     kutotenHtml: kutoten,
+    tatetenKaeriHtml,
   };
 }
 

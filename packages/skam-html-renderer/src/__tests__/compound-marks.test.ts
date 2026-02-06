@@ -331,3 +331,82 @@ describe('Four-element compound and saidoku compound', () => {
     expect(html).toContain('skam-soegana');
   });
 });
+
+// ============================================================================
+// 6. Tateten + kaeri: 竪点セパレータへの返り点並置
+// ============================================================================
+
+describe('Tateten + kaeri: non-レ kaeri alongside tateten separator', () => {
+  it('tateten + non-レ kaeri: kaeri placed in tateten-sep', () => {
+    const doc = createThreeTokenDoc('梁', '執', '与', [
+      { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '二' },
+    ]);
+    const { html } = render(doc);
+    // 二点は tateten-sep 内に配置される
+    expect(html).toContain('skam-tateten-sep');
+    expect(html).toMatch(/skam-tateten-sep.*skam-tateten-mark.*skam-kaeriten/s);
+    // suffix-center に kaeriten が含まれない
+    expect(html).not.toMatch(/skam-suffix-center.*skam-kaeriten/s);
+  });
+
+  it('tateten + レ kaeri: レ stays in suffix-center', () => {
+    const doc = createThreeTokenDoc('梁', '執', '与', [
+      { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+    ]);
+    const { html } = render(doc);
+    // レ点は suffix-center に残る
+    expect(html).toContain('skam-kaeriten');
+    // tateten-sep は生成されない（非レ kaeri がないため）
+    expect(html).not.toContain('skam-tateten-sep');
+    expect(html).toContain('skam-tateten-mark');
+  });
+
+  it('tateten + mixed kaeri (レ + non-レ): split correctly', () => {
+    const doc = createThreeTokenDoc('梁', '執', '与', [
+      { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '二' },
+    ]);
+    const { html } = render(doc);
+    // レ点は suffix に残る
+    expect(html).toMatch(/skam-suffix-center.*\u3191/s); // レ unicode
+    // 二点は tateten-sep に配置
+    expect(html).toContain('skam-tateten-sep');
+    expect(html).toMatch(/skam-tateten-sep.*\u3193/s); // 二 unicode
+  });
+
+  it('tateten + kaeri on last token: kaeri placed at last separator', () => {
+    const doc = createThreeTokenDoc('梁', '執', '与', [
+      { type: 'tateten', anchor: { from: 't1', to: 't3' } },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: '二' },
+    ]);
+    const { html } = render(doc);
+    // 最終トークンの kaeri は最終セパレータに配置
+    expect(html).toContain('skam-tateten-sep');
+    expect(html).toMatch(/skam-tateten-sep.*skam-kaeriten/s);
+  });
+
+  it('no tateten + kaeri: kaeri stays in suffix (regression)', () => {
+    const doc = createThreeTokenDoc('子', '曰', '學', [
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '二' },
+    ]);
+    const { html } = render(doc);
+    // tateten がないので suffix-center に配置
+    expect(html).toContain('skam-kaeriten');
+    expect(html).not.toContain('skam-tateten-sep');
+    expect(html).toMatch(/skam-suffix-center.*skam-kaeriten/s);
+  });
+
+  it('compound kaeri (一レ) treated as non-レ in tateten group', () => {
+    const doc = createThreeTokenDoc('梁', '執', '与', [
+      { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '一レ' },
+    ]);
+    const { html } = render(doc);
+    // 複合返り点(一レ)は非レ扱い → tateten-sep に配置
+    expect(html).toContain('skam-tateten-sep');
+    expect(html).toMatch(/skam-tateten-sep.*skam-kaeriten/s);
+  });
+});

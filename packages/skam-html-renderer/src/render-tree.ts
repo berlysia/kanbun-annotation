@@ -30,14 +30,19 @@ export interface RenderTreeContext {
 // Token rendering wrapper
 // ---------------------------------------------------------------------------
 
-function callRenderToken(node: TokenItem, ctx: RenderTreeContext): TokenRenderResult {
+function callRenderToken(
+  node: TokenItem,
+  ctx: RenderTreeContext,
+  extractTatetenKaeri?: boolean
+): TokenRenderResult {
   return renderToken(
     node.token,
     ctx.marks,
     { prefix: ctx.prefix, profile: ctx.profile, tokens: ctx.tokens, interactive: ctx.interactive },
     node.rangeCtx,
     ctx.refValueMap,
-    ctx.highlightRefIds
+    ctx.highlightRefIds,
+    extractTatetenKaeri
   );
 }
 
@@ -55,25 +60,50 @@ function renderTatetenGroupItems(
   ctx: RenderTreeContext
 ): TatetenGroupResult {
   const { prefix } = ctx;
-  const htmlParts: string[] = [];
-  let lastKutotenHtml = '';
 
-  for (let i = 0; i < node.items.length; i++) {
-    const item = node.items[i]!;
-    const result = callRenderToken(item, ctx);
+  // Pass 1: 全トークンをレンダリング（非レ kaeri を分離）
+  const tokenResults = node.items.map((item) => callRenderToken(item, ctx, true));
 
-    if (i < node.items.length - 1) {
-      // Non-last items: include kutotenHtml inline
-      htmlParts.push(result.html + result.kutotenHtml);
-    } else {
-      // Last item: extract kutotenHtml for caller to place after group
-      htmlParts.push(result.html);
-      lastKutotenHtml = result.kutotenHtml;
+  // Pass 2: 各セパレータ位置への kaeri 割り当て
+  const numSeparators = tokenResults.length - 1;
+  const separatorKaeri: string[] = new Array<string>(numSeparators).fill('');
+
+  for (let i = 0; i < tokenResults.length; i++) {
+    const kaeri = tokenResults[i]!.tatetenKaeriHtml;
+    if (kaeri) {
+      if (i < numSeparators) {
+        // 非最終トークン: そのトークン直後のセパレータ
+        separatorKaeri[i] = (separatorKaeri[i] ?? '') + kaeri;
+      } else if (numSeparators > 0) {
+        // 最終トークン: 最終セパレータに配置
+        separatorKaeri[numSeparators - 1] = (separatorKaeri[numSeparators - 1] ?? '') + kaeri;
+      }
     }
   }
 
-  const inner = htmlParts.join(`<span class="${prefix}-tateten-mark"></span>`);
-  const html = `<span class="${prefix}-tateten-group">${inner}</span>`;
+  // Pass 3: HTML 構築
+  const parts: string[] = [];
+  for (let i = 0; i < tokenResults.length; i++) {
+    const result = tokenResults[i]!;
+
+    if (i < tokenResults.length - 1) {
+      parts.push(result.html + result.kutotenHtml);
+      // セパレータ: kaeri がある場合は tateten-sep ラッパーで囲む
+      const kaeri = separatorKaeri[i] ?? '';
+      if (kaeri) {
+        parts.push(
+          `<span class="${prefix}-tateten-sep"><span class="${prefix}-tateten-mark"></span>${kaeri}</span>`
+        );
+      } else {
+        parts.push(`<span class="${prefix}-tateten-mark"></span>`);
+      }
+    } else {
+      parts.push(result.html);
+    }
+  }
+
+  const html = `<span class="${prefix}-tateten-group">${parts.join('')}</span>`;
+  const lastKutotenHtml = tokenResults[tokenResults.length - 1]?.kutotenHtml ?? '';
   return { html, lastKutotenHtml };
 }
 

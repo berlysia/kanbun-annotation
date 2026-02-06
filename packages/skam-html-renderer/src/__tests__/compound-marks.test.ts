@@ -177,7 +177,7 @@ describe('Range kana + position-based marks (kutoten/okimoji/joji)', () => {
     const { html } = render(doc);
     expect(html).toContain('ズ');
     expect(html).toContain('skam-tateten');
-    expect(html).toContain('skam-kutoten');
+    expect(html).toContain('skam-suffix-kutoten');
   });
 
   it('range yomigana + okimoji on middle token + tateten', () => {
@@ -346,22 +346,22 @@ describe('Tateten + kaeri: non-レ kaeri alongside tateten separator', () => {
     // 最終トークンの純粋非レ返り点は竪点セパレータに配置
     expect(html).toContain('skam-tateten-sep');
     expect(html).toMatch(/skam-tateten-sep.*skam-kaeriten/s);
-    // suffix-center に kaeriten が含まれない
-    expect(html).not.toMatch(/skam-suffix-center.*skam-kaeriten/s);
+    // suffix-kaeri に kaeriten が含まれない
+    expect(html).not.toMatch(/skam-suffix-kaeri.*skam-kaeriten/s);
   });
 
-  it('tateten + レ kaeri: レ stays in suffix-center', () => {
+  it('tateten + レ kaeri: レ stays in suffix-kaeri', () => {
     const doc = createThreeTokenDoc('梁', '執', '与', [
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
       { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
     ]);
     const { html } = render(doc);
-    // レ点は suffix-center に残る
+    // レ点は suffix-kaeri に残る
     expect(html).toContain('skam-kaeriten');
     // tateten-sep は常に生成される（tateten-mark のラッパー）
     expect(html).toContain('skam-tateten-sep');
     expect(html).toContain('skam-tateten-mark');
-    // ただし kaeriten は tateten-sep 内ではなく suffix-center に配置
+    // ただし kaeriten は tateten-sep 内ではなく suffix-kaeri に配置
     expect(html).not.toMatch(/skam-tateten-sep.*skam-kaeriten/s);
   });
 
@@ -373,7 +373,7 @@ describe('Tateten + kaeri: non-レ kaeri alongside tateten separator', () => {
     ]);
     const { html } = render(doc);
     // レ点は非最終トークン(t1)の suffix に残る
-    expect(html).toMatch(/skam-suffix-center.*\u3191/s); // レ unicode
+    expect(html).toMatch(/skam-suffix-kaeri.*\u3191/s); // レ unicode
     // 二点は最終トークンの kaeri → 最終セパレータに配置
     expect(html).toContain('skam-tateten-sep');
     expect(html).toMatch(/skam-tateten-sep.*\u3193/s); // 二 unicode
@@ -395,10 +395,10 @@ describe('Tateten + kaeri: non-レ kaeri alongside tateten separator', () => {
       { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '二' },
     ]);
     const { html } = render(doc);
-    // tateten がないので suffix-center に配置
+    // tateten がないので suffix-kaeri に配置
     expect(html).toContain('skam-kaeriten');
     expect(html).not.toContain('skam-tateten-sep');
-    expect(html).toMatch(/skam-suffix-center.*skam-kaeriten/s);
+    expect(html).toMatch(/skam-suffix-kaeri.*skam-kaeriten/s);
   });
 
   it('compound kaeri (一レ) on non-last token: split into sep (一) + suffix (レ)', () => {
@@ -410,8 +410,8 @@ describe('Tateten + kaeri: non-レ kaeri alongside tateten separator', () => {
     // 一部分は tateten-sep に配置
     expect(html).toContain('skam-tateten-sep');
     expect(html).toMatch(/skam-tateten-sep.*\u3192/s); // 一 unicode
-    // レ部分は suffix-center に配置
-    expect(html).toMatch(/skam-suffix-center.*\u3191/s); // レ unicode
+    // レ部分は suffix-kaeri に配置
+    expect(html).toMatch(/skam-suffix-kaeri.*\u3191/s); // レ unicode
   });
 
   it('compound kaeri (一レ) on last token: split into sep (一) + suffix (レ)', () => {
@@ -423,8 +423,8 @@ describe('Tateten + kaeri: non-レ kaeri alongside tateten separator', () => {
     // 一部分は最終セパレータに配置
     expect(html).toContain('skam-tateten-sep');
     expect(html).toMatch(/skam-tateten-sep.*\u3192/s); // 一 unicode
-    // レ部分は suffix-center に配置
-    expect(html).toMatch(/skam-suffix-center.*\u3191/s); // レ unicode
+    // レ部分は suffix-kaeri に配置
+    expect(html).toMatch(/skam-suffix-kaeri.*\u3191/s); // レ unicode
   });
 });
 
@@ -472,8 +472,8 @@ describe('Range kana + tateten + kaeri: kaeri must not disappear', () => {
     const { html } = render(doc);
     // 一部分は tateten-sep に配置
     expect(html).toMatch(/skam-tateten-sep.*\u3192/s);
-    // レ部分は suffix-center に配置
-    expect(html).toMatch(/skam-suffix-center.*\u3191/s);
+    // レ部分は suffix-kaeri に配置
+    expect(html).toMatch(/skam-suffix-kaeri.*\u3191/s);
     // yomigana も存在
     expect(html).toContain('しゅんぷう');
   });
@@ -517,8 +517,8 @@ describe('Range kana + tateten + kaeri: kaeri must not disappear', () => {
       { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
     ]);
     const { html } = render(doc);
-    // レ kaeri は suffix-center に配置
-    expect(html).toMatch(/skam-suffix-center.*skam-kaeriten/s);
+    // レ kaeri は suffix-kaeri に配置
+    expect(html).toMatch(/skam-suffix-kaeri.*skam-kaeriten/s);
     // tateten-sep 内に kaeri はない
     expect(html).not.toMatch(/skam-tateten-sep.*skam-kaeriten/s);
   });

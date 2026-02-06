@@ -103,7 +103,7 @@ function buildBlockStartHtml(blockId: string, ctx: BuildTreeContext): string {
   }
   if (blockStartMarks.kutotenMarks.length > 0 && profile.kutoten) {
     for (const kutotenMark of blockStartMarks.kutotenMarks) {
-      parts.push(`<span class="${prefix}-kutoten">${escapeHtml(kutotenMark.value)}</span>`);
+      parts.push(`<span class="${prefix}-suffix-kutoten">${escapeHtml(kutotenMark.value)}</span>`);
     }
   }
 

@@ -21,10 +21,8 @@ import type {
 // ---------------------------------------------------------------------------
 
 export interface TokenRenderResult {
-  /** Token本体のHTML（kutoten除く） */
+  /** Token本体のHTML（suffix-row内にkutotenを含む） */
   html: string;
-  /** 句読点のHTML（highlight終端で外に出す用） */
-  kutotenHtml: string;
   /** 竪点セパレータに並置する非レ返り点のHTML */
   tatetenKaeriHtml: string;
 }

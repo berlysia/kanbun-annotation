@@ -147,12 +147,12 @@ describe('render', () => {
 
       expect(result.html).toContain('skam-okuri');
       expect(result.html).toContain('びて');
-      // Yomigana should be in rt, okurigana should be in suffix-right (within suffix-row grid)
+      // Yomigana should be in rt, okurigana should be in suffix-okuri (within suffix-row grid)
       expect(result.html).toMatch(/<rt class="skam-ruby">まな<\/rt>/);
-      expect(result.html).toContain('skam-suffix-right');
+      expect(result.html).toContain('skam-suffix-okuri');
     });
 
-    it('should render soegana in suffix-right container', () => {
+    it('should render soegana in suffix-okuri container', () => {
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '之' }],
@@ -171,7 +171,7 @@ describe('render', () => {
 
       expect(result.html).toContain('skam-soegana');
       expect(result.html).toContain('を');
-      expect(result.html).toContain('skam-suffix-right');
+      expect(result.html).toContain('skam-suffix-okuri');
       // No ruby element when only soegana is present
       expect(result.html).not.toContain('<ruby>');
     });
@@ -197,7 +197,7 @@ describe('render', () => {
       expect(result.html).not.toContain('<ruby>');
       expect(result.html).toContain('skam-okuri');
       expect(result.html).toContain('ふ');
-      expect(result.html).toContain('skam-suffix-right');
+      expect(result.html).toContain('skam-suffix-okuri');
     });
   });
 
@@ -293,7 +293,7 @@ describe('render', () => {
 
       const result = render(doc);
 
-      expect(result.html).toContain('skam-kutoten');
+      expect(result.html).toContain('skam-suffix-kutoten');
       expect(result.html).toContain('。');
     });
   });
@@ -352,13 +352,13 @@ describe('render', () => {
       expect(result.html).toMatch(
         /<rt class="skam-ruby skam-saidoku-under" data-saidoku-n="2"><\/rt>/
       );
-      // First reading okuri should be in suffix-right (right column of suffix-row)
+      // First reading okuri should be in suffix-okuri (right column of suffix-row)
       expect(result.html).toMatch(
-        /<span class="skam-suffix-right"><span class="skam-okuri" data-saidoku-n="1">に<\/span><\/span>/
+        /<span class="skam-suffix-okuri"><span class="skam-okuri" data-saidoku-n="1">に<\/span><\/span>/
       );
-      // Second reading okuri should be in suffix-left (left column of suffix-row)
+      // Second reading okuri should be in suffix-saidoku (left column of suffix-row)
       expect(result.html).toMatch(
-        /<span class="skam-suffix-left"><span class="skam-okuri" data-saidoku-n="2">す<\/span><\/span>/
+        /<span class="skam-suffix-saidoku"><span class="skam-okuri" data-saidoku-n="2">す<\/span><\/span>/
       );
       // Both okuri should be in suffix-row structure
       expect(result.html).toMatch(/<span class="skam-suffix-row">/);
@@ -806,7 +806,7 @@ describe('highlight', () => {
     expect(result.html).not.toContain('skam-highlight');
   });
 
-  it('should render kutoten outside highlight span (at highlight end)', () => {
+  it('should render kutoten inside highlight span via suffix-row (at highlight end)', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
@@ -834,13 +834,12 @@ describe('highlight', () => {
 
     const result = render(doc);
 
-    // 傍線spanの外に句読点が出力されることを確認
-    // 期待: <span class="...highlight...">...之...</span></span><span class="skam-kutoten">。</span>
-    // highlight spanが閉じた直後に kutoten spanが来る
-    expect(result.html).toMatch(/<\/span><\/span><span class="skam-kutoten">。<\/span>/);
+    // kutoten は suffix-row 内に配置され、highlight span の中にある
+    expect(result.html).toMatch(/skam-highlight.*skam-suffix-kutoten.*。/s);
+    expect(result.html).toMatch(/skam-suffix-row.*skam-suffix-kutoten/s);
   });
 
-  it('should keep kutoten inside highlight when not at highlight end', () => {
+  it('should render all kutoten inside highlight via suffix-row', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
@@ -873,18 +872,15 @@ describe('highlight', () => {
     };
 
     const result = render(doc);
-
-    // 中間のkutoten（「、」）はhighlight内に、終端のkutoten（「。」）はhighlight外に
-    // HTML構造: <span class="highlight">不<span class="kutoten">、</span>亦説乎</span><span class="kutoten">。</span>
     const html = result.html;
 
-    // highlight spanが閉じた後に「。」が来ることを確認
-    expect(html).toMatch(/<\/span><span class="[^"]*skam-kutoten[^"]*">。<\/span>/);
-
-    // 「、」はhighlight span内にあることを確認
+    // 中間・終端ともに highlight 内の suffix-row に配置される
     expect(html).toMatch(
-      /skam-highlight[^>]*>.*<span class="[^"]*skam-kutoten[^"]*">、<\/span>.*<\/span><span class="[^"]*skam-kutoten[^"]*">。/
+      /skam-highlight.*skam-suffix-kutoten[^"]*">、.*skam-suffix-kutoten[^"]*">。/s
     );
+    // 両方とも suffix-row の直接の子
+    expect(html).toMatch(/skam-suffix-row[^"]*">.*skam-suffix-kutoten[^"]*">、/s);
+    expect(html).toMatch(/skam-suffix-row[^"]*">.*skam-suffix-kutoten[^"]*">。/s);
   });
 });
 

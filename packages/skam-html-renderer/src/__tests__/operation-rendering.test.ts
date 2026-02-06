@@ -156,8 +156,8 @@ describe('1. addMark → レンダリング反映', () => {
     });
     const afterHtml = render(afterDoc).html;
 
-    expect(beforeHtml).not.toContain('skam-kutoten');
-    expect(afterHtml).toContain('skam-kutoten');
+    expect(beforeHtml).not.toContain('skam-suffix-kutoten');
+    expect(afterHtml).toContain('skam-suffix-kutoten');
     expect(afterHtml).toContain('。');
   });
 
@@ -399,9 +399,9 @@ describe('2. removeMark → レンダリング反映', () => {
     const afterDoc = removeMark(doc, 'mk1');
     const afterHtml = render(afterDoc).html;
 
-    expect(beforeHtml).toContain('skam-kutoten');
+    expect(beforeHtml).toContain('skam-suffix-kutoten');
     expect(beforeHtml).toContain('。');
-    expect(afterHtml).not.toContain('skam-kutoten');
+    expect(afterHtml).not.toContain('skam-suffix-kutoten');
   });
 
   it('2.8 saidoku: 再読文字削除', () => {

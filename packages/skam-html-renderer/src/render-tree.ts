@@ -50,15 +50,7 @@ function callRenderToken(
 // Tateten group rendering
 // ---------------------------------------------------------------------------
 
-interface TatetenGroupResult {
-  html: string;
-  lastKutotenHtml: string;
-}
-
-function renderTatetenGroupItems(
-  node: TatetenGroupNode,
-  ctx: RenderTreeContext
-): TatetenGroupResult {
+function renderTatetenGroup(node: TatetenGroupNode, ctx: RenderTreeContext): string {
   const { prefix } = ctx;
 
   // Pass 1: 全トークンをレンダリング（非レ kaeri を分離）
@@ -85,16 +77,14 @@ function renderTatetenGroupItems(
   const parts: string[] = [];
   for (let i = 0; i < tokenResults.length; i++) {
     const result = tokenResults[i]!;
+    parts.push(result.html);
 
     if (i < tokenResults.length - 1) {
-      parts.push(result.html + result.kutotenHtml);
       // セパレータ: 常に tateten-sep ラッパーで囲み、vertical-align を suffix-row と統一
       const kaeri = separatorKaeri[i] ?? '';
       parts.push(
         `<span class="${prefix}-tateten-sep"><span class="${prefix}-tateten-mark">\u3190</span>${kaeri}</span>`
       );
-    } else {
-      parts.push(result.html);
     }
   }
 
@@ -128,13 +118,7 @@ function renderTatetenGroupItems(
     groupContent = `<span class="${prefix}-tateten-group">${groupContent}</span>`;
   }
 
-  const lastKutotenHtml = tokenResults[tokenResults.length - 1]?.kutotenHtml ?? '';
-  return { html: groupContent, lastKutotenHtml };
-}
-
-function renderTatetenGroupNode(node: TatetenGroupNode, ctx: RenderTreeContext): string {
-  const result = renderTatetenGroupItems(node, ctx);
-  return result.html + result.lastKutotenHtml;
+  return groupContent;
 }
 
 // ---------------------------------------------------------------------------
@@ -147,33 +131,18 @@ function renderHighlightGroupNode(node: HighlightGroupNode, ctx: RenderTreeConte
   const styleClass = ` ${prefix}-highlight--${style}`;
 
   const contentParts: string[] = [];
-  let trailingKutoten = '';
 
-  for (let i = 0; i < node.items.length; i++) {
-    const child = node.items[i]!;
-    const isLast = i === node.items.length - 1;
-
+  for (const child of node.items) {
     if (child.type === 'token') {
       const result = callRenderToken(child, ctx);
-      if (isLast) {
-        contentParts.push(result.html);
-        trailingKutoten = result.kutotenHtml;
-      } else {
-        contentParts.push(result.html + result.kutotenHtml);
-      }
+      contentParts.push(result.html);
     } else {
       // tateten-group
-      const result = renderTatetenGroupItems(child, ctx);
-      if (isLast) {
-        contentParts.push(result.html);
-        trailingKutoten = result.lastKutotenHtml;
-      } else {
-        contentParts.push(result.html + result.lastKutotenHtml);
-      }
+      contentParts.push(renderTatetenGroup(child, ctx));
     }
   }
 
-  return `<span class="${prefix}-highlight${styleClass}" data-style="${style}"><span class="${prefix}-highlight-content">${node.refHtml}${contentParts.join('')}</span></span>${trailingKutoten}`;
+  return `<span class="${prefix}-highlight${styleClass}" data-style="${style}"><span class="${prefix}-highlight-content">${node.refHtml}${contentParts.join('')}</span></span>`;
 }
 
 // ---------------------------------------------------------------------------
@@ -184,10 +153,10 @@ function renderNode(node: RenderNode, ctx: RenderTreeContext): string {
   switch (node.type) {
     case 'token': {
       const result = callRenderToken(node, ctx);
-      return result.html + result.kutotenHtml;
+      return result.html;
     }
     case 'tateten-group':
-      return renderTatetenGroupNode(node, ctx);
+      return renderTatetenGroup(node, ctx);
     case 'highlight-group':
       return renderHighlightGroupNode(node, ctx);
   }

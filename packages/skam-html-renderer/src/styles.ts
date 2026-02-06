@@ -223,7 +223,7 @@ function generateCommonStyles(prefix: string, vp: string): string {
  */
 :where(.${prefix}-suffix-row) {
   display: inline-grid;
-  grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) 1em calc(var(--${vp}-ruby-ratio) * 1em);
+  grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) calc(var(--${vp}-ruby-ratio) * 1em) calc(var(--${vp}-ruby-ratio) * 1em) calc(var(--${vp}-ruby-ratio) * 1em);
   line-height: 1;
   /* text-emphasis は継承するため、親要素の傍点が添字・送り仮名に伝播するのを防止 */
   text-emphasis: none;
@@ -251,29 +251,29 @@ function generateCommonStyles(prefix: string, vp: string): string {
   grid-row: 1;
 }
 
-/* suffix-right がある場合はプレースホルダー不要 */
-:where(.${prefix}-suffix-row:has(.${prefix}-suffix-right))::before {
+/* suffix-okuri がある場合はプレースホルダー不要 */
+:where(.${prefix}-suffix-row:has(.${prefix}-suffix-okuri))::before {
   display: none;
 }
 
 /* Suffix Right (送り仮名・添え仮名) */
-:where(.${prefix}-suffix-right) {
+:where(.${prefix}-suffix-okuri) {
   grid-row: 1;
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   user-select: none;
 }
 
 /* Suffix Center (返り点) - 縦書き時は左寄せ、横書き時は下寄せ */
-:where(.${prefix}-suffix-center) {
-  grid-row: 2;
+:where(.${prefix}-suffix-kaeri) {
+  grid-row: 3;
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   align-self: end;
   user-select: none;
 }
 
 /* Suffix Left (再読文字2回目の送り仮名) */
-:where(.${prefix}-suffix-left) {
-  grid-row: 3;
+:where(.${prefix}-suffix-saidoku) {
+  grid-row: 4;
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   user-select: none;
 }
@@ -291,9 +291,9 @@ function generateCommonStyles(prefix: string, vp: string): string {
   user-select: none;
 }
 
-/* Kutoten (句読点) */
-:where(.${prefix}-kutoten) {
-  display: inline;
+/* Kutoten (句読点) - suffix-row の row2 に配置、行内（親）のフォントサイズを継承 */
+:where(.${prefix}-suffix-kutoten) {
+  grid-row: 2;
 }
 
 /*
@@ -509,26 +509,26 @@ function generateCommonStyles(prefix: string, vp: string): string {
   user-select: text;
 }
 
-/* okurigana をコピー可能にする (suffix-right, suffix-left, suffix-kana) */
-:where(.${prefix}-document[data-copyable~="okurigana"]) :where(.${prefix}-suffix-right),
-:where(.${prefix}-document[data-copyable~="okurigana"]) :where(.${prefix}-suffix-left),
+/* okurigana をコピー可能にする (suffix-okuri, suffix-saidoku, suffix-kana) */
+:where(.${prefix}-document[data-copyable~="okurigana"]) :where(.${prefix}-suffix-okuri),
+:where(.${prefix}-document[data-copyable~="okurigana"]) :where(.${prefix}-suffix-saidoku),
 :where(.${prefix}-document[data-copyable~="okurigana"]) :where(.${prefix}-suffix-kana),
-:where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-suffix-right),
-:where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-suffix-left),
+:where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-suffix-okuri),
+:where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-suffix-saidoku),
 :where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-suffix-kana) {
   user-select: text;
 }
 
-/* soegana をコピー可能にする (suffix-right, suffix-kana と同じ要素) */
-:where(.${prefix}-document[data-copyable~="soegana"]) :where(.${prefix}-suffix-right),
+/* soegana をコピー可能にする (suffix-okuri, suffix-kana と同じ要素) */
+:where(.${prefix}-document[data-copyable~="soegana"]) :where(.${prefix}-suffix-okuri),
 :where(.${prefix}-document[data-copyable~="soegana"]) :where(.${prefix}-suffix-kana) {
   user-select: text;
 }
 
 /* kaeriten をコピー可能にする */
-:where(.${prefix}-document[data-copyable~="kaeriten"]) :where(.${prefix}-suffix-center),
+:where(.${prefix}-document[data-copyable~="kaeriten"]) :where(.${prefix}-suffix-kaeri),
 :where(.${prefix}-document[data-copyable~="kaeriten"]) :where(.${prefix}-kaeriten),
-:where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-suffix-center),
+:where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-suffix-kaeri),
 :where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-kaeriten) {
   user-select: text;
 }

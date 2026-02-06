@@ -959,32 +959,33 @@ export function renderToken(
       .join('');
   }
 
-  // suffix-row: 3列グリッドで送り仮名・返り点・再読2回目送り仮名を配置
-  // col1(右): 送り仮名・添え仮名、再読1回目送り仮名
-  // col2(中央): 返り点
-  // col3(左): 再読2回目送り仮名
-  const suffixRight = (saidokuOkuri1 || okurigana) + soegana; // 右列
-  const suffixCenter = kaeriten; // 中央列
-  const suffixLeft = saidokuOkuri2; // 左列
-
-  const hasSuffix = suffixRight || suffixCenter || suffixLeft;
-  const suffixRowHtml = hasSuffix
-    ? `<span class="${prefix}-suffix-row">${
-        suffixRight ? `<span class="${prefix}-suffix-right">${suffixRight}</span>` : ''
-      }${suffixCenter ? `<span class="${prefix}-suffix-center">${suffixCenter}</span>` : ''}${
-        suffixLeft ? `<span class="${prefix}-suffix-left">${suffixLeft}</span>` : ''
-      }</span>`
-    : '';
-
   // 句読点（現在のトークン + 範囲グループ後続トークンの句読点）
   const kutotenMarks = (tokenMarks.get('kutoten') ?? []) as KutotenMark[];
   const allKutotenMarks = [...kutotenMarks, ...(rangeCtx?.trailingKutotenMarks ?? [])];
   const kutoten =
     profile.kutoten && allKutotenMarks.length > 0
       ? allKutotenMarks
-          .map((m) => `<span class="${prefix}-kutoten">${escapeHtml(m.value)}</span>`)
+          .map((m) => `<span class="${prefix}-suffix-kutoten">${escapeHtml(m.value)}</span>`)
           .join('')
       : '';
+
+  // suffix-row: 4行グリッドで送り仮名・句読点・返り点・再読2回目送り仮名を配置
+  // row1(右): 送り仮名・添え仮名、再読1回目送り仮名
+  // row2(右寄り): 句読点（行内サイズ、auto で不在時は潰れる）
+  // row3(中央): 返り点
+  // row4(左): 再読2回目送り仮名
+  const suffixRight = (saidokuOkuri1 || okurigana) + soegana; // row1
+  const suffixCenter = kaeriten; // row3
+  const suffixLeft = saidokuOkuri2; // row4
+
+  const hasSuffix = suffixRight || kutoten || suffixCenter || suffixLeft;
+  const suffixRowHtml = hasSuffix
+    ? `<span class="${prefix}-suffix-row">${
+        suffixRight ? `<span class="${prefix}-suffix-okuri">${suffixRight}</span>` : ''
+      }${kutoten}${
+        suffixCenter ? `<span class="${prefix}-suffix-kaeri">${suffixCenter}</span>` : ''
+      }${suffixLeft ? `<span class="${prefix}-suffix-saidoku">${suffixLeft}</span>` : ''}</span>`
+    : '';
 
   // 置字チェック（trailing marks を合算）
   const okimojiMarks = (tokenMarks.get('okimoji') ?? []) as OkimojiMark[];
@@ -1074,7 +1075,6 @@ export function renderToken(
 
   return {
     html: `${refHtml}<span class="${classes.join(' ')}"${tokenIdAttr}${emphasisInlineStyle}>${baseHtml}${okototenHtml}${suffixRowHtml}</span>`,
-    kutotenHtml: kutoten,
     tatetenKaeriHtml,
   };
 }

@@ -329,7 +329,7 @@ describe('buildBlockRenderTree', () => {
       const ctx = createBuildCtx(doc);
       const tree = buildBlockRenderTree('b1', blockTokens(doc), ctx);
 
-      expect(tree.blockStartHtml).toContain('skam-kutoten');
+      expect(tree.blockStartHtml).toContain('skam-suffix-kutoten');
       expect(tree.blockStartHtml).toContain('。');
     });
   });

@@ -390,7 +390,7 @@ describe('Mark combination rendering', () => {
     const { html } = render(doc);
     expect(html).toContain('skam-okuri');
     expect(html).toContain('や');
-    expect(html).toContain('skam-kutoten');
+    expect(html).toContain('skam-suffix-kutoten');
     expect(html).toContain('。');
   });
 
@@ -901,9 +901,9 @@ describe('Saidoku rendering variations', () => {
     expect(html).toContain('まさ');
     expect(html).toContain('に');
     expect(html).toContain('す');
-    // First form's okuri is in suffix-right, second in suffix-left
-    expect(html).toContain('skam-suffix-right');
-    expect(html).toContain('skam-suffix-left');
+    // First form's okuri is in suffix-okuri, second in suffix-saidoku
+    expect(html).toContain('skam-suffix-okuri');
+    expect(html).toContain('skam-suffix-saidoku');
   });
 
   it('3-form saidoku', () => {
@@ -1132,7 +1132,7 @@ describe('Complex document rendering', () => {
     expect(html).toContain('skam-okuri');
     expect(html).toContain('skam-soegana');
     expect(html).toContain('skam-kaeriten');
-    expect(html).toContain('skam-kutoten');
+    expect(html).toContain('skam-suffix-kutoten');
   });
 
   it('document with all anchor-based mark types on different tokens', () => {
@@ -1483,7 +1483,7 @@ describe('Profile × mark type interactions', () => {
         { type: 'kutoten', position: { blockId: 'b1', after: 't1' }, value: '。' },
       ]);
       const { html } = render(doc, { profile: { kutoten: false } });
-      expect(html).not.toContain('skam-kutoten');
+      expect(html).not.toContain('skam-suffix-kutoten');
     });
 
     it('soegana=false hides soegana', () => {

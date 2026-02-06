@@ -54,6 +54,7 @@ const sampleSelect = document.getElementById('sample-select') as HTMLSelectEleme
 const copyJsonBtn = document.getElementById('copy-json-btn') as HTMLButtonElement;
 const copyHtmlBtn = document.getElementById('copy-html-btn') as HTMLButtonElement;
 const writingModeRadios = document.querySelectorAll<HTMLInputElement>('input[name="writing-mode"]');
+const horizontalNotice = document.getElementById('horizontal-notice') as HTMLSpanElement;
 const inlineModeCheckbox = document.getElementById('inline-mode') as HTMLInputElement;
 const profileSelect = document.getElementById('profile-select') as HTMLSelectElement;
 const profileCheckboxes = document.getElementById('profile-checkboxes') as HTMLDivElement;
@@ -1932,9 +1933,14 @@ document.addEventListener('keydown', (e) => {
 });
 
 // Writing mode change
+function updateHorizontalNotice(): void {
+  horizontalNotice.hidden = getWritingMode() !== 'horizontal';
+}
+
 for (const radio of writingModeRadios) {
   radio.addEventListener('change', () => {
     updateURL({ mode: getWritingMode() });
+    updateHorizontalNotice();
     if (currentDocument) {
       renderDocument(currentDocument);
     }
@@ -2104,6 +2110,7 @@ const initialState = getStateFromURL();
 for (const radio of writingModeRadios) {
   radio.checked = radio.value === initialState.mode;
 }
+updateHorizontalNotice();
 
 // Set inline mode
 inlineModeCheckbox.checked = initialState.inline;

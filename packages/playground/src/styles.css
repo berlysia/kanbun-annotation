@@ -949,6 +949,28 @@
     cursor: not-allowed;
   }
 
+  .selection-btn-delete {
+    padding: 0.25rem 0.5rem;
+    font-size: 0.75rem;
+    border: 1px solid #c0392b;
+    background-color: white;
+    color: #c0392b;
+    border-radius: 4px;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: background-color var(--transition-fast);
+  }
+
+  .selection-btn-delete:hover:not(:disabled) {
+    background-color: #c0392b;
+    color: white;
+  }
+
+  .selection-btn-delete:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
   /* Marks List Panel */
   .marks-list-panel {
     border-top: 1px solid var(--editor-border);

@@ -89,6 +89,7 @@ const selectionKaeriButtons = document.getElementById('selection-kaeri-buttons')
 const selectionKanaTypes = document.getElementById('selection-kana-types') as HTMLDivElement;
 const selectionKanaInput = document.getElementById('selection-kana-input') as HTMLInputElement;
 const selectionKanaApply = document.getElementById('selection-kana-apply') as HTMLButtonElement;
+const selectionKanaDelete = document.getElementById('selection-kana-delete') as HTMLButtonElement;
 
 // Marks list panel elements
 const marksList = document.getElementById('marks-list') as HTMLDivElement;
@@ -736,7 +737,10 @@ function updateSelectionPanel(fromId: string, toId: string): void {
   currentSelectedKanaType = currentKanaType;
   updateKanaTypeButtons();
   selectionKanaInput.value = currentKanaValues[currentKanaType];
-  selectionKanaApply.disabled = !selectionKanaInput.value.trim();
+  const hasKanaInput = Boolean(selectionKanaInput.value.trim());
+  const hasExistingKana = Boolean(currentKanaValues[currentKanaType]);
+  selectionKanaApply.disabled = !hasKanaInput && !hasExistingKana;
+  selectionKanaDelete.disabled = !hasExistingKana;
 
   // Show actions panel
   selectionActions.style.display = 'block';
@@ -1242,8 +1246,6 @@ function handleKanaApply(): void {
   const type = currentSelectedKanaType;
   const value = selectionKanaInput.value.trim();
 
-  if (!value) return;
-
   // Normalize selection range using canonical (blocks) order
   const sel = normalizeSelection(currentDocument, currentSelectionFromId, currentSelectionToId);
   if (!sel) return;
@@ -1264,19 +1266,36 @@ function handleKanaApply(): void {
     );
 
     if (hasPartialOverlap) {
-      // Reject: partial overlap with existing same-type mark
-      window.alert(
-        '選択範囲と部分的に重なる同種のマークが存在します。先に既存のマークを解除してください。'
-      );
-      return;
+      if (!value) {
+        // Empty value with partial overlap: confirm deletion
+        if (
+          !window.confirm('選択範囲と部分的に重なるマークがあります。マーク全体を削除しますか？')
+        ) {
+          return;
+        }
+      } else {
+        // Non-empty value with partial overlap: reject
+        window.alert(
+          '選択範囲と部分的に重なる同種のマークが存在します。先に既存のマークを解除してください。'
+        );
+        return;
+      }
     }
 
-    // Exact match: remove all and replace
+    // Remove existing marks
     for (const mark of existingMarks) {
       if (mark.id) {
         newDoc = removeMark(newDoc, mark.id);
       }
     }
+  }
+
+  // Empty value: just remove (already done above)
+  if (!value) {
+    if (existingMarks.length > 0) {
+      updateXmlFromDocument(newDoc);
+    }
+    return;
   }
 
   // Add new mark
@@ -1288,6 +1307,45 @@ function handleKanaApply(): void {
 
   updateXmlFromDocument(newDoc);
   // parseAndRender handles selection restoration automatically
+}
+
+/**
+ * Delete kana mark of the currently selected type for the current selection
+ */
+function handleKanaDelete(): void {
+  if (!currentDocument || !currentSelectionFromId || !currentSelectionToId) return;
+
+  const type = currentSelectedKanaType;
+
+  const sel = normalizeSelection(currentDocument, currentSelectionFromId, currentSelectionToId);
+  if (!sel) return;
+  const { fromId: normalizedFromId, toId: normalizedToId } = sel;
+
+  const existingMarks = getMarksForRange(currentDocument, normalizedFromId, normalizedToId).filter(
+    (m) => m.type === type
+  );
+
+  if (existingMarks.length === 0) return;
+
+  // Check for partial overlap
+  const hasPartialOverlap = existingMarks.some(
+    (m) => !('anchor' in m) || m.anchor.from !== normalizedFromId || m.anchor.to !== normalizedToId
+  );
+
+  if (hasPartialOverlap) {
+    if (!window.confirm('選択範囲と部分的に重なるマークがあります。マーク全体を削除しますか？')) {
+      return;
+    }
+  }
+
+  let newDoc = currentDocument;
+  for (const mark of existingMarks) {
+    if (mark.id) {
+      newDoc = removeMark(newDoc, mark.id);
+    }
+  }
+
+  updateXmlFromDocument(newDoc);
 }
 
 /**
@@ -1941,23 +1999,33 @@ selectionKanaTypes.addEventListener('click', (e) => {
 
   // Update input with existing value for this type
   selectionKanaInput.value = currentKanaValues[type];
-  selectionKanaApply.disabled = !selectionKanaInput.value.trim();
+  const hasInput = Boolean(selectionKanaInput.value.trim());
+  const hasExisting = Boolean(currentKanaValues[type]);
+  selectionKanaApply.disabled = !hasInput && !hasExisting;
+  selectionKanaDelete.disabled = !hasExisting;
   selectionKanaInput.focus();
 });
 
 // Selection panel kana input
 selectionKanaInput.addEventListener('input', () => {
-  selectionKanaApply.disabled = !selectionKanaInput.value.trim();
+  const hasText = Boolean(selectionKanaInput.value.trim());
+  const hasExistingMark = Boolean(currentKanaValues[currentSelectedKanaType]);
+  selectionKanaApply.disabled = !hasText && !hasExistingMark;
 });
 
 selectionKanaInput.addEventListener('keydown', (e) => {
-  if (e.key === 'Enter' && selectionKanaInput.value.trim()) {
-    e.preventDefault();
-    handleKanaApply();
+  if (e.key === 'Enter') {
+    const hasText = Boolean(selectionKanaInput.value.trim());
+    const hasExistingMark = Boolean(currentKanaValues[currentSelectedKanaType]);
+    if (hasText || hasExistingMark) {
+      e.preventDefault();
+      handleKanaApply();
+    }
   }
 });
 
 selectionKanaApply.addEventListener('click', handleKanaApply);
+selectionKanaDelete.addEventListener('click', handleKanaDelete);
 
 // Selection panel tateten button
 selectionTatetenBtn.addEventListener('click', handleTatetenToggle);

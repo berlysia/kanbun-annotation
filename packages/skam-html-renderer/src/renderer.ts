@@ -934,36 +934,37 @@ export function renderToken(
   const kaeriMarks = (tokenMarks.get('kaeri') ?? []) as KaeriMark[];
   const allKaeriMarks = [...kaeriMarks, ...(rangeCtx?.trailingKaeriMarks ?? [])];
 
-  let suffixKaeriMarks: KaeriMark[];
-  let tatetenKaeriMarksList: KaeriMark[];
+  // extractTatetenKaeri=true の場合、返り点を suffix（レ部分）と separator（非レ部分）に分離
+  // 複合返り点（一レ等）は分割: レ→suffix、非レ→separator
+  let kaeriten = '';
+  let tatetenKaeriHtml = '';
   if (extractTatetenKaeri && profile.kaeriten) {
-    // レ点のみ suffix に残す、それ以外（一二上下甲乙、複合返り点等）は竪点セパレータへ
-    suffixKaeriMarks = allKaeriMarks.filter((m) => m.value === 'レ');
-    tatetenKaeriMarksList = allKaeriMarks.filter((m) => m.value !== 'レ');
-  } else {
-    suffixKaeriMarks = allKaeriMarks;
-    tatetenKaeriMarksList = [];
+    const suffixParts: string[] = [];
+    const separatorParts: string[] = [];
+    for (const m of allKaeriMarks) {
+      const hasRe = m.value.includes('レ');
+      const nonRePart = m.value.replace(/レ/g, '');
+      if (hasRe) {
+        suffixParts.push(
+          `<span class="${prefix}-kaeriten" aria-hidden="true">${convertKaeriToUnicode('レ')}</span>`
+        );
+      }
+      if (nonRePart) {
+        separatorParts.push(
+          `<span class="${prefix}-kaeriten" aria-hidden="true">${convertKaeriToUnicode(nonRePart)}</span>`
+        );
+      }
+    }
+    kaeriten = suffixParts.join('');
+    tatetenKaeriHtml = separatorParts.join('');
+  } else if (profile.kaeriten && allKaeriMarks.length > 0) {
+    kaeriten = allKaeriMarks
+      .map(
+        (m) =>
+          `<span class="${prefix}-kaeriten" aria-hidden="true">${convertKaeriToUnicode(m.value)}</span>`
+      )
+      .join('');
   }
-
-  const kaeriten =
-    profile.kaeriten && suffixKaeriMarks.length > 0
-      ? suffixKaeriMarks
-          .map(
-            (m) =>
-              `<span class="${prefix}-kaeriten" aria-hidden="true">${convertKaeriToUnicode(m.value)}</span>`
-          )
-          .join('')
-      : '';
-
-  const tatetenKaeriHtml =
-    tatetenKaeriMarksList.length > 0
-      ? tatetenKaeriMarksList
-          .map(
-            (m) =>
-              `<span class="${prefix}-kaeriten" aria-hidden="true">${convertKaeriToUnicode(m.value)}</span>`
-          )
-          .join('')
-      : '';
 
   // suffix-row: 3列グリッドで送り仮名・返り点・再読2回目送り仮名を配置
   // col1(右): 送り仮名・添え仮名、再読1回目送り仮名

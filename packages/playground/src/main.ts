@@ -1210,9 +1210,9 @@ function applyKaeriValue(value: string | null): void {
   const { fromId: normalizedFromId, toId: normalizedToId } = sel;
 
   // Determine kaeri position based on selection mode
-  // - single/tateten: place after the first token
-  // - multi: place after the last token (end of range)
-  const afterTokenId = currentSelectionMode === 'multi' ? normalizedToId : normalizedFromId;
+  // - single: place after the selected token
+  // - tateten/multi: place after the last token (end of range)
+  const afterTokenId = currentSelectionMode === 'single' ? normalizedFromId : normalizedToId;
   const searchTo = currentSelectionMode === 'single' ? normalizedFromId : normalizedToId;
 
   // Find and remove existing kaeri mark for this range

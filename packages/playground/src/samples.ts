@@ -254,6 +254,22 @@ export const SAMPLES: Sample[] = [
 </skam:doc>`,
   },
   {
+    name: '天無口（使役・レ点と一二点）',
+    description: '使役表現「使人言」とレ点・一二点の組み合わせ例',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1">
+  <skam:meta>
+    <skam:tokenize strategy="char"/>
+  </skam:meta>
+  <skam:body>
+    <skam:block><skam:kun okuri="ニ">天</skam:kun><skam:kun okuri="シ">無</skam:kun><skam:kaeri kind="re"/>口、<skam:kun okuri="ム">使</skam:kun><skam:kaeri kind="ni"/><skam:kun okuri="ヲシテ">人</skam:kun><skam:kun okuri="ハ">言</skam:kun><skam:kaeri kind="ichi"/>。</skam:block>
+  </skam:body>
+  <skam:readings>
+    <skam:reading kind="kakikudashi">天に口無し、人をして言はしむ。</skam:reading>
+  </skam:readings>
+</skam:doc>`,
+  },
+  {
     name: '春曉（五言絶句）',
     description: '孟浩然の五言絶句「春曉」の訓読例',
     xml: `<?xml version="1.0" encoding="UTF-8"?>

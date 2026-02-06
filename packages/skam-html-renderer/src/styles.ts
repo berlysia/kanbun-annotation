@@ -367,48 +367,58 @@ function generateCommonStyles(prefix: string, vp: string): string {
 /*
  * Tateten Separator (竪点セパレータ)
  *
- * 竪点マークと非レ返り点を並置するためのグリッドコンテナ。
- * suffix-row と同じ inline-grid パターンで、竪点を中央行に配置。
+ * 竪点マークと非レ返り点を並置するためのコンパクトグリッドコンテナ。
+ * 全要素を同一グリッド領域 (1 / -1) に重ねて配置し、
+ * align-self (start / center / end) で位置を分離する。
  *
  * 縦書き (vertical-rl) での物理配置:
- *   Row 1 (::before) → 右列（本文側余白）
- *   Row 2 (tateten-mark) → 中央列
- *   Row 3 (kaeriten) → 左列（注記側）
+ *   ::before (start)      → 右側（本文側余白、ベースライン安定用）
+ *   tateten-mark (center)  → 中央
+ *   kaeriten (end)         → 左側（注記側）
+ *
+ * グリッド総幅 = 4 * ruby-ratio * 0.5em = ruby-ratio * 2em
+ * (suffix-row の半分のため、vertical-align で中央揃え補正が必要)
+ *
+ * NOTE: vertical-align: middle は Chrome の縦書きモードで正しく動作しない (bug)。
+ * suffix-row VA から centering offset (ruby-ratio * 1em) を引いて補正する。
  */
 :where(.${prefix}-tateten-sep) {
   display: inline-grid;
-  grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) auto calc(var(--${vp}-ruby-ratio) * 1em);
+  grid-template-rows: repeat(4, calc(var(--${vp}-ruby-ratio) * 0.5em));
   line-height: 1;
-  /* suffix-row と同じ vertical-align（ブラウザ別対応は下記参照） */
-  vertical-align: calc(var(--${vp}-ruby-ratio) * 0.5em + 0.5em);
+  /* Chrome: suffix-row VA - centering offset = (ruby-ratio*0.5em + 0.5em) - ruby-ratio*1em */
+  vertical-align: calc(0.5em - var(--${vp}-ruby-ratio) * 0.5em);
 }
 
-/* Firefox: vertical-align: 0 で正常動作 */
+/* Firefox: 0 - centering offset (ruby-ratio*1em) */
 @-moz-document url-prefix() {
   :where(.${prefix}-tateten-sep) {
-    vertical-align: 0;
+    vertical-align: calc(var(--${vp}-ruby-ratio) * -1em);
   }
 }
 
-/* Safari: vertical-align: 0 で正常動作 */
+/* Safari: 0 - centering offset (ruby-ratio*1em) */
 @supports (-webkit-touch-callout: none) {
   :where(.${prefix}-tateten-sep) {
-    vertical-align: 0;
+    vertical-align: calc(var(--${vp}-ruby-ratio) * -1em);
   }
 }
 
 :where(.${prefix}-tateten-sep)::before {
   content: '';
-  grid-row: 1;
+  grid-row: 1 / 3;
+  grid-column: 1;
 }
 
 :where(.${prefix}-tateten-sep) > :where(.${prefix}-tateten-mark) {
-  grid-row: 2;
+  grid-row: 2 / 4;
+  grid-column: 1;
   align-self: center;
 }
 
 :where(.${prefix}-tateten-sep) > :where(.${prefix}-kaeriten) {
-  grid-row: 3;
+  grid-row: 3 / 5;
+  grid-column: 1;
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   align-self: center;
   user-select: none;

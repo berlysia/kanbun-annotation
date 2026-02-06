@@ -101,13 +101,13 @@
                   <input type="checkbox" data-profile-key="okurigana" />
                   送り仮名
                 </label>
-                <label title="訓読時に補う助詞">
-                  <input type="checkbox" data-profile-key="soegana" />
-                  添え仮名
-                </label>
                 <label title="レ、一二、上下、甲乙など">
                   <input type="checkbox" data-profile-key="kaeriten" />
                   返り点
+                </label>
+                <label title="訓読時に補う助詞">
+                  <input type="checkbox" data-profile-key="soegana" />
+                  添え仮名
                 </label>
                 <label title="。、など">
                   <input type="checkbox" data-profile-key="kutoten" />
@@ -117,13 +117,13 @@
                   <input type="checkbox" data-profile-key="saidoku" />
                   再読文字
                 </label>
-                <label title="古式の読み点">
-                  <input type="checkbox" data-profile-key="okototen" />
-                  ヲコト点
+                <label title="読まない漢字のマーク">
+                  <input type="checkbox" data-profile-key="okimoji" />
+                  置字
                 </label>
-                <label title="熟語境界マーク">
-                  <input type="checkbox" data-profile-key="tateten" />
-                  たて点
+                <label title="文法機能の分類ラベル">
+                  <input type="checkbox" data-profile-key="joji" />
+                  助字
                 </label>
                 <label title="強調の点（圏点）">
                   <input type="checkbox" data-profile-key="emphasis" />
@@ -133,17 +133,17 @@
                   <input type="checkbox" data-profile-key="highlight" />
                   傍線
                 </label>
-                <label title="読まない漢字のマーク">
-                  <input type="checkbox" data-profile-key="okimoji" />
-                  置字
-                </label>
-                <label title="文法機能の分類ラベル">
-                  <input type="checkbox" data-profile-key="joji" />
-                  助字
-                </label>
                 <label title="注釈への参照">
                   <input type="checkbox" data-profile-key="ref" />
                   参照
+                </label>
+                <label title="熟語境界マーク">
+                  <input type="checkbox" data-profile-key="tateten" />
+                  たて点
+                </label>
+                <label title="古式の読み点">
+                  <input type="checkbox" data-profile-key="okototen" />
+                  ヲコト点
                 </label>
               </div>
             </details>
@@ -157,17 +157,51 @@
               </div>
               <div class="selection-actions" id="selection-actions" style="display: none">
                 <div class="selection-action-group">
-                  <label class="selection-action-label">竪点</label>
-                  <div class="selection-tateten-row" id="selection-tateten-row">
+                  <label class="selection-action-label">仮名</label>
+                  <div class="selection-kana-types" id="selection-kana-types">
                     <button
                       type="button"
-                      class="selection-tateten-btn"
-                      id="selection-tateten-btn"
-                      disabled
+                      class="selection-kana-type-btn active"
+                      data-type="yomigana"
                     >
-                      熟語にする
+                      読み
+                    </button>
+                    <button type="button" class="selection-kana-type-btn" data-type="okurigana">
+                      送り
+                    </button>
+                    <button type="button" class="selection-kana-type-btn" data-type="soegana">
+                      添え
                     </button>
                   </div>
+                  <div class="selection-kana-row">
+                    <input
+                      type="text"
+                      id="selection-kana-input"
+                      class="selection-kana-input"
+                      placeholder="仮名"
+                      autocomplete="off"
+                    />
+                    <button
+                      type="button"
+                      id="selection-kana-apply"
+                      class="selection-btn-apply"
+                      disabled
+                    >
+                      適用
+                    </button>
+                    <button
+                      type="button"
+                      id="selection-kana-delete"
+                      class="selection-btn-delete"
+                      disabled
+                    >
+                      削除
+                    </button>
+                  </div>
+                </div>
+                <div class="selection-action-group">
+                  <label class="selection-action-label">返り点</label>
+                  <div class="selection-kaeri-buttons" id="selection-kaeri-buttons"></div>
                 </div>
                 <div class="selection-action-group">
                   <label class="selection-action-label">傍点</label>
@@ -313,49 +347,15 @@
                   </div>
                 </div>
                 <div class="selection-action-group">
-                  <label class="selection-action-label">返り点</label>
-                  <div class="selection-kaeri-buttons" id="selection-kaeri-buttons"></div>
-                </div>
-                <div class="selection-action-group">
-                  <label class="selection-action-label">仮名</label>
-                  <div class="selection-kana-types" id="selection-kana-types">
+                  <label class="selection-action-label">竪点</label>
+                  <div class="selection-tateten-row" id="selection-tateten-row">
                     <button
                       type="button"
-                      class="selection-kana-type-btn active"
-                      data-type="yomigana"
-                    >
-                      読み
-                    </button>
-                    <button type="button" class="selection-kana-type-btn" data-type="okurigana">
-                      送り
-                    </button>
-                    <button type="button" class="selection-kana-type-btn" data-type="soegana">
-                      添え
-                    </button>
-                  </div>
-                  <div class="selection-kana-row">
-                    <input
-                      type="text"
-                      id="selection-kana-input"
-                      class="selection-kana-input"
-                      placeholder="仮名"
-                      autocomplete="off"
-                    />
-                    <button
-                      type="button"
-                      id="selection-kana-apply"
-                      class="selection-btn-apply"
+                      class="selection-tateten-btn"
+                      id="selection-tateten-btn"
                       disabled
                     >
-                      適用
-                    </button>
-                    <button
-                      type="button"
-                      id="selection-kana-delete"
-                      class="selection-btn-delete"
-                      disabled
-                    >
-                      削除
+                      熟語にする
                     </button>
                   </div>
                 </div>

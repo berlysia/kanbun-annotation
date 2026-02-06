@@ -463,6 +463,20 @@ describe('Range kana + tateten + kaeri: kaeri must not disappear', () => {
     expect(html).toMatch(/<rt class="skam-ruby">しゅんぷう<\/rt>/);
   });
 
+  it('yomigana + tateten: no duplicate ruby on individual tokens', () => {
+    const doc = createThreeTokenDoc('國', '家', '之', [
+      { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'こっか' },
+      { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+    ]);
+    const { html } = render(doc);
+    // グループレベルの ruby は1つだけ
+    const rtMatches = html.match(/<rt class="skam-ruby">こっか<\/rt>/g);
+    expect(rtMatches).toHaveLength(1);
+    // 個別トークンに ruby がネストしていないこと
+    // 正しい構造: <ruby><rb class="skam-tateten-group">...<span class="skam-base">國</span>...<span class="skam-base">家</span>...</rb><rt>こっか</rt></ruby>
+    expect(html).not.toMatch(/skam-token.*<ruby>/s);
+  });
+
   it('yomigana + tateten + compound kaeri (一レ): split correctly', () => {
     const doc = createThreeTokenDoc('春', '風', '吹', [
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しゅんぷう' },

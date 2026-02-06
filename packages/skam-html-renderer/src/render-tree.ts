@@ -33,7 +33,8 @@ export interface RenderTreeContext {
 function callRenderToken(
   node: TokenItem,
   ctx: RenderTreeContext,
-  extractTatetenKaeri?: boolean
+  extractTatetenKaeri?: boolean,
+  suppressYomigana?: boolean
 ): TokenRenderResult {
   return renderToken(
     node.token,
@@ -42,7 +43,8 @@ function callRenderToken(
     node.rangeCtx,
     ctx.refValueMap,
     ctx.highlightRefIds,
-    extractTatetenKaeri
+    extractTatetenKaeri,
+    suppressYomigana
   );
 }
 
@@ -53,8 +55,11 @@ function callRenderToken(
 function renderTatetenGroup(node: TatetenGroupNode, ctx: RenderTreeContext): string {
   const { prefix } = ctx;
 
+  // グループレベルで yomigana が処理される場合、個別トークンの yomigana ruby を抑制
+  const groupHasYomigana = !!node.rangeCtx?.yomiganaBaseText;
+
   // Pass 1: 全トークンをレンダリング（非レ kaeri を分離）
-  const tokenResults = node.items.map((item) => callRenderToken(item, ctx, true));
+  const tokenResults = node.items.map((item) => callRenderToken(item, ctx, true, groupHasYomigana));
 
   // Pass 2: 各セパレータ位置への kaeri 割り当て
   const numSeparators = tokenResults.length - 1;
@@ -83,7 +88,7 @@ function renderTatetenGroup(node: TatetenGroupNode, ctx: RenderTreeContext): str
       // セパレータ: 常に tateten-sep ラッパーで囲み、vertical-align を suffix-row と統一
       const kaeri = separatorKaeri[i] ?? '';
       parts.push(
-        `<span class="${prefix}-tateten-sep"><span class="${prefix}-tateten-mark">\u3190</span>${kaeri}</span>`
+        `<span class="${prefix}-tateten-sep"><span class="${prefix}-tateten-mark"></span>${kaeri}</span>`
       );
     }
   }

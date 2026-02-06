@@ -746,14 +746,16 @@ function renderTokenWithRuby(
   token: Token,
   ctx: TokenRenderContext,
   baseText?: string,
-  rangeInfo?: RangeTokenInfo
+  rangeInfo?: RangeTokenInfo,
+  suppressYomigana?: boolean
 ): string {
   const { prefix, profile, tokenMarks, interactive } = ctx;
 
   // 読み仮名（ruby要素のrt内に配置、中央揃え）
+  // suppressYomigana: tateten グループレベルで yomigana が処理される場合、個別トークンの ruby を抑制
   const yomiganaMarks = (tokenMarks.get('yomigana') ?? []) as YomiganaMark[];
   const yomigana =
-    profile.yomigana && yomiganaMarks.length > 0
+    !suppressYomigana && profile.yomigana && yomiganaMarks.length > 0
       ? yomiganaMarks.map((m) => escapeHtml(m.value)).join('')
       : '';
 
@@ -858,7 +860,8 @@ export function renderToken(
   rangeCtx?: RangeMarkContext,
   refValueMap?: Map<RefMark, string>,
   highlightRefIds?: Set<string>,
-  extractTatetenKaeri?: boolean
+  extractTatetenKaeri?: boolean,
+  suppressYomigana?: boolean
 ): TokenRenderResult {
   const { prefix, profile } = ctx;
   const tokenMarks = getMarksForToken(token.id, marks, ctx.tokens);
@@ -1009,7 +1012,13 @@ export function renderToken(
     baseHtml = renderSaidokuToken(token, saidokuMark, fullCtx);
   } else {
     // 範囲グループがある場合は熟語全体のテキストを使用し、範囲情報も渡す
-    baseHtml = renderTokenWithRuby(token, fullCtx, rangeBaseText, rangeCtx?.rangeTokenInfo);
+    baseHtml = renderTokenWithRuby(
+      token,
+      fullCtx,
+      rangeBaseText,
+      rangeCtx?.rangeTokenInfo,
+      suppressYomigana
+    );
   }
 
   // ヲコト点追加

@@ -378,7 +378,22 @@ function generateCommonStyles(prefix: string, vp: string): string {
   display: inline-grid;
   grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) auto calc(var(--${vp}-ruby-ratio) * 1em);
   line-height: 1;
-  vertical-align: middle;
+  /* suffix-row と同じ vertical-align（ブラウザ別対応は下記参照） */
+  vertical-align: calc(var(--${vp}-ruby-ratio) * 0.5em + 0.5em);
+}
+
+/* Firefox: vertical-align: 0 で正常動作 */
+@-moz-document url-prefix() {
+  :where(.${prefix}-tateten-sep) {
+    vertical-align: 0;
+  }
+}
+
+/* Safari: vertical-align: 0 で正常動作 */
+@supports (-webkit-touch-callout: none) {
+  :where(.${prefix}-tateten-sep) {
+    vertical-align: 0;
+  }
 }
 
 :where(.${prefix}-tateten-sep)::before {

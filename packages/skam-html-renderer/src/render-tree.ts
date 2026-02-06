@@ -91,7 +91,7 @@ function renderTatetenGroupItems(
       // セパレータ: 常に tateten-sep ラッパーで囲み、vertical-align を suffix-row と統一
       const kaeri = separatorKaeri[i] ?? '';
       parts.push(
-        `<span class="${prefix}-tateten-sep"><span class="${prefix}-tateten-mark"></span>${kaeri}</span>`
+        `<span class="${prefix}-tateten-sep"><span class="${prefix}-tateten-mark">\u3190</span>${kaeri}</span>`
       );
     } else {
       parts.push(result.html);

@@ -359,8 +359,9 @@ function generateCommonStyles(prefix: string, vp: string): string {
 
 :where(.${prefix}-tateten-mark) {
   display: inline-block;
-  background-color: currentColor;
   vertical-align: middle;
+  font-size: calc(var(--${vp}-ruby-ratio) * 1em);
+  user-select: none;
 }
 
 /*
@@ -545,11 +546,7 @@ function generateCommonStyles(prefix: string, vp: string): string {
 function generateWritingModeStyles(prefix: string, isVertical: boolean): string {
   if (isVertical) {
     return `
-/* Tateten (たて点) - 縦書き */
-:where(.${prefix}-tateten-mark) {
-  width: 0.1em;
-  height: 0.6em;
-}
+/* Tateten (たて点) - 縦書き: U+3190 グリフがそのまま縦線として機能 */
 
 /* Emphasis (傍点) - 縦書き */
 :where(.${prefix}-emphasis) {
@@ -639,10 +636,9 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
 }`;
   } else {
     return `
-/* Tateten (たて点) - 横書き */
+/* Tateten (たて点) - 横書き: U+3190 グリフは縦長なので90°回転して横線にする */
 :where(.${prefix}-tateten-mark) {
-  width: 0.6em;
-  height: 0.1em;
+  transform: rotate(90deg);
 }
 
 /* Emphasis (傍点) - 横書き */

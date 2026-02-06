@@ -672,6 +672,15 @@ function updateSelectionPanel(fromId: string, toId: string): void {
         break;
       }
     }
+  } else if (currentSelectionMode === 'multi') {
+    // For multi selection, check for kaeri at the end of the range
+    const lastTokenMarks = getMarksForToken(currentDocument, currentSelectionToId!);
+    for (const mark of lastTokenMarks) {
+      if (mark.type === 'kaeri' && hasMarkValue(mark)) {
+        currentKaeriValue = String(mark.value);
+        break;
+      }
+    }
   }
 
   // Get kana marks for the entire selection range
@@ -801,16 +810,12 @@ function combineKaeriValue(re: boolean, other: string | null): string | null {
 function updateKaeriButtons(currentValue: string | null): void {
   selectionKaeriButtons.innerHTML = '';
 
-  // In 'multi' mode (multiple chars without tateten), kaeri is disabled
-  const isDisabled = currentSelectionMode === 'multi';
-
-  if (isDisabled) {
-    // Show disabled message
-    const msg = document.createElement('span');
-    msg.className = 'selection-kaeri-disabled-msg';
-    msg.textContent = '竪点をつけると返り点が使えます';
-    selectionKaeriButtons.appendChild(msg);
-    return;
+  // In 'multi' mode, kaeri is placed at the end of the range (no tateten required)
+  if (currentSelectionMode === 'multi') {
+    const hint = document.createElement('span');
+    hint.className = 'selection-kaeri-multi-hint';
+    hint.textContent = '末尾に返り点をつけます';
+    selectionKaeriButtons.appendChild(hint);
   }
 
   // Parse current value into components
@@ -1200,8 +1205,10 @@ function applyKaeriValue(value: string | null): void {
   if (!sel) return;
   const { fromId: normalizedFromId, toId: normalizedToId } = sel;
 
-  // For single selection or tateten range, determine kaeri position
-  const afterTokenId = normalizedFromId;
+  // Determine kaeri position based on selection mode
+  // - single/tateten: place after the first token
+  // - multi: place after the last token (end of range)
+  const afterTokenId = currentSelectionMode === 'multi' ? normalizedToId : normalizedFromId;
   const searchTo = currentSelectionMode === 'single' ? normalizedFromId : normalizedToId;
 
   // Find and remove existing kaeri mark for this range

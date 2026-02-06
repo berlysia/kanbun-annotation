@@ -2,7 +2,7 @@
 
 ## ステータス
 
-Phase A Complete（Phase B は移行基準の安定性・動機条件待ち）
+Complete（Phase A: テスト拡充、Phase B: ツリー再構築 — ADR-007 で実装完了）
 
 ## コンテキスト
 

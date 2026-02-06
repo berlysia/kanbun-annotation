@@ -746,8 +746,7 @@ function renderTokenWithRuby(
   token: Token,
   ctx: TokenRenderContext,
   baseText?: string,
-  rangeInfo?: RangeTokenInfo,
-  tatetenTokenTexts?: string[]
+  rangeInfo?: RangeTokenInfo
 ): string {
   const { prefix, profile, tokenMarks, interactive } = ctx;
 
@@ -770,13 +769,7 @@ function renderTokenWithRuby(
   // ルビ（読み仮名）が必要な場合はruby要素を使用
   // 熟語ルビの場合はbaseTextを使用
   const displayText = baseText ?? token.text;
-  // tateten重複時は個別トークンテキストをセパレータで結合
-  const baseContent =
-    tatetenTokenTexts && tatetenTokenTexts.length > 1
-      ? tatetenTokenTexts
-          .map((t) => escapeHtml(t))
-          .join(`<span class="${prefix}-tateten-mark"></span>`)
-      : escapeHtml(displayText);
+  const baseContent = escapeHtml(displayText);
   if (yomigana) {
     return `<ruby><rb class="${prefix}-base"${dataAttrs}>${baseContent}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>`;
   } else {
@@ -1015,13 +1008,7 @@ export function renderToken(
     baseHtml = renderSaidokuToken(token, saidokuMark, fullCtx);
   } else {
     // 範囲グループがある場合は熟語全体のテキストを使用し、範囲情報も渡す
-    baseHtml = renderTokenWithRuby(
-      token,
-      fullCtx,
-      rangeBaseText,
-      rangeCtx?.rangeTokenInfo,
-      rangeCtx?.tatetenTokenTexts
-    );
+    baseHtml = renderTokenWithRuby(token, fullCtx, rangeBaseText, rangeCtx?.rangeTokenInfo);
   }
 
   // ヲコト点追加

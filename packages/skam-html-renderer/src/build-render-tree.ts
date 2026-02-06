@@ -141,8 +141,20 @@ function buildFlatTokenList(blockTokens: Token[], ctx: BuildTreeContext): FlatTo
     const soeganaGroup = soeganaRangeGroups.get(token.id);
     let rangeCtx: RangeMarkContext | undefined;
 
-    // Yomigana range group
-    if (yomiganaGroup && yomiganaGroup.tokenIds[0] === token.id) {
+    // Tateten overlap detection: 読み範囲と tateten が重複する場合、
+    // 後続トークンを skip せず個別 entry に残す（tateten-group が処理を担当）
+    const activeRangeGroup =
+      yomiganaRangeGroups.get(token.id) ??
+      okuriganaRangeGroups.get(token.id) ??
+      soeganaRangeGroups.get(token.id);
+    const hasTatetenOverlap =
+      tatetenMark &&
+      activeRangeGroup &&
+      activeRangeGroup.tokenIds[0] === token.id &&
+      activeRangeGroup.tokenIds.some((tid: string) => tatetenGroups.has(tid));
+
+    // Yomigana range group（tateten 重複時はスキップ → tateten-group レベルで処理）
+    if (!hasTatetenOverlap && yomiganaGroup && yomiganaGroup.tokenIds[0] === token.id) {
       const baseText = yomiganaGroup.tokenIds
         .map((tid: string) => {
           const t = tokens.find((tok) => tok.id === tid);
@@ -162,8 +174,8 @@ function buildFlatTokenList(blockTokens: Token[], ctx: BuildTreeContext): FlatTo
       }
     }
 
-    // Okurigana range group
-    if (okuriganaGroup && okuriganaGroup.tokenIds[0] === token.id) {
+    // Okurigana range group（tateten 重複時はスキップ）
+    if (!hasTatetenOverlap && okuriganaGroup && okuriganaGroup.tokenIds[0] === token.id) {
       const baseText = okuriganaGroup.tokenIds
         .map((tid: string) => {
           const t = tokens.find((tok) => tok.id === tid);
@@ -190,8 +202,8 @@ function buildFlatTokenList(blockTokens: Token[], ctx: BuildTreeContext): FlatTo
       }
     }
 
-    // Soegana range group
-    if (soeganaGroup && soeganaGroup.tokenIds[0] === token.id) {
+    // Soegana range group（tateten 重複時はスキップ）
+    if (!hasTatetenOverlap && soeganaGroup && soeganaGroup.tokenIds[0] === token.id) {
       const baseText = soeganaGroup.tokenIds
         .map((tid: string) => {
           const t = tokens.find((tok) => tok.id === tid);
@@ -218,83 +230,68 @@ function buildFlatTokenList(blockTokens: Token[], ctx: BuildTreeContext): FlatTo
       }
     }
 
-    // Tateten overlap detection
-    if (rangeCtx && !rangeCtx.tatetenTokenTexts) {
-      const activeGroup = yomiganaGroup ?? okuriganaGroup ?? soeganaGroup;
-      if (activeGroup && activeGroup.tokenIds[0] === token.id) {
-        const hasTatetenOverlap = activeGroup.tokenIds.some((tid: string) =>
-          tatetenGroups.has(tid)
-        );
-        if (hasTatetenOverlap) {
-          const tatetenTokenTexts = activeGroup.tokenIds.map((tid: string) => {
-            const t = tokens.find((tok) => tok.id === tid);
-            return t?.text ?? '';
-          });
-          rangeCtx = { ...rangeCtx, tatetenTokenTexts };
+    // Collect trailing marks from range group's subsequent tokens（tateten 重複時はスキップ）
+    if (!hasTatetenOverlap) {
+      const allRangeTokenIds = new Set<string>();
+      if (yomiganaGroup && yomiganaGroup.tokenIds[0] === token.id) {
+        for (const tid of yomiganaGroup.tokenIds.slice(1)) {
+          allRangeTokenIds.add(tid);
         }
       }
-    }
-
-    // Collect trailing marks from range group's subsequent tokens
-    const allRangeTokenIds = new Set<string>();
-    if (yomiganaGroup && yomiganaGroup.tokenIds[0] === token.id) {
-      for (const tid of yomiganaGroup.tokenIds.slice(1)) {
-        allRangeTokenIds.add(tid);
-      }
-    }
-    if (okuriganaGroup && okuriganaGroup.tokenIds[0] === token.id) {
-      for (const tid of okuriganaGroup.tokenIds.slice(1)) {
-        allRangeTokenIds.add(tid);
-      }
-    }
-    if (soeganaGroup && soeganaGroup.tokenIds[0] === token.id) {
-      for (const tid of soeganaGroup.tokenIds.slice(1)) {
-        allRangeTokenIds.add(tid);
-      }
-    }
-    if (allRangeTokenIds.size > 0) {
-      const trailingKaeriMarks: KaeriMark[] = [];
-      const trailingKutotenMarks: KutotenMark[] = [];
-      const trailingRefMarks: RefMark[] = [];
-      const trailingOkimojiMarks: OkimojiMark[] = [];
-      const trailingJojiMarks: JojiMark[] = [];
-      const trailingEmphasisMarks: EmphasisMark[] = [];
-      for (const tid of allRangeTokenIds) {
-        const trailingTokenMarks = getMarksForToken(tid, marks, tokens);
-        if (profile.kaeriten) {
-          const kaeri = trailingTokenMarks.get('kaeri') as KaeriMark[] | undefined;
-          if (kaeri) trailingKaeriMarks.push(...kaeri);
-        }
-        if (profile.kutoten) {
-          const kutoten = trailingTokenMarks.get('kutoten') as KutotenMark[] | undefined;
-          if (kutoten) trailingKutotenMarks.push(...kutoten);
-        }
-        if (profile.ref) {
-          const ref = trailingTokenMarks.get('ref') as RefMark[] | undefined;
-          if (ref) trailingRefMarks.push(...ref);
-        }
-        {
-          const okimoji = trailingTokenMarks.get('okimoji') as OkimojiMark[] | undefined;
-          if (okimoji) trailingOkimojiMarks.push(...okimoji);
-        }
-        {
-          const joji = trailingTokenMarks.get('joji') as JojiMark[] | undefined;
-          if (joji) trailingJojiMarks.push(...joji);
-        }
-        if (profile.emphasis) {
-          const emphasis = trailingTokenMarks.get('emphasis') as EmphasisMark[] | undefined;
-          if (emphasis) trailingEmphasisMarks.push(...emphasis);
+      if (okuriganaGroup && okuriganaGroup.tokenIds[0] === token.id) {
+        for (const tid of okuriganaGroup.tokenIds.slice(1)) {
+          allRangeTokenIds.add(tid);
         }
       }
-      rangeCtx = {
-        ...rangeCtx,
-        trailingKaeriMarks,
-        trailingKutotenMarks,
-        trailingRefMarks,
-        ...(trailingOkimojiMarks.length > 0 ? { trailingOkimojiMarks } : {}),
-        ...(trailingJojiMarks.length > 0 ? { trailingJojiMarks } : {}),
-        ...(trailingEmphasisMarks.length > 0 ? { trailingEmphasisMarks } : {}),
-      };
+      if (soeganaGroup && soeganaGroup.tokenIds[0] === token.id) {
+        for (const tid of soeganaGroup.tokenIds.slice(1)) {
+          allRangeTokenIds.add(tid);
+        }
+      }
+      if (allRangeTokenIds.size > 0) {
+        const trailingKaeriMarks: KaeriMark[] = [];
+        const trailingKutotenMarks: KutotenMark[] = [];
+        const trailingRefMarks: RefMark[] = [];
+        const trailingOkimojiMarks: OkimojiMark[] = [];
+        const trailingJojiMarks: JojiMark[] = [];
+        const trailingEmphasisMarks: EmphasisMark[] = [];
+        for (const tid of allRangeTokenIds) {
+          const trailingTokenMarks = getMarksForToken(tid, marks, tokens);
+          if (profile.kaeriten) {
+            const kaeri = trailingTokenMarks.get('kaeri') as KaeriMark[] | undefined;
+            if (kaeri) trailingKaeriMarks.push(...kaeri);
+          }
+          if (profile.kutoten) {
+            const kutoten = trailingTokenMarks.get('kutoten') as KutotenMark[] | undefined;
+            if (kutoten) trailingKutotenMarks.push(...kutoten);
+          }
+          if (profile.ref) {
+            const ref = trailingTokenMarks.get('ref') as RefMark[] | undefined;
+            if (ref) trailingRefMarks.push(...ref);
+          }
+          {
+            const okimoji = trailingTokenMarks.get('okimoji') as OkimojiMark[] | undefined;
+            if (okimoji) trailingOkimojiMarks.push(...okimoji);
+          }
+          {
+            const joji = trailingTokenMarks.get('joji') as JojiMark[] | undefined;
+            if (joji) trailingJojiMarks.push(...joji);
+          }
+          if (profile.emphasis) {
+            const emphasis = trailingTokenMarks.get('emphasis') as EmphasisMark[] | undefined;
+            if (emphasis) trailingEmphasisMarks.push(...emphasis);
+          }
+        }
+        rangeCtx = {
+          ...rangeCtx,
+          trailingKaeriMarks,
+          trailingKutotenMarks,
+          trailingRefMarks,
+          ...(trailingOkimojiMarks.length > 0 ? { trailingOkimojiMarks } : {}),
+          ...(trailingJojiMarks.length > 0 ? { trailingJojiMarks } : {}),
+          ...(trailingEmphasisMarks.length > 0 ? { trailingEmphasisMarks } : {}),
+        };
+      }
     }
 
     const tokenItem: TokenItem = rangeCtx
@@ -313,6 +310,90 @@ function buildFlatTokenList(blockTokens: Token[], ctx: BuildTreeContext): FlatTo
 // ---------------------------------------------------------------------------
 // Phase 3: Group flat list into render tree
 // ---------------------------------------------------------------------------
+
+/**
+ * tateten-group に読み範囲が重複する場合の RangeMarkContext を構築する。
+ * 先頭トークンIDで読みグループをルックアップし、全トークンIDが items に含まれる場合に
+ * rangeCtx を返す。trailing marks の収集も行う。
+ */
+function buildTatetenGroupRangeCtx(
+  firstTokenId: string,
+  items: TokenItem[],
+  ctx: BuildTreeContext
+): RangeMarkContext | undefined {
+  const { tokens, marks, profile, yomiganaRangeGroups, okuriganaRangeGroups, soeganaRangeGroups } =
+    ctx;
+
+  const yomiganaGroup = yomiganaRangeGroups.get(firstTokenId);
+  const okuriganaGroup = okuriganaRangeGroups.get(firstTokenId);
+  const soeganaGroup = soeganaRangeGroups.get(firstTokenId);
+
+  const activeGroup = yomiganaGroup ?? okuriganaGroup ?? soeganaGroup;
+  if (!activeGroup || activeGroup.tokenIds[0] !== firstTokenId) return undefined;
+
+  // items のトークンID集合と読みグループのトークンIDが一致するか確認
+  const itemTokenIds = new Set(items.map((item) => item.token.id));
+  const allMatch = activeGroup.tokenIds.every((tid: string) => itemTokenIds.has(tid));
+  if (!allMatch) return undefined;
+
+  let rangeCtx: RangeMarkContext = {};
+
+  // 読み情報を設定
+  if (yomiganaGroup && yomiganaGroup.tokenIds[0] === firstTokenId) {
+    const baseText = yomiganaGroup.tokenIds
+      .map((tid: string) => {
+        const t = tokens.find((tok) => tok.id === tid);
+        return t?.text ?? '';
+      })
+      .join('');
+    const lastTokenId = yomiganaGroup.tokenIds[yomiganaGroup.tokenIds.length - 1];
+    const rangeTokenInfo: RangeTokenInfo =
+      firstTokenId && lastTokenId ? { from: firstTokenId, to: lastTokenId } : { from: '', to: '' };
+    rangeCtx = { ...rangeCtx, yomiganaBaseText: baseText, rangeTokenInfo };
+  }
+
+  if (okuriganaGroup && okuriganaGroup.tokenIds[0] === firstTokenId) {
+    const baseText = okuriganaGroup.tokenIds
+      .map((tid: string) => {
+        const t = tokens.find((tok) => tok.id === tid);
+        return t?.text ?? '';
+      })
+      .join('');
+    const okuriganaValue = (okuriganaGroup.mark as OkuriganaMark).value;
+    if (!rangeCtx.rangeTokenInfo) {
+      const lastTokenId = okuriganaGroup.tokenIds[okuriganaGroup.tokenIds.length - 1];
+      const rangeTokenInfo: RangeTokenInfo =
+        firstTokenId && lastTokenId
+          ? { from: firstTokenId, to: lastTokenId }
+          : { from: '', to: '' };
+      rangeCtx = { ...rangeCtx, okuriganaBaseText: baseText, okuriganaValue, rangeTokenInfo };
+    } else {
+      rangeCtx = { ...rangeCtx, okuriganaBaseText: baseText, okuriganaValue };
+    }
+  }
+
+  if (soeganaGroup && soeganaGroup.tokenIds[0] === firstTokenId) {
+    const baseText = soeganaGroup.tokenIds
+      .map((tid: string) => {
+        const t = tokens.find((tok) => tok.id === tid);
+        return t?.text ?? '';
+      })
+      .join('');
+    const soeganaValue = (soeganaGroup.mark as SoeganaMark).value;
+    if (!rangeCtx.rangeTokenInfo) {
+      const lastTokenId = soeganaGroup.tokenIds[soeganaGroup.tokenIds.length - 1];
+      const rangeTokenInfo: RangeTokenInfo =
+        firstTokenId && lastTokenId
+          ? { from: firstTokenId, to: lastTokenId }
+          : { from: '', to: '' };
+      rangeCtx = { ...rangeCtx, soeganaBaseText: baseText, soeganaValue, rangeTokenInfo };
+    } else {
+      rangeCtx = { ...rangeCtx, soeganaBaseText: baseText, soeganaValue };
+    }
+  }
+
+  return rangeCtx;
+}
 
 function groupIntoTree(entries: FlatTokenEntry[], ctx: BuildTreeContext): RenderNode[] {
   if (entries.length === 0) return [];
@@ -344,8 +425,14 @@ function groupIntoTree(entries: FlatTokenEntry[], ctx: BuildTreeContext): Render
           break;
         }
       }
+      // tateten-group に読み範囲が重複する場合、rangeCtx を構築
+      const firstTokenId = items[0]!.token.id;
+      const groupRangeCtx = buildTatetenGroupRangeCtx(firstTokenId, items, ctx);
+
       tatetenGrouped.push({
-        node: { type: 'tateten-group', tateten: groupTateten, items },
+        node: groupRangeCtx
+          ? { type: 'tateten-group', tateten: groupTateten, items, rangeCtx: groupRangeCtx }
+          : { type: 'tateten-group', tateten: groupTateten, items },
         highlightMark: groupHighlight,
       });
     } else {

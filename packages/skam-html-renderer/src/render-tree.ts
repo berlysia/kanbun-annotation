@@ -13,7 +13,7 @@ import type {
   RenderNode,
 } from './render-tree-types.js';
 import type { RenderProfile } from './renderer.js';
-import { renderToken } from './renderer.js';
+import { escapeHtml, renderToken } from './renderer.js';
 
 /** @internal */
 export interface RenderTreeContext {
@@ -88,23 +88,48 @@ function renderTatetenGroupItems(
 
     if (i < tokenResults.length - 1) {
       parts.push(result.html + result.kutotenHtml);
-      // セパレータ: kaeri がある場合は tateten-sep ラッパーで囲む
+      // セパレータ: 常に tateten-sep ラッパーで囲み、vertical-align を suffix-row と統一
       const kaeri = separatorKaeri[i] ?? '';
-      if (kaeri) {
-        parts.push(
-          `<span class="${prefix}-tateten-sep"><span class="${prefix}-tateten-mark"></span>${kaeri}</span>`
-        );
-      } else {
-        parts.push(`<span class="${prefix}-tateten-mark"></span>`);
-      }
+      parts.push(
+        `<span class="${prefix}-tateten-sep"><span class="${prefix}-tateten-mark"></span>${kaeri}</span>`
+      );
     } else {
       parts.push(result.html);
     }
   }
 
-  const html = `<span class="${prefix}-tateten-group">${parts.join('')}</span>`;
+  // 読み範囲が重複する場合: tateten-group 全体を <ruby> で囲む
+  const rangeCtx = node.rangeCtx;
+  const yomigana = rangeCtx?.yomiganaBaseText
+    ? escapeHtml(
+        // yomiganaBaseText はベーステキストなので、yomigana の値は先頭トークンの mark から取得
+        (() => {
+          const firstItem = node.items[0];
+          if (!firstItem) return '';
+          const yomiganaMarks = ctx.marks.filter(
+            (m) => m.type === 'yomigana' && 'anchor' in m && m.anchor.from === firstItem.token.id
+          );
+          return yomiganaMarks
+            .map((m) => ('value' in m ? (m as { value: string }).value : ''))
+            .join('');
+        })()
+      )
+    : '';
+
+  let groupContent = parts.join('');
+  if (yomigana) {
+    // interactive 用 data 属性
+    let dataAttrs = '';
+    if (ctx.interactive && rangeCtx?.rangeTokenInfo) {
+      dataAttrs = ` data-token-from="${escapeHtml(rangeCtx.rangeTokenInfo.from)}" data-token-to="${escapeHtml(rangeCtx.rangeTokenInfo.to)}"`;
+    }
+    groupContent = `<ruby><rb class="${prefix}-tateten-group"${dataAttrs}>${groupContent}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>`;
+  } else {
+    groupContent = `<span class="${prefix}-tateten-group">${groupContent}</span>`;
+  }
+
   const lastKutotenHtml = tokenResults[tokenResults.length - 1]?.kutotenHtml ?? '';
-  return { html, lastKutotenHtml };
+  return { html: groupContent, lastKutotenHtml };
 }
 
 function renderTatetenGroupNode(node: TatetenGroupNode, ctx: RenderTreeContext): string {

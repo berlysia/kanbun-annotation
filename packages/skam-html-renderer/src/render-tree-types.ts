@@ -57,8 +57,6 @@ export interface RangeMarkContext {
   trailingJojiMarks?: JojiMark[];
   /** 範囲グループ内の後続トークンに付いている傍点マーク */
   trailingEmphasisMarks?: EmphasisMark[];
-  /** tateten重複時の個別トークンテキスト（セパレータ挿入用） */
-  tatetenTokenTexts?: string[];
   /** 範囲のトークンID情報（熟語ルビ等でdata-token-from/to出力用） */
   rangeTokenInfo?: RangeTokenInfo;
 }
@@ -79,6 +77,8 @@ export interface TatetenGroupNode {
   type: 'tateten-group';
   tateten: TatetenMark;
   items: TokenItem[];
+  /** tateten と読み範囲が重複する場合の読み情報（グループ全体に適用） */
+  rangeCtx?: RangeMarkContext;
 }
 
 /** A highlight group wrapping nodes (tokens or tateten groups) that share a highlight mark. */

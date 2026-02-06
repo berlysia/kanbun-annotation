@@ -364,6 +364,10 @@ function generateCommonStyles(prefix: string, vp: string): string {
   user-select: none;
 }
 
+:where(.${prefix}-tateten-mark)::after {
+  content: '\\3190';
+}
+
 /*
  * Tateten Separator (竪点セパレータ)
  *

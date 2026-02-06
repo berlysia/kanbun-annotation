@@ -97,7 +97,6 @@ const selectionKaeriButtons = document.getElementById('selection-kaeri-buttons')
 const selectionKanaTypes = document.getElementById('selection-kana-types') as HTMLDivElement;
 const selectionKanaInput = document.getElementById('selection-kana-input') as HTMLInputElement;
 const selectionKanaApply = document.getElementById('selection-kana-apply') as HTMLButtonElement;
-const selectionKanaDelete = document.getElementById('selection-kana-delete') as HTMLButtonElement;
 const selectionSaidokuBtn = document.getElementById('selection-saidoku-btn') as HTMLButtonElement;
 const selectionSaidokuReread = document.getElementById(
   'selection-saidoku-reread'
@@ -110,9 +109,6 @@ const selectionSaidokuRereadOkuri = document.getElementById(
 ) as HTMLInputElement;
 const selectionSaidokuRereadApply = document.getElementById(
   'selection-saidoku-reread-apply'
-) as HTMLButtonElement;
-const selectionSaidokuRereadDelete = document.getElementById(
-  'selection-saidoku-reread-delete'
 ) as HTMLButtonElement;
 
 // Marks list panel elements
@@ -695,10 +691,6 @@ function updateSelectionPanel(fromId: string, toId: string): void {
     currentSaidokuMarkId = firstSaidoku.id ?? null;
     currentSaidokuIsExactMatch = isExactAnchorMatch(firstSaidoku, normalizedFromId, normalizedToId);
     if (currentSaidokuIsExactMatch) {
-      // Populate kana values from forms[0] so the kana UI shows them
-      const form0 = firstSaidoku.forms[0];
-      currentKanaValues.yomigana = form0?.yomi ?? '';
-      currentKanaValues.okurigana = form0?.okuri ?? '';
       // Populate reread values from forms[1]
       const form1 = firstSaidoku.forms[1];
       currentSaidokuRereadYomi = form1?.yomi ?? '';
@@ -763,6 +755,19 @@ function updateSelectionPanel(fromId: string, toId: string): void {
     }
   }
 
+  // When saidoku is active with exact match, populate kana values from forms[0]
+  // (saidoku absorbs yomigana/okurigana, so they don't exist as separate marks)
+  if (currentSaidokuMarkId && currentSaidokuIsExactMatch) {
+    const saidokuMark = getMarkById(currentDocument, currentSaidokuMarkId) as
+      | SaidokuMark
+      | undefined;
+    if (saidokuMark) {
+      const form0 = saidokuMark.forms[0];
+      if (form0?.yomi) currentKanaValues.yomigana = form0.yomi;
+      if (form0?.okuri) currentKanaValues.okurigana = form0.okuri;
+    }
+  }
+
   // Determine initial kana type: prefer type with existing value, else yomigana
   if (currentKanaValues.yomigana) {
     currentKanaType = 'yomigana';
@@ -807,7 +812,6 @@ function updateSelectionPanel(fromId: string, toId: string): void {
   const hasKanaInput = Boolean(selectionKanaInput.value.trim());
   const hasExistingKana = Boolean(currentKanaValues[currentKanaType]);
   selectionKanaApply.disabled = !hasKanaInput && !hasExistingKana;
-  selectionKanaDelete.disabled = !hasExistingKana;
 
   // Show actions panel
   selectionActions.style.display = 'block';
@@ -821,9 +825,12 @@ function updateKanaTypeButtons(): void {
     '.selection-kana-type-btn'
   );
   for (const btn of buttons) {
-    const type = btn.dataset['type'] as 'yomigana' | 'okurigana' | 'soegana';
-    btn.classList.toggle('active', type === currentSelectedKanaType);
-    btn.classList.toggle('has-value', Boolean(currentKanaValues[type]));
+    const type = btn.dataset['type'];
+    // Saidoku button state is managed by updateSaidokuButton()
+    if (type === 'saidoku') continue;
+    const kanaType = type as 'yomigana' | 'okurigana' | 'soegana';
+    btn.classList.toggle('active', kanaType === currentSelectedKanaType);
+    btn.classList.toggle('has-value', Boolean(currentKanaValues[kanaType]));
   }
 }
 
@@ -1387,65 +1394,16 @@ function handleKanaApply(): void {
 }
 
 /**
- * Delete kana mark of the currently selected type for the current selection
- */
-function handleKanaDelete(): void {
-  if (!currentDocument || !currentSelectionFromId || !currentSelectionToId) return;
-
-  const type = currentSelectedKanaType;
-
-  // When saidoku active and deleting yomigana/okurigana, clear saidoku forms[0] field
-  if (
-    currentSaidokuMarkId &&
-    currentSaidokuIsExactMatch &&
-    (type === 'yomigana' || type === 'okurigana')
-  ) {
-    applySaidokuForm0(type, '');
-    return;
-  }
-
-  const sel = normalizeSelection(currentDocument, currentSelectionFromId, currentSelectionToId);
-  if (!sel) return;
-  const { fromId: normalizedFromId, toId: normalizedToId } = sel;
-
-  const existingMarks = getMarksForRange(currentDocument, normalizedFromId, normalizedToId).filter(
-    (m) => m.type === type
-  );
-
-  if (existingMarks.length === 0) return;
-
-  // Check for partial overlap
-  const hasPartialOverlap = existingMarks.some(
-    (m) => !('anchor' in m) || m.anchor.from !== normalizedFromId || m.anchor.to !== normalizedToId
-  );
-
-  if (hasPartialOverlap) {
-    if (!window.confirm('選択範囲と部分的に重なるマークがあります。マーク全体を削除しますか？')) {
-      return;
-    }
-  }
-
-  let newDoc = currentDocument;
-  for (const mark of existingMarks) {
-    if (mark.id) {
-      newDoc = removeMark(newDoc, mark.id);
-    }
-  }
-
-  updateXmlFromDocument(newDoc);
-}
-
-/**
  * Update saidoku button based on current selection state
  */
 function updateSaidokuButton(): void {
-  if (currentSaidokuMarkId) {
-    selectionSaidokuBtn.textContent = '再読文字を解除';
-    selectionSaidokuBtn.classList.add('active');
-  } else {
-    selectionSaidokuBtn.textContent = '再読文字にする';
-    selectionSaidokuBtn.classList.remove('active');
-  }
+  // Saidoku is only applicable to single-character selections
+  // (or when an existing saidoku mark already spans the selection)
+  const isSingleChar = currentSelectionMode === 'single';
+  const hasSaidoku = Boolean(currentSaidokuMarkId);
+  selectionSaidokuBtn.disabled = !isSingleChar && !hasSaidoku;
+  selectionSaidokuBtn.classList.toggle('active', hasSaidoku);
+  selectionSaidokuBtn.classList.toggle('has-value', hasSaidoku);
 }
 
 /**
@@ -1489,10 +1447,6 @@ function updateSaidokuReread(): void {
   selectionSaidokuReread.style.display = 'block';
   selectionSaidokuRereadYomi.value = currentSaidokuRereadYomi;
   selectionSaidokuRereadOkuri.value = currentSaidokuRereadOkuri;
-
-  // Enable delete button only if reread has values
-  const hasRereadValues = Boolean(currentSaidokuRereadYomi || currentSaidokuRereadOkuri);
-  selectionSaidokuRereadDelete.disabled = !hasRereadValues;
 }
 
 /**
@@ -1608,21 +1562,6 @@ function handleSaidokuRereadApply(): void {
 }
 
 /**
- * Clear reread part (forms[1]) of the saidoku mark
- */
-function handleSaidokuRereadDelete(): void {
-  if (!currentDocument || !currentSaidokuMarkId || !currentSaidokuIsExactMatch) return;
-
-  const mark = getMarkById(currentDocument, currentSaidokuMarkId) as SaidokuMark | undefined;
-  if (!mark) return;
-
-  // Keep forms[0], clear forms[1]
-  const form0 = mark.forms[0] ?? { n: 1 };
-  const newDoc = updateMark(currentDocument, currentSaidokuMarkId, { forms: [form0, { n: 2 }] });
-  updateXmlFromDocument(newDoc);
-}
-
-/**
  * Clear selection panel
  */
 function clearSelectionPanel(): void {
@@ -1661,12 +1600,10 @@ function clearSelectionPanel(): void {
   updateUnderlineStyleButtons();
   selectionUnderlineRefInput.value = '';
   selectionUnderlineFormatSelect.value = '';
-  selectionSaidokuBtn.textContent = '再読文字にする';
-  selectionSaidokuBtn.classList.remove('active');
+  selectionSaidokuBtn.classList.remove('active', 'has-value');
   selectionSaidokuReread.style.display = 'none';
   selectionSaidokuRereadYomi.value = '';
   selectionSaidokuRereadOkuri.value = '';
-  selectionSaidokuRereadDelete.disabled = true;
   updateKanaTypeButtons();
   selectionKanaInput.value = '';
   selectionKanaApply.disabled = true;
@@ -2281,8 +2218,19 @@ selectionKanaTypes.addEventListener('click', (e) => {
   if (!target.classList.contains('selection-kana-type-btn')) return;
   if (target.disabled) return;
 
-  const type = target.dataset['type'] as 'yomigana' | 'okurigana' | 'soegana' | undefined;
+  const type = target.dataset['type'] as
+    | 'yomigana'
+    | 'okurigana'
+    | 'soegana'
+    | 'saidoku'
+    | undefined;
   if (!type) return;
+
+  // Saidoku is a toggle, not a kana type selector
+  if (type === 'saidoku') {
+    handleSaidokuToggle();
+    return;
+  }
 
   currentSelectedKanaType = type;
   updateKanaTypeButtons();
@@ -2292,7 +2240,6 @@ selectionKanaTypes.addEventListener('click', (e) => {
   const hasInput = Boolean(selectionKanaInput.value.trim());
   const hasExisting = Boolean(currentKanaValues[type]);
   selectionKanaApply.disabled = !hasInput && !hasExisting;
-  selectionKanaDelete.disabled = !hasExisting;
   selectionKanaInput.focus();
 });
 
@@ -2315,14 +2262,9 @@ selectionKanaInput.addEventListener('keydown', (e) => {
 });
 
 selectionKanaApply.addEventListener('click', handleKanaApply);
-selectionKanaDelete.addEventListener('click', handleKanaDelete);
-
-// Selection panel saidoku button
-selectionSaidokuBtn.addEventListener('click', handleSaidokuToggle);
 
 // Selection panel saidoku reread controls
 selectionSaidokuRereadApply.addEventListener('click', handleSaidokuRereadApply);
-selectionSaidokuRereadDelete.addEventListener('click', handleSaidokuRereadDelete);
 
 // Enter key in reread inputs triggers apply
 selectionSaidokuRereadYomi.addEventListener('keydown', (e) => {

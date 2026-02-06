@@ -172,6 +172,14 @@
                     <button type="button" class="selection-kana-type-btn" data-type="soegana">
                       添え
                     </button>
+                    <button
+                      type="button"
+                      class="selection-kana-type-btn"
+                      id="selection-saidoku-btn"
+                      data-type="saidoku"
+                    >
+                      再読
+                    </button>
                   </div>
                   <div class="selection-kana-row">
                     <input
@@ -189,22 +197,6 @@
                     >
                       適用
                     </button>
-                    <button
-                      type="button"
-                      id="selection-kana-delete"
-                      class="selection-btn-delete"
-                      disabled
-                    >
-                      削除
-                    </button>
-                  </div>
-                </div>
-                <div class="selection-action-group" id="selection-saidoku-group">
-                  <label class="selection-action-label">再読文字</label>
-                  <div class="selection-saidoku-row">
-                    <button type="button" class="selection-saidoku-btn" id="selection-saidoku-btn">
-                      再読文字にする
-                    </button>
                   </div>
                   <div
                     class="selection-saidoku-reread"
@@ -212,18 +204,18 @@
                     style="display: none"
                   >
                     <span class="selection-saidoku-reread-label">再読部分</span>
-                    <div class="selection-saidoku-reread-row">
+                    <div class="selection-kana-row">
                       <input
                         type="text"
                         id="selection-saidoku-reread-yomi"
-                        class="selection-saidoku-reread-input"
+                        class="selection-kana-input"
                         placeholder="読み"
                         autocomplete="off"
                       />
                       <input
                         type="text"
                         id="selection-saidoku-reread-okuri"
-                        class="selection-saidoku-reread-input"
+                        class="selection-kana-input"
                         placeholder="送り"
                         autocomplete="off"
                       />
@@ -233,14 +225,6 @@
                         class="selection-btn-apply"
                       >
                         適用
-                      </button>
-                      <button
-                        type="button"
-                        id="selection-saidoku-reread-delete"
-                        class="selection-btn-delete"
-                        disabled
-                      >
-                        削除
                       </button>
                     </div>
                   </div>

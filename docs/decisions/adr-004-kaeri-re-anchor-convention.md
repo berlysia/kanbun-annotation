@@ -4,6 +4,8 @@
 
 Accepted
 
+実装計画: [Plan](../plans/plan-kaeri-re-anchor-convention.md)
+
 ## コンテキスト
 
 ### 問題

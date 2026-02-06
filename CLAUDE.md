@@ -196,7 +196,43 @@ anchor ベースと position ベースは共通基底 `MarkBase` から対等に
 
 - `SKAM-draft.md` - SKAM v0.1 仕様（JSON 形式、正規表現）
 - `SKAM-ML-draft.md` - SKAM-ML/XML 仕様（人間編集用マークアップ）
-- `docs/decisions/` - Architecture Decision Records
+- `docs/decisions/` - Architecture Decision Records (ADR)
+- `docs/decisions/TEMPLATE.md` - ADR テンプレート
+- `docs/plans/` - 実装計画 (Plan)
+- `docs/plans/TEMPLATE.md` - Plan テンプレート
+
+### ADR-Plan ワークフロー
+
+ADR と Plan は 1:1 対応が必須。独立 Plan（ADR なし）は許容。
+
+#### フロー
+
+```
+Session A: 調査 & ADR 作成
+  1. コードベース調査
+  2. docs/decisions/adr-{NNN}-{slug}.md を作成
+  3. ADR をコミット (status: Accepted)
+
+Session B: Plan 作成 & 実装
+  1. ADR を読む
+  2. Plan Mode → docs/plans/plan-{slug}.md に計画作成
+     - テンプレート: docs/plans/TEMPLATE.md
+     - 「関連 ADR」リンク必須
+  3. ADR に Plan へのリンクを追加（双方向リンク）
+  4. logic-validator で検証 → <!-- validated --> マーカー追加
+  5. ExitPlanMode → 実装
+  6. Plan + 実装をコミット
+```
+
+#### ルール
+
+- **1:1 必須**: ADR を Accept したら、実装前に対応する Plan を作成する
+- **双方向リンク**:
+  - Plan → ADR: `関連 ADR: [ADR-NNN](../decisions/adr-NNN-{slug}.md)`
+  - ADR → Plan: `実装計画: [Plan](../plans/plan-{slug}.md)`
+- **命名**: ADR 連動は `plan-{adr-slug}.md`、独立 Plan は自由な命名
+- **配置**: Plan は最初から `docs/plans/` に配置（`.tmp/` を経由しない）
+- **独立 Plan**: ADR なしの Plan も `docs/plans/` に配置可
 
 ## TypeScript Configuration
 

@@ -4,6 +4,8 @@
 
 Accepted (Phase 1 完了 — Phase 2 以降は ADR-006 に移管)
 
+実装計画: [Plan](../plans/plan-restructure-display-layer-rendering.md)
+
 ## コンテキスト
 
 ### 問題

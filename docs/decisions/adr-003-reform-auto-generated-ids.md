@@ -4,6 +4,8 @@
 
 Accepted
 
+実装計画: [Plan](../plans/plan-reform-auto-generated-ids.md)
+
 ## コンテキスト
 
 ### 現状の自動生成ID

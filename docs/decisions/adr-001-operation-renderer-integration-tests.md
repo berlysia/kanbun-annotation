@@ -4,6 +4,8 @@
 
 Accepted
 
+実装計画: [Plan](../plans/plan-operation-renderer-integration-tests.md)
+
 ## コンテキスト
 
 SKAM プロジェクトには2つの独立したテスト層が存在する:

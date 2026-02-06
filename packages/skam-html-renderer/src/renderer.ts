@@ -28,6 +28,11 @@ import type {
 } from '@kanbun/skam';
 import { isPositionBasedMark } from '@kanbun/skam';
 import { getDefaultStyles } from './styles.js';
+import type { RangeMarkContext, RangeTokenInfo, TokenRenderResult } from './render-tree-types.js';
+import { buildBlockRenderTree, type BuildTreeContext } from './build-render-tree.js';
+import { renderBlockTree, type RenderTreeContext } from './render-tree.js';
+
+export type { RangeMarkContext, RangeTokenInfo, TokenRenderResult } from './render-tree-types.js';
 
 // ============================================================================
 // Types
@@ -99,16 +104,6 @@ export interface RenderOptions {
 export interface RenderResult {
   html: string;
   css: string;
-}
-
-/**
- * Token レンダリング結果（kutoten分離用）
- */
-interface TokenRenderResult {
-  /** Token本体のHTML（kutoten除く） */
-  html: string;
-  /** 句読点のHTML（highlight終端で外に出す用） */
-  kutotenHtml: string;
 }
 
 /**
@@ -339,8 +334,9 @@ const KAERI_UNICODE: Record<string, string> = {
 
 /**
  * HTMLエスケープ
+ * @internal
  */
-function escapeHtml(text: string): string {
+export function escapeHtml(text: string): string {
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
@@ -362,8 +358,11 @@ function isBlockStartPosition(position: Position): boolean {
   return !('after' in position) || position.after === undefined;
 }
 
-/** Get block-start position marks for a given blockId */
-function getBlockStartMarks(
+/**
+ * Get block-start position marks for a given blockId
+ * @internal
+ */
+export function getBlockStartMarks(
   blockId: string,
   marks: Mark[]
 ): { refs: RefMark[]; kutotenMarks: KutotenMark[] } {
@@ -396,8 +395,9 @@ function getBlockStartMarks(
  *
  * Position-basedマーク（kutoten, ref）の処理:
  * - position.afterで返す（トークンの後に配置）
+ * @internal
  */
-function getMarksForToken(
+export function getMarksForToken(
   tokenId: string,
   marks: Mark[],
   tokens: Token[]
@@ -460,8 +460,9 @@ function getMarksForToken(
 
 /**
  * TatetenMarkの範囲に含まれるTokenを特定
+ * @internal
  */
-function getTatetenGroups(tokens: Token[], marks: Mark[]): Map<string, TatetenMark> {
+export function getTatetenGroups(tokens: Token[], marks: Mark[]): Map<string, TatetenMark> {
   const tatetenMarks = marks.filter((m): m is TatetenMark => m.type === 'tateten');
   const tokenIdToGroup = new Map<string, TatetenMark>();
 
@@ -484,16 +485,18 @@ function getTatetenGroups(tokens: Token[], marks: Mark[]): Map<string, TatetenMa
 
 /**
  * 範囲を持つマーク（yomigana, okurigana, soegana）のグループ情報
+ * @internal
  */
-interface RangeMarkGroup {
+export interface RangeMarkGroup {
   mark: YomiganaMark | OkuriganaMark | SoeganaMark;
   tokenIds: string[];
 }
 
 /**
  * 範囲マークのグループを取得（anchor.from !== anchor.to のマーク）
+ * @internal
  */
-function getRangeMarkGroups(
+export function getRangeMarkGroups(
   tokens: Token[],
   marks: Mark[],
   type: 'yomigana' | 'okurigana' | 'soegana'
@@ -556,8 +559,9 @@ function convertKaeriToUnicode(value: string): string {
  * - または2文字以下の半角文字
  *
  * 全角括弧で囲まれた全角文字（例: "（イ）"）は縦中横不要
+ * @internal
  */
-function shouldApplyTateChuYoko(text: string): boolean {
+export function shouldApplyTateChuYoko(text: string): boolean {
   // 半角丸括弧または角括弧で囲まれた1文字の場合
   if (/^[([][A-Za-z0-9][)\]]$/.test(text)) {
     return true;
@@ -607,8 +611,9 @@ function formatRefIndex(index: number, format: RefFormat): string {
  * - 同じ format + 同じ ext.value を持つ ref は同一
  *
  * 番号付けは文書内での登場順（anchor.fromのtoken位置）に基づく
+ * @internal
  */
-function resolveRefValues(tokens: Token[], marks: Mark[]): Map<RefMark, string> {
+export function resolveRefValues(tokens: Token[], marks: Mark[]): Map<RefMark, string> {
   const refMarks = marks.filter((m): m is RefMark => m.type === 'ref');
 
   // token位置のインデックスマップを作成
@@ -694,8 +699,9 @@ function resolveRefValues(tokens: Token[], marks: Mark[]): Map<RefMark, string> 
 
 /**
  * Highlight Markの範囲に含まれるTokenを特定
+ * @internal
  */
-function getHighlightGroups(tokens: Token[], marks: Mark[]): Map<string, HighlightMark> {
+export function getHighlightGroups(tokens: Token[], marks: Mark[]): Map<string, HighlightMark> {
   const highlightMarks = marks.filter((m): m is HighlightMark => m.type === 'highlight');
   const tokenIdToGroup = new Map<string, HighlightMark>();
 
@@ -720,20 +726,13 @@ function getHighlightGroups(tokens: Token[], marks: Mark[]): Map<string, Highlig
 // Token Rendering
 // ============================================================================
 
-interface TokenRenderContext {
+/** @internal */
+export interface TokenRenderContext {
   prefix: string;
   profile: RenderProfile;
   tokens: Token[];
   tokenMarks: Map<Mark['type'], Mark[]>;
   interactive: boolean;
-}
-
-/**
- * 範囲マーク情報（data-token-from/to属性用）
- */
-interface RangeTokenInfo {
-  from: string;
-  to: string;
 }
 
 /**
@@ -854,43 +853,12 @@ function renderOkototen(okototenMark: OkototenMark, prefix: string): string {
 }
 
 /**
- * 範囲マークのコンテキスト（熟語ルビ等のベーステキスト・値）
- */
-interface RangeMarkContext {
-  /** 範囲yomiganaのベーステキスト（全トークンのテキストを結合） */
-  yomiganaBaseText?: string;
-  /** 範囲okuriganaのベーステキスト */
-  okuriganaBaseText?: string;
-  /** 範囲okuriganaの値 */
-  okuriganaValue?: string;
-  /** 範囲soeganaのベーステキスト */
-  soeganaBaseText?: string;
-  /** 範囲soeganaの値 */
-  soeganaValue?: string;
-  /** 範囲グループ内の後続トークンに付いている返り点 */
-  trailingKaeriMarks?: KaeriMark[];
-  /** 範囲グループ内の後続トークンに付いている句読点 */
-  trailingKutotenMarks?: KutotenMark[];
-  /** 範囲グループ内の後続トークンに付いているrefマーク */
-  trailingRefMarks?: RefMark[];
-  /** 範囲グループ内の後続トークンに付いている置字マーク */
-  trailingOkimojiMarks?: OkimojiMark[];
-  /** 範囲グループ内の後続トークンに付いている助字マーク */
-  trailingJojiMarks?: JojiMark[];
-  /** 範囲グループ内の後続トークンに付いている傍点マーク */
-  trailingEmphasisMarks?: EmphasisMark[];
-  /** tateten重複時の個別トークンテキスト（セパレータ挿入用） */
-  tatetenTokenTexts?: string[];
-  /** 範囲のトークンID情報（熟語ルビ等でdata-token-from/to出力用） */
-  rangeTokenInfo?: RangeTokenInfo;
-}
-
-/**
  * 単一TokenのHTMLを生成
  *
  * @returns TokenRenderResult - html（token本体）とkutotenHtml（句読点）を分離して返す
+ * @internal
  */
-function renderToken(
+export function renderToken(
   token: Token,
   marks: Mark[],
   ctx: Omit<TokenRenderContext, 'tokenMarks'>,
@@ -1156,8 +1124,9 @@ function renderRefNotes(
  *
  * blocks が存在する場合は各 block の tokenIds から tokens を解決する。
  * blocks が空の場合は全 tokens を blockId=null の単一グループとして返す。
+ * @internal
  */
-function groupTokensByBlock(
+export function groupTokensByBlock(
   blocks: Block[],
   tokens: Token[]
 ): { blockId: string; tokens: Token[] }[] {
@@ -1189,16 +1158,12 @@ function groupTokensByBlock(
   return groups;
 }
 
-interface FlushState {
-  currentTatetenGroup: TatetenMark | undefined;
-  currentHighlightGroup: HighlightMark | undefined;
-  groupTokens: string[];
-  highlightTokens: string[];
-  pendingHighlightKutoten: string;
-}
-
 /**
  * Display層のHTMLを生成
+ *
+ * 2-pass アーキテクチャ:
+ * Pass 1 (buildBlockRenderTree): tokens + marks → BlockRenderTree
+ * Pass 2 (renderBlockTree): BlockRenderTree → HTML string
  */
 function renderDisplayLayer(
   doc: SKAMDocument,
@@ -1208,18 +1173,12 @@ function renderDisplayLayer(
   interactive: boolean
 ): { tokens: string; prefix: string } {
   const { tokens, marks } = doc;
-  const ctx = { prefix, profile, tokens, interactive };
 
-  // refマークの値を事前計算
+  // Pre-computation
   const refValueMap = profile.ref ? resolveRefValues(tokens, marks) : new Map();
-
-  // たて点グループを特定
   const tatetenGroups = getTatetenGroups(tokens, marks);
-
-  // 傍線グループを特定
   const highlightGroups = profile.highlight ? getHighlightGroups(tokens, marks) : new Map();
 
-  // highlightから参照されているrefのIDを収集（renderToken内でスキップ用）
   const highlightRefIds = new Set<string>();
   if (profile.highlight) {
     const highlightMarks = marks.filter((m): m is HighlightMark => m.type === 'highlight');
@@ -1230,385 +1189,52 @@ function renderDisplayLayer(
     }
   }
 
-  // 範囲yomiganaグループを特定（熟語ルビ対応）
   const yomiganaRangeGroups = profile.yomigana
     ? getRangeMarkGroups(tokens, marks, 'yomigana')
     : new Map();
-
-  // 範囲okuriganaグループを特定
   const okuriganaRangeGroups = profile.okurigana
     ? getRangeMarkGroups(tokens, marks, 'okurigana')
     : new Map();
-
-  // 範囲soeganaグループを特定
   const soeganaRangeGroups = profile.soegana
     ? getRangeMarkGroups(tokens, marks, 'soegana')
     : new Map();
 
-  // highlightのrefを解決して表示用テキストを取得するヘルパー
-  const getRefTextForHighlight = (highlight: HighlightMark): string => {
-    if (!profile.ref || !highlight.ref) return '';
-
-    // highlight.ref は RefMark の id を参照
-    const refMark = marks.find((m): m is RefMark => m.type === 'ref' && m.id === highlight.ref);
-    if (refMark) {
-      const refText = refValueMap.get(refMark) ?? '';
-      if (refText) {
-        const halfWidthClass = shouldApplyTateChuYoko(refText) ? ` ${prefix}-ref--half-width` : '';
-        return `<span class="${prefix}-ref${halfWidthClass}">${escapeHtml(refText)}</span>`;
-      }
-    }
-    return '';
+  const buildCtx: BuildTreeContext = {
+    prefix,
+    profile,
+    tokens,
+    marks,
+    refValueMap,
+    highlightRefIds,
+    tatetenGroups,
+    highlightGroups,
+    yomiganaRangeGroups,
+    okuriganaRangeGroups,
+    soeganaRangeGroups,
+  };
+  const renderCtx: RenderTreeContext = {
+    prefix,
+    profile,
+    tokens,
+    marks,
+    interactive,
+    refValueMap,
+    highlightRefIds,
   };
 
-  // ブロックごとにトークンをグループ化（doc.blocks を使用）
   const blockGroups = groupTokensByBlock(doc.blocks ?? [], tokens);
   const blockTag = inline ? 'span' : 'div';
-
-  // 各ブロックを個別にレンダリング
   const renderedBlocks: string[] = [];
 
   for (const blockGroup of blockGroups) {
-    const blockTokens = blockGroup.tokens;
-    const renderedTokens: string[] = [];
-    const flushState: FlushState = {
-      currentTatetenGroup: undefined,
-      currentHighlightGroup: undefined,
-      groupTokens: [],
-      highlightTokens: [],
-      pendingHighlightKutoten: '',
-    };
-    /**
-     * たて点グループのアキュムレータ（groupTokens）をフラッシュする。
-     * @param toHighlightBuffer - true なら highlightTokens へ、false なら renderedTokens へ出力
-     * @param resetGroup - true の場合 currentTatetenGroup も undefined にリセット
-     */
-    function flushTatetenGroup(toHighlightBuffer: boolean, resetGroup = true): void {
-      if (!flushState.currentTatetenGroup || flushState.groupTokens.length === 0) return;
-      const html = `<span class="${prefix}-tateten-group">${flushState.groupTokens.join(`<span class="${prefix}-tateten-mark"></span>`)}</span>`;
-      if (toHighlightBuffer) {
-        flushState.highlightTokens.push(html);
-      } else {
-        renderedTokens.push(html);
-      }
-      flushState.groupTokens = [];
-      if (resetGroup) {
-        flushState.currentTatetenGroup = undefined;
-      }
-    }
+    const tree = buildBlockRenderTree(blockGroup.blockId, blockGroup.tokens, buildCtx);
+    const blockContent = renderBlockTree(tree, renderCtx);
 
-    /**
-     * highlight グループのアキュムレータ（highlightTokens）をフラッシュする。
-     * 残存するたて点グループを先にフラッシュしてから highlight を閉じる。
-     * @param resetGroup - true の場合 currentHighlightGroup も undefined にリセット
-     */
-    function flushHighlightGroup(resetGroup = true): void {
-      if (
-        !flushState.currentHighlightGroup ||
-        (flushState.highlightTokens.length === 0 && flushState.groupTokens.length === 0)
-      ) {
-        return;
-      }
-      // 依存連鎖: たて点 → highlight の順でフラッシュ
-      flushTatetenGroup(/* toHighlightBuffer */ true);
-
-      const style = flushState.currentHighlightGroup.style ?? 'solid';
-      const refHtml = getRefTextForHighlight(flushState.currentHighlightGroup);
-      const styleClass = ` ${prefix}-highlight--${style}`;
-      renderedTokens.push(
-        `<span class="${prefix}-highlight${styleClass}" data-style="${style}"><span class="${prefix}-highlight-content">${refHtml}${flushState.highlightTokens.join('')}</span></span>${flushState.pendingHighlightKutoten}`
-      );
-      flushState.highlightTokens = [];
-      flushState.pendingHighlightKutoten = '';
-      if (resetGroup) {
-        flushState.currentHighlightGroup = undefined;
-      }
-    }
-
-    // ブロック先頭の position-based マークを取得・レンダリング
-    const blockStartMarks = getBlockStartMarks(blockGroup.blockId, marks);
-    if (blockStartMarks.refs.length > 0 && profile.ref) {
-      for (const refMark of blockStartMarks.refs) {
-        if (highlightRefIds.has(refMark.id ?? '')) continue; // highlightから参照されているrefはスキップ
-        const refText = refValueMap.get(refMark) ?? '';
-        if (refText) {
-          const halfWidthClass = shouldApplyTateChuYoko(refText)
-            ? ` ${prefix}-ref--half-width`
-            : '';
-          renderedTokens.push(
-            `<span class="${prefix}-ref${halfWidthClass}">${escapeHtml(refText)}</span>`
-          );
-        }
-      }
-    }
-    if (blockStartMarks.kutotenMarks.length > 0 && profile.kutoten) {
-      for (const kutotenMark of blockStartMarks.kutotenMarks) {
-        renderedTokens.push(
-          `<span class="${prefix}-kutoten">${escapeHtml(kutotenMark.value)}</span>`
-        );
-      }
-    }
-
-    // 処理済みトークンを追跡（範囲グループのスキップ用）
-    const processedTokenIds = new Set<string>();
-
-    for (let i = 0; i < blockTokens.length; i++) {
-      const token = blockTokens[i]!;
-
-      // 範囲グループで既に処理済みのトークンはスキップ
-      if (processedTokenIds.has(token.id)) {
-        continue;
-      }
-
-      const tokenGroup = tatetenGroups.get(token.id);
-      const highlightGroup = highlightGroups.get(token.id);
-
-      // 範囲グループのチェック
-      const yomiganaGroup = yomiganaRangeGroups.get(token.id);
-      const okuriganaGroup = okuriganaRangeGroups.get(token.id);
-      const soeganaGroup = soeganaRangeGroups.get(token.id);
-      let rangeCtx: RangeMarkContext | undefined;
-
-      // 範囲yomiganaグループ: 熟語全体にルビをかける
-      if (yomiganaGroup && yomiganaGroup.tokenIds[0] === token.id) {
-        const baseText = yomiganaGroup.tokenIds
-          .map((tid: string) => {
-            const t = tokens.find((tok) => tok.id === tid);
-            return t?.text ?? '';
-          })
-          .join('');
-        const firstTokenId = yomiganaGroup.tokenIds[0];
-        const lastTokenId = yomiganaGroup.tokenIds[yomiganaGroup.tokenIds.length - 1];
-        const rangeTokenInfo: RangeTokenInfo =
-          firstTokenId && lastTokenId
-            ? { from: firstTokenId, to: lastTokenId }
-            : { from: '', to: '' };
-        rangeCtx = { ...rangeCtx, yomiganaBaseText: baseText, rangeTokenInfo };
-
-        // グループ内の他のトークンを処理済みとしてマーク
-        for (const tid of yomiganaGroup.tokenIds.slice(1)) {
-          processedTokenIds.add(tid);
-        }
-      }
-
-      // 範囲okuriganaグループ: 熟語全体の後に送り仮名を付ける
-      if (okuriganaGroup && okuriganaGroup.tokenIds[0] === token.id) {
-        const baseText = okuriganaGroup.tokenIds
-          .map((tid: string) => {
-            const t = tokens.find((tok) => tok.id === tid);
-            return t?.text ?? '';
-          })
-          .join('');
-        const okuriganaValue = (okuriganaGroup.mark as OkuriganaMark).value;
-        // rangeTokenInfoがまだ設定されていない場合のみ設定
-        if (!rangeCtx?.rangeTokenInfo) {
-          const firstTokenId = okuriganaGroup.tokenIds[0];
-          const lastTokenId = okuriganaGroup.tokenIds[okuriganaGroup.tokenIds.length - 1];
-          const rangeTokenInfo: RangeTokenInfo =
-            firstTokenId && lastTokenId
-              ? { from: firstTokenId, to: lastTokenId }
-              : { from: '', to: '' };
-          rangeCtx = { ...rangeCtx, okuriganaBaseText: baseText, okuriganaValue, rangeTokenInfo };
-        } else {
-          rangeCtx = { ...rangeCtx, okuriganaBaseText: baseText, okuriganaValue };
-        }
-
-        // グループ内の他のトークンを処理済みとしてマーク（yomiganaと重複しなければ）
-        for (const tid of okuriganaGroup.tokenIds.slice(1)) {
-          if (!processedTokenIds.has(tid)) {
-            processedTokenIds.add(tid);
-          }
-        }
-      }
-
-      // 範囲soeganaグループ: 熟語全体の後に添え仮名を付ける
-      if (soeganaGroup && soeganaGroup.tokenIds[0] === token.id) {
-        const baseText = soeganaGroup.tokenIds
-          .map((tid: string) => {
-            const t = tokens.find((tok) => tok.id === tid);
-            return t?.text ?? '';
-          })
-          .join('');
-        const soeganaValue = (soeganaGroup.mark as SoeganaMark).value;
-        // rangeTokenInfoがまだ設定されていない場合のみ設定
-        if (!rangeCtx?.rangeTokenInfo) {
-          const firstTokenId = soeganaGroup.tokenIds[0];
-          const lastTokenId = soeganaGroup.tokenIds[soeganaGroup.tokenIds.length - 1];
-          const rangeTokenInfo: RangeTokenInfo =
-            firstTokenId && lastTokenId
-              ? { from: firstTokenId, to: lastTokenId }
-              : { from: '', to: '' };
-          rangeCtx = { ...rangeCtx, soeganaBaseText: baseText, soeganaValue, rangeTokenInfo };
-        } else {
-          rangeCtx = { ...rangeCtx, soeganaBaseText: baseText, soeganaValue };
-        }
-
-        // グループ内の他のトークンを処理済みとしてマーク（他グループと重複しなければ）
-        for (const tid of soeganaGroup.tokenIds.slice(1)) {
-          if (!processedTokenIds.has(tid)) {
-            processedTokenIds.add(tid);
-          }
-        }
-      }
-
-      // tateten重複検出: 範囲仮名とtatetenが同じトークン範囲にある場合、
-      // <rb>内でセパレータを挿入するために個別トークンテキストを保持
-      if (rangeCtx && !rangeCtx.tatetenTokenTexts) {
-        const activeGroup = yomiganaGroup ?? okuriganaGroup ?? soeganaGroup;
-        if (activeGroup && activeGroup.tokenIds[0] === token.id) {
-          const hasTatetenOverlap = activeGroup.tokenIds.some((tid: string) =>
-            tatetenGroups.has(tid)
-          );
-          if (hasTatetenOverlap) {
-            const tatetenTokenTexts = activeGroup.tokenIds.map((tid: string) => {
-              const t = tokens.find((tok) => tok.id === tid);
-              return t?.text ?? '';
-            });
-            rangeCtx = { ...rangeCtx, tatetenTokenTexts };
-          }
-        }
-      }
-
-      // 範囲グループの後続トークンに付いているマーク（返り点、句読点、ref）を収集
-      // rangeCtxに追加してrenderToken内でsuffix-row等にまとめて出力
-      const allRangeTokenIds = new Set<string>();
-      if (yomiganaGroup && yomiganaGroup.tokenIds[0] === token.id) {
-        for (const tid of yomiganaGroup.tokenIds.slice(1)) {
-          allRangeTokenIds.add(tid);
-        }
-      }
-      if (okuriganaGroup && okuriganaGroup.tokenIds[0] === token.id) {
-        for (const tid of okuriganaGroup.tokenIds.slice(1)) {
-          allRangeTokenIds.add(tid);
-        }
-      }
-      if (soeganaGroup && soeganaGroup.tokenIds[0] === token.id) {
-        for (const tid of soeganaGroup.tokenIds.slice(1)) {
-          allRangeTokenIds.add(tid);
-        }
-      }
-      if (allRangeTokenIds.size > 0) {
-        const trailingKaeriMarks: KaeriMark[] = [];
-        const trailingKutotenMarks: KutotenMark[] = [];
-        const trailingRefMarks: RefMark[] = [];
-        const trailingOkimojiMarks: OkimojiMark[] = [];
-        const trailingJojiMarks: JojiMark[] = [];
-        const trailingEmphasisMarks: EmphasisMark[] = [];
-        for (const tid of allRangeTokenIds) {
-          const trailingTokenMarks = getMarksForToken(tid, marks, tokens);
-          if (profile.kaeriten) {
-            const kaeri = trailingTokenMarks.get('kaeri') as KaeriMark[] | undefined;
-            if (kaeri) trailingKaeriMarks.push(...kaeri);
-          }
-          if (profile.kutoten) {
-            const kutoten = trailingTokenMarks.get('kutoten') as KutotenMark[] | undefined;
-            if (kutoten) trailingKutotenMarks.push(...kutoten);
-          }
-          if (profile.ref) {
-            const ref = trailingTokenMarks.get('ref') as RefMark[] | undefined;
-            if (ref) trailingRefMarks.push(...ref);
-          }
-          {
-            const okimoji = trailingTokenMarks.get('okimoji') as OkimojiMark[] | undefined;
-            if (okimoji) trailingOkimojiMarks.push(...okimoji);
-          }
-          {
-            const joji = trailingTokenMarks.get('joji') as JojiMark[] | undefined;
-            if (joji) trailingJojiMarks.push(...joji);
-          }
-          if (profile.emphasis) {
-            const emphasis = trailingTokenMarks.get('emphasis') as EmphasisMark[] | undefined;
-            if (emphasis) trailingEmphasisMarks.push(...emphasis);
-          }
-        }
-        rangeCtx = {
-          ...rangeCtx,
-          trailingKaeriMarks,
-          trailingKutotenMarks,
-          trailingRefMarks,
-          ...(trailingOkimojiMarks.length > 0 ? { trailingOkimojiMarks } : {}),
-          ...(trailingJojiMarks.length > 0 ? { trailingJojiMarks } : {}),
-          ...(trailingEmphasisMarks.length > 0 ? { trailingEmphasisMarks } : {}),
-        };
-      }
-
-      const tokenResult = renderToken(token, marks, ctx, rangeCtx, refValueMap, highlightRefIds);
-
-      // highlight グループ処理
-      if (profile.highlight && highlightGroup) {
-        if (flushState.currentHighlightGroup !== highlightGroup) {
-          // 新しい highlight グループ開始（前のグループがあれば閉じる）
-          // groupTokens にも未フラッシュのトークンがある場合がある
-          // （processedTokenIds で中間トークンがスキップされた範囲仮名 + tateten の場合）
-          flushHighlightGroup(/* resetGroup */ false);
-          flushState.currentHighlightGroup = highlightGroup;
-        }
-
-        // 次のtokenが同じhighlight内かどうかを判定（highlight終端のkutotenを外に出すため）
-        const nextToken = blockTokens[i + 1];
-        const nextHighlightGroup = nextToken ? highlightGroups.get(nextToken.id) : undefined;
-        const isLastInHighlight = nextHighlightGroup !== highlightGroup;
-
-        // highlight 内のトークンを蓄積する HTML を決定
-        // 終端token以外はkutotenを含める、終端tokenのkutotenは外に出す
-        const tokenHtmlForHighlight = isLastInHighlight
-          ? tokenResult.html
-          : tokenResult.html + tokenResult.kutotenHtml;
-
-        if (isLastInHighlight) {
-          // highlight終端のkutotenを保存（highlight spanの外に出す）
-          flushState.pendingHighlightKutoten = tokenResult.kutotenHtml;
-        }
-
-        // highlight グループ内のトークンを蓄積（たて点処理も考慮）
-        if (profile.tateten && tokenGroup) {
-          if (flushState.currentTatetenGroup !== tokenGroup) {
-            flushTatetenGroup(/* toHighlightBuffer */ true, /* resetGroup */ false);
-            flushState.currentTatetenGroup = tokenGroup;
-          }
-          flushState.groupTokens.push(tokenHtmlForHighlight);
-        } else {
-          flushTatetenGroup(/* toHighlightBuffer */ true);
-          flushState.highlightTokens.push(tokenHtmlForHighlight);
-        }
-      } else {
-        // highlight グループ外
-        const tokenHtml = tokenResult.html + tokenResult.kutotenHtml;
-
-        // 前の highlight グループを閉じる
-        flushHighlightGroup();
-
-        // たて点グループ処理
-        if (profile.tateten && tokenGroup) {
-          if (flushState.currentTatetenGroup !== tokenGroup) {
-            flushTatetenGroup(/* toHighlightBuffer */ false, /* resetGroup */ false);
-            flushState.currentTatetenGroup = tokenGroup;
-          }
-          flushState.groupTokens.push(tokenHtml);
-        } else {
-          flushTatetenGroup(/* toHighlightBuffer */ false);
-          renderedTokens.push(tokenHtml);
-        }
-      }
-    }
-
-    // 最後のグループを閉じる
-    if (flushState.currentHighlightGroup) {
-      // highlight 内: tateten → highlight の順でフラッシュ（flushHighlightGroup が内部で処理）
-      flushHighlightGroup(/* resetGroup */ false);
-    } else {
-      // highlight 外: tateten のみフラッシュ
-      flushTatetenGroup(/* toHighlightBuffer */ false, /* resetGroup */ false);
-    }
-
-    // ブロックをラップして追加
-    const blockContent = renderedTokens.join('');
     if (blockGroup.blockId) {
       renderedBlocks.push(
         `<${blockTag} class="${prefix}-block" data-block-id="${escapeHtml(blockGroup.blockId)}">${blockContent}</${blockTag}>`
       );
     } else {
-      // blockIdがない場合はそのまま追加
       renderedBlocks.push(blockContent);
     }
   }

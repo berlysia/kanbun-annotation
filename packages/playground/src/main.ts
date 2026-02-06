@@ -203,6 +203,12 @@ type EmphasisStyle =
   | 'open sesame';
 let currentEmphasisStyle: EmphasisStyle = 'filled dot'; // CSS default
 
+// CSS text-emphasis-style treats bare shape (e.g. 'dot') as 'filled dot'.
+// Normalize for comparison so 'dot' and 'filled dot' are equivalent.
+function normalizeEmphasisStyle(style: string): string {
+  return style.replace(/^filled /, '');
+}
+
 // Current underline/highlight (傍線) state
 // - null: no underline for current selection
 // - string: mark ID of existing highlight that overlaps selection range
@@ -919,7 +925,7 @@ function updateEmphasisStyleButtons(): void {
       'active',
       currentEmphasisMarkId !== null &&
         currentEmphasisIsExactMatch &&
-        style === currentEmphasisStyle
+        normalizeEmphasisStyle(style) === normalizeEmphasisStyle(currentEmphasisStyle)
     );
     btn.disabled = isPartialOverlap;
   }

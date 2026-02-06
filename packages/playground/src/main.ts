@@ -12,7 +12,14 @@ import {
   PROFILES,
   type RenderProfile,
 } from '@kanbun/skam-html-renderer';
-import type { SKAMDocument, RefFormat, Mark, EmphasisMark, HighlightMark } from '@kanbun/skam';
+import type {
+  SKAMDocument,
+  RefFormat,
+  Mark,
+  EmphasisMark,
+  HighlightMark,
+  SaidokuMark,
+} from '@kanbun/skam';
 import {
   addMark,
   addMarkWithResult,
@@ -91,6 +98,22 @@ const selectionKanaTypes = document.getElementById('selection-kana-types') as HT
 const selectionKanaInput = document.getElementById('selection-kana-input') as HTMLInputElement;
 const selectionKanaApply = document.getElementById('selection-kana-apply') as HTMLButtonElement;
 const selectionKanaDelete = document.getElementById('selection-kana-delete') as HTMLButtonElement;
+const selectionSaidokuBtn = document.getElementById('selection-saidoku-btn') as HTMLButtonElement;
+const selectionSaidokuReread = document.getElementById(
+  'selection-saidoku-reread'
+) as HTMLDivElement;
+const selectionSaidokuRereadYomi = document.getElementById(
+  'selection-saidoku-reread-yomi'
+) as HTMLInputElement;
+const selectionSaidokuRereadOkuri = document.getElementById(
+  'selection-saidoku-reread-okuri'
+) as HTMLInputElement;
+const selectionSaidokuRereadApply = document.getElementById(
+  'selection-saidoku-reread-apply'
+) as HTMLButtonElement;
+const selectionSaidokuRereadDelete = document.getElementById(
+  'selection-saidoku-reread-delete'
+) as HTMLButtonElement;
 
 // Marks list panel elements
 const marksList = document.getElementById('marks-list') as HTMLDivElement;
@@ -228,6 +251,16 @@ let currentUnderlineRef: string = '';
 
 // Current underline ref format
 let currentUnderlineFormat: RefFormat | '' = '';
+
+// Current saidoku (再読文字) state
+// - null: no saidoku for current selection
+// - string: mark ID of existing saidoku that overlaps selection range
+let currentSaidokuMarkId: string | null = null;
+// Whether the saidoku mark exactly matches the selection range (vs partial overlap)
+let currentSaidokuIsExactMatch = false;
+// Reread part values (forms[1]) for display
+let currentSaidokuRereadYomi = '';
+let currentSaidokuRereadOkuri = '';
 
 // Selection mode: determines what controls are available
 // - 'single': single character selected - kaeri enabled, tateten disabled
@@ -653,6 +686,34 @@ function updateSelectionPanel(fromId: string, toId: string): void {
     currentUnderlineFormat = '';
   }
 
+  // Determine saidoku state via overlap detection
+  const saidokuMarks = getMarksForRange(currentDocument, normalizedFromId, normalizedToId).filter(
+    (m): m is SaidokuMark => m.type === 'saidoku'
+  );
+  if (saidokuMarks.length > 0) {
+    const firstSaidoku = saidokuMarks[0]!;
+    currentSaidokuMarkId = firstSaidoku.id ?? null;
+    currentSaidokuIsExactMatch = isExactAnchorMatch(firstSaidoku, normalizedFromId, normalizedToId);
+    if (currentSaidokuIsExactMatch) {
+      // Populate kana values from forms[0] so the kana UI shows them
+      const form0 = firstSaidoku.forms[0];
+      currentKanaValues.yomigana = form0?.yomi ?? '';
+      currentKanaValues.okurigana = form0?.okuri ?? '';
+      // Populate reread values from forms[1]
+      const form1 = firstSaidoku.forms[1];
+      currentSaidokuRereadYomi = form1?.yomi ?? '';
+      currentSaidokuRereadOkuri = form1?.okuri ?? '';
+    } else {
+      currentSaidokuRereadYomi = '';
+      currentSaidokuRereadOkuri = '';
+    }
+  } else {
+    currentSaidokuMarkId = null;
+    currentSaidokuIsExactMatch = false;
+    currentSaidokuRereadYomi = '';
+    currentSaidokuRereadOkuri = '';
+  }
+
   if (count === 1) {
     currentSelectionMode = 'single';
   } else if (tatetenInfo) {
@@ -731,6 +792,10 @@ function updateSelectionPanel(fromId: string, toId: string): void {
 
   // Update underline button
   updateUnderlineButton();
+
+  // Update saidoku button and reread section
+  updateSaidokuButton();
+  updateSaidokuReread();
 
   // Update kaeriten buttons
   updateKaeriButtons(currentKaeriValue);
@@ -1248,6 +1313,16 @@ function handleKanaApply(): void {
   const type = currentSelectedKanaType;
   const value = selectionKanaInput.value.trim();
 
+  // When saidoku active and editing yomigana/okurigana, update saidoku forms[0]
+  if (
+    currentSaidokuMarkId &&
+    currentSaidokuIsExactMatch &&
+    (type === 'yomigana' || type === 'okurigana')
+  ) {
+    applySaidokuForm0(type, value);
+    return;
+  }
+
   // Normalize selection range using canonical (blocks) order
   const sel = normalizeSelection(currentDocument, currentSelectionFromId, currentSelectionToId);
   if (!sel) return;
@@ -1319,6 +1394,16 @@ function handleKanaDelete(): void {
 
   const type = currentSelectedKanaType;
 
+  // When saidoku active and deleting yomigana/okurigana, clear saidoku forms[0] field
+  if (
+    currentSaidokuMarkId &&
+    currentSaidokuIsExactMatch &&
+    (type === 'yomigana' || type === 'okurigana')
+  ) {
+    applySaidokuForm0(type, '');
+    return;
+  }
+
   const sel = normalizeSelection(currentDocument, currentSelectionFromId, currentSelectionToId);
   if (!sel) return;
   const { fromId: normalizedFromId, toId: normalizedToId } = sel;
@@ -1351,6 +1436,193 @@ function handleKanaDelete(): void {
 }
 
 /**
+ * Update saidoku button based on current selection state
+ */
+function updateSaidokuButton(): void {
+  if (currentSaidokuMarkId) {
+    selectionSaidokuBtn.textContent = '再読文字を解除';
+    selectionSaidokuBtn.classList.add('active');
+  } else {
+    selectionSaidokuBtn.textContent = '再読文字にする';
+    selectionSaidokuBtn.classList.remove('active');
+  }
+}
+
+/**
+ * Update saidoku forms[0] yomi or okuri from kana UI
+ * Called when kana apply/delete targets yomigana/okurigana while saidoku is active
+ */
+function applySaidokuForm0(type: 'yomigana' | 'okurigana', value: string): void {
+  if (!currentDocument || !currentSaidokuMarkId || !currentSaidokuIsExactMatch) return;
+
+  const mark = getMarkById(currentDocument, currentSaidokuMarkId) as SaidokuMark | undefined;
+  if (!mark) return;
+
+  const field = type === 'yomigana' ? 'yomi' : 'okuri';
+  const trimmed = value.trim();
+
+  // Build updated forms array
+  const newForms = mark.forms.map((f, i) => {
+    if (i !== 0) return { ...f };
+    const updated = { ...f };
+    if (trimmed) {
+      updated[field] = trimmed;
+    } else {
+      delete updated[field];
+    }
+    return updated;
+  });
+
+  const newDoc = updateMark(currentDocument, currentSaidokuMarkId, { forms: newForms });
+  updateXmlFromDocument(newDoc);
+}
+
+/**
+ * Show/hide reread section and populate input values
+ */
+function updateSaidokuReread(): void {
+  if (!currentSaidokuMarkId || !currentSaidokuIsExactMatch) {
+    selectionSaidokuReread.style.display = 'none';
+    return;
+  }
+
+  selectionSaidokuReread.style.display = 'block';
+  selectionSaidokuRereadYomi.value = currentSaidokuRereadYomi;
+  selectionSaidokuRereadOkuri.value = currentSaidokuRereadOkuri;
+
+  // Enable delete button only if reread has values
+  const hasRereadValues = Boolean(currentSaidokuRereadYomi || currentSaidokuRereadOkuri);
+  selectionSaidokuRereadDelete.disabled = !hasRereadValues;
+}
+
+/**
+ * Handle saidoku toggle - add or remove saidoku mark
+ *
+ * Creation: migrate existing yomigana/okurigana into forms[0] (no data loss, no confirm needed)
+ * Removal (exact match): restore forms[0] to yomigana/okurigana marks.
+ *   If forms[1] has values, confirm with user first.
+ * Removal (partial overlap): confirm removal of entire mark.
+ */
+function handleSaidokuToggle(): void {
+  if (!currentDocument || !currentSelectionFromId || !currentSelectionToId) return;
+
+  let newDoc = currentDocument;
+  const sel = normalizeSelection(currentDocument, currentSelectionFromId, currentSelectionToId);
+  if (!sel) return;
+  const { fromId: normalizedFromId, toId: normalizedToId } = sel;
+
+  if (currentSaidokuMarkId) {
+    // Remove existing saidoku
+    if (!currentSaidokuIsExactMatch) {
+      const mark = getMarkById(currentDocument, currentSaidokuMarkId);
+      const range = mark ? getAnchorRangeLabel(mark) : '';
+      if (
+        !window.confirm(
+          `選択範囲より広い再読文字マーク（${range}）が存在します。マーク全体を解除しますか？`
+        )
+      ) {
+        return;
+      }
+      newDoc = removeMark(newDoc, currentSaidokuMarkId);
+    } else {
+      // Exact match: restore forms[0] to individual marks
+      const mark = getMarkById(currentDocument, currentSaidokuMarkId) as SaidokuMark | undefined;
+      if (!mark) return;
+
+      // Check if forms[1] has values - warn about data loss
+      const form1 = mark.forms[1];
+      const hasRereadData = form1 && (form1.yomi || form1.okuri);
+      if (hasRereadData) {
+        if (!window.confirm('再読部分のデータが失われます。解除しますか？')) {
+          return;
+        }
+      }
+
+      // Remove saidoku mark
+      newDoc = removeMark(newDoc, currentSaidokuMarkId);
+
+      // Restore forms[0] values as individual marks
+      const form0 = mark.forms[0];
+      if (form0?.yomi) {
+        newDoc = addMark(newDoc, {
+          type: 'yomigana',
+          value: form0.yomi,
+          anchor: { from: normalizedFromId, to: normalizedToId },
+        });
+      }
+      if (form0?.okuri) {
+        newDoc = addMark(newDoc, {
+          type: 'okurigana',
+          value: form0.okuri,
+          anchor: { from: normalizedFromId, to: normalizedToId },
+        });
+      }
+    }
+  } else {
+    // Create saidoku: migrate existing yomigana/okurigana into forms[0]
+    const rangeMarks = getMarksForRange(newDoc, normalizedFromId, normalizedToId);
+    const yomigana = rangeMarks.find((m) => m.type === 'yomigana');
+    const okurigana = rangeMarks.find((m) => m.type === 'okurigana');
+
+    type SaidokuFormData = { n: number; yomi?: string; okuri?: string };
+    const form0: SaidokuFormData = { n: 1 };
+    if (yomigana && hasMarkValue(yomigana)) form0.yomi = yomigana.value;
+    if (okurigana && hasMarkValue(okurigana)) form0.okuri = okurigana.value;
+
+    // Remove existing yomigana/okurigana marks (migrated into saidoku)
+    if (yomigana?.id) newDoc = removeMark(newDoc, yomigana.id);
+    if (okurigana?.id) newDoc = removeMark(newDoc, okurigana.id);
+
+    // Add saidoku mark with forms[0] from existing marks, empty forms[1]
+    newDoc = addMark(newDoc, {
+      type: 'saidoku',
+      anchor: { from: normalizedFromId, to: normalizedToId },
+      forms: [form0, { n: 2 }],
+    });
+  }
+
+  updateXmlFromDocument(newDoc);
+}
+
+/**
+ * Apply reread part (forms[1]) changes to the saidoku mark
+ */
+function handleSaidokuRereadApply(): void {
+  if (!currentDocument || !currentSaidokuMarkId || !currentSaidokuIsExactMatch) return;
+
+  const mark = getMarkById(currentDocument, currentSaidokuMarkId) as SaidokuMark | undefined;
+  if (!mark) return;
+
+  const yomi = selectionSaidokuRereadYomi.value.trim();
+  const okuri = selectionSaidokuRereadOkuri.value.trim();
+
+  // Build updated form1
+  const form1: { n: number; yomi?: string; okuri?: string } = { n: 2 };
+  if (yomi) form1.yomi = yomi;
+  if (okuri) form1.okuri = okuri;
+
+  // Keep forms[0], update forms[1]
+  const form0 = mark.forms[0] ?? { n: 1 };
+  const newDoc = updateMark(currentDocument, currentSaidokuMarkId, { forms: [form0, form1] });
+  updateXmlFromDocument(newDoc);
+}
+
+/**
+ * Clear reread part (forms[1]) of the saidoku mark
+ */
+function handleSaidokuRereadDelete(): void {
+  if (!currentDocument || !currentSaidokuMarkId || !currentSaidokuIsExactMatch) return;
+
+  const mark = getMarkById(currentDocument, currentSaidokuMarkId) as SaidokuMark | undefined;
+  if (!mark) return;
+
+  // Keep forms[0], clear forms[1]
+  const form0 = mark.forms[0] ?? { n: 1 };
+  const newDoc = updateMark(currentDocument, currentSaidokuMarkId, { forms: [form0, { n: 2 }] });
+  updateXmlFromDocument(newDoc);
+}
+
+/**
  * Clear selection panel
  */
 function clearSelectionPanel(): void {
@@ -1366,6 +1638,10 @@ function clearSelectionPanel(): void {
   currentEmphasisIsExactMatch = false;
   currentUnderlineMarkId = null;
   currentUnderlineIsExactMatch = false;
+  currentSaidokuMarkId = null;
+  currentSaidokuIsExactMatch = false;
+  currentSaidokuRereadYomi = '';
+  currentSaidokuRereadOkuri = '';
   currentSelectionMode = 'single';
   selectionInfo.innerHTML = '<p class="selection-empty">文字をクリックまたはドラッグで選択</p>';
   selectionActions.style.display = 'none';
@@ -1385,6 +1661,12 @@ function clearSelectionPanel(): void {
   updateUnderlineStyleButtons();
   selectionUnderlineRefInput.value = '';
   selectionUnderlineFormatSelect.value = '';
+  selectionSaidokuBtn.textContent = '再読文字にする';
+  selectionSaidokuBtn.classList.remove('active');
+  selectionSaidokuReread.style.display = 'none';
+  selectionSaidokuRereadYomi.value = '';
+  selectionSaidokuRereadOkuri.value = '';
+  selectionSaidokuRereadDelete.disabled = true;
   updateKanaTypeButtons();
   selectionKanaInput.value = '';
   selectionKanaApply.disabled = true;
@@ -1995,8 +2277,9 @@ resetCustomizeBtn.addEventListener('click', resetCustomize);
 
 // Selection panel kana type buttons
 selectionKanaTypes.addEventListener('click', (e) => {
-  const target = e.target as HTMLElement;
+  const target = e.target as HTMLButtonElement;
   if (!target.classList.contains('selection-kana-type-btn')) return;
+  if (target.disabled) return;
 
   const type = target.dataset['type'] as 'yomigana' | 'okurigana' | 'soegana' | undefined;
   if (!type) return;
@@ -2033,6 +2316,28 @@ selectionKanaInput.addEventListener('keydown', (e) => {
 
 selectionKanaApply.addEventListener('click', handleKanaApply);
 selectionKanaDelete.addEventListener('click', handleKanaDelete);
+
+// Selection panel saidoku button
+selectionSaidokuBtn.addEventListener('click', handleSaidokuToggle);
+
+// Selection panel saidoku reread controls
+selectionSaidokuRereadApply.addEventListener('click', handleSaidokuRereadApply);
+selectionSaidokuRereadDelete.addEventListener('click', handleSaidokuRereadDelete);
+
+// Enter key in reread inputs triggers apply
+selectionSaidokuRereadYomi.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    handleSaidokuRereadApply();
+  }
+});
+
+selectionSaidokuRereadOkuri.addEventListener('keydown', (e) => {
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    handleSaidokuRereadApply();
+  }
+});
 
 // Selection panel tateten button
 selectionTatetenBtn.addEventListener('click', handleTatetenToggle);

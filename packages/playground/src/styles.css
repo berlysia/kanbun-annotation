@@ -655,6 +655,74 @@
     font-style: italic;
   }
 
+  /* Saidoku controls */
+  .selection-saidoku-row {
+    display: flex;
+    gap: 0.25rem;
+  }
+
+  .selection-saidoku-btn {
+    flex: 1;
+    padding: 0.375rem 0.5rem;
+    font-size: 0.75rem;
+    border: 1px solid var(--editor-border);
+    border-radius: var(--radius-sm);
+    background-color: var(--editor-bg-secondary);
+    color: var(--editor-text);
+    cursor: pointer;
+    transition:
+      background-color var(--transition-fast),
+      border-color var(--transition-fast);
+  }
+
+  .selection-saidoku-btn:hover:not(:disabled) {
+    background-color: var(--editor-primary-light);
+    border-color: var(--editor-primary);
+  }
+
+  .selection-saidoku-btn.active {
+    background-color: var(--editor-primary);
+    border-color: var(--editor-primary);
+    color: white;
+  }
+
+  .selection-saidoku-btn.active:hover:not(:disabled) {
+    background-color: var(--editor-primary-hover);
+  }
+
+  .selection-saidoku-reread {
+    margin-top: 0.375rem;
+  }
+
+  .selection-saidoku-reread-label {
+    display: block;
+    font-size: 0.6875rem;
+    color: var(--editor-text-secondary);
+    margin-bottom: 0.25rem;
+  }
+
+  .selection-saidoku-reread-row {
+    display: flex;
+    gap: 0.25rem;
+    align-items: center;
+  }
+
+  .selection-saidoku-reread-input {
+    flex: 1;
+    min-width: 0;
+    padding: 0.2rem 0.375rem;
+    font-size: 0.75rem;
+    border: 1px solid var(--editor-border);
+    border-radius: var(--radius-sm);
+    background-color: var(--editor-bg);
+    color: var(--editor-text);
+  }
+
+  .selection-saidoku-reread-input:focus {
+    outline: none;
+    border-color: var(--editor-primary);
+  }
+
   /* Tateten controls */
   .selection-tateten-row {
     display: flex;

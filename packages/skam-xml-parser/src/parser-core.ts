@@ -38,7 +38,23 @@ import { createRandomIdGenerator } from '@kanbun/skam';
 
 const SKAM_NS = 'urn:skam:1';
 
-const VALID_KAERI_KINDS = ['re', 'ichi', 'ni', 'san', 'jo', 'chu', 'ge', 'ko', 'otsu'] as const;
+const VALID_KAERI_KINDS = [
+  're',
+  'ichi',
+  'ni',
+  'san',
+  'shi',
+  'jo',
+  'chu',
+  'ge',
+  'ko',
+  'otsu',
+  'hei',
+  'tei',
+  'ten',
+  'chi',
+  'jin',
+] as const;
 type KaeriKind = (typeof VALID_KAERI_KINDS)[number];
 
 const KAERI_VALUE_MAP: Record<KaeriKind, string> = {
@@ -46,11 +62,17 @@ const KAERI_VALUE_MAP: Record<KaeriKind, string> = {
   ichi: '一',
   ni: '二',
   san: '三',
+  shi: '四',
   jo: '上',
   chu: '中',
   ge: '下',
   ko: '甲',
   otsu: '乙',
+  hei: '丙',
+  tei: '丁',
+  ten: '天',
+  chi: '地',
+  jin: '人',
 };
 
 const VALID_HIGHLIGHT_STYLES = ['solid', 'dotted', 'dashed', 'wavy', 'double'] as const;

@@ -70,6 +70,7 @@ const KAERI_SINGLE_GROUPS: KaeriKind[][] = [
     { kind: 'ko', label: '甲', value: '甲' },
     { kind: 'otsu', label: '乙', value: '乙' },
     { kind: 'hei', label: '丙', value: '丙' },
+    { kind: 'tei', label: '丁', value: '丁' },
   ],
   [
     { kind: 'ten', label: '天', value: '天' },
@@ -84,10 +85,18 @@ const KAERI_SINGLE_GROUPS: KaeriKind[][] = [
 const KAERI_COMPOUND_GROUP: KaeriKind[] = [
   { kind: 'ichi-re', label: '一レ', value: '一レ' },
   { kind: 'ni-re', label: '二レ', value: '二レ' },
+  { kind: 'san-re', label: '三レ', value: '三レ' },
+  { kind: 'shi-re', label: '四レ', value: '四レ' },
   { kind: 'jo-re', label: '上レ', value: '上レ' },
   { kind: 'chu-re', label: '中レ', value: '中レ' },
+  { kind: 'ge-re', label: '下レ', value: '下レ' },
   { kind: 'ko-re', label: '甲レ', value: '甲レ' },
   { kind: 'otsu-re', label: '乙レ', value: '乙レ' },
+  { kind: 'hei-re', label: '丙レ', value: '丙レ' },
+  { kind: 'tei-re', label: '丁レ', value: '丁レ' },
+  { kind: 'ten-re', label: '天レ', value: '天レ' },
+  { kind: 'chi-re', label: '地レ', value: '地レ' },
+  { kind: 'jin-re', label: '人レ', value: '人レ' },
 ];
 
 /**

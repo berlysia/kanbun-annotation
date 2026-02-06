@@ -157,6 +157,7 @@ const KAERI_GROUPS: Array<{ group: string; values: Array<{ label: string; value:
       { label: '甲', value: '甲' },
       { label: '乙', value: '乙' },
       { label: '丙', value: '丙' },
+      { label: '丁', value: '丁' },
     ],
   },
   {

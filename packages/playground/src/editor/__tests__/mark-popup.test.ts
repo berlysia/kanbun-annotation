@@ -414,10 +414,10 @@ describe('MarkPopup', () => {
       popup.showKaeriPopup({ x: 100, y: 100 }, 't1');
 
       const buttons = container.querySelectorAll('.mark-popup-buttons .mark-popup-btn');
-      // Single kaeri groups: 5 + 3 + 3 + 3 = 14
-      // Compound group: 6
-      // Total: 20
-      expect(buttons.length).toBe(20);
+      // Single kaeri groups: 5 + 3 + 4 + 3 = 15
+      // Compound group: 14
+      // Total: 29
+      expect(buttons.length).toBe(29);
     });
 
     it('should show single kaeri types (レ, 一, 二, etc.)', () => {
@@ -438,6 +438,7 @@ describe('MarkPopup', () => {
       expect(buttonTexts).toContain('甲');
       expect(buttonTexts).toContain('乙');
       expect(buttonTexts).toContain('丙');
+      expect(buttonTexts).toContain('丁');
       expect(buttonTexts).toContain('天');
       expect(buttonTexts).toContain('地');
       expect(buttonTexts).toContain('人');
@@ -452,10 +453,18 @@ describe('MarkPopup', () => {
 
       expect(buttonTexts).toContain('一レ');
       expect(buttonTexts).toContain('二レ');
+      expect(buttonTexts).toContain('三レ');
+      expect(buttonTexts).toContain('四レ');
       expect(buttonTexts).toContain('上レ');
       expect(buttonTexts).toContain('中レ');
+      expect(buttonTexts).toContain('下レ');
       expect(buttonTexts).toContain('甲レ');
       expect(buttonTexts).toContain('乙レ');
+      expect(buttonTexts).toContain('丙レ');
+      expect(buttonTexts).toContain('丁レ');
+      expect(buttonTexts).toContain('天レ');
+      expect(buttonTexts).toContain('地レ');
+      expect(buttonTexts).toContain('人レ');
     });
 
     it('should show compound group label', () => {

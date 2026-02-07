@@ -35,7 +35,7 @@ function callRenderToken(
   ctx: RenderTreeContext,
   extractTatetenKaeri?: boolean,
   suppressYomigana?: boolean,
-  extractKutoten?: boolean
+  extractSuffix?: boolean
 ): TokenRenderResult {
   return renderToken(
     node.token,
@@ -46,7 +46,7 @@ function callRenderToken(
     ctx.highlightRefIds,
     extractTatetenKaeri,
     suppressYomigana,
-    extractKutoten
+    extractSuffix
   );
 }
 
@@ -60,16 +60,15 @@ function renderTatetenGroup(node: TatetenGroupNode, ctx: RenderTreeContext): str
   // グループレベルで yomigana が処理される場合、個別トークンの yomigana ruby を抑制
   const groupHasYomigana = !!node.rangeCtx?.yomiganaBaseText;
 
-  // yomigana がある場合は kutoten も抽出して ruby の外に配置する
-  const extractKutoten = groupHasYomigana;
-
-  // Pass 1: 全トークンをレンダリング（非レ kaeri を分離、yomigana 時は kutoten も分離）
-  const tokenResults = node.items.map((item) =>
-    callRenderToken(item, ctx, true, groupHasYomigana, extractKutoten)
+  // Pass 1: 全トークンをレンダリング（非レ kaeri を分離）
+  // yomigana がある場合、末尾トークンの suffix-row を ruby の外に抽出する
+  const lastIndex = node.items.length - 1;
+  const tokenResults = node.items.map((item, i) =>
+    callRenderToken(item, ctx, true, groupHasYomigana, groupHasYomigana && i === lastIndex)
   );
 
-  // 抽出された kutoten を収集
-  const collectedKutoten = tokenResults.map((r) => r.kutotenHtml).join('');
+  // 末尾トークンから抽出された suffix を収集
+  const collectedSuffix = tokenResults.map((r) => r.suffixHtml).join('');
 
   // Pass 2: 各セパレータ位置への kaeri 割り当て
   const numSeparators = tokenResults.length - 1;
@@ -128,7 +127,7 @@ function renderTatetenGroup(node: TatetenGroupNode, ctx: RenderTreeContext): str
     if (ctx.interactive && rangeCtx?.rangeTokenInfo) {
       dataAttrs = ` data-token-from="${escapeHtml(rangeCtx.rangeTokenInfo.from)}" data-token-to="${escapeHtml(rangeCtx.rangeTokenInfo.to)}"`;
     }
-    groupContent = `<ruby><rb class="${prefix}-tateten-group"${dataAttrs}>${groupContent}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>${collectedKutoten}`;
+    groupContent = `<ruby><rb class="${prefix}-tateten-group"${dataAttrs}>${groupContent}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>${collectedSuffix}`;
   } else {
     groupContent = `<span class="${prefix}-tateten-group">${groupContent}</span>`;
   }

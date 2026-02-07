@@ -25,8 +25,8 @@ export interface TokenRenderResult {
   html: string;
   /** 竪点セパレータに並置する非レ返り点のHTML */
   tatetenKaeriHtml: string;
-  /** 抽出された句読点HTML（extractKutoten=true の場合にsuffix-rowから分離） */
-  kutotenHtml: string;
+  /** 抽出されたsuffix-row HTML（extractSuffix=true の場合にtoken HTMLから分離） */
+  suffixHtml: string;
 }
 
 export interface RangeTokenInfo {

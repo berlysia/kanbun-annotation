@@ -850,7 +850,7 @@ function renderOkototen(okototenMark: OkototenMark, prefix: string): string {
 /**
  * 単一TokenのHTMLを生成
  *
- * @returns TokenRenderResult - html（token本体）とkutotenHtml（句読点）を分離して返す
+ * @returns TokenRenderResult - html（token本体）とsuffixHtml（抽出されたsuffix-row）を分離して返す
  * @internal
  */
 export function renderToken(
@@ -862,7 +862,7 @@ export function renderToken(
   highlightRefIds?: Set<string>,
   extractTatetenKaeri?: boolean,
   suppressYomigana?: boolean,
-  extractKutoten?: boolean
+  extractSuffix?: boolean
 ): TokenRenderResult {
   const { prefix, profile } = ctx;
   const tokenMarks = getMarksForToken(token.id, marks, ctx.tokens);
@@ -964,21 +964,14 @@ export function renderToken(
   }
 
   // 句読点（現在のトークン + 範囲グループ後続トークンの句読点）
-  // extractKutoten=true の場合、句読点を kutotenHtml に分離して suffix-row から除外
   const kutotenMarks = (tokenMarks.get('kutoten') ?? []) as KutotenMark[];
   const allKutotenMarks = [...kutotenMarks, ...(rangeCtx?.trailingKutotenMarks ?? [])];
-  let kutoten = '';
-  let kutotenExtracted = '';
-  if (profile.kutoten && allKutotenMarks.length > 0) {
-    const kutotenHtmlStr = allKutotenMarks
-      .map((m) => `<span class="${prefix}-suffix-kutoten">${escapeHtml(m.value)}</span>`)
-      .join('');
-    if (extractKutoten) {
-      kutotenExtracted = kutotenHtmlStr;
-    } else {
-      kutoten = kutotenHtmlStr;
-    }
-  }
+  const kutoten =
+    profile.kutoten && allKutotenMarks.length > 0
+      ? allKutotenMarks
+          .map((m) => `<span class="${prefix}-suffix-kutoten">${escapeHtml(m.value)}</span>`)
+          .join('')
+      : '';
 
   // suffix-row: 4行グリッドで送り仮名・句読点・返り点・再読2回目送り仮名を配置
   // row1(右): 送り仮名・添え仮名、再読1回目送り仮名
@@ -990,13 +983,19 @@ export function renderToken(
   const suffixLeft = saidokuOkuri2; // row4
 
   const hasSuffix = suffixRight || kutoten || suffixCenter || suffixLeft;
-  const suffixRowHtml = hasSuffix
-    ? `<span class="${prefix}-suffix-row">${
-        suffixRight ? `<span class="${prefix}-suffix-okuri">${suffixRight}</span>` : ''
-      }${kutoten}${
-        suffixCenter ? `<span class="${prefix}-suffix-kaeri">${suffixCenter}</span>` : ''
-      }${suffixLeft ? `<span class="${prefix}-suffix-saidoku">${suffixLeft}</span>` : ''}</span>`
-    : '';
+  let suffixRowHtml = '';
+  let extractedSuffixHtml = '';
+  if (hasSuffix) {
+    suffixRowHtml = `<span class="${prefix}-suffix-row">${
+      suffixRight ? `<span class="${prefix}-suffix-okuri">${suffixRight}</span>` : ''
+    }${kutoten}${
+      suffixCenter ? `<span class="${prefix}-suffix-kaeri">${suffixCenter}</span>` : ''
+    }${suffixLeft ? `<span class="${prefix}-suffix-saidoku">${suffixLeft}</span>` : ''}</span>`;
+    if (extractSuffix) {
+      extractedSuffixHtml = suffixRowHtml;
+      suffixRowHtml = '';
+    }
+  }
 
   // 置字チェック（trailing marks を合算）
   const okimojiMarks = (tokenMarks.get('okimoji') ?? []) as OkimojiMark[];
@@ -1093,7 +1092,7 @@ export function renderToken(
   return {
     html: `${refHtml}<span class="${classes.join(' ')}"${tokenIdAttr}${emphasisInlineStyle}>${baseHtml}${okototenHtml}${suffixRowHtml}</span>`,
     tatetenKaeriHtml,
-    kutotenHtml: kutotenExtracted,
+    suffixHtml: extractedSuffixHtml,
   };
 }
 

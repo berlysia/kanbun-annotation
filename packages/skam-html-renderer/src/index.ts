@@ -34,3 +34,10 @@ export {
   selectToken,
   type InteractiveCallbacks,
 } from './interactive.js';
+
+/**
+ * Runtime calibration for inline-grid baseline alignment.
+ * Browser-only: call once after page load to detect and compensate
+ * for the inline-grid vertical-align bug in vertical writing mode.
+ */
+export { calibrateGridBaseline } from './calibrate.js';

@@ -211,15 +211,14 @@ function generateCommonStyles(prefix: string, vp: string): string {
  *   row2: glyph-size（返り点 = 本文サイズ）
  *   row3: ruby-font-size（再読2送り）
  *
- * NOTE: vertical-align のブラウザ差異対応
- * - Firefox/Safari: vertical-align: 0 で inline-grid ボックス全体が揃う
- * - Chrome: inline-grid 内テキストの central baseline でアライメントされるバグあり
- *           calc() で補正が必要
+ * NOTE: vertical-align の inline-grid baseline バグ補正
+ * 一部ブラウザ (Chromium) は inline-grid 内テキストの central baseline で
+ * アライメントするため、vertical-align に補正値が必要。
+ * calibrateGridBaseline() がランタイムで挙動を実測し、バグが検出された場合に
+ * --${vp}-grid-baseline-fix: 1 をセットする。
  *
- * 以下のCSSハックで出し分け:
- * - デフォルト: Chrome 用 calc() 値
- * - @-moz-document: Firefox 用
- * - @supports (-webkit-touch-callout: none): Safari 用
+ * fix=0 (正常): 0 * (...) = 0
+ * fix=1 (バグ): 1 * (ruby-ratio * 0.5em + 0.5em)
  */
 :where(.${prefix}-suffix-row) {
   display: inline-grid;
@@ -227,22 +226,7 @@ function generateCommonStyles(prefix: string, vp: string): string {
   line-height: 1;
   /* text-emphasis は継承するため、親要素の傍点が添字・送り仮名に伝播するのを防止 */
   text-emphasis: none;
-  /* Chrome 用（デフォルト） */
-  vertical-align: calc(var(--${vp}-ruby-ratio) * 0.5em + 0.5em);
-}
-
-/* Firefox: vertical-align: 0 で正常動作 */
-@-moz-document url-prefix() {
-  :where(.${prefix}-suffix-row) {
-    vertical-align: 0;
-  }
-}
-
-/* Safari: vertical-align: 0 で正常動作 */
-@supports (-webkit-touch-callout: none) {
-  :where(.${prefix}-suffix-row) {
-    vertical-align: 0;
-  }
+  vertical-align: calc(var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 0.5em + 0.5em));
 }
 
 /* row1 にプレースホルダーを配置してベースラインを安定させる */
@@ -383,29 +367,15 @@ function generateCommonStyles(prefix: string, vp: string): string {
  * グリッド総幅 = 4 * ruby-ratio * 0.5em = ruby-ratio * 2em
  * (suffix-row の半分のため、vertical-align で中央揃え補正が必要)
  *
- * NOTE: vertical-align: middle は Chrome の縦書きモードで正しく動作しない (bug)。
- * suffix-row VA から centering offset (ruby-ratio * 1em) を引いて補正する。
+ * vertical-align: inline-grid baseline バグ補正 (suffix-row と同形式)
+ * fix=0 (正常): 0
+ * fix=1 (バグ): 0.5em - ruby-ratio * 0.5em
  */
 :where(.${prefix}-tateten-sep) {
   display: inline-grid;
   grid-template-rows: repeat(4, calc(var(--${vp}-ruby-ratio) * 0.5em));
   line-height: 1;
-  /* Chrome: suffix-row VA - centering offset = (ruby-ratio*0.5em + 0.5em) - ruby-ratio*1em */
-  vertical-align: calc(0.5em - var(--${vp}-ruby-ratio) * 0.5em);
-}
-
-/* Firefox: 0 - centering offset (ruby-ratio*1em) */
-@-moz-document url-prefix() {
-  :where(.${prefix}-tateten-sep) {
-    vertical-align: calc(var(--${vp}-ruby-ratio) * -1em);
-  }
-}
-
-/* Safari: 0 - centering offset (ruby-ratio*1em) */
-@supports (-webkit-touch-callout: none) {
-  :where(.${prefix}-tateten-sep) {
-    vertical-align: calc(var(--${vp}-ruby-ratio) * -1em);
-  }
+  vertical-align: calc(var(--${vp}-grid-baseline-fix, 0) * (0.5em - var(--${vp}-ruby-ratio) * 0.5em));
 }
 
 :where(.${prefix}-tateten-sep)::before {

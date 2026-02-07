@@ -9,6 +9,7 @@ import {
   attachInteractiveHandlers,
   setSelectionClasses,
   clearSelection,
+  calibrateGridBaseline,
   PROFILES,
   type RenderProfile,
 } from '@kanbun/skam-html-renderer';
@@ -2350,6 +2351,9 @@ selectionUnderlineBtn.addEventListener('click', handleUnderlineToggle);
 
 // Setup resizable divider
 setupResizableDivider();
+
+// Detect inline-grid baseline bug and set CSS compensation variable
+calibrateGridBaseline(renderOutput);
 
 // Restore state from URL
 const initialState = getStateFromURL();

@@ -34,7 +34,8 @@ function callRenderToken(
   node: TokenItem,
   ctx: RenderTreeContext,
   extractTatetenKaeri?: boolean,
-  suppressYomigana?: boolean
+  suppressYomigana?: boolean,
+  extractKutoten?: boolean
 ): TokenRenderResult {
   return renderToken(
     node.token,
@@ -44,7 +45,8 @@ function callRenderToken(
     ctx.refValueMap,
     ctx.highlightRefIds,
     extractTatetenKaeri,
-    suppressYomigana
+    suppressYomigana,
+    extractKutoten
   );
 }
 
@@ -58,8 +60,16 @@ function renderTatetenGroup(node: TatetenGroupNode, ctx: RenderTreeContext): str
   // グループレベルで yomigana が処理される場合、個別トークンの yomigana ruby を抑制
   const groupHasYomigana = !!node.rangeCtx?.yomiganaBaseText;
 
-  // Pass 1: 全トークンをレンダリング（非レ kaeri を分離）
-  const tokenResults = node.items.map((item) => callRenderToken(item, ctx, true, groupHasYomigana));
+  // yomigana がある場合は kutoten も抽出して ruby の外に配置する
+  const extractKutoten = groupHasYomigana;
+
+  // Pass 1: 全トークンをレンダリング（非レ kaeri を分離、yomigana 時は kutoten も分離）
+  const tokenResults = node.items.map((item) =>
+    callRenderToken(item, ctx, true, groupHasYomigana, extractKutoten)
+  );
+
+  // 抽出された kutoten を収集
+  const collectedKutoten = tokenResults.map((r) => r.kutotenHtml).join('');
 
   // Pass 2: 各セパレータ位置への kaeri 割り当て
   const numSeparators = tokenResults.length - 1;
@@ -118,7 +128,7 @@ function renderTatetenGroup(node: TatetenGroupNode, ctx: RenderTreeContext): str
     if (ctx.interactive && rangeCtx?.rangeTokenInfo) {
       dataAttrs = ` data-token-from="${escapeHtml(rangeCtx.rangeTokenInfo.from)}" data-token-to="${escapeHtml(rangeCtx.rangeTokenInfo.to)}"`;
     }
-    groupContent = `<ruby><rb class="${prefix}-tateten-group"${dataAttrs}>${groupContent}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>`;
+    groupContent = `<ruby><rb class="${prefix}-tateten-group"${dataAttrs}>${groupContent}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>${collectedKutoten}`;
   } else {
     groupContent = `<span class="${prefix}-tateten-group">${groupContent}</span>`;
   }

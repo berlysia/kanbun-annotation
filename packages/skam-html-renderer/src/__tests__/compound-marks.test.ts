@@ -35,6 +35,19 @@ function createThreeTokenDoc(
   };
 }
 
+function createTwoTokenDoc(text1: string, text2: string, marks: Mark[] = []): SKAMDocument {
+  return {
+    format: 'skam@0.1',
+    tokens: [
+      { id: 't1', text: text1 },
+      { id: 't2', text: text2 },
+    ],
+    blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
+    marks,
+    readings: [],
+  };
+}
+
 function createFiveTokenDoc(marks: Mark[] = []): SKAMDocument {
   return {
     format: 'skam@0.1',
@@ -535,5 +548,73 @@ describe('Range kana + tateten + kaeri: kaeri must not disappear', () => {
     expect(html).toMatch(/skam-suffix-kaeri.*skam-kaeriten/s);
     // tateten-sep 内に kaeri はない
     expect(html).not.toMatch(/skam-tateten-sep.*skam-kaeriten/s);
+  });
+});
+
+// ============================================================================
+// Tateten + yomigana + kutoten: 句読点を ruby の外に分離
+// ============================================================================
+
+describe('Tateten + yomigana + kutoten: kutoten extracted outside ruby', () => {
+  it('yomigana + tateten + kutoten: kutoten is outside ruby', () => {
+    const doc = createTwoTokenDoc('春', '風', [
+      { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しゅんぷう' },
+      { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      { type: 'kutoten', position: { blockId: 'b1', after: 't2' }, value: '。' },
+    ]);
+    const { html } = render(doc);
+    // kutoten が出力に存在する
+    expect(html).toContain('skam-suffix-kutoten');
+    // kutoten は </ruby> の後に配置される
+    expect(html).toMatch(/<\/ruby>.*skam-suffix-kutoten/s);
+    // <rb> 内に kutoten がない
+    expect(html).not.toMatch(/<rb.*skam-suffix-kutoten.*<\/rb>/s);
+  });
+
+  it('yomigana + tateten + kaeri + kutoten: both extracted correctly', () => {
+    const doc = createTwoTokenDoc('春', '風', [
+      { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しゅんぷう' },
+      { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '二' },
+      { type: 'kutoten', position: { blockId: 'b1', after: 't2' }, value: '。' },
+    ]);
+    const { html } = render(doc);
+    // kaeri は tateten-sep に配置
+    expect(html).toMatch(/skam-tateten-sep.*skam-kaeriten/s);
+    // kutoten は ruby の外に配置
+    expect(html).toMatch(/<\/ruby>.*skam-suffix-kutoten/s);
+    // yomigana も存在
+    expect(html).toContain('しゅんぷう');
+  });
+
+  it('tateten + kutoten (yomigana なし): kutoten stays in suffix-row', () => {
+    const doc = createTwoTokenDoc('春', '風', [
+      { type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'ハル' },
+      { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      { type: 'kutoten', position: { blockId: 'b1', after: 't2' }, value: '。' },
+    ]);
+    const { html } = render(doc);
+    // kutoten が出力に存在する
+    expect(html).toContain('skam-suffix-kutoten');
+    // yomigana がないので ruby にならず、kutoten は suffix-row 内にとどまる
+    expect(html).not.toContain('<ruby>');
+    expect(html).toMatch(/skam-suffix-row.*skam-suffix-kutoten/s);
+  });
+
+  it('yomigana + tateten + soegana + kutoten: soegana stays, kutoten extracted', () => {
+    const doc = createTwoTokenDoc('大', '事', [
+      { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'だいじ' },
+      { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      { type: 'soegana', anchor: { from: 't1', to: 't2' }, value: 'ヲ' },
+      { type: 'kutoten', position: { blockId: 'b1', after: 't2' }, value: '。' },
+    ]);
+    const { html } = render(doc);
+    // soegana は suffix-row 内（rb 内）
+    expect(html).toContain('skam-soegana');
+    expect(html).toMatch(/<rb.*skam-soegana.*<\/rb>/s);
+    // kutoten は ruby の外
+    expect(html).toMatch(/<\/ruby>.*skam-suffix-kutoten/s);
+    // <rb> 内に kutoten がない
+    expect(html).not.toMatch(/<rb.*skam-suffix-kutoten.*<\/rb>/s);
   });
 });

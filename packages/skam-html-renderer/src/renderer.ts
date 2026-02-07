@@ -861,7 +861,8 @@ export function renderToken(
   refValueMap?: Map<RefMark, string>,
   highlightRefIds?: Set<string>,
   extractTatetenKaeri?: boolean,
-  suppressYomigana?: boolean
+  suppressYomigana?: boolean,
+  extractKutoten?: boolean
 ): TokenRenderResult {
   const { prefix, profile } = ctx;
   const tokenMarks = getMarksForToken(token.id, marks, ctx.tokens);
@@ -963,14 +964,21 @@ export function renderToken(
   }
 
   // 句読点（現在のトークン + 範囲グループ後続トークンの句読点）
+  // extractKutoten=true の場合、句読点を kutotenHtml に分離して suffix-row から除外
   const kutotenMarks = (tokenMarks.get('kutoten') ?? []) as KutotenMark[];
   const allKutotenMarks = [...kutotenMarks, ...(rangeCtx?.trailingKutotenMarks ?? [])];
-  const kutoten =
-    profile.kutoten && allKutotenMarks.length > 0
-      ? allKutotenMarks
-          .map((m) => `<span class="${prefix}-suffix-kutoten">${escapeHtml(m.value)}</span>`)
-          .join('')
-      : '';
+  let kutoten = '';
+  let kutotenExtracted = '';
+  if (profile.kutoten && allKutotenMarks.length > 0) {
+    const kutotenHtmlStr = allKutotenMarks
+      .map((m) => `<span class="${prefix}-suffix-kutoten">${escapeHtml(m.value)}</span>`)
+      .join('');
+    if (extractKutoten) {
+      kutotenExtracted = kutotenHtmlStr;
+    } else {
+      kutoten = kutotenHtmlStr;
+    }
+  }
 
   // suffix-row: 4行グリッドで送り仮名・句読点・返り点・再読2回目送り仮名を配置
   // row1(右): 送り仮名・添え仮名、再読1回目送り仮名
@@ -1085,6 +1093,7 @@ export function renderToken(
   return {
     html: `${refHtml}<span class="${classes.join(' ')}"${tokenIdAttr}${emphasisInlineStyle}>${baseHtml}${okototenHtml}${suffixRowHtml}</span>`,
     tatetenKaeriHtml,
+    kutotenHtml: kutotenExtracted,
   };
 }
 

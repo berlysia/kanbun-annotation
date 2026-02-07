@@ -309,20 +309,20 @@ export const SAMPLES: Sample[] = [
         <skam:kunform n="1" yomi="すべから" okuri="ク"/>
         <skam:kunform n="2" okuri="ベシ"/>
       </skam:saidoku>
-      <skam:kun yomi="し" okuri="ル">知</skam:kun><skam:kaeri kind="ni"/>
-      <skam:span type="emphasis" style="sesame"><skam:tateten><skam:kun yomi="てん">天</skam:kun><skam:kun yomi="か">下</skam:kun></skam:tateten></skam:span>
-      <skam:kun yomi="の">之</skam:kun>
-      <skam:tateten><skam:kun yomi="だい">大</skam:kun><skam:kun yomi="じ" soe="ヲ">事</skam:kun></skam:tateten><skam:kaeri kind="ichi"/>
+      <skam:kun okuri="ル">知</skam:kun><skam:kaeri kind="ni"/>
+      <skam:span type="emphasis" style="sesame"><skam:tateten><skam:kun yomi="てんか">天下</skam:kun></skam:tateten></skam:span>
+      之
+      <skam:tateten><skam:kun yomi="だいじ" soe="ヲ">大事</skam:kun></skam:tateten><skam:kaeri kind="ichi"/>
       <skam:kutoten value="。" kind="ku"/>
     </skam:block>
     <skam:block>
       <skam:span type="highlight" style="wavy" ref="ref-a">
-        <skam:kun yomi="まな" okuri="ビテ">學</skam:kun><skam:okimoji>而</skam:okimoji>
+        <skam:kun okuri="ビテ">學</skam:kun><skam:okimoji>而</skam:okimoji>
         <skam:ref xml:id="ref-a" format="alpha-upper"/>
       </skam:span>
-      <skam:kun yomi="ざ" okuri="レバ">不</skam:kun><skam:kaeri kind="re"/>
-      <skam:kun yomi="おも" okuri="ハ">思</skam:kun>
-      <skam:kun yomi="すなは" okuri="チ">則</skam:kun>
+      <skam:kun okuri="レバ">不</skam:kun><skam:kaeri kind="re"/>
+      <skam:kun okuri="ハ">思</skam:kun>
+      <skam:kun okuri="チ">則</skam:kun>
       <skam:span type="emphasis" style="sesame">
         <skam:kun yomi="くら" okuri="シ">罔</skam:kun>
       </skam:span>

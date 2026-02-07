@@ -203,7 +203,9 @@ export function generateId(doc: SKAMDocument, prefix = 'm'): string {
   const existingIds = new Set(doc.marks.filter((m) => m.id != null).map((m) => m.id!));
   let id: string;
   do {
-    const hex = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
+    const hex = Array.from({ length: 8 }, () => Math.floor(Math.random() * 16).toString(16)).join(
+      ''
+    );
     id = `${prefix}-${hex}`;
   } while (existingIds.has(id));
   return id;

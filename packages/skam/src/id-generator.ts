@@ -5,7 +5,9 @@ export interface IdGenerator {
 export function createRandomIdGenerator(): IdGenerator {
   return {
     generate(prefix: string): string {
-      const hex = crypto.randomUUID().replace(/-/g, '').slice(0, 8);
+      const hex = Array.from({ length: 8 }, () => Math.floor(Math.random() * 16).toString(16)).join(
+        ''
+      );
       return `${prefix}-${hex}`;
     },
   };

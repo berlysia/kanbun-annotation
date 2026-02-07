@@ -824,6 +824,125 @@ describe('round-trip - saidoku with trailing marks', () => {
 });
 
 // ============================================================================
+// Joji/Okimoji + trailing marks Round-trip Tests
+// ============================================================================
+
+describe('round-trip - joji with trailing marks', () => {
+  it('should round-trip joji with kutoten', () => {
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '矣' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+      marks: [
+        {
+          type: 'joji',
+          id: 'm1',
+          anchor: { from: 't1', to: 't1' },
+        } as JojiMark,
+        {
+          type: 'kutoten',
+          id: 'm2',
+          position: { blockId: 'b1', after: 't1' },
+          value: '。',
+        } as KutotenMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+
+    // kutoten should be after </skam:joji>, not inside it
+    expect(xml).toContain('</skam:joji><skam:kutoten');
+
+    const reparsedDoc = parse(xml);
+
+    const joji = reparsedDoc.marks.find((m) => m.type === 'joji');
+    const kutoten = reparsedDoc.marks.find((m) => m.type === 'kutoten');
+
+    expect(joji).toBeDefined();
+    expect(kutoten).toBeDefined();
+    expect((kutoten as KutotenMark).value).toBe('。');
+  });
+
+  it('should round-trip joji with kaeri', () => {
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '矣' },
+        { id: 't2', text: '學' },
+      ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
+      marks: [
+        {
+          type: 'joji',
+          id: 'm1',
+          anchor: { from: 't1', to: 't1' },
+        } as JojiMark,
+        {
+          type: 'kaeri',
+          id: 'm2',
+          position: { blockId: 'b1', after: 't1' },
+          value: 'レ',
+        } as KaeriMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+
+    // kaeri should be after </skam:joji>, not inside it
+    expect(xml).toContain('</skam:joji><skam:kaeri kind="re"/>');
+
+    const reparsedDoc = parse(xml);
+
+    const joji = reparsedDoc.marks.find((m) => m.type === 'joji');
+    const kaeri = reparsedDoc.marks.find((m) => m.type === 'kaeri');
+
+    expect(joji).toBeDefined();
+    expect(kaeri).toBeDefined();
+    expect((kaeri as KaeriMark).value).toBe('レ');
+  });
+});
+
+describe('round-trip - okimoji with trailing marks', () => {
+  it('should round-trip okimoji with kutoten', () => {
+    const originalDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '而' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+      marks: [
+        {
+          type: 'okimoji',
+          id: 'm1',
+          anchor: { from: 't1', to: 't1' },
+        } as OkimojiMark,
+        {
+          type: 'kutoten',
+          id: 'm2',
+          position: { blockId: 'b1', after: 't1' },
+          value: '。',
+        } as KutotenMark,
+      ],
+      readings: [],
+    };
+
+    const xml = stringify(originalDoc);
+
+    // kutoten should be after </skam:okimoji>, not inside it
+    expect(xml).toContain('</skam:okimoji><skam:kutoten');
+
+    const reparsedDoc = parse(xml);
+
+    const okimoji = reparsedDoc.marks.find((m) => m.type === 'okimoji');
+    const kutoten = reparsedDoc.marks.find((m) => m.type === 'kutoten');
+
+    expect(okimoji).toBeDefined();
+    expect(kutoten).toBeDefined();
+    expect((kutoten as KutotenMark).value).toBe('。');
+  });
+});
+
+// ============================================================================
 // Readings Round-trip Tests
 // ============================================================================
 

@@ -692,9 +692,9 @@ function refMarkToXml(ref: RefMark, isEmpty: boolean): string {
 function contentNodeToXml(node: ContentNode): string {
   if (node.type === 'text') {
     // テキストノード：annotation を適用
-    // saidoku wrapper がある場合、trailing marks（kaeri/kutoten/ref）を
-    // <skam:base> 内ではなく <skam:saidoku> の後に配置する
-    if (node.annotation.wrappers?.some((w) => w.type === 'saidoku')) {
+    // wrapper がある場合、trailing marks（kaeri/kutoten/ref）を
+    // wrapper 要素の外に配置する（joji/okimoji/saidoku 等すべて共通）
+    if (node.annotation.wrappers?.length) {
       const baseXml = tokenBaseToXml(node.text, node.annotation);
       const trailingXml = tokenTrailingToXml(node.annotation);
       return applyWrappers(baseXml, node.annotation.wrappers) + trailingXml;

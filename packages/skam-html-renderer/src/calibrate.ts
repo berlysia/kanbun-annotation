@@ -1,11 +1,17 @@
 /**
- * Runtime detection for inline-grid baseline alignment bug.
+ * Runtime detection for Chromium's inline-grid baseline alignment bug.
  *
- * Some browsers (notably Chromium) calculate the baseline of
- * display:inline-grid elements differently in vertical writing mode,
- * shifting the grid box by an amount proportional to the internal
- * text's central baseline. This causes suffix-row and tateten
- * separators to visually misalign with the main text.
+ * In vertical writing mode (`writing-mode: vertical-rl`, `text-orientation: mixed`),
+ * CSS specs require `central` as the dominant baseline (CSS Writing Modes L4 §4.2,
+ * CSS Inline Layout L3 §4.1). Firefox and Safari implement this correctly, but
+ * Chromium does not: Blink's `FontBaseline` only supports `alphabetic` and
+ * `ideographic` types, lacking native `central` baseline support.
+ * See: https://issues.chromium.org/issues/40403675
+ *
+ * This causes `display:inline-grid` elements (and potentially other inline-level
+ * boxes) to misalign with surrounding text in vertical writing mode — the grid
+ * box shifts by an amount proportional to the difference between the alphabetic
+ * and central baseline positions.
  *
  * Instead of using CSS browser-detection hacks (@supports, @-moz-document),
  * this module measures the actual rendering behavior at runtime and sets a
@@ -15,12 +21,13 @@
  */
 
 /**
- * Detect inline-grid baseline alignment behavior and set CSS custom property.
+ * Detect Chromium's inline-grid baseline alignment bug and set CSS custom property.
  *
  * Measures how much an inline-grid's baseline alignment in vertical writing
  * mode causes the line box to expand compared to top alignment.
- * In buggy browsers (Chromium), baseline alignment shifts the grid,
- * expanding the line box; in correct browsers the two widths match.
+ * In Chromium (which lacks central baseline support), baseline alignment
+ * shifts the grid, expanding the line box; in spec-compliant browsers
+ * (Firefox, Safari) the two widths match.
  *
  * If the bug is detected, `--{prefix}-grid-baseline-fix: 1` is set
  * on the given root element (default: 0 via CSS fallback).
@@ -94,9 +101,9 @@ export function calibrateGridBaseline(
   const widthBaseline = measureLineBoxWidth('0');
   const widthTop = measureLineBoxWidth('top');
 
-  // In Chromium: baseline alignment causes an extra ~25 px of line-box
-  // expansion at this scale because the grid is shifted by the bug.
-  // In correct browsers (Firefox / Safari): both widths are equal (≈ 0 diff).
+  // In Chromium (lacking central baseline support): baseline alignment causes
+  // ~25 px of line-box expansion because the grid aligns to the wrong baseline.
+  // In spec-compliant browsers (Firefox / Safari): both widths are equal (≈ 0 diff).
   const excess = widthBaseline - widthTop;
 
   if (excess > 5) {

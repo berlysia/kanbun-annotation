@@ -211,9 +211,11 @@ function generateCommonStyles(prefix: string, vp: string): string {
  *   row2: glyph-size（返り点 = 本文サイズ）
  *   row3: ruby-font-size（再読2送り）
  *
- * NOTE: vertical-align の inline-grid baseline バグ補正
- * 一部ブラウザ (Chromium) は inline-grid 内テキストの central baseline で
- * アライメントするため、vertical-align に補正値が必要。
+ * NOTE: Chromium の inline-grid baseline バグ補正
+ * CSS 仕様上、縦書き (vertical-rl + text-orientation: mixed) では central が
+ * dominant baseline になる (CSS Writing Modes L4 §4.2, CSS Inline L3 §4.1)。
+ * Firefox/Safari は仕様準拠だが、Chromium は FontBaseline に central がなく
+ * 誤ったアライメントを行う (https://issues.chromium.org/issues/40403675)。
  * calibrateGridBaseline() がランタイムで挙動を実測し、バグが検出された場合に
  * --${vp}-grid-baseline-fix: 1 をセットする。
  *
@@ -367,9 +369,9 @@ function generateCommonStyles(prefix: string, vp: string): string {
  * グリッド総幅 = 4 * ruby-ratio * 0.5em = ruby-ratio * 2em
  * (suffix-row の半分のため、vertical-align で中央揃え補正が必要)
  *
- * vertical-align: inline-grid baseline バグ補正 (suffix-row と同形式)
- * fix=0 (正常): 0
- * fix=1 (バグ): 0.5em - ruby-ratio * 0.5em
+ * vertical-align: Chromium baseline バグ補正 (suffix-row と同形式)
+ * fix=0 (仕様準拠ブラウザ): 0
+ * fix=1 (Chromium): 0.5em - ruby-ratio * 0.5em
  */
 :where(.${prefix}-tateten-sep) {
   display: inline-grid;

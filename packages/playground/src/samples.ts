@@ -293,4 +293,46 @@ export const SAMPLES: Sample[] = [
   </skam:readings>
 </skam:doc>`,
   },
+  {
+    name: '全要素総合（ヲコト点除く）',
+    description:
+      '再読文字・返り点・送り仮名・読み仮名・添え仮名・置字・助字・句読点・たて点・傍点・傍線・注釈の全要素を含むレイアウト確認用総合例',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:meta>
+    <skam:tokenize strategy="char"/>
+  </skam:meta>
+  <skam:body>
+    <skam:block>
+      <skam:saidoku>
+        <skam:base>須</skam:base>
+        <skam:kunform n="1" yomi="すべから" okuri="ク"/>
+        <skam:kunform n="2" okuri="ベシ"/>
+      </skam:saidoku>
+      <skam:kun yomi="し" okuri="ル">知</skam:kun><skam:kaeri kind="ni"/>
+      <skam:span type="emphasis" style="sesame"><skam:tateten><skam:kun yomi="てん">天</skam:kun><skam:kun yomi="か">下</skam:kun></skam:tateten></skam:span>
+      <skam:kun yomi="の">之</skam:kun>
+      <skam:tateten><skam:kun yomi="だい">大</skam:kun><skam:kun yomi="じ" soe="ヲ">事</skam:kun></skam:tateten><skam:kaeri kind="ichi"/>
+      <skam:kutoten value="。" kind="ku"/>
+    </skam:block>
+    <skam:block>
+      <skam:span type="highlight" style="wavy" ref="ref-a">
+        <skam:kun yomi="まな" okuri="ビテ">學</skam:kun><skam:okimoji>而</skam:okimoji>
+        <skam:ref xml:id="ref-a" format="alpha-upper"/>
+      </skam:span>
+      <skam:kun yomi="ざ" okuri="レバ">不</skam:kun><skam:kaeri kind="re"/>
+      <skam:kun yomi="おも" okuri="ハ">思</skam:kun>
+      <skam:kun yomi="すなは" okuri="チ">則</skam:kun>
+      <skam:span type="emphasis" style="sesame">
+        <skam:kun yomi="くら" okuri="シ">罔</skam:kun>
+      </skam:span>
+      <skam:joji>矣</skam:joji>
+      <skam:kutoten value="。" kind="ku"/>
+    </skam:block>
+  </skam:body>
+  <skam:readings>
+    <skam:reading kind="kakikudashi">須く天下の大事を知るべし。学びて思はざれば則ち罔し。</skam:reading>
+  </skam:readings>
+</skam:doc>`,
+  },
 ];

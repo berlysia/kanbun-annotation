@@ -992,7 +992,10 @@ export function renderToken(
   let suffixRowHtml = '';
   let extractedSuffixHtml = '';
   if (hasSuffix) {
-    suffixRowHtml = `<span class="${prefix}-suffix-row">${
+    // extractSuffix + interactive: suffix-row を ruby 外に抽出する際、クリックで token を特定できるよう data-suffix-for を付与
+    const suffixForAttr =
+      extractSuffix && ctx.interactive ? ` data-suffix-for="${escapeHtml(token.id)}"` : '';
+    suffixRowHtml = `<span class="${prefix}-suffix-row"${suffixForAttr}>${
       suffixRight ? `<span class="${prefix}-suffix-okuri">${suffixRight}</span>` : ''
     }${kutoten}${
       suffixCenter ? `<span class="${prefix}-suffix-kaeri">${suffixCenter}</span>` : ''

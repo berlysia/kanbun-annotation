@@ -128,6 +128,12 @@ function getTokenIdFromElement(
     return tokenElement.getAttribute('data-token-id');
   }
 
+  // data-suffix-for を持つ要素を探す（suffix-row が ruby 外に抽出された場合）
+  const suffixElement = element.closest('[data-suffix-for]');
+  if (suffixElement) {
+    return suffixElement.getAttribute('data-suffix-for');
+  }
+
   return null;
 }
 

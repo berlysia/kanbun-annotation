@@ -230,6 +230,90 @@ describe('attachInteractiveHandlers', () => {
       cleanup();
     });
   });
+
+  describe('tateten group with yomigana (data-token-from/to on ruby)', () => {
+    beforeEach(() => {
+      // tateten グループ: data-token-from/to が <ruby> に付いた構造
+      container.innerHTML = `
+        <div class="skam-display">
+          <ruby data-token-from="t1" data-token-to="t2">
+            <rb class="skam-tateten-group">
+              <span class="skam-token" data-token-id="t1"><span class="skam-base">春</span></span>
+              <span class="skam-tateten-sep"><span class="skam-tateten-mark"></span></span>
+              <span class="skam-token" data-token-id="t2"><span class="skam-base">風</span></span>
+            </rb>
+            <rt class="skam-ruby">しゅんぷう</rt>
+          </ruby>
+          <span class="skam-token" data-token-id="t3">
+            <span class="skam-base">之</span>
+          </span>
+        </div>
+      `;
+    });
+
+    it('should resolve token ID when clicking on rt element inside tateten ruby', () => {
+      const onTokenSelect = vi.fn();
+      const cleanup = attachInteractiveHandlers(container, { onTokenSelect });
+
+      const rtElement = container.querySelector('rt.skam-ruby') as HTMLElement;
+      simulateClick(rtElement, { x: 0, y: 0 });
+
+      // rt をクリックすると closest('[data-token-from]') で <ruby> がヒットする
+      expect(onTokenSelect).toHaveBeenCalledWith('t1', 't2');
+
+      cleanup();
+    });
+  });
+
+  describe('suffix-row with data-suffix-for', () => {
+    beforeEach(() => {
+      // tateten + yomigana で suffix-row が ruby 外に抽出された構造
+      container.innerHTML = `
+        <div class="skam-display">
+          <ruby data-token-from="t1" data-token-to="t2">
+            <rb class="skam-tateten-group">
+              <span class="skam-token" data-token-id="t1"><span class="skam-base">春</span></span>
+              <span class="skam-tateten-sep"><span class="skam-tateten-mark"></span></span>
+              <span class="skam-token" data-token-id="t2"><span class="skam-base">風</span></span>
+            </rb>
+            <rt class="skam-ruby">しゅんぷう</rt>
+          </ruby>
+          <span class="skam-suffix-row" data-suffix-for="t2">
+            <span class="skam-suffix-kaeri"><span class="skam-kaeriten">㆑</span></span>
+          </span>
+          <span class="skam-token" data-token-id="t3">
+            <span class="skam-base">之</span>
+          </span>
+        </div>
+      `;
+    });
+
+    it('should resolve token ID when clicking on suffix-row with data-suffix-for', () => {
+      // suffix-row の token (t2) は tateten range (t1-t2) の一部なので、
+      // normalizeSelectionRange により range 全体が選択される
+      const onTokenSelect = vi.fn();
+      const cleanup = attachInteractiveHandlers(container, { onTokenSelect });
+
+      const suffixRow = container.querySelector('[data-suffix-for="t2"]') as HTMLElement;
+      simulateClick(suffixRow);
+
+      expect(onTokenSelect).toHaveBeenCalledWith('t1', 't2');
+
+      cleanup();
+    });
+
+    it('should resolve token ID when clicking on child of suffix-row', () => {
+      const onTokenSelect = vi.fn();
+      const cleanup = attachInteractiveHandlers(container, { onTokenSelect });
+
+      const kaeriten = container.querySelector('.skam-kaeriten') as HTMLElement;
+      simulateClick(kaeriten);
+
+      expect(onTokenSelect).toHaveBeenCalledWith('t1', 't2');
+
+      cleanup();
+    });
+  });
 });
 
 describe('setSelectionClasses', () => {

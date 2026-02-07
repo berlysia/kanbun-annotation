@@ -137,12 +137,12 @@ function renderTatetenGroup(node: TatetenGroupNode, ctx: RenderTreeContext): str
 
   let groupContent = parts.join('');
   if (yomigana) {
-    // interactive 用 data 属性
+    // interactive 用 data 属性（<ruby> に付与して <rt> からも closest() で辿れるようにする）
     let dataAttrs = '';
     if (ctx.interactive && rangeCtx?.rangeTokenInfo) {
       dataAttrs = ` data-token-from="${escapeHtml(rangeCtx.rangeTokenInfo.from)}" data-token-to="${escapeHtml(rangeCtx.rangeTokenInfo.to)}"`;
     }
-    let rubyContent = `<ruby><rb class="${prefix}-tateten-group"${dataAttrs}>${groupContent}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>${collectedSuffix}`;
+    let rubyContent = `<ruby${dataAttrs}><rb class="${prefix}-tateten-group">${groupContent}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>${collectedSuffix}`;
     // emphasis がある場合、ruby の外側で emphasis ラッパーを適用
     // （text-emphasis が ruby のベーステキストに正しく表示されるよう、ruby より上位に配置）
     if (groupEmphasisStyle) {

@@ -106,7 +106,7 @@ function createMultiBlockDoc(marks: Mark[] = []): SKAMDocument {
 // ============================================================================
 
 describe('Three-element compound: range kana + tateten + emphasis', () => {
-  it('yomigana + tateten + emphasis', () => {
+  it('yomigana + tateten + emphasis: emphasis wraps ruby', () => {
     const doc = createThreeTokenDoc('天', '地', '人', [
       { type: 'yomigana', anchor: { from: 't1', to: 't3' }, value: 'てんちじん' },
       { type: 'tateten', anchor: { from: 't1', to: 't3' } },
@@ -117,9 +117,13 @@ describe('Three-element compound: range kana + tateten + emphasis', () => {
     expect(html).toContain('skam-tateten');
     expect(html).toContain('skam-emphasis');
     expect(html).toContain('text-emphasis-style');
+    // emphasis が ruby の外側にラップされていること
+    expect(html).toMatch(/skam-emphasis.*<ruby>/s);
+    // 個別トークンに emphasis class がないこと（グループレベルで適用）
+    expect(html).not.toMatch(/skam-token skam-emphasis/);
   });
 
-  it('okurigana + tateten + emphasis', () => {
+  it('okurigana + tateten + emphasis: emphasis on individual tokens (no ruby)', () => {
     const doc = createThreeTokenDoc('不', '能', '爲', [
       { type: 'okurigana', anchor: { from: 't1', to: 't3' }, value: 'ハズ' },
       { type: 'tateten', anchor: { from: 't1', to: 't3' } },
@@ -132,7 +136,7 @@ describe('Three-element compound: range kana + tateten + emphasis', () => {
     expect(html).toContain('text-emphasis-style');
   });
 
-  it('soegana + tateten + emphasis', () => {
+  it('soegana + tateten + emphasis: emphasis on individual tokens (no ruby)', () => {
     const doc = createThreeTokenDoc('天', '地', '人', [
       { type: 'soegana', anchor: { from: 't1', to: 't3' }, value: 'を' },
       { type: 'tateten', anchor: { from: 't1', to: 't3' } },
@@ -272,7 +276,7 @@ describe('Cross-block and mode-specific compounds', () => {
 // ============================================================================
 
 describe('Four-element compound and saidoku compound', () => {
-  it('yomigana + tateten + emphasis + highlight with ref', () => {
+  it('yomigana + tateten + emphasis + highlight with ref: emphasis wraps ruby', () => {
     const doc = createThreeTokenDoc('重', '要', '語', [
       { type: 'yomigana', anchor: { from: 't1', to: 't3' }, value: 'じゅうようご' },
       { type: 'tateten', anchor: { from: 't1', to: 't3' } },
@@ -298,6 +302,10 @@ describe('Four-element compound and saidoku compound', () => {
     expect(html).toContain('skam-highlight');
     expect(html).toContain('skam-ref');
     expect(html).toContain('(A)');
+    // emphasis が ruby の外側にラップされていること
+    expect(html).toMatch(/skam-emphasis.*<ruby>/s);
+    // 個別トークンに emphasis class がないこと
+    expect(html).not.toMatch(/skam-token skam-emphasis/);
   });
 
   it('saidoku + yomigana on same token', () => {

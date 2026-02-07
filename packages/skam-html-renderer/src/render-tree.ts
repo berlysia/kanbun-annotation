@@ -35,7 +35,8 @@ function callRenderToken(
   ctx: RenderTreeContext,
   extractTatetenKaeri?: boolean,
   suppressYomigana?: boolean,
-  extractSuffix?: boolean
+  extractSuffix?: boolean,
+  suppressEmphasis?: boolean
 ): TokenRenderResult {
   return renderToken(
     node.token,
@@ -46,7 +47,8 @@ function callRenderToken(
     ctx.highlightRefIds,
     extractTatetenKaeri,
     suppressYomigana,
-    extractSuffix
+    extractSuffix,
+    suppressEmphasis
   );
 }
 
@@ -62,9 +64,17 @@ function renderTatetenGroup(node: TatetenGroupNode, ctx: RenderTreeContext): str
 
   // Pass 1: 全トークンをレンダリング（非レ kaeri を分離）
   // yomigana がある場合、末尾トークンの suffix-row を ruby の外に抽出する
+  // yomigana がある場合は emphasis も抑制（グループレベルで ruby の外に適用するため）
   const lastIndex = node.items.length - 1;
   const tokenResults = node.items.map((item, i) =>
-    callRenderToken(item, ctx, true, groupHasYomigana, groupHasYomigana && i === lastIndex)
+    callRenderToken(
+      item,
+      ctx,
+      true,
+      groupHasYomigana,
+      groupHasYomigana && i === lastIndex,
+      groupHasYomigana
+    )
   );
 
   // 末尾トークンから抽出された suffix を収集
@@ -120,6 +130,11 @@ function renderTatetenGroup(node: TatetenGroupNode, ctx: RenderTreeContext): str
       )
     : '';
 
+  // グループ内トークンの emphasis スタイルを収集（yomigana 時にグループレベルで適用するため）
+  const groupEmphasisStyle = groupHasYomigana
+    ? tokenResults.find((r) => r.emphasisStyle)?.emphasisStyle
+    : undefined;
+
   let groupContent = parts.join('');
   if (yomigana) {
     // interactive 用 data 属性
@@ -127,7 +142,13 @@ function renderTatetenGroup(node: TatetenGroupNode, ctx: RenderTreeContext): str
     if (ctx.interactive && rangeCtx?.rangeTokenInfo) {
       dataAttrs = ` data-token-from="${escapeHtml(rangeCtx.rangeTokenInfo.from)}" data-token-to="${escapeHtml(rangeCtx.rangeTokenInfo.to)}"`;
     }
-    groupContent = `<ruby><rb class="${prefix}-tateten-group"${dataAttrs}>${groupContent}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>${collectedSuffix}`;
+    let rubyContent = `<ruby><rb class="${prefix}-tateten-group"${dataAttrs}>${groupContent}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>${collectedSuffix}`;
+    // emphasis がある場合、ruby の外側で emphasis ラッパーを適用
+    // （text-emphasis が ruby のベーステキストに正しく表示されるよう、ruby より上位に配置）
+    if (groupEmphasisStyle) {
+      rubyContent = `<span class="${prefix}-emphasis" style="text-emphasis-style: ${escapeHtml(groupEmphasisStyle)};">${rubyContent}</span>`;
+    }
+    groupContent = rubyContent;
   } else {
     groupContent = `<span class="${prefix}-tateten-group">${groupContent}</span>`;
   }

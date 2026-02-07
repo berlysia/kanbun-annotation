@@ -348,6 +348,8 @@ function generateCommonStyles(prefix: string, vp: string): string {
   vertical-align: middle;
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   user-select: none;
+  /* text-emphasis は継承するため、親要素の傍点が竪点記号に伝播するのを防止 */
+  text-emphasis: none;
 }
 
 :where(.${prefix}-tateten-mark)::after {

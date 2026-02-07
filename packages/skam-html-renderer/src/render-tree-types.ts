@@ -27,6 +27,8 @@ export interface TokenRenderResult {
   tatetenKaeriHtml: string;
   /** 抽出されたsuffix-row HTML（extractSuffix=true の場合にtoken HTMLから分離） */
   suffixHtml: string;
+  /** 傍点スタイル（トークンにemphasisがある場合のCSS値、例: "filled dot"） */
+  emphasisStyle?: string;
 }
 
 export interface RangeTokenInfo {

@@ -862,7 +862,8 @@ export function renderToken(
   highlightRefIds?: Set<string>,
   extractTatetenKaeri?: boolean,
   suppressYomigana?: boolean,
-  extractSuffix?: boolean
+  extractSuffix?: boolean,
+  suppressEmphasis?: boolean
 ): TokenRenderResult {
   const { prefix, profile } = ctx;
   const tokenMarks = getMarksForToken(token.id, marks, ctx.tokens);
@@ -877,6 +878,11 @@ export function renderToken(
   const emphasisMarks = (tokenMarks.get('emphasis') ?? []) as EmphasisMark[];
   const allEmphasisMarks = [...emphasisMarks, ...(rangeCtx?.trailingEmphasisMarks ?? [])];
   const hasEmphasis = profile.emphasis && allEmphasisMarks.length > 0;
+  const resolvedEmphasisStyle = hasEmphasis
+    ? (allEmphasisMarks[0]?.style ?? 'filled dot')
+    : undefined;
+  // suppressEmphasis: tateten+yomigana 時にグループレベルで emphasis を適用するため、個別トークンでは抑制
+  const applyEmphasis = hasEmphasis && !suppressEmphasis;
 
   // ヲコト点チェック
   const okototenMarks = (tokenMarks.get('okototen') ?? []) as OkototenMark[];
@@ -1042,7 +1048,7 @@ export function renderToken(
   if (hasOkototen) {
     classes.push(`${prefix}-has-okototen`);
   }
-  if (hasEmphasis) {
+  if (applyEmphasis) {
     classes.push(`${prefix}-emphasis`);
   }
   if (isOkimoji) {
@@ -1084,16 +1090,19 @@ export function renderToken(
 
   // 傍点スタイル（インラインスタイル、デフォルト: filled dot）
   let emphasisInlineStyle = '';
-  if (hasEmphasis) {
-    const emphasisStyle = allEmphasisMarks[0]?.style ?? 'filled dot';
-    emphasisInlineStyle = ` style="text-emphasis-style: ${escapeHtml(emphasisStyle)};"`;
+  if (applyEmphasis && resolvedEmphasisStyle) {
+    emphasisInlineStyle = ` style="text-emphasis-style: ${escapeHtml(resolvedEmphasisStyle)};"`;
   }
 
-  return {
+  const result: TokenRenderResult = {
     html: `${refHtml}<span class="${classes.join(' ')}"${tokenIdAttr}${emphasisInlineStyle}>${baseHtml}${okototenHtml}${suffixRowHtml}</span>`,
     tatetenKaeriHtml,
     suffixHtml: extractedSuffixHtml,
   };
+  if (resolvedEmphasisStyle) {
+    result.emphasisStyle = resolvedEmphasisStyle;
+  }
+  return result;
 }
 
 // ============================================================================

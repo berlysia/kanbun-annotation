@@ -1,0 +1,212 @@
+import { describe, it, expect } from 'vitest';
+import type { SKAMDocument } from '@kanbun/skam';
+import { render, measure, PROFILES } from '../index.js';
+import { RecordingCanvas, RecordingContext } from './recording-context.js';
+
+function plainDoc(): SKAMDocument {
+  return {
+    format: 'skam@0.1',
+    tokens: [
+      { id: 't1', text: '子' },
+      { id: 't2', text: '曰' },
+      { id: 't3', text: '學' },
+    ],
+    blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
+    marks: [],
+    readings: [],
+  };
+}
+
+function annotatedDoc(): SKAMDocument {
+  return {
+    format: 'skam@0.1',
+    tokens: [
+      { id: 't1', text: '子' },
+      { id: 't2', text: '曰' },
+      { id: 't3', text: '學' },
+    ],
+    blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
+    marks: [
+      { type: 'yomigana', anchor: { from: 't3', to: 't3' }, value: 'まな' },
+      { type: 'okurigana', anchor: { from: 't3', to: 't3' }, value: 'ぶ' },
+      { type: 'soegana', anchor: { from: 't1', to: 't1' }, value: 'は' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
+      { type: 'kutoten', position: { blockId: 'b1', after: 't3' }, value: '。' },
+    ],
+    readings: [],
+  };
+}
+
+describe('integration: render()', () => {
+  it('renders plain text document', () => {
+    const canvas = new RecordingCanvas();
+    render(plainDoc(), canvas);
+
+    const ctx = canvas.getContext('2d');
+    const fillTexts = ctx.getCalls('fillText');
+    const chars = fillTexts.map((c) => c.args[0]);
+    expect(chars).toContain('子');
+    expect(chars).toContain('曰');
+    expect(chars).toContain('學');
+  });
+
+  it('renders document with all 5 Phase 1 marks', () => {
+    const canvas = new RecordingCanvas();
+    render(annotatedDoc(), canvas);
+
+    const ctx = canvas.getContext('2d');
+    const fillTexts = ctx.getCalls('fillText');
+    const chars = fillTexts.map((c) => c.args[0]);
+
+    // Base characters
+    expect(chars).toContain('子');
+    expect(chars).toContain('曰');
+    expect(chars).toContain('學');
+
+    // Ruby (yomigana)
+    expect(chars).toContain('ま');
+    expect(chars).toContain('な');
+
+    // Okurigana
+    expect(chars).toContain('ぶ');
+
+    // Soegana
+    expect(chars).toContain('は');
+
+    // Kaeri (Unicode)
+    expect(chars).toContain('\u3191');
+
+    // Kutoten
+    expect(chars).toContain('。');
+  });
+
+  it('renders background when backgroundColor is set', () => {
+    const canvas = new RecordingCanvas();
+    render(plainDoc(), canvas, { backgroundColor: '#fff' });
+
+    const ctx = canvas.getContext('2d');
+    const fillRects = ctx.getCalls('fillRect');
+    expect(fillRects.length).toBeGreaterThanOrEqual(1);
+
+    // Background should be drawn before any text
+    const firstFillRect = ctx.calls.findIndex((c) => c.method === 'fillRect');
+    const firstFillText = ctx.calls.findIndex((c) => c.method === 'fillText');
+    expect(firstFillRect).toBeLessThan(firstFillText);
+  });
+
+  it('renders with custom options', () => {
+    const canvas = new RecordingCanvas();
+    render(plainDoc(), canvas, {
+      fontSize: 32,
+      fontFamily: 'sans-serif',
+      padding: 20,
+    });
+
+    const ctx = canvas.getContext('2d');
+    const fillTexts = ctx.getCalls('fillText');
+    expect(fillTexts.length).toBeGreaterThan(0);
+  });
+
+  it('respects profile filtering', () => {
+    const canvas = new RecordingCanvas();
+    render(annotatedDoc(), canvas, {
+      profile: PROFILES.learningBasic,
+    });
+
+    const ctx = canvas.getContext('2d');
+    const fillTexts = ctx.getCalls('fillText');
+    const chars = fillTexts.map((c) => c.args[0]);
+
+    // Kaeri should be present (kaeriten: true)
+    expect(chars).toContain('\u3191');
+
+    // Yomigana should NOT be present (yomigana: false)
+    expect(chars).not.toContain('ま');
+    expect(chars).not.toContain('な');
+  });
+
+  it('renders empty document without error', () => {
+    const canvas = new RecordingCanvas();
+    const emptyDoc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [],
+      blocks: [],
+      marks: [],
+      readings: [],
+    };
+    expect(() => render(emptyDoc, canvas)).not.toThrow();
+  });
+
+  it('renders multiple blocks', () => {
+    const canvas = new RecordingCanvas();
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '子' },
+        { id: 't2', text: '曰' },
+        { id: 't3', text: '學' },
+        { id: 't4', text: '而' },
+      ],
+      blocks: [
+        { id: 'b1', tokenIds: ['t1', 't2'] },
+        { id: 'b2', tokenIds: ['t3', 't4'] },
+      ],
+      marks: [],
+      readings: [],
+    };
+    render(doc, canvas);
+
+    const ctx = canvas.getContext('2d');
+    const chars = ctx.getCalls('fillText').map((c) => c.args[0]);
+    expect(chars).toContain('子');
+    expect(chars).toContain('曰');
+    expect(chars).toContain('學');
+    expect(chars).toContain('而');
+  });
+});
+
+describe('integration: measure()', () => {
+  it('returns positive dimensions for plain document', () => {
+    const ctx = new RecordingContext();
+    const dims = measure(plainDoc(), ctx);
+
+    expect(dims.width).toBeGreaterThan(0);
+    expect(dims.height).toBeGreaterThan(0);
+    // Vertical layout of 3 chars: height > width
+    expect(dims.height).toBeGreaterThan(dims.width);
+  });
+
+  it('increases width when marks are added', () => {
+    const ctx1 = new RecordingContext();
+    const plainDims = measure(plainDoc(), ctx1);
+
+    const ctx2 = new RecordingContext();
+    const annotatedDims = measure(annotatedDoc(), ctx2);
+
+    // Ruby/suffix marks should widen the column
+    expect(annotatedDims.width).toBeGreaterThan(plainDims.width);
+  });
+
+  it('includes custom padding in dimensions', () => {
+    const ctx = new RecordingContext();
+    const dimsDefault = measure(plainDoc(), ctx);
+
+    const ctx2 = new RecordingContext();
+    const dimsCustom = measure(plainDoc(), ctx2, {
+      padding: { top: 40, right: 40, bottom: 40, left: 40 },
+    });
+
+    // Larger padding = larger dimensions
+    expect(dimsCustom.width).toBeGreaterThan(dimsDefault.width);
+    expect(dimsCustom.height).toBeGreaterThan(dimsDefault.height);
+  });
+
+  it('does not issue draw calls', () => {
+    const ctx = new RecordingContext();
+    measure(plainDoc(), ctx);
+
+    // measure() should not call fillText or fillRect
+    expect(ctx.getCalls('fillText')).toHaveLength(0);
+    expect(ctx.getCalls('fillRect')).toHaveLength(0);
+  });
+});

@@ -461,6 +461,66 @@ describe('layoutVertical', () => {
     expect(resultTateten.height - resultPlain.height).toBe(separatorAdvance);
   });
 
+  // rubySpan layout
+  it('centers ruby across 2 cells when rubySpan=2 (suffix mode)', () => {
+    const ctx = new RecordingContext();
+    const doc = threeTokenDoc([
+      // range yomigana spanning t1-t2
+      { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しいわ' },
+      // suffix mark to trigger suffix mode
+      { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: 'レ' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    const result = layout(tree, ctx);
+
+    const t1 = asToken(result.columns[0]!.children[0]!);
+    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+    const cellAdvance = DEFAULT_FONT_SIZE * DEFAULT_LINE_HEIGHT;
+
+    expect(t1.slots.ruby).toBeDefined();
+    // rubySpan=2, so centered over 2 cells
+    // spanHeight = 2 * cellAdvance = 96
+    // rubyTextHeight = 3 chars * rubyFontSize = 36
+    // rubyY = tokenY + (96 - 36) / 2 = tokenY + 30
+    const spanHeight = 2 * cellAdvance;
+    const rubyTextHeight = 3 * rubyFontSize;
+    const expectedRubyY = t1.y + (spanHeight - rubyTextHeight) / 2;
+    expect(t1.slots.ruby!.y).toBe(expectedRubyY);
+  });
+
+  it('centers ruby across 3 cells when rubySpan=3 (no suffix mode)', () => {
+    const ctx = new RecordingContext();
+    const doc = threeTokenDoc([
+      { type: 'yomigana', anchor: { from: 't1', to: 't3' }, value: 'ろんご' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    const result = layout(tree, ctx);
+
+    const t1 = asToken(result.columns[0]!.children[0]!);
+    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+    const cellAdvance = DEFAULT_FONT_SIZE * DEFAULT_LINE_HEIGHT;
+
+    expect(t1.slots.ruby).toBeDefined();
+    const spanHeight = 3 * cellAdvance;
+    const rubyTextHeight = 3 * rubyFontSize;
+    const expectedRubyY = t1.y + (spanHeight - rubyTextHeight) / 2;
+    expect(t1.slots.ruby!.y).toBe(expectedRubyY);
+  });
+
+  it('does not offset ruby for single-token yomigana (no rubySpan)', () => {
+    const ctx = new RecordingContext();
+    const doc = singleTokenDoc([
+      { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    const result = layout(tree, ctx);
+
+    const token = asToken(result.columns[0]!.children[0]!);
+    // Single token: ruby y = token y (no centering offset)
+    expect(token.slots.ruby!.y).toBe(token.y);
+  });
+
   it('places kaeri on tateten separator', () => {
     const ctx = new RecordingContext();
     const doc = threeTokenDoc([

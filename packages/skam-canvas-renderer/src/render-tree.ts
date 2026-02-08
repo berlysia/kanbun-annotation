@@ -20,6 +20,12 @@ import type {
   TatetenMark,
 } from '@kanbun/skam';
 import { isPositionBasedMark } from '@kanbun/skam';
+
+/** range mark グループ情報 */
+interface RangeMarkGroup {
+  mark: YomiganaMark | OkuriganaMark | SoeganaMark;
+  tokenIds: string[];
+}
 import type {
   CanvasRenderTree,
   CanvasBlockNode,
@@ -249,6 +255,40 @@ function getTatetenGroups(blockTokens: Token[], marks: Mark[]): Map<string, Tate
 }
 
 /**
+ * anchor.from !== anchor.to の anchor-based マークをグループ化。
+ * 各トークン ID → 所属する RangeMarkGroup のマップを返す。
+ */
+function getRangeMarkGroups(
+  blockTokens: Token[],
+  marks: Mark[],
+  type: 'yomigana' | 'okurigana' | 'soegana'
+): Map<string, RangeMarkGroup> {
+  const targetMarks = marks.filter(
+    (m): m is YomiganaMark | OkuriganaMark | SoeganaMark =>
+      m.type === type && !isPositionBasedMark(m) && m.anchor.from !== m.anchor.to
+  );
+  const result = new Map<string, RangeMarkGroup>();
+
+  for (const mark of targetMarks) {
+    const fromIdx = blockTokens.findIndex((t) => t.id === mark.anchor.from);
+    const toIdx = blockTokens.findIndex((t) => t.id === mark.anchor.to);
+    if (fromIdx === -1 || toIdx === -1) continue;
+
+    const tokenIds: string[] = [];
+    for (let i = fromIdx; i <= toIdx; i++) {
+      tokenIds.push(blockTokens[i]!.id);
+    }
+
+    const group: RangeMarkGroup = { mark, tokenIds };
+    for (const tokenId of tokenIds) {
+      result.set(tokenId, group);
+    }
+  }
+
+  return result;
+}
+
+/**
  * tateten グループを構築。
  * N トークン → N-1 セパレータ挿入。
  * kaeri: splitKaeriForTateten() でレ→トークン suffix、非レ→セパレータ kaeri。
@@ -326,6 +366,92 @@ export function buildRenderTree(doc: SKAMDocument, profile: RenderProfile): Canv
       token,
       slots: resolveSlots(token.id, marks, profile, group.tokens),
     }));
+
+    // range yomigana: 先頭トークンに rubySpan を設定し、後続トークンの ruby をクリア
+    if (profile.yomigana) {
+      const yomiganaGroups = getRangeMarkGroups(group.tokens, marks, 'yomigana');
+      const processed = new Set<string>();
+      for (const tokenNode of tokenNodes) {
+        const rangeGroup = yomiganaGroups.get(tokenNode.token.id);
+        if (!rangeGroup || processed.has(tokenNode.token.id)) continue;
+
+        if (rangeGroup.tokenIds[0] === tokenNode.token.id) {
+          // 先頭トークン: ruby 値を設定し rubySpan を記録
+          tokenNode.slots = {
+            ...tokenNode.slots,
+            ruby: rangeGroup.mark.value,
+            rubySpan: rangeGroup.tokenIds.length,
+          };
+          // 後続トークンの ruby をクリア
+          for (const tid of rangeGroup.tokenIds.slice(1)) {
+            processed.add(tid);
+            const subsequent = tokenNodes.find((n) => n.token.id === tid);
+            if (subsequent) {
+              const { ruby: _removed, ...restSlots } = subsequent.slots;
+              subsequent.slots = restSlots;
+            }
+          }
+        }
+      }
+    }
+
+    // range okurigana: 最終トークンにのみ okuri を設定し、先行トークンをクリア
+    if (profile.okurigana) {
+      const okuriganaGroups = getRangeMarkGroups(group.tokens, marks, 'okurigana');
+      const processed = new Set<string>();
+      for (const tokenNode of tokenNodes) {
+        const rangeGroup = okuriganaGroups.get(tokenNode.token.id);
+        if (!rangeGroup || processed.has(tokenNode.token.id)) continue;
+
+        const lastTokenId = rangeGroup.tokenIds[rangeGroup.tokenIds.length - 1];
+        if (rangeGroup.tokenIds[0] === tokenNode.token.id) {
+          // 最終トークンに okuri を設定
+          const lastNode = tokenNodes.find((n) => n.token.id === lastTokenId);
+          if (lastNode) {
+            lastNode.slots = { ...lastNode.slots, okuri: rangeGroup.mark.value };
+          }
+          // 先行トークンの okuri をクリア
+          for (const tid of rangeGroup.tokenIds.slice(0, -1)) {
+            processed.add(tid);
+            const node = tokenNodes.find((n) => n.token.id === tid);
+            if (node) {
+              const { okuri: _removed, ...restSlots } = node.slots;
+              node.slots = restSlots;
+            }
+          }
+          processed.add(lastTokenId!);
+        }
+      }
+    }
+
+    // range soegana: 最終トークンにのみ soegana を設定し、先行トークンをクリア
+    if (profile.soegana) {
+      const soeganaGroups = getRangeMarkGroups(group.tokens, marks, 'soegana');
+      const processed = new Set<string>();
+      for (const tokenNode of tokenNodes) {
+        const rangeGroup = soeganaGroups.get(tokenNode.token.id);
+        if (!rangeGroup || processed.has(tokenNode.token.id)) continue;
+
+        const lastTokenId = rangeGroup.tokenIds[rangeGroup.tokenIds.length - 1];
+        if (rangeGroup.tokenIds[0] === tokenNode.token.id) {
+          // 最終トークンに soegana を設定
+          const lastNode = tokenNodes.find((n) => n.token.id === lastTokenId);
+          if (lastNode) {
+            lastNode.slots = { ...lastNode.slots, soegana: rangeGroup.mark.value };
+          }
+          // 先行トークンの soegana をクリア
+          for (const tid of rangeGroup.tokenIds.slice(0, -1)) {
+            processed.add(tid);
+            const node = tokenNodes.find((n) => n.token.id === tid);
+            if (node) {
+              const { soegana: _removed, ...restSlots } = node.slots;
+              node.slots = restSlots;
+            }
+          }
+          processed.add(lastTokenId!);
+        }
+      }
+    }
 
     // tateten グルーピング: 連続する同一マーク参照のトークンをグループ化
     let children: CanvasBlockChild[];

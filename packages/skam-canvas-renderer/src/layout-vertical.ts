@@ -92,7 +92,7 @@ function layoutSingleToken(
   lctx: LayoutContext
 ): TokenLayout {
   const { slots } = tokenNode;
-  const { columnX, columnWidth, fontSize, rubyFontSize, slotGap, hasSuffix } = lctx;
+  const { columnX, columnWidth, fontSize, rubyFontSize, cellAdvance, slotGap, hasSuffix } = lctx;
   const slotLayouts: ResolvedSlotLayouts = {};
 
   if (hasSuffix) {
@@ -103,7 +103,14 @@ function layoutSingleToken(
     const col3X = columnX + rubyFontSize + rubyFontSize / 2;
 
     if (slots.ruby) {
-      slotLayouts.ruby = { text: slots.ruby, x: rightColX, y: tokenY, fontSize: rubyFontSize };
+      let rubyY = tokenY;
+      if (slots.rubySpan && slots.rubySpan > 1) {
+        // range yomigana: N セル分の中央にセンタリング
+        const spanHeight = slots.rubySpan * cellAdvance;
+        const rubyTextHeight = [...slots.ruby].length * rubyFontSize;
+        rubyY = tokenY + (spanHeight - rubyTextHeight) / 2;
+      }
+      slotLayouts.ruby = { text: slots.ruby, x: rightColX, y: rubyY, fontSize: rubyFontSize };
     }
 
     if (slots.okuri) {
@@ -179,10 +186,16 @@ function layoutSingleToken(
     }
   } else {
     if (slots.ruby) {
+      let rubyY = tokenY;
+      if (slots.rubySpan && slots.rubySpan > 1) {
+        const spanHeight = slots.rubySpan * cellAdvance;
+        const rubyTextHeight = [...slots.ruby].length * rubyFontSize;
+        rubyY = tokenY + (spanHeight - rubyTextHeight) / 2;
+      }
       slotLayouts.ruby = {
         text: slots.ruby,
         x: tokenX + fontSize / 2 + slotGap,
-        y: tokenY,
+        y: rubyY,
         fontSize: rubyFontSize,
       };
     }

@@ -446,6 +446,78 @@ describe('buildRenderTree', () => {
     expect(tree.blocks[0]!.children[2]!.type).toBe('token');
   });
 
+  // range yomigana
+  it('resolves range yomigana with rubySpan on first token', () => {
+    const doc = threeTokenDoc([
+      { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しいわ' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const t1 = asTokenNode(tree.blocks[0]!.children[0]!);
+    const t2 = asTokenNode(tree.blocks[0]!.children[1]!);
+    const t3 = asTokenNode(tree.blocks[0]!.children[2]!);
+    // First token: ruby set with rubySpan
+    expect(t1.slots.ruby).toBe('しいわ');
+    expect(t1.slots.rubySpan).toBe(2);
+    // Second token: ruby cleared
+    expect(t2.slots.ruby).toBeUndefined();
+    expect(t2.slots.rubySpan).toBeUndefined();
+    // Third token: unrelated
+    expect(t3.slots.ruby).toBeUndefined();
+  });
+
+  it('resolves range yomigana spanning 3 tokens', () => {
+    const doc = threeTokenDoc([
+      { type: 'yomigana', anchor: { from: 't1', to: 't3' }, value: 'ろんご' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const t1 = asTokenNode(tree.blocks[0]!.children[0]!);
+    const t2 = asTokenNode(tree.blocks[0]!.children[1]!);
+    const t3 = asTokenNode(tree.blocks[0]!.children[2]!);
+    expect(t1.slots.ruby).toBe('ろんご');
+    expect(t1.slots.rubySpan).toBe(3);
+    expect(t2.slots.ruby).toBeUndefined();
+    expect(t3.slots.ruby).toBeUndefined();
+  });
+
+  // range okurigana
+  it('resolves range okurigana on last token only', () => {
+    const doc = threeTokenDoc([
+      { type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'ぶ' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const t1 = asTokenNode(tree.blocks[0]!.children[0]!);
+    const t2 = asTokenNode(tree.blocks[0]!.children[1]!);
+    // First token: okuri cleared
+    expect(t1.slots.okuri).toBeUndefined();
+    // Last token: okuri set
+    expect(t2.slots.okuri).toBe('ぶ');
+  });
+
+  // range soegana
+  it('resolves range soegana on last token only', () => {
+    const doc = threeTokenDoc([{ type: 'soegana', anchor: { from: 't1', to: 't2' }, value: 'は' }]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const t1 = asTokenNode(tree.blocks[0]!.children[0]!);
+    const t2 = asTokenNode(tree.blocks[0]!.children[1]!);
+    expect(t1.slots.soegana).toBeUndefined();
+    expect(t2.slots.soegana).toBe('は');
+  });
+
+  it('does not set rubySpan for single-token yomigana', () => {
+    const doc = threeTokenDoc([
+      { type: 'yomigana', anchor: { from: 't3', to: 't3' }, value: 'まな' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const t3 = asTokenNode(tree.blocks[0]!.children[2]!);
+    expect(t3.slots.ruby).toBe('まな');
+    expect(t3.slots.rubySpan).toBeUndefined();
+  });
+
   it('preserves token slots within tateten group', () => {
     const doc = threeTokenDoc([
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },

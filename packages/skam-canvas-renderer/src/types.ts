@@ -54,6 +54,8 @@ export interface DocumentDimensions {
 
 export interface TokenSlots {
   ruby?: string;
+  /** range yomigana がまたがるトークン数（省略時 = 1、先頭トークンにのみ設定） */
+  rubySpan?: number;
   okuri?: string;
   soegana?: string;
   kaeri?: string;

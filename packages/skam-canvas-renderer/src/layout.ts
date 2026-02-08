@@ -6,6 +6,7 @@ import type { CanvasRenderingContext2DLike } from './canvas-context.js';
 import type { CanvasRenderTree, DocumentLayout, ResolvedOptions, PaddingConfig, CanvasRenderOptions } from './types.js';
 import type { RenderProfile } from './profiles.js';
 import { PROFILES } from './profiles.js';
+import { DEFAULT_FONT_FAMILY } from './font-loader.js';
 import { TextMeasurer } from './measure.js';
 import { layoutVertical } from './layout-vertical.js';
 
@@ -22,7 +23,7 @@ export function resolveOptions(options?: CanvasRenderOptions): ResolvedOptions {
     writingMode: options?.writingMode ?? 'vertical',
     profile,
     fontSize: options?.fontSize ?? 24,
-    fontFamily: options?.fontFamily ?? 'serif',
+    fontFamily: options?.fontFamily ?? `${DEFAULT_FONT_FAMILY}, serif`,
     rubyRatio: options?.rubyRatio ?? 0.5,
     lineHeight: options?.lineHeight ?? 2.0,
     columnGap: options?.columnGap ?? 16,

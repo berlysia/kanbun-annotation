@@ -6,6 +6,7 @@
 
 // Main API
 export { render, measure } from './renderer.js';
+export { loadDefaultFont, DEFAULT_FONT_FAMILY } from './font-loader.js';
 
 // Profiles
 export { PROFILES } from './profiles.js';

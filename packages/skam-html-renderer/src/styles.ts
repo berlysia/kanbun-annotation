@@ -19,6 +19,11 @@ export type CopyableElement = 'ruby' | 'okurigana' | 'soegana' | 'kaeriten' | 'o
 /**
  * CSSスタイル生成オプション
  */
+/**
+ * Ruby要素のレンダリング方式
+ */
+export type RubyMethod = 'ruby' | 'grid';
+
 export interface StyleOptions {
   /** CSSクラス名プレフィックス（default: 'skam'） */
   classPrefix?: string;
@@ -32,6 +37,14 @@ export interface StyleOptions {
   layerName?: string;
   /** CSS Variables のプレフィックス（default: 'skam'） */
   variablePrefix?: string;
+  /**
+   * Ruby要素のレンダリング方式（default: 'ruby'）
+   *
+   * - 'ruby': ruby要素用CSS
+   * - 'grid': inline-grid用CSS
+   * - 'both': 両方のCSSを出力
+   */
+  rubyMethod?: RubyMethod | 'both';
 }
 
 /**
@@ -52,8 +65,9 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
   const inline = options.inline ?? false;
   const useLayer = options.useLayer ?? true;
   const layerName = options.layerName ?? 'skam-kanbun';
+  const rubyMethod = options.rubyMethod ?? 'ruby';
 
-  const commonStyles = generateCommonStyles(prefix, vp);
+  const commonStyles = generateCommonStyles(prefix, vp, rubyMethod);
   const inlineStyles = inline ? generateInlineStyles(prefix) : '';
 
   let css: string;
@@ -105,7 +119,184 @@ ${inlineStyles}`.trim();
 /**
  * 共通スタイル（書字方向に依存しない）
  */
-function generateCommonStyles(prefix: string, vp: string): string {
+function generateCommonStyles(
+  prefix: string,
+  vp: string,
+  rubyMethod: RubyMethod | 'both' = 'ruby'
+): string {
+  const includeRuby = rubyMethod === 'ruby' || rubyMethod === 'both';
+  const includeGrid = rubyMethod === 'grid' || rubyMethod === 'both';
+
+  const rubyStyles = includeRuby
+    ? `
+/* Ruby styling */
+:where(.${prefix}-token ruby) {
+  ruby-align: center;
+  block-size: 1em;
+}`
+    : '';
+
+  const gridStyles = includeGrid
+    ? `
+/*
+ * Ruby Grid (inline-grid 代替パターン)
+ *
+ * 2行グリッド: row1=ruby, row2=base
+ * vertical-align: Chromium baseline バグ補正 (suffix-row と同形式)
+ */
+:where(.${prefix}-ruby-grid) {
+  display: inline-grid;
+  grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) auto calc(var(--${vp}-ruby-ratio) * 1em);
+  line-height: 1;
+  vertical-align: calc(var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 0.5em + 0.5em));
+}
+
+:where(.${prefix}-ruby-grid)::before {
+  content: '';
+  grid-row: 1;
+}
+
+:where(.${prefix}-ruby-grid:has(> .${prefix}-ruby))::before {
+  display: none;
+}
+
+:where(.${prefix}-ruby-grid) > :where(.${prefix}-ruby) {
+  grid-row: 1;
+  align-self: end;
+  text-align: center;
+}
+
+:where(.${prefix}-ruby-grid) > :where(.${prefix}-base),
+:where(.${prefix}-ruby-grid) > :where(.${prefix}-tateten-group) {
+  grid-row: 2;
+}
+
+/*
+ * Saidoku Grid (inline-grid 代替パターン)
+ *
+ * 3行グリッド: row1=ruby-over, row2=base, row3=ruby-under
+ * vertical-align: Chromium baseline バグ補正 (suffix-row と同形式)
+ */
+:where(.${prefix}-saidoku-grid) {
+  display: inline-grid;
+  grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) auto calc(var(--${vp}-ruby-ratio) * 1em);
+  line-height: 1;
+  vertical-align: calc(var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 0.5em + 0.5em));
+}
+
+:where(.${prefix}-saidoku-grid)::before {
+  content: '';
+  grid-row: 1;
+}
+
+:where(.${prefix}-saidoku-grid:has(> .${prefix}-ruby:first-child))::before {
+  display: none;
+}
+
+:where(.${prefix}-saidoku-grid) > :where(.${prefix}-ruby:not(.${prefix}-saidoku-under)) {
+  grid-row: 1;
+  align-self: end;
+  text-align: center;
+}
+
+:where(.${prefix}-saidoku-grid) > :where(.${prefix}-base) {
+  grid-row: 2;
+}
+
+:where(.${prefix}-saidoku-grid) > :where(.${prefix}-saidoku-under) {
+  grid-row: 3;
+  align-self: start;
+  text-align: center;
+}
+
+/*
+ * Emphasis Row (emphasis + ruby 共存時の傍点専用行)
+ *
+ * Grid モードで yomigana と emphasis が共存する場合、
+ * text-emphasis が ruby 行と重なるのを防ぐため、独立した行に傍点マーク文字を直接配置する。
+ * 透明テキスト + text-emphasis-style 方式では不可視文字分の空白が生じるため、
+ * 傍点文字（●, ﹅ 等）を直接出力する。
+ */
+:where(.${prefix}-emphasis-row) {
+  grid-row: 1;
+  color: var(--${vp}-color-emphasis);
+  font-size: calc(var(--${vp}-ruby-ratio) * 1em);
+  user-select: none;
+  align-self: end;
+  text-align: center;
+}
+
+/*
+ * tateten-sep 相当のスペーサー（emphasis-row 内でトークン間の傍点位置を揃える）
+ *
+ * 中心間距離の一致条件: token(1em) + sep(r*1em) - dot(r*1em) = 1em (glyph-size 定数)
+ * emphasis context (font-size = r*1em) 換算: 1em_glyph / r = calc(1em / ruby-ratio)
+ */
+:where(.${prefix}-emphasis-spacer) {
+  display: inline-block;
+  inline-size: calc(1em / var(--${vp}-ruby-ratio));
+}
+
+/*
+ * Ruby Grid - Emphasis Variant (4行グリッド)
+ *
+ * row1: emphasis, row2: ruby, row3: base/tateten-group
+ */
+:where(.${prefix}-ruby-grid--emphasis) {
+  display: inline-grid;
+  grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) calc(var(--${vp}-ruby-ratio) * 1em) auto calc(var(--${vp}-ruby-ratio) * 1em);
+  line-height: 1;
+  vertical-align: calc(var(--${vp}-ruby-ratio) * 0.5em + var(--${vp}-grid-baseline-fix, 0) * 1em);
+}
+
+:where(.${prefix}-ruby-grid--emphasis)::before {
+  display: none;
+}
+
+:where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-ruby) {
+  grid-row: 2;
+  align-self: end;
+  text-align: center;
+}
+
+:where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-base),
+:where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-tateten-group) {
+  grid-row: 3;
+}
+
+/*
+ * Saidoku Grid - Emphasis Variant (4行グリッド)
+ *
+ * row1: emphasis, row2: ruby-over, row3: base, row4: ruby-under
+ */
+:where(.${prefix}-saidoku-grid--emphasis) {
+  display: inline-grid;
+  grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) calc(var(--${vp}-ruby-ratio) * 1em) auto calc(var(--${vp}-ruby-ratio) * 1em);
+  line-height: 1;
+  vertical-align: calc(var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 1em + 0.5em));
+}
+
+:where(.${prefix}-saidoku-grid--emphasis)::before {
+  display: none;
+}
+
+:where(.${prefix}-saidoku-grid--emphasis) > :where(.${prefix}-ruby:not(.${prefix}-saidoku-under)) {
+  grid-row: 2;
+  align-self: end;
+  text-align: center;
+}
+
+:where(.${prefix}-saidoku-grid--emphasis) > :where(.${prefix}-base) {
+  grid-row: 3;
+}
+
+:where(.${prefix}-saidoku-grid--emphasis) > :where(.${prefix}-saidoku-under) {
+  grid-row: 4;
+  align-self: start;
+  text-align: center;
+}`
+    : '';
+
   return `
 /* SKAM Document Container */
 :where(.${prefix}-document) {
@@ -158,19 +349,15 @@ function generateCommonStyles(prefix: string, vp: string): string {
 
 /* Token */
 :where(.${prefix}-token) {
-  position: relative;
-  display: inline-block;
+  // position: relative;
+  // display: inline-block;
 }
 
 /* Base character */
 :where(.${prefix}-base) {
   display: inline;
 }
-
-/* Ruby styling */
-:where(.${prefix}-token ruby) {
-  ruby-align: center;
-}
+${rubyStyles}
 
 :where(.${prefix}-ruby) {
   /* font-size 適用後のコンテキストなので 1em = glyph-size */
@@ -181,6 +368,7 @@ function generateCommonStyles(prefix: string, vp: string): string {
   text-emphasis: none;
   user-select: none;
 }
+${gridStyles}
 
 /* Okurigana (送り仮名) */
 :where(.${prefix}-okuri) {
@@ -282,7 +470,9 @@ function generateCommonStyles(prefix: string, vp: string): string {
   grid-row: 2;
 }
 
-/*
+${
+  includeRuby
+    ? `/*
  * Saidoku (再読文字) - 入れ子ruby方式
  *
  * 構造: <ruby class="outer"><ruby class="inner">將<rt>まさに</rt></ruby><rt>す</rt></ruby>
@@ -297,6 +487,8 @@ function generateCommonStyles(prefix: string, vp: string): string {
 
 :where(.${prefix}-saidoku-inner) {
   ruby-position: over;
+}`
+    : ''
 }
 
 /* Okototen (ヲコト点) */

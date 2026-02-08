@@ -15,6 +15,7 @@ export {
   type CSSOptions,
   type RenderResult,
   type CopyableElement,
+  type RubyMethod,
 } from './renderer.js';
 
 export { getDefaultStyles, type StyleOptions } from './styles.js';

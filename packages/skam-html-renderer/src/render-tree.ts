@@ -12,8 +12,13 @@ import type {
   BlockRenderTree,
   RenderNode,
 } from './render-tree-types.js';
-import type { RenderProfile } from './renderer.js';
-import { escapeHtml, renderToken } from './renderer.js';
+import type { RenderProfile, RubyMethod } from './renderer.js';
+import {
+  escapeHtml,
+  renderToken,
+  resolveEmphasisCharacter,
+  generateEmphasisMarks,
+} from './renderer.js';
 
 /** @internal */
 export interface RenderTreeContext {
@@ -22,6 +27,7 @@ export interface RenderTreeContext {
   tokens: Token[];
   marks: Mark[];
   interactive: boolean;
+  rubyMethod: RubyMethod;
   refValueMap: Map<RefMark, string>;
   highlightRefIds: Set<string>;
 }
@@ -41,7 +47,13 @@ function callRenderToken(
   return renderToken(
     node.token,
     ctx.marks,
-    { prefix: ctx.prefix, profile: ctx.profile, tokens: ctx.tokens, interactive: ctx.interactive },
+    {
+      prefix: ctx.prefix,
+      profile: ctx.profile,
+      tokens: ctx.tokens,
+      interactive: ctx.interactive,
+      rubyMethod: ctx.rubyMethod,
+    },
     node.rangeCtx,
     ctx.refValueMap,
     ctx.highlightRefIds,
@@ -64,7 +76,10 @@ function renderTatetenGroup(node: TatetenGroupNode, ctx: RenderTreeContext): str
 
   // Pass 1: 全トークンをレンダリング（非レ kaeri を分離）
   // yomigana がある場合、末尾トークンの suffix-row を ruby の外に抽出する
-  // yomigana がある場合は emphasis も抑制（グループレベルで ruby の外に適用するため）
+  // emphasis はグループレベルで処理:
+  //   ruby モード → emphasis wrapper を ruby の外に適用
+  //   grid モード → emphasis-row をグリッド内に配置
+  const suppressEmphasis = groupHasYomigana;
   const lastIndex = node.items.length - 1;
   const tokenResults = node.items.map((item, i) =>
     callRenderToken(
@@ -73,7 +88,7 @@ function renderTatetenGroup(node: TatetenGroupNode, ctx: RenderTreeContext): str
       true,
       groupHasYomigana,
       groupHasYomigana && i === lastIndex,
-      groupHasYomigana
+      suppressEmphasis
     )
   );
 
@@ -130,23 +145,42 @@ function renderTatetenGroup(node: TatetenGroupNode, ctx: RenderTreeContext): str
       )
     : '';
 
-  // グループ内トークンの emphasis スタイルを収集（yomigana 時にグループレベルで適用するため）
-  const groupEmphasisStyle = groupHasYomigana
+  // グループ内トークンの emphasis スタイルを収集（グループレベルで適用するため）
+  const groupEmphasisStyle = suppressEmphasis
     ? tokenResults.find((r) => r.emphasisStyle)?.emphasisStyle
     : undefined;
 
   let groupContent = parts.join('');
   if (yomigana) {
-    // interactive 用 data 属性（<ruby> に付与して <rt> からも closest() で辿れるようにする）
+    // interactive 用 data 属性
     let dataAttrs = '';
     if (ctx.interactive && rangeCtx?.rangeTokenInfo) {
       dataAttrs = ` data-token-from="${escapeHtml(rangeCtx.rangeTokenInfo.from)}" data-token-to="${escapeHtml(rangeCtx.rangeTokenInfo.to)}"`;
     }
-    let rubyContent = `<ruby${dataAttrs}><rb class="${prefix}-tateten-group">${groupContent}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>${collectedSuffix}`;
-    // emphasis がある場合、ruby の外側で emphasis ラッパーを適用
-    // （text-emphasis が ruby のベーステキストに正しく表示されるよう、ruby より上位に配置）
-    if (groupEmphasisStyle) {
-      rubyContent = `<span class="${prefix}-emphasis" style="text-emphasis-style: ${escapeHtml(groupEmphasisStyle)};">${rubyContent}</span>`;
+
+    let rubyContent: string;
+    if (ctx.rubyMethod === 'grid') {
+      // grid モード: emphasis がある場合、emphasis-row をグリッド内に配置
+      if (groupEmphasisStyle) {
+        // tateten-group の構造をミラーリング: token 傍点マーク間に tateten-sep 相当のスペーサーを配置
+        const emphasisChar = resolveEmphasisCharacter(groupEmphasisStyle);
+        const emphasisSpacer = `<span class="${prefix}-emphasis-spacer"></span>`;
+        const emphasisContent = node.items
+          .map((item) => generateEmphasisMarks(item.token.text, emphasisChar))
+          .join(emphasisSpacer);
+        const emphasisRowHtml = `<span class="${prefix}-emphasis-row" aria-hidden="true">${emphasisContent}</span>`;
+        rubyContent = `<span class="${prefix}-ruby-grid--emphasis"${dataAttrs}>${emphasisRowHtml}<span class="${prefix}-ruby">${yomigana}</span><span class="${prefix}-tateten-group">${groupContent}</span></span>${collectedSuffix}`;
+      } else {
+        rubyContent = `<span class="${prefix}-ruby-grid"${dataAttrs}><span class="${prefix}-ruby">${yomigana}</span><span class="${prefix}-tateten-group">${groupContent}</span></span>${collectedSuffix}`;
+      }
+    } else {
+      // ruby モード（既存）
+      rubyContent = `<ruby${dataAttrs}><rb class="${prefix}-tateten-group">${groupContent}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>${collectedSuffix}`;
+      // ruby モード: emphasis がある場合、ruby の外側で emphasis ラッパーを適用
+      // （text-emphasis が ruby のベーステキストに正しく表示されるよう、ruby より上位に配置）
+      if (groupEmphasisStyle) {
+        rubyContent = `<span class="${prefix}-emphasis" style="text-emphasis-style: ${escapeHtml(groupEmphasisStyle)};">${rubyContent}</span>`;
+      }
     }
     groupContent = rubyContent;
   } else {

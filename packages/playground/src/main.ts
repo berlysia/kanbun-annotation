@@ -12,6 +12,7 @@ import {
   calibrateGridBaseline,
   PROFILES,
   type RenderProfile,
+  type RubyMethod,
 } from '@kanbun/skam-html-renderer';
 import type {
   SKAMDocument,
@@ -62,6 +63,7 @@ const sampleSelect = document.getElementById('sample-select') as HTMLSelectEleme
 const copyJsonBtn = document.getElementById('copy-json-btn') as HTMLButtonElement;
 const copyHtmlBtn = document.getElementById('copy-html-btn') as HTMLButtonElement;
 const writingModeRadios = document.querySelectorAll<HTMLInputElement>('input[name="writing-mode"]');
+const rubyMethodRadios = document.querySelectorAll<HTMLInputElement>('input[name="ruby-method"]');
 const horizontalNotice = document.getElementById('horizontal-notice') as HTMLSpanElement;
 const inlineModeCheckbox = document.getElementById('inline-mode') as HTMLInputElement;
 const profileSelect = document.getElementById('profile-select') as HTMLSelectElement;
@@ -318,6 +320,7 @@ interface URLState {
   mode: 'vertical' | 'horizontal';
   inline: boolean;
   profile: ProfileName;
+  rubyMethod: RubyMethod;
 }
 
 function getStateFromURL(): URLState {
@@ -342,7 +345,10 @@ function getStateFromURL(): URLState {
   const profile: ProfileName =
     profileStr === 'learningBasic' || profileStr === 'learningHint' ? profileStr : 'full';
 
-  return { sample, mode, inline, profile };
+  const rubyMethodStr = params.get('rubyMethod');
+  const rubyMethod: RubyMethod = rubyMethodStr === 'grid' ? 'grid' : 'ruby';
+
+  return { sample, mode, inline, profile, rubyMethod };
 }
 
 function updateURL(state: Partial<URLState>): void {
@@ -377,6 +383,14 @@ function updateURL(state: Partial<URLState>): void {
       params.delete('profile');
     } else {
       params.set('profile', state.profile);
+    }
+  }
+
+  if (state.rubyMethod !== undefined) {
+    if (state.rubyMethod === 'ruby') {
+      params.delete('rubyMethod');
+    } else {
+      params.set('rubyMethod', state.rubyMethod);
     }
   }
 
@@ -466,6 +480,15 @@ function getWritingMode(): 'vertical' | 'horizontal' {
 
 function getInlineMode(): boolean {
   return inlineModeCheckbox.checked;
+}
+
+function getRubyMethod(): RubyMethod {
+  for (const radio of rubyMethodRadios) {
+    if (radio.checked) {
+      return radio.value as RubyMethod;
+    }
+  }
+  return 'ruby';
 }
 
 function getProfile(): ProfileNameOrCustom {
@@ -1687,7 +1710,8 @@ function renderDocument(doc: SKAMDocument): void {
   const writingMode = getWritingMode();
   const inline = getInlineMode();
   const profile = getProfileSettings();
-  const result = render(doc, { writingMode, inline, profile, interactive: true });
+  const rubyMethod = getRubyMethod();
+  const result = render(doc, { writingMode, inline, profile, interactive: true, rubyMethod });
 
   // Apply CSS and HTML
   const styleId = 'skam-playground-styles';
@@ -2168,6 +2192,16 @@ for (const radio of writingModeRadios) {
   });
 }
 
+// Ruby method change
+for (const radio of rubyMethodRadios) {
+  radio.addEventListener('change', () => {
+    updateURL({ rubyMethod: getRubyMethod() });
+    if (currentDocument) {
+      renderDocument(currentDocument);
+    }
+  });
+}
+
 // Inline mode change
 inlineModeCheckbox.addEventListener('change', () => {
   updateURL({ inline: getInlineMode() });
@@ -2366,6 +2400,11 @@ updateHorizontalNotice();
 
 // Set inline mode
 inlineModeCheckbox.checked = initialState.inline;
+
+// Set ruby method
+for (const radio of rubyMethodRadios) {
+  radio.checked = radio.value === initialState.rubyMethod;
+}
 
 // Set profile and sync checkboxes
 applyPresetProfile(initialState.profile);

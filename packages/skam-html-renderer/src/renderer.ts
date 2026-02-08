@@ -39,6 +39,14 @@ export type { RangeMarkContext, RangeTokenInfo, TokenRenderResult } from './rend
 // ============================================================================
 
 /**
+ * Ruby要素のレンダリング方式
+ *
+ * - 'ruby': HTML ruby要素を使用（デフォルト）
+ * - 'grid': inline-grid で代替レンダリング
+ */
+export type RubyMethod = 'ruby' | 'grid';
+
+/**
  * 表示要素の制御プロファイル
  */
 export interface RenderProfile {
@@ -96,6 +104,13 @@ export interface RenderOptions {
    * trueの場合、data-token-id / data-token-from / data-token-to 属性を出力する
    */
   interactive?: boolean;
+  /**
+   * Ruby要素のレンダリング方式（default: 'ruby'）
+   *
+   * - 'ruby': HTML ruby要素を使用
+   * - 'grid': inline-grid で代替レンダリング
+   */
+  rubyMethod?: RubyMethod;
 }
 
 /**
@@ -134,6 +149,10 @@ export interface RenderHTMLOptions {
    * trueの場合、data-token-id / data-token-from / data-token-to 属性を出力する
    */
   interactive?: boolean;
+  /**
+   * Ruby要素のレンダリング方式（default: 'ruby'）
+   */
+  rubyMethod?: RubyMethod;
 }
 
 /**
@@ -152,6 +171,14 @@ export interface CSSOptions {
   layerName?: string;
   /** CSS Variables のプレフィックス（default: 'skam'） */
   variablePrefix?: string;
+  /**
+   * Ruby要素のレンダリング方式（default: 'ruby'）
+   *
+   * - 'ruby': ruby要素用CSS
+   * - 'grid': inline-grid用CSS
+   * - 'both': 両方のCSSを出力
+   */
+  rubyMethod?: RubyMethod | 'both';
 }
 
 // ============================================================================
@@ -552,6 +579,34 @@ function convertKaeriToUnicode(value: string): string {
 }
 
 /**
+ * CSS text-emphasis-style 値から対応する Unicode 傍点文字を解決
+ *
+ * CSS spec: https://drafts.csswg.org/css-text-decor-3/#text-emphasis-style-property
+ * @internal
+ */
+export function resolveEmphasisCharacter(style: string): string {
+  const s = style.trim().toLowerCase();
+  const open = s.includes('open');
+
+  if (s.includes('sesame')) return open ? '\uFE46' : '\uFE45';
+  if (s.includes('double-circle')) return open ? '\u25CE' : '\u25C9';
+  if (s.includes('circle')) return open ? '\u25CB' : '\u25CF';
+  if (s.includes('triangle')) return open ? '\u25B3' : '\u25B2';
+  // 'dot' or default
+  return open ? '\u25E6' : '\u2022';
+}
+
+/**
+ * テキストの各文字に対応する傍点マーク文字列を生成
+ * @internal
+ */
+export function generateEmphasisMarks(text: string, emphasisChar: string): string {
+  return Array.from(text)
+    .map(() => emphasisChar)
+    .join('');
+}
+
+/**
  * 縦中横を適用すべきかを判定
  *
  * 以下の条件で縦中横を適用:
@@ -733,6 +788,7 @@ export interface TokenRenderContext {
   tokens: Token[];
   tokenMarks: Map<Mark['type'], Mark[]>;
   interactive: boolean;
+  rubyMethod: RubyMethod;
 }
 
 /**
@@ -747,9 +803,10 @@ function renderTokenWithRuby(
   ctx: TokenRenderContext,
   baseText?: string,
   rangeInfo?: RangeTokenInfo,
-  suppressYomigana?: boolean
+  suppressYomigana?: boolean,
+  gridEmphasisStyle?: string
 ): string {
-  const { prefix, profile, tokenMarks, interactive } = ctx;
+  const { prefix, profile, tokenMarks, interactive, rubyMethod } = ctx;
 
   // 読み仮名（ruby要素のrt内に配置、中央揃え）
   // suppressYomigana: tateten グループレベルで yomigana が処理される場合、個別トークンの ruby を抑制
@@ -768,11 +825,25 @@ function renderTokenWithRuby(
       : ` data-token-id="${escapeHtml(token.id)}"`;
   }
 
-  // ルビ（読み仮名）が必要な場合はruby要素を使用
+  // ルビ（読み仮名）が必要な場合
   // 熟語ルビの場合はbaseTextを使用
   const displayText = baseText ?? token.text;
   const baseContent = escapeHtml(displayText);
   if (yomigana) {
+    if (rubyMethod === 'grid') {
+      // grid モード: inline-grid で ruby と base を配置
+      // 範囲トークンの場合は data 属性を grid コンテナに付与（closest() 互換性のため）
+      const gridDataAttrs =
+        rangeInfo && interactive
+          ? ` data-token-from="${escapeHtml(rangeInfo.from)}" data-token-to="${escapeHtml(rangeInfo.to)}"`
+          : '';
+      const baseDataAttrs = !rangeInfo ? dataAttrs : '';
+      const gridClass = gridEmphasisStyle ? `${prefix}-ruby-grid--emphasis` : `${prefix}-ruby-grid`;
+      const emphasisRowHtml = gridEmphasisStyle
+        ? `<span class="${prefix}-emphasis-row" aria-hidden="true">${generateEmphasisMarks(displayText, resolveEmphasisCharacter(gridEmphasisStyle))}</span>`
+        : '';
+      return `<span class="${gridClass}"${gridDataAttrs}>${emphasisRowHtml}<span class="${prefix}-ruby">${yomigana}</span><span class="${prefix}-base"${baseDataAttrs}>${baseContent}</span></span>`;
+    }
     return `<ruby><rb class="${prefix}-base"${dataAttrs}>${baseContent}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>`;
   } else {
     return `<span class="${prefix}-base"${dataAttrs}>${baseContent}</span>`;
@@ -795,9 +866,10 @@ function renderTokenWithRuby(
 function renderSaidokuToken(
   token: Token,
   saidokuMark: SaidokuMark,
-  ctx: TokenRenderContext
+  ctx: TokenRenderContext,
+  gridEmphasisStyle?: string
 ): string {
-  const { prefix, profile, interactive } = ctx;
+  const { prefix, profile, interactive, rubyMethod } = ctx;
 
   // data-token-id属性（interactiveモードの場合のみ）
   const tokenIdAttr = interactive ? ` data-token-id="${escapeHtml(token.id)}"` : '';
@@ -810,6 +882,33 @@ function renderSaidokuToken(
   const firstForm = forms[0];
   const secondForm = forms[1];
 
+  if (rubyMethod === 'grid') {
+    // grid モード: フラットな3行グリッド（ネスト不要）
+    const firstN = firstForm?.n ?? 1;
+    const firstYomi = profile.yomigana && firstForm?.yomi ? escapeHtml(firstForm.yomi) : '';
+    const firstRubyHtml = `<span class="${prefix}-ruby" data-saidoku-n="${firstN}">${firstYomi}</span>`;
+    const baseHtml = `<span class="${prefix}-base"${tokenIdAttr}>${escapeHtml(token.text)}</span>`;
+    const emphasisRowHtml = gridEmphasisStyle
+      ? `<span class="${prefix}-emphasis-row" aria-hidden="true">${generateEmphasisMarks(token.text, resolveEmphasisCharacter(gridEmphasisStyle))}</span>`
+      : '';
+
+    if (!secondForm) {
+      // 第1読みのみ: 2行グリッド (ruby-grid) で十分
+      const gridClass = gridEmphasisStyle ? `${prefix}-ruby-grid--emphasis` : `${prefix}-ruby-grid`;
+      return `<span class="${gridClass}">${emphasisRowHtml}${firstRubyHtml}${baseHtml}</span>`;
+    }
+
+    const n2 = secondForm.n ?? 2;
+    const yomi2 = profile.yomigana && secondForm.yomi ? escapeHtml(secondForm.yomi) : '';
+    const secondRubyHtml = `<span class="${prefix}-ruby ${prefix}-saidoku-under" data-saidoku-n="${n2}">${yomi2}</span>`;
+    const saidokuGridClass = gridEmphasisStyle
+      ? `${prefix}-saidoku-grid--emphasis`
+      : `${prefix}-saidoku-grid`;
+
+    return `<span class="${saidokuGridClass}">${emphasisRowHtml}${firstRubyHtml}${baseHtml}${secondRubyHtml}</span>`;
+  }
+
+  // ruby モード（既存）
   // 第1読み用のrt（読み仮名のみ、送り仮名は含めない）
   // 読み仮名の表示はprofile.yomiganaに従う
   let firstRt = '';
@@ -882,7 +981,13 @@ export function renderToken(
     ? (allEmphasisMarks[0]?.style ?? 'filled dot')
     : undefined;
   // suppressEmphasis: tateten+yomigana 時にグループレベルで emphasis を適用するため、個別トークンでは抑制
-  const applyEmphasis = hasEmphasis && !suppressEmphasis;
+  // grid モードで yomigana/saidoku と emphasis が共存する場合、emphasis-row で処理
+  const yomiganaMarks = (tokenMarks.get('yomigana') ?? []) as YomiganaMark[];
+  const hasYomigana = !suppressYomigana && profile.yomigana && yomiganaMarks.length > 0;
+  const emphasisHandledByGrid =
+    hasEmphasis && ctx.rubyMethod === 'grid' && (hasYomigana || !!saidokuMark);
+  const gridEmphasisStyle = emphasisHandledByGrid ? resolvedEmphasisStyle : undefined;
+  const applyEmphasis = hasEmphasis && !suppressEmphasis && !emphasisHandledByGrid;
 
   // ヲコト点チェック
   const okototenMarks = (tokenMarks.get('okototen') ?? []) as OkototenMark[];
@@ -1025,7 +1130,7 @@ export function renderToken(
     rangeCtx?.yomiganaBaseText ?? rangeCtx?.okuriganaBaseText ?? rangeCtx?.soeganaBaseText;
 
   if (saidokuMark) {
-    baseHtml = renderSaidokuToken(token, saidokuMark, fullCtx);
+    baseHtml = renderSaidokuToken(token, saidokuMark, fullCtx, gridEmphasisStyle);
   } else {
     // 範囲グループがある場合は熟語全体のテキストを使用し、範囲情報も渡す
     baseHtml = renderTokenWithRuby(
@@ -1033,7 +1138,8 @@ export function renderToken(
       fullCtx,
       rangeBaseText,
       rangeCtx?.rangeTokenInfo,
-      suppressYomigana
+      suppressYomigana,
+      gridEmphasisStyle
     );
   }
 
@@ -1212,7 +1318,8 @@ function renderDisplayLayer(
   prefix: string,
   profile: RenderProfile,
   inline: boolean,
-  interactive: boolean
+  interactive: boolean,
+  rubyMethod: RubyMethod = 'ruby'
 ): { tokens: string; prefix: string } {
   const { tokens, marks } = doc;
 
@@ -1260,6 +1367,7 @@ function renderDisplayLayer(
     tokens,
     marks,
     interactive,
+    rubyMethod,
     refValueMap,
     highlightRefIds,
   };
@@ -1299,9 +1407,10 @@ export function render(doc: SKAMDocument, options: RenderOptions = {}): RenderRe
   const inline = options.inline ?? false;
   const copyable = options.copyable;
   const interactive = options.interactive ?? false;
+  const rubyMethod = options.rubyMethod ?? 'ruby';
 
   // Display層
-  const displayResult = renderDisplayLayer(doc, prefix, profile, inline, interactive);
+  const displayResult = renderDisplayLayer(doc, prefix, profile, inline, interactive, rubyMethod);
   const displayTag = inline ? 'span' : 'div';
   const displayHtml = `<${displayTag} class="${prefix}-display" aria-hidden="true">${displayResult.tokens}</${displayTag}>`;
 
@@ -1329,6 +1438,7 @@ export function render(doc: SKAMDocument, options: RenderOptions = {}): RenderRe
     classPrefix: prefix,
     writingMode,
     inline,
+    rubyMethod,
   };
   if (options.useLayer !== undefined) {
     styleOptions.useLayer = options.useLayer;
@@ -1368,9 +1478,10 @@ export function renderHTML(doc: SKAMDocument, options: RenderHTMLOptions = {}): 
   const inline = options.inline ?? false;
   const copyable = options.copyable;
   const interactive = options.interactive ?? false;
+  const rubyMethod = options.rubyMethod ?? 'ruby';
 
   // Display層
-  const displayResult = renderDisplayLayer(doc, prefix, profile, inline, interactive);
+  const displayResult = renderDisplayLayer(doc, prefix, profile, inline, interactive, rubyMethod);
   const displayTag = inline ? 'span' : 'div';
   const displayHtml = `<${displayTag} class="${prefix}-display" aria-hidden="true">${displayResult.tokens}</${displayTag}>`;
 
@@ -1433,6 +1544,9 @@ export function generateCSS(options: CSSOptions = {}): string {
   }
   if (options.variablePrefix !== undefined) {
     styleOptions.variablePrefix = options.variablePrefix;
+  }
+  if (options.rubyMethod !== undefined) {
+    styleOptions.rubyMethod = options.rubyMethod;
   }
   return getDefaultStyles(styleOptions);
 }

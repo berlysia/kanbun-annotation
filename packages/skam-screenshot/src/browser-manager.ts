@@ -54,6 +54,50 @@ async function captureOne(
     // Wait for web fonts (e.g. Google Fonts Noto Serif JP) to finish loading
     await page.evaluate(() => document.fonts.ready);
 
+    // Run calibrateGridBaseline to detect Chromium's inline-grid baseline bug.
+    // Sets --skam-grid-baseline-fix: 1 on #skam-root if the bug is detected,
+    // which triggers CSS compensation in the generated stylesheet.
+    // See: packages/skam-html-renderer/src/calibrate.ts
+    await page.evaluate(() => {
+      const vp = 'skam';
+      const fontSize = 100;
+      const rowSize = 50;
+
+      function measureLineBoxWidth(verticalAlign: string): number {
+        const outer = document.createElement('div');
+        outer.style.cssText =
+          'position:absolute;left:-9999px;top:-9999px;' +
+          `writing-mode:vertical-rl;font-size:${fontSize}px;line-height:1;`;
+        const wrapper = document.createElement('span');
+        wrapper.style.cssText = 'display:inline-block;';
+        const ref = document.createElement('span');
+        ref.textContent = '字';
+        const grid = document.createElement('span');
+        grid.style.cssText =
+          `display:inline-grid;` +
+          `grid-template-rows:${rowSize}px ${rowSize}px ${rowSize}px ${rowSize}px;` +
+          `vertical-align:${verticalAlign};line-height:1;`;
+        const slot = document.createElement('span');
+        slot.style.cssText = `grid-row:1;font-size:${rowSize}px;line-height:1;`;
+        slot.textContent = 'あ';
+        grid.appendChild(slot);
+        wrapper.append(ref, grid);
+        outer.appendChild(wrapper);
+        document.body.appendChild(outer);
+        const width = wrapper.getBoundingClientRect().width;
+        document.body.removeChild(outer);
+        return width;
+      }
+
+      const excess = measureLineBoxWidth('0') - measureLineBoxWidth('top');
+      if (excess > 5) {
+        const root = document.getElementById('skam-root');
+        if (root) {
+          root.style.setProperty(`--${vp}-grid-baseline-fix`, '1');
+        }
+      }
+    });
+
     // Fit viewport to actual content size so the screenshot is tight
     const contentSize = await page.evaluate(() => {
       const root = document.getElementById('skam-root');

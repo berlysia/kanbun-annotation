@@ -6,6 +6,7 @@
     { "path": "packages/skam-xml-parser" },
     { "path": "packages/skam-xml-stringify" },
     { "path": "packages/skam-html-renderer" },
+    { "path": "packages/skam-canvas-renderer" },
     { "path": "packages/playground" },
     { "path": "packages/integration-tests" },
     { "path": "packages/skam-screenshot" }

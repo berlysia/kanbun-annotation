@@ -65,6 +65,15 @@
           <div class="preview-toolbar">
             <h2>レンダリング結果</h2>
             <div class="render-options">
+              <label>
+                <input type="radio" name="renderer" value="html" checked />
+                HTML
+              </label>
+              <label>
+                <input type="radio" name="renderer" value="canvas" />
+                Canvas
+              </label>
+              <span class="option-separator">|</span>
               <label for="profile-select">プロファイル:</label>
               <select id="profile-select">
                 <option value="full">すべて表示</option>
@@ -84,10 +93,13 @@
             <p class="horizontal-notice" id="horizontal-notice" hidden>
               ※ 横書き表示は実験的な機能です。表示が不安定な場合があります。
             </p>
+            <p class="canvas-notice" id="canvas-notice" hidden>
+              ※ Canvasモードでは選択・編集機能は使用できません。横書きは未実装です。
+            </p>
             <details class="settings-panel" id="settings-panel">
               <summary>詳細設定</summary>
               <div class="settings-sections">
-                <fieldset class="settings-section">
+                <fieldset class="settings-section html-only-option">
                   <legend>レンダリング方式</legend>
                   <div class="settings-section-content">
                     <label>

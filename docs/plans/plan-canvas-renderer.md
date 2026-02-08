@@ -16,7 +16,7 @@ Canvas API を使った独立パッケージとして `@kanbun/skam-canvas-rende
 
 **対象環境**: ブラウザ + Node.js (node-canvas)
 **インタラクティブ機能**: 不要（静的描画のみ）
-**既存 HTML renderer との関係**: 完全独立（コード共有なし）
+**既存 HTML renderer との関係**: 完全独立（コード共有なし）。render tree 設計は HTML renderer の反省を活かした改善版（スロットモデル）。将来 HTML renderer にも逆輸入予定。
 
 ---
 
@@ -29,19 +29,48 @@ SKAMDocument + CanvasRenderOptions
        |
   Pass 1: Resolve & Group (render-tree.ts)
        - @kanbun/skam ユーティリティで mark をトークンに解決
-       - tateten/highlight/range mark のグルーピング
-       -> CanvasRenderTree
+       - 全マークを解決済みスロットに格納（後段で再解決不要）
+       - tateten/highlight/range mark のグルーピング (Phase 2-3)
+       -> CanvasRenderTree（純粋データ、出力形式に依存しない）
        |
   Pass 2: Measure & Layout (layout.ts)
        - ctx.measureText() でテキスト計測
        - 縦書き: 列レイアウト / 横書き: 行レイアウト
        - 各要素に絶対座標 (x, y) を割り当て
+       - マーク解決は一切しない（Pass 1 の結果のみ使用）
        -> DocumentLayout
        |
   Pass 3: Draw (draw.ts)
        - DocumentLayout を走査して canvas draw calls を発行
        - 描画順: 背景 -> highlight線 -> base text -> annotations
+       - レイアウト計算は一切しない（Pass 2 の結果のみ使用）
        -> 描画済み Canvas
+```
+
+### Render Tree 設計方針（スロットモデル）
+
+HTML renderer の render tree からの改善点:
+
+1. **純粋データ構造**: ツリーノードに出力形式（HTML文字列等）を含めない
+2. **Pass 1 で全マーク解決済み**: 各トークンノードに「解決済みスロット」を持ち、Pass 2/3 で再解決不要
+3. **Pass 間の責務を厳密に分離**: 各 Pass は入力データの変換のみ行う
+4. **将来の HTML renderer 逆輸入を意識**: 出力形式に依存しないデータ構造
+
+```typescript
+// Canvas 用トークンノード: 全マーク解決済み
+interface CanvasTokenNode {
+  type: 'token';
+  token: Token;
+  slots: {
+    ruby?: string; // 解決済み yomigana 値
+    okuri?: string; // 解決済み okurigana 値
+    soegana?: string; // 解決済み soegana 値
+    kaeri?: string; // Unicode変換済み返り点
+    kutoten?: string; // 句読点文字
+    // Phase 2 で追加: emphasis, saidoku, okimoji, joji, okototen, tateten
+    // Phase 3 で追加: highlight, ref
+  };
+}
 ```
 
 ### 物理レイアウトモデル（縦書き）
@@ -199,18 +228,11 @@ packages/skam-canvas-renderer/
 
 ## Phased Implementation
 
-### Phase 0.5: 環境検証 (Spike)
+### Phase 0.5: 環境検証 (Spike) → 簡易検証のみ
 
-**目標**: node-canvas の TextMetrics 互換性とフォント登録手順を確認
+**判断**: Phase 1 は RecordingContext（モック）でテストするため node-canvas は不要。簡易検証のみ実施し、本格検証は Phase 5 のエクスポート実装時に行う。
 
-**検証項目**:
-
-1. node-canvas の `TextMetrics` が `actualBoundingBoxAscent/Descent` を実装しているか
-2. `font` プロパティの CSS font 構文対応状況
-3. `registerFont()` の使い方とCJKフォントの動作
-4. ブラウザとnode-canvasでの `measureText()` 結果の差分計測
-
-**判断**: 差分が許容範囲内か、Adapter パターンが必要かを判断
+**簡易検証**: node-canvas の `measureText()` が `actualBoundingBoxAscent/Descent` を返すか確認。返さない場合は fontSize フォールバック設計（既に計画済み）で対応。
 
 ### Phase 1: Foundation + 縦書き基本 (MVP)
 
@@ -218,20 +240,28 @@ packages/skam-canvas-renderer/
 
 **対象マーク**: yomigana, okurigana, soegana, kaeri, kutoten
 
+**スコープ決定事項**:
+
+- **Render tree**: Phase 1 対象マークのみ。tateten/highlight グルーピングは Phase 2-3 で追加
+- **列折り返し**: Phase 1 は単一列のみ。maxExtent による複数列は後のフェーズで追加
+- **autoSize**: Phase 1 では `measure()` で寸法取得、canvas サイズ設定はユーザー責任。`render()` は渡された canvas に描画するのみ
+- **renderToDataURL / renderToBuffer**: Phase 5 で実装
+
 **成果物**:
 
 1. パッケージ scaffold (package.json, tsconfig, tsup, vitest)
 2. 型定義 + Canvas抽象化インターフェース
-3. Unicode定数 + ドメインヘルパー
+3. Unicode定数 + ドメインヘルパー（kaeri 変換のみ。emphasis/ref は Phase 2-3）
 4. プロファイルシステム
-5. Render tree 構築 (Pass 1)
-6. テキスト計測 + 縦書きレイアウト (Pass 2)
-7. Canvas描画 (Pass 3)
+5. Render tree 構築 (Pass 1) — スロットモデルで全マーク解決済み
+6. テキスト計測ユーティリティ（キャッシュ付き）+ 縦書き単一列レイアウト (Pass 2)
+7. Canvas描画 (Pass 3) — 本文 + 5 種マーク
 8. `render()`, `measure()` API
 9. テスト（レイアウト座標検証 + RecordingContext draw call 検証）
 
 **テスト戦略**:
 
+- **Pass 1 (render-tree)**: ツリー構造の形状 + スロット値の検証
 - **Pass 2 (layout)**: `DocumentLayout` の座標値を直接テスト（モック measureText 使用）
 - **Pass 3 (draw)**: RecordingContext で draw call シーケンスを記録・検証
 - レイアウトテストとドローテストを明確に分離

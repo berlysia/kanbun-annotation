@@ -418,10 +418,27 @@
     cursor: pointer;
   }
 
-  .horizontal-notice {
+  .horizontal-notice,
+  .canvas-notice {
     width: 100%;
     font-size: 0.6875rem;
     color: var(--editor-warning);
+  }
+
+  /* Canvas mode: constrain canvas element size */
+  .preview-content canvas {
+    max-width: 100%;
+    max-height: 100%;
+  }
+
+  /* Canvas mode: hide selection panel */
+  .preview-pane.canvas-mode .selection-panel {
+    display: none;
+  }
+
+  /* Canvas mode: hide HTML-only options (ruby-method, inline-mode) */
+  .preview-pane.canvas-mode .html-only-option {
+    display: none;
   }
 
   .render-options select {

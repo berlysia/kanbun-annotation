@@ -77,6 +77,9 @@ importers:
       '@kanbun/skam':
         specifier: workspace:*
         version: link:../skam
+      '@kanbun/skam-canvas-renderer':
+        specifier: workspace:*
+        version: link:../skam-canvas-renderer
       '@kanbun/skam-html-renderer':
         specifier: workspace:*
         version: link:../skam-html-renderer
@@ -107,6 +110,12 @@ importers:
         version: 3.2.4(@types/node@25.0.10)(happy-dom@20.3.9)(jiti@2.6.1)(yaml@2.8.2)
 
   packages/skam: {}
+
+  packages/skam-canvas-renderer:
+    dependencies:
+      '@kanbun/skam':
+        specifier: workspace:*
+        version: link:../skam
 
   packages/skam-html-renderer:
     dependencies:

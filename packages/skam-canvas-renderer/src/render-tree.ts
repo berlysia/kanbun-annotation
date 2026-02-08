@@ -232,7 +232,7 @@ export function buildRenderTree(doc: SKAMDocument, profile: RenderProfile): Canv
     return {
       type: 'block' as const,
       blockId: group.blockId,
-      tokens: tokenNodes,
+      children: tokenNodes,
     };
   });
 

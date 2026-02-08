@@ -26,7 +26,7 @@ export function draw(
 
   // 2. For each column -> each token
   for (const column of documentLayout.columns) {
-    for (const tokenLayout of column.tokens) {
+    for (const tokenLayout of column.children) {
       // Draw base character
       drawChar(
         ctx,

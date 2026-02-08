@@ -14,7 +14,8 @@ function createSimpleLayout(tokens: Partial<TokenLayout>[]): DocumentLayout {
         y: 16,
         width: 48,
         height: 368,
-        tokens: tokens.map((t, i) => ({
+        children: tokens.map((t, i) => ({
+          type: 'token' as const,
           tokenId: `t${i + 1}`,
           x: 100,
           y: 16 + i * 48,

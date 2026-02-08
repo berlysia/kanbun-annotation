@@ -62,7 +62,7 @@ export function layoutVertical(
   // 全トークンをフラットに集めてレイアウト
   const allTokens: CanvasTokenNode[] = [];
   for (const block of tree.blocks) {
-    for (const token of block.tokens) {
+    for (const token of block.children) {
       allTokens.push(token);
     }
   }
@@ -253,6 +253,7 @@ export function layoutVertical(
     }
 
     return {
+      type: 'token' as const,
       tokenId: token.id,
       x: tokenX,
       y: tokenY,
@@ -266,7 +267,7 @@ export function layoutVertical(
     y: columnY,
     width: columnWidth,
     height: columnHeight,
-    tokens: tokenLayouts,
+    children: tokenLayouts,
   };
 
   return {

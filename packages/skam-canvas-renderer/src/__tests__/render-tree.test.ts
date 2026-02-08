@@ -23,9 +23,9 @@ describe('buildRenderTree', () => {
 
     expect(tree.blocks).toHaveLength(1);
     expect(tree.blocks[0]!.blockId).toBe('b1');
-    expect(tree.blocks[0]!.tokens).toHaveLength(3);
+    expect(tree.blocks[0]!.children).toHaveLength(3);
 
-    const [t1, t2, t3] = tree.blocks[0]!.tokens;
+    const [t1, t2, t3] = tree.blocks[0]!.children;
     expect(t1!.token.text).toBe('子');
     expect(t2!.token.text).toBe('曰');
     expect(t3!.token.text).toBe('學');
@@ -42,9 +42,9 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    expect(tree.blocks[0]!.tokens[2]!.slots.ruby).toBe('まな');
-    expect(tree.blocks[0]!.tokens[0]!.slots.ruby).toBeUndefined();
-    expect(tree.blocks[0]!.tokens[1]!.slots.ruby).toBeUndefined();
+    expect(tree.blocks[0]!.children[2]!.slots.ruby).toBe('まな');
+    expect(tree.blocks[0]!.children[0]!.slots.ruby).toBeUndefined();
+    expect(tree.blocks[0]!.children[1]!.slots.ruby).toBeUndefined();
   });
 
   it('resolves okurigana into okuri slot', () => {
@@ -53,14 +53,14 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    expect(tree.blocks[0]!.tokens[2]!.slots.okuri).toBe('ぶ');
+    expect(tree.blocks[0]!.children[2]!.slots.okuri).toBe('ぶ');
   });
 
   it('resolves soegana into soegana slot', () => {
     const doc = threeTokenDoc([{ type: 'soegana', anchor: { from: 't1', to: 't1' }, value: 'は' }]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    expect(tree.blocks[0]!.tokens[0]!.slots.soegana).toBe('は');
+    expect(tree.blocks[0]!.children[0]!.slots.soegana).toBe('は');
   });
 
   it('resolves single kaeri into Unicode', () => {
@@ -69,7 +69,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    expect(tree.blocks[0]!.tokens[1]!.slots.kaeri).toBe('\u3191');
+    expect(tree.blocks[0]!.children[1]!.slots.kaeri).toBe('\u3191');
   });
 
   it('resolves compound kaeri into Unicode', () => {
@@ -78,7 +78,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    expect(tree.blocks[0]!.tokens[2]!.slots.kaeri).toBe('\u3192\u3191');
+    expect(tree.blocks[0]!.children[2]!.slots.kaeri).toBe('\u3192\u3191');
   });
 
   it('resolves kutoten slot', () => {
@@ -87,7 +87,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    expect(tree.blocks[0]!.tokens[2]!.slots.kutoten).toBe('。');
+    expect(tree.blocks[0]!.children[2]!.slots.kutoten).toBe('。');
   });
 
   it('resolves multiple marks on same token', () => {
@@ -98,7 +98,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    const t3 = tree.blocks[0]!.tokens[2]!;
+    const t3 = tree.blocks[0]!.children[2]!;
     expect(t3.slots.ruby).toBe('まな');
     expect(t3.slots.okuri).toBe('ぶ');
     expect(t3.slots.kaeri).toBe('\u3192\u3191');
@@ -110,7 +110,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, { ...PROFILES.full, kaeriten: false });
 
-    expect(tree.blocks[0]!.tokens[1]!.slots.kaeri).toBeUndefined();
+    expect(tree.blocks[0]!.children[1]!.slots.kaeri).toBeUndefined();
   });
 
   it('respects profile: yomigana=false', () => {
@@ -119,7 +119,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, { ...PROFILES.full, yomigana: false });
 
-    expect(tree.blocks[0]!.tokens[2]!.slots.ruby).toBeUndefined();
+    expect(tree.blocks[0]!.children[2]!.slots.ruby).toBeUndefined();
   });
 
   it('handles multiple blocks', () => {
@@ -142,9 +142,9 @@ describe('buildRenderTree', () => {
 
     expect(tree.blocks).toHaveLength(2);
     expect(tree.blocks[0]!.blockId).toBe('b1');
-    expect(tree.blocks[0]!.tokens).toHaveLength(2);
+    expect(tree.blocks[0]!.children).toHaveLength(2);
     expect(tree.blocks[1]!.blockId).toBe('b2');
-    expect(tree.blocks[1]!.tokens).toHaveLength(2);
+    expect(tree.blocks[1]!.children).toHaveLength(2);
   });
 
   it('handles empty document', () => {
@@ -165,7 +165,7 @@ describe('buildRenderTree', () => {
     const doc = threeTokenDoc([{ type: 'okimoji', anchor: { from: 't1', to: 't3' } }]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    const tokens = tree.blocks[0]!.tokens;
+    const tokens = tree.blocks[0]!.children;
     // All three tokens should match (from, intermediate, to)
     expect(tokens[0]!.slots.isOkimoji).toBe(true);
     expect(tokens[1]!.slots.isOkimoji).toBe(true);
@@ -176,24 +176,24 @@ describe('buildRenderTree', () => {
     const doc = threeTokenDoc([{ type: 'okimoji', anchor: { from: 't2', to: 't2' } }]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    expect(tree.blocks[0]!.tokens[1]!.slots.isOkimoji).toBe(true);
-    expect(tree.blocks[0]!.tokens[0]!.slots.isOkimoji).toBeUndefined();
-    expect(tree.blocks[0]!.tokens[2]!.slots.isOkimoji).toBeUndefined();
+    expect(tree.blocks[0]!.children[1]!.slots.isOkimoji).toBe(true);
+    expect(tree.blocks[0]!.children[0]!.slots.isOkimoji).toBeUndefined();
+    expect(tree.blocks[0]!.children[2]!.slots.isOkimoji).toBeUndefined();
   });
 
   it('resolves joji flag for single token', () => {
     const doc = threeTokenDoc([{ type: 'joji', anchor: { from: 't1', to: 't1' } }]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    expect(tree.blocks[0]!.tokens[0]!.slots.isJoji).toBe(true);
-    expect(tree.blocks[0]!.tokens[1]!.slots.isJoji).toBeUndefined();
+    expect(tree.blocks[0]!.children[0]!.slots.isJoji).toBe(true);
+    expect(tree.blocks[0]!.children[1]!.slots.isJoji).toBeUndefined();
   });
 
   it('resolves okimoji flag for token range', () => {
     const doc = threeTokenDoc([{ type: 'okimoji', anchor: { from: 't1', to: 't3' } }]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    const tokens = tree.blocks[0]!.tokens;
+    const tokens = tree.blocks[0]!.children;
     expect(tokens[0]!.slots.isOkimoji).toBe(true);
     expect(tokens[1]!.slots.isOkimoji).toBe(true);
     expect(tokens[2]!.slots.isOkimoji).toBe(true);
@@ -203,14 +203,14 @@ describe('buildRenderTree', () => {
     const doc = threeTokenDoc([{ type: 'okimoji', anchor: { from: 't2', to: 't2' } }]);
     const tree = buildRenderTree(doc, { ...PROFILES.full, okimoji: false });
 
-    expect(tree.blocks[0]!.tokens[1]!.slots.isOkimoji).toBeUndefined();
+    expect(tree.blocks[0]!.children[1]!.slots.isOkimoji).toBeUndefined();
   });
 
   it('respects profile: joji=false', () => {
     const doc = threeTokenDoc([{ type: 'joji', anchor: { from: 't1', to: 't1' } }]);
     const tree = buildRenderTree(doc, { ...PROFILES.full, joji: false });
 
-    expect(tree.blocks[0]!.tokens[0]!.slots.isJoji).toBeUndefined();
+    expect(tree.blocks[0]!.children[0]!.slots.isJoji).toBeUndefined();
   });
 
   it('resolves emphasis for all tokens in range', () => {
@@ -219,7 +219,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    const tokens = tree.blocks[0]!.tokens;
+    const tokens = tree.blocks[0]!.children;
     expect(tokens[0]!.slots.emphasis).toBe('\uFE45');
     expect(tokens[1]!.slots.emphasis).toBe('\uFE45');
     expect(tokens[2]!.slots.emphasis).toBe('\uFE45');
@@ -229,7 +229,7 @@ describe('buildRenderTree', () => {
     const doc = threeTokenDoc([{ type: 'emphasis', anchor: { from: 't2', to: 't2' } }]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    expect(tree.blocks[0]!.tokens[1]!.slots.emphasis).toBe('\u2022');
+    expect(tree.blocks[0]!.children[1]!.slots.emphasis).toBe('\u2022');
   });
 
   it('respects profile: emphasis=false', () => {
@@ -238,7 +238,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, { ...PROFILES.full, emphasis: false });
 
-    expect(tree.blocks[0]!.tokens[0]!.slots.emphasis).toBeUndefined();
+    expect(tree.blocks[0]!.children[0]!.slots.emphasis).toBeUndefined();
   });
 
   it('resolves saidoku forms into slots', () => {
@@ -254,7 +254,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    const t1 = tree.blocks[0]!.tokens[0]!;
+    const t1 = tree.blocks[0]!.children[0]!;
     expect(t1.slots.ruby).toBe('まさ');
     expect(t1.slots.okuri).toBe('に');
     expect(t1.slots.saidokuUnder).toBe('はた');
@@ -274,7 +274,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    const t2 = tree.blocks[0]!.tokens[1]!;
+    const t2 = tree.blocks[0]!.children[1]!;
     expect(t2.slots.ruby).toBe('まさ');
     expect(t2.slots.okuri).toBe('に');
     expect(t2.slots.saidokuUnder).toBe('はた');
@@ -291,7 +291,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    const t1 = tree.blocks[0]!.tokens[0]!;
+    const t1 = tree.blocks[0]!.children[0]!;
     expect(t1.slots.ruby).toBe('まさ');
     expect(t1.slots.saidokuUnder).toBeUndefined();
     expect(t1.slots.saidokuOkuri2).toBeUndefined();
@@ -307,7 +307,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    const t1 = tree.blocks[0]!.tokens[0]!;
+    const t1 = tree.blocks[0]!.children[0]!;
     expect(t1.slots.ruby).toBeUndefined();
     expect(t1.slots.saidokuUnder).toBeUndefined();
   });
@@ -325,7 +325,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, { ...PROFILES.full, saidoku: false });
 
-    const t1 = tree.blocks[0]!.tokens[0]!;
+    const t1 = tree.blocks[0]!.children[0]!;
     expect(t1.slots.ruby).toBeUndefined();
     expect(t1.slots.saidokuUnder).toBeUndefined();
   });

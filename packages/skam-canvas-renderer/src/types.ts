@@ -74,7 +74,7 @@ export interface CanvasTokenNode {
 export interface CanvasBlockNode {
   type: 'block';
   blockId: string;
-  tokens: CanvasTokenNode[];
+  children: CanvasTokenNode[];
 }
 
 export interface CanvasRenderTree {
@@ -104,6 +104,7 @@ export interface ResolvedSlotLayouts {
 }
 
 export interface TokenLayout {
+  type: 'token';
   tokenId: string;
   x: number;
   y: number;
@@ -116,7 +117,7 @@ export interface ColumnLayout {
   y: number;
   width: number;
   height: number;
-  tokens: TokenLayout[];
+  children: TokenLayout[];
 }
 
 export interface DocumentLayout {

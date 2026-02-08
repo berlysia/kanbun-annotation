@@ -143,9 +143,8 @@ describe('layoutVertical', () => {
     expect(t2.slots.kaeri).toBeDefined();
     expect(t2.slots.kaeri!.text).toBe('\u3191');
     expect(t2.slots.kaeri!.x).toBeLessThan(t2.x);
-    // kaeri is bottom-aligned with base character
-    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
-    expect(t2.slots.kaeri!.y).toBe(t2.y + DEFAULT_FONT_SIZE - rubyFontSize);
+    // kaeri is in suffix row (below base character)
+    expect(t2.slots.kaeri!.y).toBe(t2.y + DEFAULT_FONT_SIZE);
   });
 
   it('places kutoten right of base center (grid row2)', () => {
@@ -183,12 +182,12 @@ describe('layoutVertical', () => {
     expect(token.slots.okuri!.x).toBeGreaterThan(token.x);
     expect(token.slots.ruby!.x).toBe(token.slots.okuri!.x);
     expect(token.slots.kaeri!.x).toBeLessThan(token.x);
-    // Y positions: ruby top-aligned, okuri below base (after ruby), kaeri bottom-aligned
+    // Y positions: ruby top-aligned, okuri below base (after ruby), kaeri in suffix row
     expect(token.slots.ruby!.y).toBe(token.y);
     // ruby has 2 chars (まな) = 2 * 12 = 24, which equals fontSize, so okuri starts at tokenY + fontSize
     expect(token.slots.okuri!.y).toBe(token.y + DEFAULT_FONT_SIZE);
-    // kaeri "一レ" → 2 Unicode chars: height = 2 * rubyFontSize = fontSize, so bottom-aligned = tokenY
-    expect(token.slots.kaeri!.y).toBe(token.y + DEFAULT_FONT_SIZE - 2 * rubyFontSize);
+    // kaeri is in suffix row (below base character)
+    expect(token.slots.kaeri!.y).toBe(token.y + DEFAULT_FONT_SIZE);
   });
 
   it('places suffix types with kutoten below base', () => {
@@ -245,25 +244,45 @@ describe('layoutVertical', () => {
     expect(token.slots.soegana!.y).toBe(token.y + DEFAULT_FONT_SIZE + rubyFontSize);
   });
 
-  it('uses grid width 3R+F when suffix exists', () => {
-    const ctx = new RecordingContext();
-    const docPlain = singleTokenDoc();
-    const treePlain = buildRenderTree(docPlain, PROFILES.full);
-    const resultPlain = layout(treePlain, ctx);
+  it('uses adaptive grid width based on hasSaidoku/hasRightColumn', () => {
+    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
 
-    const ctxMarked = new RecordingContext();
-    const docMarked = singleTokenDoc([
+    // Plain: columnWidth = F = 24
+    const ctxPlain = new RecordingContext();
+    const resultPlain = layout(buildRenderTree(singleTokenDoc(), PROFILES.full), ctxPlain);
+    expect(resultPlain.columns[0]!.width).toBe(DEFAULT_FONT_SIZE);
+
+    // kaeri only: hasSuffix=true, hasSaidoku=false, hasRightColumn=false → columnWidth = F
+    const ctxKaeri = new RecordingContext();
+    const docKaeri = singleTokenDoc([
       { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
     ]);
-    const treeMarked = buildRenderTree(docMarked, PROFILES.full);
-    const resultMarked = layout(treeMarked, ctxMarked);
+    const resultKaeri = layout(buildRenderTree(docKaeri, PROFILES.full), ctxKaeri);
+    expect(resultKaeri.columns[0]!.width).toBe(DEFAULT_FONT_SIZE);
 
-    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
-    // Plain: columnWidth = fontSize = 24
-    // Marked: columnWidth = 3R + F = 3*12 + 24 = 60
-    // Difference = gridWidth - fontSize
-    const gridWidth = 3 * rubyFontSize + DEFAULT_FONT_SIZE;
-    expect(resultMarked.width - resultPlain.width).toBe(gridWidth - DEFAULT_FONT_SIZE);
+    // okuri + kaeri: hasSuffix=true, hasSaidoku=false, hasRightColumn=true → columnWidth = F+R
+    const ctxOkuriKaeri = new RecordingContext();
+    const docOkuriKaeri = singleTokenDoc([
+      { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'ぶ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+    ]);
+    const resultOkuriKaeri = layout(buildRenderTree(docOkuriKaeri, PROFILES.full), ctxOkuriKaeri);
+    expect(resultOkuriKaeri.columns[0]!.width).toBe(DEFAULT_FONT_SIZE + rubyFontSize);
+
+    // saidoku: hasSuffix=true, hasSaidoku=true, hasRightColumn=true → columnWidth = R+F+R
+    const ctxSaidoku = new RecordingContext();
+    const docSaidoku = singleTokenDoc([
+      {
+        type: 'saidoku',
+        anchor: { from: 't1', to: 't1' },
+        forms: [
+          { n: 1, yomi: 'まさ', okuri: 'に' },
+          { n: 2, yomi: 'はた' },
+        ],
+      },
+    ]);
+    const resultSaidoku = layout(buildRenderTree(docSaidoku, PROFILES.full), ctxSaidoku);
+    expect(resultSaidoku.columns[0]!.width).toBe(rubyFontSize + DEFAULT_FONT_SIZE + rubyFontSize);
   });
 
   it('applies custom padding', () => {

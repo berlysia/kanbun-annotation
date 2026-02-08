@@ -481,51 +481,71 @@ export function buildRenderTree(doc: SKAMDocument, profile: RenderProfile): Canv
     };
   });
 
-  // hasSuffix: レイアウト拡張スロットの有無を事前計算
+  // hasSuffix / hasSaidoku / hasRightColumn: レイアウトフラグの事前計算
   let hasSuffix = false;
-  outer: for (const block of blockNodes) {
+  let hasSaidoku = false;
+  let hasRightColumn = false;
+  for (const block of blockNodes) {
     for (const child of block.children) {
-      if (checkHasSuffix(child)) {
-        hasSuffix = true;
-        break outer;
-      }
+      const flags = checkLayoutFlags(child);
+      if (flags.hasSuffix) hasSuffix = true;
+      if (flags.hasSaidoku) hasSaidoku = true;
+      if (flags.hasRightColumn) hasRightColumn = true;
+      if (hasSuffix && hasSaidoku && hasRightColumn) break;
     }
+    if (hasSuffix && hasSaidoku && hasRightColumn) break;
   }
 
-  return { blocks: blockNodes, hasSuffix };
+  return { blocks: blockNodes, hasSuffix, hasSaidoku, hasRightColumn };
 }
 
-/** CanvasBlockChild 内のトークンに suffix スロットがあるか判定 */
-function checkHasSuffix(child: CanvasBlockChild): boolean {
+interface LayoutFlags {
+  hasSuffix: boolean;
+  hasSaidoku: boolean;
+  hasRightColumn: boolean;
+}
+
+/** CanvasBlockChild 内のトークンからレイアウトフラグを収集 */
+function checkLayoutFlags(child: CanvasBlockChild): LayoutFlags {
+  const flags: LayoutFlags = { hasSuffix: false, hasSaidoku: false, hasRightColumn: false };
   if (child.type === 'token') {
-    return tokenHasSuffix(child);
-  }
-  if (child.type === 'tateten-group') {
+    mergeTokenFlags(child, flags);
+  } else if (child.type === 'tateten-group') {
     for (const c of child.children) {
-      if (c.type === 'token' && tokenHasSuffix(c)) return true;
+      if (c.type === 'token') mergeTokenFlags(c, flags);
     }
-    return false;
-  }
-  // highlight-group
-  for (const c of child.children) {
-    if (c.type === 'token' && tokenHasSuffix(c)) return true;
-    if (c.type === 'tateten-group') {
-      for (const tc of c.children) {
-        if (tc.type === 'token' && tokenHasSuffix(tc)) return true;
+  } else {
+    // highlight-group
+    for (const c of child.children) {
+      if (c.type === 'token') {
+        mergeTokenFlags(c, flags);
+      } else {
+        // tateten-group inside highlight
+        for (const tc of c.children) {
+          if (tc.type === 'token') mergeTokenFlags(tc, flags);
+        }
       }
     }
   }
-  return false;
+  return flags;
 }
 
-function tokenHasSuffix(node: CanvasTokenNode): boolean {
+function mergeTokenFlags(node: CanvasTokenNode, flags: LayoutFlags): void {
   const { slots } = node;
-  return !!(
+  if (
     slots.okuri ||
     slots.soegana ||
     slots.kaeri ||
     slots.kutoten ||
     slots.saidokuUnder ||
     slots.saidokuOkuri2
-  );
+  ) {
+    flags.hasSuffix = true;
+  }
+  if (slots.saidokuUnder || slots.saidokuOkuri2) {
+    flags.hasSaidoku = true;
+  }
+  if (slots.ruby || slots.okuri || slots.soegana) {
+    flags.hasRightColumn = true;
+  }
 }

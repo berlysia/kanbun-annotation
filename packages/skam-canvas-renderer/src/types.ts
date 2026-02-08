@@ -104,6 +104,10 @@ export interface CanvasRenderTree {
   blocks: CanvasBlockNode[];
   /** 文書内にレイアウト拡張が必要なスロット（okuri/soegana/kaeri/kutoten/saidoku）があるか */
   hasSuffix: boolean;
+  /** saidokuUnder or saidokuOkuri2 が存在 → 左列(R)を割り当て */
+  hasSaidoku: boolean;
+  /** ruby, okuri, soegana が存在 → 右列(R)を割り当て */
+  hasRightColumn: boolean;
 }
 
 // ============================================================================

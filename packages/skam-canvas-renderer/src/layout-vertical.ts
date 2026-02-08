@@ -1,30 +1,34 @@
 /**
- * 縦書き単一列レイアウト
+ * 縦書き単一列レイアウト — 2行×n列グリッドモデル
  *
  * HTML renderer では suffix-row と ruby-grid が別のインライン要素として
  * 異なる垂直位置に配置されるため重なりが生じない。
  * Canvas では同一空間に描画するため、base の左右に分離配置して重なりを回避する。
  *
- * 物理配置（左→右）:
+ * 2行×n列グリッド:
  *
- *   [saidoku2(R)] [kaeri(R)] [base(F)] [okuri/soegana(R)]
+ *   Base row:    [saidoku yomi(R?)] [base(1/2)] [base(2/2)] [yomigana(R?)]
+ *   Suffix row:  [saidoku okuri(R?)] [kaeri]    [kutoten]   [okuri/soegana(R?)]
  *
  *   R = rubyFontSize, F = fontSize
- *   gridWidth = 3R + F
- *   baseCenterX = 2R + F/2
- *   kutoten は base の下方に配置（HTML suffix-row のインライン配置と同等）
+ *   [] 列: その文字/熟語単位で空なら詰めてよい
+ *   () 列: emphasis/highlight は範囲全体で一貫させる（将来対応）
+ *   base の中心が全要素のアライメント基準軸 (baseCenterX)
  *
- * 左ゾーン（base の左側）:
- *   col4: saidoku2       center = R/2        font-size: rubyFontSize
- *   col3: kaeri          center = R + R/2    font-size: rubyFontSize, bottom-aligned
+ * グリッド幅（hasSuffix=true 時）:
+ *   saidokuWidth = hasSaidoku ? R : 0
+ *   rightColumnWidth = hasRightColumn ? R : 0
+ *   columnWidth = saidokuWidth + F + rightColumnWidth
+ *   baseCenterX = saidokuWidth + F/2
  *
- * 右ゾーン（base の右側）:
- *   col1: okuri/soegana  center = 2R+F+R/2   font-size: rubyFontSize
- *   ruby/yomigana は col1 と同じ X（base より上）
- *   emphasis は col1 の右隣（ruby がある場合はさらに右）
+ * 各スロット位置（baseCenterX 基準の対称配置）:
+ *   saidoku2X = columnX + saidokuWidth/2              ← 左列中心
+ *   kaeriX    = columnX + saidokuWidth + F/4           ← base 左半分中心
+ *   kutotenX  = columnX + saidokuWidth + 3F/4          ← base 右半分中心
+ *   suffixX   = columnX + saidokuWidth + F + R/2       ← 右列中心
  *
- * 下方配置:
- *   kutoten: base の下方、rightColX - R の X 座標、font-size: fontSize
+ * kaeri は suffix row（base の直下、y = tokenY + fontSize）に配置。
+ * kutoten も suffix row（y = tokenY + fontSize）、base 右半分中心に配置。
  *
  * 列方向: 右→左（block[0] が右端）。各ブロックが独立カラムとなる。
  * 列内: 上→下。
@@ -114,17 +118,26 @@ function computeGridColumns(
   rubyFontSize: number,
   slotGap: number,
   hasSuffix: boolean,
+  hasSaidoku: boolean,
   baseCenterX: number
 ): GridColumns {
   if (hasSuffix) {
-    const rightColX = columnX + columnWidth - rubyFontSize / 2;
+    const saidokuWidth = hasSaidoku ? rubyFontSize : 0;
+    const baseLeft = columnX + saidokuWidth;
+
+    // base 中心基準の対称配置
+    const kaeriX = baseLeft + fontSize / 4;
+    const kutotenX = baseLeft + (3 * fontSize) / 4;
+    const saidoku2X = columnX + saidokuWidth / 2;
+    const suffixX = baseLeft + fontSize + rubyFontSize / 2;
+
     return {
-      suffixX: rightColX,
-      kaeriX: columnX + rubyFontSize + rubyFontSize / 2,
-      saidoku2X: columnX + rubyFontSize / 2,
-      kutotenX: rightColX - rubyFontSize,
-      emphasisBaseX: rightColX,
-      emphasisWithRubyX: rightColX + rubyFontSize,
+      suffixX,
+      kaeriX,
+      saidoku2X,
+      kutotenX,
+      emphasisBaseX: suffixX,
+      emphasisWithRubyX: suffixX + rubyFontSize,
     };
   }
   // hasSuffix=false: kaeri/kutoten/saidoku スロットは存在しないため
@@ -200,11 +213,10 @@ function layoutSingleToken(
   }
 
   if (slots.kaeri) {
-    const kaeriChars = [...slots.kaeri].length;
     slotLayouts.kaeri = {
       text: slots.kaeri,
       x: grid.kaeriX,
-      y: tokenY + fontSize - kaeriChars * rubyFontSize,
+      y: tokenY + fontSize,
       fontSize: rubyFontSize,
     };
   }
@@ -287,8 +299,8 @@ export function layoutVertical(
     };
   }
 
-  // hasSuffix は Pass 1 で事前計算済み
-  const { hasSuffix } = tree;
+  // hasSuffix / hasSaidoku / hasRightColumn は Pass 1 で事前計算済み
+  const { hasSuffix, hasSaidoku, hasRightColumn } = tree;
 
   // ruby の最大幅計測
   let maxRubyWidth = 0;
@@ -301,10 +313,11 @@ export function layoutVertical(
   let baseCenterX: number;
 
   if (hasSuffix) {
-    // base の左右に suffix 列を分離配置するため 3R + F 幅が必要
-    const gridWidth = 3 * rubyFontSize + fontSize;
-    columnWidth = gridWidth;
-    baseCenterX = 2 * rubyFontSize + fontSize / 2;
+    // 2行×n列グリッド: 必要な列のみ割り当て
+    const saidokuWidth = hasSaidoku ? rubyFontSize : 0;
+    const rightColumnWidth = hasRightColumn ? rubyFontSize : 0;
+    columnWidth = saidokuWidth + fontSize + rightColumnWidth;
+    baseCenterX = saidokuWidth + fontSize / 2;
   } else if (maxRubyWidth > 0) {
     columnWidth = fontSize + slotGap + maxRubyWidth;
     baseCenterX = fontSize / 2;
@@ -332,6 +345,7 @@ export function layoutVertical(
       rubyFontSize,
       slotGap,
       hasSuffix,
+      hasSaidoku,
       baseCenterX
     );
     const blockLctx: LayoutContext = { fontSize, rubyFontSize, cellAdvance, grid };

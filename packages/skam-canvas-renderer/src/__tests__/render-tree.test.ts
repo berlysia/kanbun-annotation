@@ -159,4 +159,57 @@ describe('buildRenderTree', () => {
 
     expect(tree.blocks).toHaveLength(0);
   });
+
+  it('matches intermediate tokens in anchor range', () => {
+    // Use okimoji with a 3-token range to verify intermediate matching
+    const doc = threeTokenDoc([{ type: 'okimoji', anchor: { from: 't1', to: 't3' } }]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const tokens = tree.blocks[0]!.tokens;
+    // All three tokens should match (from, intermediate, to)
+    expect(tokens[0]!.slots.isOkimoji).toBe(true);
+    expect(tokens[1]!.slots.isOkimoji).toBe(true);
+    expect(tokens[2]!.slots.isOkimoji).toBe(true);
+  });
+
+  it('resolves okimoji flag for single token', () => {
+    const doc = threeTokenDoc([{ type: 'okimoji', anchor: { from: 't2', to: 't2' } }]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    expect(tree.blocks[0]!.tokens[1]!.slots.isOkimoji).toBe(true);
+    expect(tree.blocks[0]!.tokens[0]!.slots.isOkimoji).toBeUndefined();
+    expect(tree.blocks[0]!.tokens[2]!.slots.isOkimoji).toBeUndefined();
+  });
+
+  it('resolves joji flag for single token', () => {
+    const doc = threeTokenDoc([{ type: 'joji', anchor: { from: 't1', to: 't1' } }]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    expect(tree.blocks[0]!.tokens[0]!.slots.isJoji).toBe(true);
+    expect(tree.blocks[0]!.tokens[1]!.slots.isJoji).toBeUndefined();
+  });
+
+  it('resolves okimoji flag for token range', () => {
+    const doc = threeTokenDoc([{ type: 'okimoji', anchor: { from: 't1', to: 't3' } }]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const tokens = tree.blocks[0]!.tokens;
+    expect(tokens[0]!.slots.isOkimoji).toBe(true);
+    expect(tokens[1]!.slots.isOkimoji).toBe(true);
+    expect(tokens[2]!.slots.isOkimoji).toBe(true);
+  });
+
+  it('respects profile: okimoji=false', () => {
+    const doc = threeTokenDoc([{ type: 'okimoji', anchor: { from: 't2', to: 't2' } }]);
+    const tree = buildRenderTree(doc, { ...PROFILES.full, okimoji: false });
+
+    expect(tree.blocks[0]!.tokens[1]!.slots.isOkimoji).toBeUndefined();
+  });
+
+  it('respects profile: joji=false', () => {
+    const doc = threeTokenDoc([{ type: 'joji', anchor: { from: 't1', to: 't1' } }]);
+    const tree = buildRenderTree(doc, { ...PROFILES.full, joji: false });
+
+    expect(tree.blocks[0]!.tokens[0]!.slots.isJoji).toBeUndefined();
+  });
 });

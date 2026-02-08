@@ -26,7 +26,11 @@ import { convertKaeriToUnicode } from './helpers.js';
  * Position-based marks は position.after の tokenId で紐付け。
  * Anchor-based marks は type に応じて from / to で紐付け。
  */
-function resolveTokenMarks(tokenId: string, marks: Mark[]): Map<Mark['type'], Mark[]> {
+function resolveTokenMarks(
+  tokenId: string,
+  marks: Mark[],
+  allTokens: Token[]
+): Map<Mark['type'], Mark[]> {
   const result = new Map<Mark['type'], Mark[]>();
 
   // yomigana は anchor.from で紐付け
@@ -59,7 +63,16 @@ function resolveTokenMarks(tokenId: string, marks: Mark[]): Map<Mark['type'], Ma
         result.set(mark.type, existing);
       }
     } else {
-      if (mark.anchor.from === tokenId || mark.anchor.to === tokenId) {
+      let matched = mark.anchor.from === tokenId || mark.anchor.to === tokenId;
+      if (!matched && mark.anchor.from !== mark.anchor.to) {
+        const fromIdx = allTokens.findIndex((t) => t.id === mark.anchor.from);
+        const toIdx = allTokens.findIndex((t) => t.id === mark.anchor.to);
+        const tokenIdx = allTokens.findIndex((t) => t.id === tokenId);
+        if (fromIdx !== -1 && toIdx !== -1 && tokenIdx !== -1) {
+          matched = tokenIdx > fromIdx && tokenIdx < toIdx;
+        }
+      }
+      if (matched) {
         const existing = result.get(mark.type) ?? [];
         existing.push(mark);
         result.set(mark.type, existing);
@@ -73,8 +86,13 @@ function resolveTokenMarks(tokenId: string, marks: Mark[]): Map<Mark['type'], Ma
 /**
  * Token のスロットを解決する
  */
-function resolveSlots(tokenId: string, marks: Mark[], profile: RenderProfile): TokenSlots {
-  const tokenMarks = resolveTokenMarks(tokenId, marks);
+function resolveSlots(
+  tokenId: string,
+  marks: Mark[],
+  profile: RenderProfile,
+  allTokens: Token[]
+): TokenSlots {
+  const tokenMarks = resolveTokenMarks(tokenId, marks, allTokens);
   const slots: TokenSlots = {};
 
   // yomigana -> ruby
@@ -115,6 +133,16 @@ function resolveSlots(tokenId: string, marks: Mark[], profile: RenderProfile): T
     if (kutotenMarks.length > 0) {
       slots.kutoten = kutotenMarks.map((m) => m.value).join('');
     }
+  }
+
+  // okimoji -> isOkimoji flag
+  if (profile.okimoji && tokenMarks.has('okimoji')) {
+    slots.isOkimoji = true;
+  }
+
+  // joji -> isJoji flag
+  if (profile.joji && tokenMarks.has('joji')) {
+    slots.isJoji = true;
   }
 
   return slots;
@@ -165,7 +193,7 @@ export function buildRenderTree(doc: SKAMDocument, profile: RenderProfile): Canv
     const tokenNodes: CanvasTokenNode[] = group.tokens.map((token) => ({
       type: 'token' as const,
       token,
-      slots: resolveSlots(token.id, marks, profile),
+      slots: resolveSlots(token.id, marks, profile, group.tokens),
     }));
 
     return {

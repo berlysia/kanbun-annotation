@@ -58,6 +58,8 @@ export interface TokenSlots {
   soegana?: string;
   kaeri?: string;
   kutoten?: string;
+  isOkimoji?: boolean;
+  isJoji?: boolean;
 }
 
 export interface CanvasTokenNode {

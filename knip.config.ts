@@ -27,6 +27,10 @@ const config: KnipConfig = {
       entry: ['src/**/*.test.ts'],
       project: ['src/**/*.ts'],
     },
+    'packages/skam-screenshot': {
+      entry: ['src/index.ts', 'src/cli.ts'],
+      project: ['src/**/*.ts'],
+    },
   },
   ignore: ['**/*.test.ts', '**/*.spec.ts'],
   ignoreExportsUsedInFile: true,

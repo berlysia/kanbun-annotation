@@ -1,0 +1,51 @@
+{
+  "name": "@kanbun/skam-screenshot",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Cross-browser screenshot tool for SKAM HTML Renderer output",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "typecheck": "tsgo --noEmit",
+    "lint": "oxlint src",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "keywords": [
+    "kanbun",
+    "漢文",
+    "annotation",
+    "skam",
+    "screenshot",
+    "playwright"
+  ],
+  "author": "berlysia",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/berlysia/kanbun-annotation.git",
+    "directory": "packages/skam-screenshot"
+  },
+  "bugs": {
+    "url": "https://github.com/berlysia/kanbun-annotation/issues"
+  },
+  "homepage": "https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-screenshot#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "devDependencies": {
+    "@kanbun/skam": "workspace:*",
+    "@kanbun/skam-html-renderer": "workspace:*",
+    "@kanbun/skam-xml-parser": "workspace:*",
+    "playwright": "1.52.0"
+  }
+}

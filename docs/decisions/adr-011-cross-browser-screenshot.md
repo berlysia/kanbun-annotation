@@ -4,6 +4,8 @@
 
 Accepted
 
+実装計画: [Plan](../plans/plan-cross-browser-screenshot.md)
+
 ## コンテキスト
 
 SKAM HTML Renderer の出力がブラウザ間で意図通り表示されるかを確認する手段がない。漢文レンダリングは縦書き・ルビ・返り点など CSS の高度な機能に依存しており、ブラウザ間の描画差異が発生しやすい。

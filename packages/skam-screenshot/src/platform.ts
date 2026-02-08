@@ -1,10 +1,6 @@
 import type { Browser } from './types.js';
 
-export const VALID_BROWSERS: readonly Browser[] = [
-  'chromium',
-  'firefox',
-  'webkit',
-] as const;
+export const VALID_BROWSERS: readonly Browser[] = ['chromium', 'firefox', 'webkit'] as const;
 
 /**
  * Returns default browsers based on the current platform.
@@ -31,12 +27,10 @@ export function parseBrowserList(input: string): Browser[] {
     throw new Error('Browser list cannot be empty');
   }
 
-  const invalid = browsers.filter(
-    (b) => !VALID_BROWSERS.includes(b as Browser),
-  );
+  const invalid = browsers.filter((b) => !VALID_BROWSERS.includes(b as Browser));
   if (invalid.length > 0) {
     throw new Error(
-      `Invalid browser(s): ${invalid.join(', ')}. Valid browsers: ${VALID_BROWSERS.join(', ')}`,
+      `Invalid browser(s): ${invalid.join(', ')}. Valid browsers: ${VALID_BROWSERS.join(', ')}`
     );
   }
 

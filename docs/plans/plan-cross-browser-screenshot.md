@@ -8,13 +8,13 @@
 
 ## 設計判断（clarify 結果）
 
-| 項目 | 決定 | 理由 |
-|------|------|------|
-| Playwright バージョン | 最新安定版（`pnpm add -D playwright`） | private パッケージのため最新追従で問題なし |
-| CLI 実行方式 | `node --experimental-strip-types` | ビルド不要で開発速度向上。失敗時は dist にフォールバック |
-| ImageFormat | `'png' \| 'jpeg'` のみ | Playwright の `page.screenshot()` が WebP 非サポート |
-| コミット戦略 | Step ごとにコミット | レビューしやすい粒度 |
-| 検証深度 | Playwright chromium でスモークテストまで実施 | 実際の撮影動作を確認 |
+| 項目                  | 決定                                         | 理由                                                     |
+| --------------------- | -------------------------------------------- | -------------------------------------------------------- |
+| Playwright バージョン | 最新安定版（`pnpm add -D playwright`）       | private パッケージのため最新追従で問題なし               |
+| CLI 実行方式          | `node --experimental-strip-types`            | ビルド不要で開発速度向上。失敗時は dist にフォールバック |
+| ImageFormat           | `'png' \| 'jpeg'` のみ                       | Playwright の `page.screenshot()` が WebP 非サポート     |
+| コミット戦略          | Step ごとにコミット                          | レビューしやすい粒度                                     |
+| 検証深度              | Playwright chromium でスモークテストまで実施 | 実際の撮影動作を確認                                     |
 
 ## 前提知識
 
@@ -173,14 +173,14 @@ node --experimental-strip-types packages/skam-screenshot/src/types.ts
 
 ## コミット計画
 
-| コミット | Step | メッセージ |
-|----------|------|-----------|
-| 1 | Step 1 | `feat(skam-screenshot): scaffold package with types` |
-| 2 | Step 2 | `feat(skam-screenshot): add platform utils and page builder` |
-| 3 | Step 3 | `feat(skam-screenshot): add browser manager for screenshot capture` |
-| 4 | Step 4 | `feat(skam-screenshot): add capture API and compare HTML generator` |
-| 5 | Step 5 | `feat(skam-screenshot): add CLI entry point` |
-| 6 | Step 6 | 修正内容に応じたメッセージ（問題なければコミット不要） |
+| コミット | Step   | メッセージ                                                          |
+| -------- | ------ | ------------------------------------------------------------------- |
+| 1        | Step 1 | `feat(skam-screenshot): scaffold package with types`                |
+| 2        | Step 2 | `feat(skam-screenshot): add platform utils and page builder`        |
+| 3        | Step 3 | `feat(skam-screenshot): add browser manager for screenshot capture` |
+| 4        | Step 4 | `feat(skam-screenshot): add capture API and compare HTML generator` |
+| 5        | Step 5 | `feat(skam-screenshot): add CLI entry point`                        |
+| 6        | Step 6 | 修正内容に応じたメッセージ（問題なければコミット不要）              |
 
 ## 検証方法
 

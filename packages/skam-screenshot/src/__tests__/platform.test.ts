@@ -1,9 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import {
-  getDefaultBrowsers,
-  parseBrowserList,
-  VALID_BROWSERS,
-} from '../platform.js';
+import { getDefaultBrowsers, parseBrowserList, VALID_BROWSERS } from '../platform.js';
 
 describe('VALID_BROWSERS', () => {
   it('should contain chromium, firefox, and webkit', () => {
@@ -32,10 +28,7 @@ describe('parseBrowserList', () => {
   });
 
   it('should parse comma-separated browsers', () => {
-    expect(parseBrowserList('chromium,firefox')).toEqual([
-      'chromium',
-      'firefox',
-    ]);
+    expect(parseBrowserList('chromium,firefox')).toEqual(['chromium', 'firefox']);
   });
 
   it('should trim whitespace around browser names', () => {
@@ -47,10 +40,7 @@ describe('parseBrowserList', () => {
   });
 
   it('should ignore empty segments', () => {
-    expect(parseBrowserList('chromium,,firefox')).toEqual([
-      'chromium',
-      'firefox',
-    ]);
+    expect(parseBrowserList('chromium,,firefox')).toEqual(['chromium', 'firefox']);
   });
 
   it('should throw on empty input', () => {
@@ -58,14 +48,10 @@ describe('parseBrowserList', () => {
   });
 
   it('should throw on invalid browser name', () => {
-    expect(() => parseBrowserList('chromium,ie')).toThrow(
-      'Invalid browser(s): ie',
-    );
+    expect(() => parseBrowserList('chromium,ie')).toThrow('Invalid browser(s): ie');
   });
 
   it('should list all invalid browsers in error message', () => {
-    expect(() => parseBrowserList('ie,edge')).toThrow(
-      'Invalid browser(s): ie, edge',
-    );
+    expect(() => parseBrowserList('ie,edge')).toThrow('Invalid browser(s): ie, edge');
   });
 });

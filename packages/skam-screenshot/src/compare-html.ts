@@ -30,7 +30,7 @@ function escapeHTML(str: string): string {
  */
 export function generateCompareHTML(
   screenshots: Map<Browser, Buffer>,
-  options: CompareHTMLOptions = {},
+  options: CompareHTMLOptions = {}
 ): string {
   const title = options.title ?? 'SKAM Screenshot Comparison';
   const timestamp = new Date().toISOString();

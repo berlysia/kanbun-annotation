@@ -16,6 +16,7 @@
     "build": "tsup",
     "typecheck": "tsgo --noEmit",
     "lint": "oxlint src",
+    "lint:baseline": "stylelint 'src/**/*.ts'",
     "test": "vitest",
     "test:run": "vitest run"
   },
@@ -48,6 +49,9 @@
     "@kanbun/skam": "workspace:*"
   },
   "devDependencies": {
-    "@kanbun/skam-xml-parser": "workspace:*"
+    "@kanbun/skam-xml-parser": "workspace:*",
+    "postcss-styled-syntax": "^0.7.1",
+    "stylelint": "^16.26.1",
+    "stylelint-plugin-use-baseline": "^1.2.1"
   }
 }

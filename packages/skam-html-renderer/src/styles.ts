@@ -2,6 +2,8 @@
  * SKAM HTML Renderer - Default CSS Styles
  */
 
+import { css } from './css-tag.js';
+
 /**
  * コピー可能にする要素の種類
  *
@@ -70,14 +72,14 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
   const commonStyles = generateCommonStyles(prefix, vp, rubyMethod);
   const inlineStyles = inline ? generateInlineStyles(prefix) : '';
 
-  let css: string;
+  let result: string;
 
   if (writingMode === 'both') {
     // 縦書き・横書き両方のスタイルを data-writing-mode セレクタでラップして出力
     const verticalStyles = generateWritingModeStyles(prefix, true);
     const horizontalStyles = generateWritingModeStyles(prefix, false);
 
-    css = `${commonStyles}
+    result = `${commonStyles}
 
 /* Vertical Writing Mode */
 :where(.${prefix}-document[data-writing-mode="vertical"]) {
@@ -102,7 +104,7 @@ ${inlineStyles}`.trim();
 }`
       : '';
 
-    css = `${commonStyles}
+    result = `${commonStyles}
 ${documentWritingMode}
 ${writingModeStyles}
 ${inlineStyles}`.trim();
@@ -110,10 +112,10 @@ ${inlineStyles}`.trim();
 
   // @layer でラップ
   if (useLayer) {
-    return `@layer ${layerName} {\n${css}\n}`;
+    return `@layer ${layerName} {\n${result}\n}`;
   }
 
-  return css;
+  return result;
 }
 
 /**
@@ -295,7 +297,7 @@ function generateCommonStyles(
 }`
     : '';
 
-  return `
+  return css`
 /* SKAM Document Container */
 :where(.${prefix}-document) {
   /* CSS Variables - カスタマイズポイント */
@@ -347,8 +349,8 @@ function generateCommonStyles(
 
 /* Token */
 :where(.${prefix}-token) {
-  // position: relative;
-  // display: inline-block;
+  /* position: relative; */
+  /* display: inline-block; */
 }
 
 /* Base character */
@@ -723,178 +725,180 @@ ${
  */
 function generateWritingModeStyles(prefix: string, isVertical: boolean): string {
   if (isVertical) {
-    return `
-/* Tateten (たて点) - 縦書き: U+3190 グリフがそのまま縦線として機能 */
+    return css`
+      /* Tateten (たて点) - 縦書き: U+3190 グリフがそのまま縦線として機能 */
 
-/* Emphasis (傍点) - 縦書き */
-:where(.${prefix}-emphasis) {
-  text-emphasis-position: right;
-}
+      /* Emphasis (傍点) - 縦書き */
+      :where(.${prefix}-emphasis) {
+        text-emphasis-position: right;
+      }
 
-/* Highlight (傍線部) - 縦書き: 右側に表示 */
-:where(.${prefix}-highlight) {
-  padding-right: 1em;
-}
+      /* Highlight (傍線部) - 縦書き: 右側に表示 */
+      :where(.${prefix}-highlight) {
+        padding-right: 1em;
+      }
 
-:where(.${prefix}-highlight-content) {
-  display: inline-block;
-  position: relative;
-}
+      :where(.${prefix}-highlight-content) {
+        display: inline-block;
+        position: relative;
+      }
 
-:where(.${prefix}-highlight[data-style="solid"]) > :where(.${prefix}-highlight-content) {
-  box-shadow: inset -1px 0 0 0 currentColor;
-}
+      :where(.${prefix}-highlight[data-style="solid"]) > :where(.${prefix}-highlight-content) {
+        box-shadow: inset -1px 0 0 0 currentColor;
+      }
 
-:where(.${prefix}-highlight[data-style="dotted"]) > :where(.${prefix}-highlight-content) {
-  box-shadow: none;
-  background-image: linear-gradient(to bottom, currentColor 2px, transparent 2px);
-  background-size: 1px 4px;
-  background-repeat: repeat-y;
-  background-position: right;
-}
+      :where(.${prefix}-highlight[data-style="dotted"]) > :where(.${prefix}-highlight-content) {
+        box-shadow: none;
+        background-image: linear-gradient(to bottom, currentColor 2px, transparent 2px);
+        background-size: 1px 4px;
+        background-repeat: repeat-y;
+        background-position: right;
+      }
 
-:where(.${prefix}-highlight[data-style="dashed"]) > :where(.${prefix}-highlight-content) {
-  box-shadow: none;
-  background-image: linear-gradient(to bottom, currentColor 4px, transparent 4px);
-  background-size: 1px 8px;
-  background-repeat: repeat-y;
-  background-position: right;
-}
+      :where(.${prefix}-highlight[data-style="dashed"]) > :where(.${prefix}-highlight-content) {
+        box-shadow: none;
+        background-image: linear-gradient(to bottom, currentColor 4px, transparent 4px);
+        background-size: 1px 8px;
+        background-repeat: repeat-y;
+        background-position: right;
+      }
 
-:where(.${prefix}-highlight[data-style="wavy"]) > :where(.${prefix}-highlight-content) {
-  /*
+      :where(.${prefix}-highlight[data-style="wavy"]) > :where(.${prefix}-highlight-content) {
+        /*
    * Wavy line using repeating SVG pattern
    * SVG内でcurrentColorは効かないため、黒色を直接指定。
    * 縦書き: 右側に縦方向の波線（幅4px、周期8px）
    */
-  box-shadow: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='8' viewBox='0 0 4 8'%3E%3Cpath d='M3 0 Q0 4 3 8' stroke='%23333' fill='none' stroke-width='1'/%3E%3C/svg%3E");
-  background-size: 4px 8px;
-  background-repeat: repeat-y;
-  background-position: right;
-}
+        box-shadow: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='8' viewBox='0 0 4 8'%3E%3Cpath d='M3 0 Q0 4 3 8' stroke='%23333' fill='none' stroke-width='1'/%3E%3C/svg%3E");
+        background-size: 4px 8px;
+        background-repeat: repeat-y;
+        background-position: right;
+      }
 
-:where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content) {
-  box-shadow: none;
-  position: relative;
-}
+      :where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content) {
+        box-shadow: none;
+        position: relative;
+      }
 
-:where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::before,
+      :where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::before,
 :where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::after {
-  content: '';
-  position: absolute;
-  background-color: currentColor;
-  top: 0;
-  bottom: 0;
-  width: 1px;
-}
+        content: '';
+        position: absolute;
+        background-color: currentColor;
+        top: 0;
+        bottom: 0;
+        width: 1px;
+      }
 
-:where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::before {
-  right: 0;
-}
+      :where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::before {
+        right: 0;
+      }
 
-:where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::after {
-  right: 3px;
-}
+      :where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::after {
+        right: 3px;
+      }
 
-/* Label - 縦書き: 傍線の開始位置（上）に配置 */
-:where(.${prefix}-highlight-content > .${prefix}-ref) {
-  inset-inline-start: 0;
-  inset-block-start: -1em;
-}
+      /* Label - 縦書き: 傍線の開始位置（上）に配置 */
+      :where(.${prefix}-highlight-content > .${prefix}-ref) {
+        inset-inline-start: 0;
+        inset-block-start: -1em;
+      }
 
-/* Ref (参照ラベル) - 縦中横 */
-:where(.${prefix}-ref--half-width) {
-  text-combine-upright: all;
-}
+      /* Ref (参照ラベル) - 縦中横 */
+      :where(.${prefix}-ref--half-width) {
+        text-combine-upright: all;
+      }
 
-/* Note marker - 縦中横 */
-:where(.${prefix}-note-marker--half-width) {
-  text-combine-upright: all;
-}`;
+      /* Note marker - 縦中横 */
+      :where(.${prefix}-note-marker--half-width) {
+        text-combine-upright: all;
+      }
+    `;
   } else {
-    return `
-/* Tateten (たて点) - 横書き: U+3190 グリフは縦長なので90°回転して横線にする */
-:where(.${prefix}-tateten-mark) {
-  transform: rotate(90deg);
-}
+    return css`
+      /* Tateten (たて点) - 横書き: U+3190 グリフは縦長なので90°回転して横線にする */
+      :where(.${prefix}-tateten-mark) {
+        transform: rotate(90deg);
+      }
 
-/* Emphasis (傍点) - 横書き */
-:where(.${prefix}-emphasis) {
-  text-emphasis-position: over;
-}
+      /* Emphasis (傍点) - 横書き */
+      :where(.${prefix}-emphasis) {
+        text-emphasis-position: over;
+      }
 
-/* Highlight (傍線) - 横書き: 下側に表示 */
-:where(.${prefix}-highlight) {
-  padding-bottom: 0.5em;
-}
+      /* Highlight (傍線) - 横書き: 下側に表示 */
+      :where(.${prefix}-highlight) {
+        padding-bottom: 0.5em;
+      }
 
-:where(.${prefix}-highlight-content) {
-  box-shadow: inset 0 -1px 0 0 currentColor;
-}
+      :where(.${prefix}-highlight-content) {
+        box-shadow: inset 0 -1px 0 0 currentColor;
+      }
 
-:where(.${prefix}-highlight[data-style="dotted"]) > :where(.${prefix}-highlight-content) {
-  box-shadow: none;
-  background-image: linear-gradient(to right, currentColor 2px, transparent 2px);
-  background-size: 4px 1px;
-  background-repeat: repeat-x;
-  background-position: bottom;
-}
+      :where(.${prefix}-highlight[data-style="dotted"]) > :where(.${prefix}-highlight-content) {
+        box-shadow: none;
+        background-image: linear-gradient(to right, currentColor 2px, transparent 2px);
+        background-size: 4px 1px;
+        background-repeat: repeat-x;
+        background-position: bottom;
+      }
 
-:where(.${prefix}-highlight[data-style="dashed"]) > :where(.${prefix}-highlight-content) {
-  box-shadow: none;
-  background-image: linear-gradient(to right, currentColor 4px, transparent 4px);
-  background-size: 8px 1px;
-  background-repeat: repeat-x;
-  background-position: bottom;
-}
+      :where(.${prefix}-highlight[data-style="dashed"]) > :where(.${prefix}-highlight-content) {
+        box-shadow: none;
+        background-image: linear-gradient(to right, currentColor 4px, transparent 4px);
+        background-size: 8px 1px;
+        background-repeat: repeat-x;
+        background-position: bottom;
+      }
 
-:where(.${prefix}-highlight[data-style="wavy"]) > :where(.${prefix}-highlight-content) {
-  /*
+      :where(.${prefix}-highlight[data-style="wavy"]) > :where(.${prefix}-highlight-content) {
+        /*
    * Wavy line using repeating SVG pattern
    * SVG内でcurrentColorは効かないため、黒色を直接指定。
    * 横書き: 下側に横方向の波線（周期8px、高さ4px）
    */
-  box-shadow: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='4' viewBox='0 0 8 4'%3E%3Cpath d='M0 3 Q4 0 8 3' stroke='%23333' fill='none' stroke-width='1'/%3E%3C/svg%3E");
-  background-size: 8px 4px;
-  background-repeat: repeat-x;
-  background-position: bottom;
-}
+        box-shadow: none;
+        background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='8' height='4' viewBox='0 0 8 4'%3E%3Cpath d='M0 3 Q4 0 8 3' stroke='%23333' fill='none' stroke-width='1'/%3E%3C/svg%3E");
+        background-size: 8px 4px;
+        background-repeat: repeat-x;
+        background-position: bottom;
+      }
 
-:where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content) {
-  box-shadow: none;
-  position: relative;
-}
+      :where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content) {
+        box-shadow: none;
+        position: relative;
+      }
 
-:where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::before,
+      :where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::before,
 :where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::after {
-  content: '';
-  position: absolute;
-  background-color: currentColor;
-  left: 0;
-  right: 0;
-  height: 1px;
-}
+        content: '';
+        position: absolute;
+        background-color: currentColor;
+        left: 0;
+        right: 0;
+        height: 1px;
+      }
 
-:where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::before {
-  bottom: 0;
-}
+      :where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::before {
+        bottom: 0;
+      }
 
-:where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::after {
-  bottom: 3px;
-}
+      :where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::after {
+        bottom: 3px;
+      }
 
-/* Label - 横書き: 傍線の開始位置（下）に配置 */
-:where(.${prefix}-highlight-content > .${prefix}-ref) {
-  inset-inline-start: 0;
-  inset-block-end: 0;
-}
+      /* Label - 横書き: 傍線の開始位置（下）に配置 */
+      :where(.${prefix}-highlight-content > .${prefix}-ref) {
+        inset-inline-start: 0;
+        inset-block-end: 0;
+      }
 
-/* 横書きでは縦中横不要 */
-:where(.${prefix}-ref--half-width) {
-  /* No text-combine-upright needed for horizontal */
-}`;
+      /* 横書きでは縦中横不要 */
+      :where(.${prefix}-ref--half-width) {
+        /* No text-combine-upright needed for horizontal */
+      }
+    `;
   }
 }
 
@@ -902,22 +906,22 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
  * インラインモード用スタイル
  */
 function generateInlineStyles(prefix: string): string {
-  return `
+  return css`
+    /* Inline Mode */
+    :where(.${prefix}-document--inline) {
+      display: inline-block;
+      position: relative;
+      vertical-align: baseline;
+    }
 
-/* Inline Mode */
-:where(.${prefix}-document--inline) {
-  display: inline-block;
-  position: relative;
-  vertical-align: baseline;
-}
+    :where(.${prefix}-document--inline .${prefix}-display) {
+      display: inline;
+    }
 
-:where(.${prefix}-document--inline .${prefix}-display) {
-  display: inline;
-}
-
-:where(.${prefix}-document--inline .${prefix}-block) {
-  display: inline;
-}`;
+    :where(.${prefix}-document--inline .${prefix}-block) {
+      display: inline;
+    }
+  `;
 }
 
 /**

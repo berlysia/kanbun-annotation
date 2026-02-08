@@ -72,9 +72,6 @@ jobs:
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Build
-        run: pnpm build
-
       - name: Type check
         run: pnpm typecheck
 
@@ -96,9 +93,6 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-
-      - name: Build
-        run: pnpm build
 
       - name: Test
         run: pnpm test:run
@@ -126,4 +120,4 @@ jobs:
         run: pnpm build
 
       - name: Build playground
-        run: pnpm --filter @kanbun/playground build
+        run: pnpm playground:build

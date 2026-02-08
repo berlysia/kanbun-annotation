@@ -5,23 +5,23 @@
   "description": "Stand-off Kanbun Annotation Model - 漢文アノテーションの仕様定義・構文定義・レンダラー",
   "type": "module",
   "scripts": {
-    "build": "pnpm -r build",
-    "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm -r lint",
+    "build": "turbo build",
+    "typecheck": "turbo typecheck",
+    "lint": "turbo lint",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "test": "pnpm -r test",
-    "test:run": "pnpm -r test:run",
+    "test": "turbo test",
+    "test:run": "turbo test:run",
     "clean": "knip",
     "playground:dev": "pnpm --filter @kanbun/playground dev",
-    "playground:build": "pnpm --filter @kanbun/playground build",
+    "playground:build": "turbo build --filter=@kanbun/playground",
     "playground:preview": "pnpm --filter @kanbun/playground preview",
     "baseline": "pnpm --filter @kanbun/baseline-check check",
     "baseline:report": "pnpm --filter @kanbun/baseline-check report",
     "changeset": "changeset",
     "changeset:version": "changeset version",
     "changeset:publish": "changeset publish",
-    "screenshot": "pnpm --filter @kanbun/skam-screenshot build && node packages/skam-screenshot/dist/cli.js",
+    "screenshot": "turbo build --filter=@kanbun/skam-screenshot && node packages/skam-screenshot/dist/cli.js",
     "prepare": "husky"
   },
   "keywords": [
@@ -44,6 +44,7 @@
     "oxlint": "1.41.0",
     "prettier": "3.8.1",
     "tsup": "8.5.1",
+    "turbo": "2.8.1",
     "vitest": "4.0.18"
   },
   "pnpm": {

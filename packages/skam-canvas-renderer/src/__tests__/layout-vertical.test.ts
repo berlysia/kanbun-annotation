@@ -521,6 +521,35 @@ describe('layoutVertical', () => {
     expect(token.slots.ruby!.y).toBe(token.y);
   });
 
+  // highlight layout
+  it('generates highlightLines for highlight group', () => {
+    const ctx = new RecordingContext();
+    const doc = threeTokenDoc([
+      { type: 'highlight', anchor: { from: 't1', to: 't2' }, style: 'solid' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    const result = layout(tree, ctx);
+
+    const column = result.columns[0]!;
+    expect(column.highlightLines).toBeDefined();
+    expect(column.highlightLines).toHaveLength(1);
+    const hl = column.highlightLines![0]!;
+    expect(hl.style).toBe('solid');
+    // yStart = columnY = padding
+    expect(hl.yStart).toBe(DEFAULT_PADDING);
+    // yEnd = columnY + 2 * cellAdvance (2 tokens)
+    const cellAdvance = DEFAULT_FONT_SIZE * DEFAULT_LINE_HEIGHT;
+    expect(hl.yEnd).toBe(DEFAULT_PADDING + 2 * cellAdvance);
+  });
+
+  it('does not generate highlightLines when no highlight groups', () => {
+    const ctx = new RecordingContext();
+    const tree = buildRenderTree(threeTokenDoc(), PROFILES.full);
+    const result = layout(tree, ctx);
+
+    expect(result.columns[0]!.highlightLines).toBeUndefined();
+  });
+
   it('places kaeri on tateten separator', () => {
     const ctx = new RecordingContext();
     const doc = threeTokenDoc([

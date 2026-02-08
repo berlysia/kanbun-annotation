@@ -26,15 +26,18 @@
  * 列方向: 右→左。列内: 上→下。
  */
 
+import type { HighlightStyle } from '@kanbun/skam';
 import type {
   CanvasRenderTree,
   CanvasTokenNode,
+  CanvasTatetenSeparator,
   CanvasBlockChild,
   DocumentLayout,
   ColumnLayout,
   ColumnChild,
   TokenLayout,
   TatetenSeparatorLayout,
+  HighlightLineLayout,
   ResolvedSlotLayouts,
   ResolvedOptions,
   SlotLayout,
@@ -52,24 +55,41 @@ function measureTextWidth(text: string | undefined, font: string, measurer: Text
   return measurer.measure(text, font).width;
 }
 
-/** 全ブロックからトークンをフラットに収集（tateten グループ内も含む） */
+/** 全ブロックからトークンをフラットに収集（tateten/highlight グループ内も含む） */
 function collectAllTokens(tree: CanvasRenderTree): CanvasTokenNode[] {
   const tokens: CanvasTokenNode[] = [];
   for (const block of tree.blocks) {
     for (const child of block.children) {
-      if (child.type === 'token') {
-        tokens.push(child);
+      collectTokensFromChild(child, tokens);
+    }
+  }
+  return tokens;
+}
+
+function collectTokensFromChild(child: CanvasBlockChild, tokens: CanvasTokenNode[]): void {
+  if (child.type === 'token') {
+    tokens.push(child);
+  } else if (child.type === 'tateten-group') {
+    for (const groupChild of child.children) {
+      if (groupChild.type === 'token') {
+        tokens.push(groupChild);
+      }
+    }
+  } else {
+    // highlight-group
+    for (const hlChild of child.children) {
+      if (hlChild.type === 'token') {
+        tokens.push(hlChild);
       } else {
-        // tateten-group: extract tokens from children
-        for (const groupChild of child.children) {
-          if (groupChild.type === 'token') {
-            tokens.push(groupChild);
+        // tateten-group inside highlight
+        for (const tc of hlChild.children) {
+          if (tc.type === 'token') {
+            tokens.push(tc);
           }
         }
       }
     }
   }
-  return tokens;
 }
 
 interface LayoutContext {
@@ -304,7 +324,46 @@ export function layoutVertical(
 
   // ブロックの children をフラットに展開してレイアウト
   const columnChildren: ColumnChild[] = [];
+  const highlightLines: HighlightLineLayout[] = [];
   let yOffset = 0;
+
+  // highlight 線の x 座標: 左側（col4 の外側）に配置
+  const highlightGap = 2;
+  const highlightLineX = columnX - highlightGap;
+
+  /** tateten グループの children をレイアウト */
+  function layoutTatetenChildren(children: (CanvasTokenNode | CanvasTatetenSeparator)[]): void {
+    for (const groupChild of children) {
+      if (groupChild.type === 'token') {
+        const tokenX = columnX + baseCenterX;
+        const tokenY = columnY + yOffset + fontSize / 2;
+        columnChildren.push(layoutSingleToken(groupChild, tokenX, tokenY, lctx));
+        yOffset += cellAdvance;
+      } else {
+        // tateten-separator
+        const sepX = columnX + baseCenterX;
+        const sepY = columnY + yOffset + separatorAdvance / 2;
+        const sepLayout: TatetenSeparatorLayout = {
+          type: 'tateten-separator',
+          x: sepX,
+          y: sepY,
+          fontSize: rubyFontSize,
+        };
+        if (groupChild.kaeri) {
+          const col3X = columnX + rubyFontSize + rubyFontSize / 2;
+          const kaeriLayout: SlotLayout = {
+            text: groupChild.kaeri,
+            x: col3X,
+            y: sepY,
+            fontSize: rubyFontSize,
+          };
+          sepLayout.kaeri = kaeriLayout;
+        }
+        columnChildren.push(sepLayout);
+        yOffset += separatorAdvance;
+      }
+    }
+  }
 
   /** CanvasBlockChild を展開してレイアウトに追加 */
   function layoutBlockChild(child: CanvasBlockChild): void {
@@ -313,38 +372,29 @@ export function layoutVertical(
       const tokenY = columnY + yOffset + fontSize / 2;
       columnChildren.push(layoutSingleToken(child, tokenX, tokenY, lctx));
       yOffset += cellAdvance;
+    } else if (child.type === 'tateten-group') {
+      layoutTatetenChildren(child.children);
     } else {
-      // tateten-group
-      for (const groupChild of child.children) {
-        if (groupChild.type === 'token') {
+      // highlight-group: track y range and layout children
+      const yStart = columnY + yOffset;
+      for (const highlightChild of child.children) {
+        if (highlightChild.type === 'token') {
           const tokenX = columnX + baseCenterX;
           const tokenY = columnY + yOffset + fontSize / 2;
-          columnChildren.push(layoutSingleToken(groupChild, tokenX, tokenY, lctx));
+          columnChildren.push(layoutSingleToken(highlightChild, tokenX, tokenY, lctx));
           yOffset += cellAdvance;
         } else {
-          // tateten-separator
-          const sepX = columnX + baseCenterX;
-          const sepY = columnY + yOffset + separatorAdvance / 2;
-          const sepLayout: TatetenSeparatorLayout = {
-            type: 'tateten-separator',
-            x: sepX,
-            y: sepY,
-            fontSize: rubyFontSize,
-          };
-          if (groupChild.kaeri) {
-            const col3X = columnX + rubyFontSize + rubyFontSize / 2;
-            const kaeriLayout: SlotLayout = {
-              text: groupChild.kaeri,
-              x: col3X,
-              y: sepY,
-              fontSize: rubyFontSize,
-            };
-            sepLayout.kaeri = kaeriLayout;
-          }
-          columnChildren.push(sepLayout);
-          yOffset += separatorAdvance;
+          // tateten-group inside highlight-group
+          layoutTatetenChildren(highlightChild.children);
         }
       }
+      const yEnd = columnY + yOffset;
+      highlightLines.push({
+        style: child.highlightStyle as HighlightStyle,
+        x: highlightLineX,
+        yStart,
+        yEnd,
+      });
     }
   }
 
@@ -362,6 +412,7 @@ export function layoutVertical(
     width: columnWidth,
     height: columnHeight,
     children: columnChildren,
+    ...(highlightLines.length > 0 ? { highlightLines } : {}),
   };
 
   return {

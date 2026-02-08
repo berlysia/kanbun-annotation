@@ -18,6 +18,7 @@ import type {
   EmphasisMark,
   SaidokuMark,
   TatetenMark,
+  HighlightMark,
 } from '@kanbun/skam';
 import { isPositionBasedMark } from '@kanbun/skam';
 
@@ -32,6 +33,7 @@ import type {
   CanvasTokenNode,
   CanvasBlockChild,
   CanvasTatetenGroupNode,
+  CanvasHighlightGroupNode,
   CanvasTatetenSeparator,
   TokenSlots,
 } from './types.js';
@@ -255,6 +257,27 @@ function getTatetenGroups(blockTokens: Token[], marks: Mark[]): Map<string, Tate
 }
 
 /**
+ * highlight マークのアンカー範囲に含まれるトークンを同一マーク参照にマッピング。
+ * tateten と同様に === 参照比較で連続判定する。
+ */
+function getHighlightGroups(blockTokens: Token[], marks: Mark[]): Map<string, HighlightMark> {
+  const highlightMarks = marks.filter((m): m is HighlightMark => m.type === 'highlight');
+  const result = new Map<string, HighlightMark>();
+
+  for (const mark of highlightMarks) {
+    const fromIdx = blockTokens.findIndex((t) => t.id === mark.anchor.from);
+    const toIdx = blockTokens.findIndex((t) => t.id === mark.anchor.to);
+    if (fromIdx === -1 || toIdx === -1) continue;
+
+    for (let i = fromIdx; i <= toIdx; i++) {
+      result.set(blockTokens[i]!.id, mark);
+    }
+  }
+
+  return result;
+}
+
+/**
  * anchor.from !== anchor.to の anchor-based マークをグループ化。
  * 各トークン ID → 所属する RangeMarkGroup のマップを返す。
  */
@@ -350,6 +373,27 @@ function buildTatetenGroup(
   }
 
   return { type: 'tateten-group' as const, children };
+}
+
+/** CanvasBlockChild から最初のトークン ID を取得 */
+function getFirstTokenId(child: CanvasBlockChild): string | undefined {
+  if (child.type === 'token') return child.token.id;
+  if (child.type === 'tateten-group') {
+    for (const c of child.children) {
+      if (c.type === 'token') return c.token.id;
+    }
+  }
+  if (child.type === 'highlight-group') {
+    for (const c of child.children) {
+      if (c.type === 'token') return c.token.id;
+      if (c.type === 'tateten-group') {
+        for (const tc of c.children) {
+          if (tc.type === 'token') return tc.token.id;
+        }
+      }
+    }
+  }
+  return undefined;
 }
 
 /**
@@ -480,6 +524,49 @@ export function buildRenderTree(doc: SKAMDocument, profile: RenderProfile): Canv
       }
     } else {
       children = tokenNodes;
+    }
+
+    // highlight グルーピング: 連続する同一 highlight マーク参照の子要素をグループ化
+    if (profile.highlight) {
+      const highlightMap = getHighlightGroups(group.tokens, marks);
+      const grouped: CanvasBlockChild[] = [];
+      let i = 0;
+      while (i < children.length) {
+        const child = children[i]!;
+        // child からトークン ID を取得
+        const childTokenId = getFirstTokenId(child);
+        const highlightMark = childTokenId ? highlightMap.get(childTokenId) : undefined;
+
+        if (!highlightMark) {
+          grouped.push(child);
+          i++;
+        } else {
+          // 同一 highlight マーク参照の連続子要素を収集
+          const hlChildren: (CanvasTokenNode | CanvasTatetenGroupNode)[] = [];
+          let j = i;
+          while (j < children.length) {
+            const c = children[j]!;
+            const tid = getFirstTokenId(c);
+            if (!tid || highlightMap.get(tid) !== highlightMark) break;
+            if (c.type === 'token' || c.type === 'tateten-group') {
+              hlChildren.push(c);
+            }
+            j++;
+          }
+
+          if (hlChildren.length > 0) {
+            const hlGroup: CanvasHighlightGroupNode = {
+              type: 'highlight-group',
+              highlightStyle: highlightMark.style ?? 'solid',
+              ...(highlightMark.ref ? { highlightRef: highlightMark.ref } : {}),
+              children: hlChildren,
+            };
+            grouped.push(hlGroup);
+          }
+          i = j;
+        }
+      }
+      children = grouped;
     }
 
     return {

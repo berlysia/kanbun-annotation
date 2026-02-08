@@ -7,6 +7,7 @@
 import type { CanvasRenderingContext2DLike } from './canvas-context.js';
 import type { DocumentLayout, SlotLayout, ResolvedOptions } from './types.js';
 import { drawChar, drawVerticalText } from './draw-text.js';
+import { drawHighlightLine } from './draw-marks.js';
 
 /**
  * Pass 3: DocumentLayout を Canvas に描画する
@@ -63,6 +64,13 @@ export function draw(
       drawSlotIfPresent(ctx, child.slots.emphasis, options);
       drawSlotIfPresent(ctx, child.slots.saidokuUnder, options);
       drawSlotIfPresent(ctx, child.slots.saidokuOkuri2, options);
+    }
+
+    // 3. Highlight lines
+    if (column.highlightLines) {
+      for (const hl of column.highlightLines) {
+        drawHighlightLine(ctx, hl, options.textColor);
+      }
     }
   }
 }

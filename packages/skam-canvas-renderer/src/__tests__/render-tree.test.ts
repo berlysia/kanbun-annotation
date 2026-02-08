@@ -6,6 +6,7 @@ import type {
   CanvasBlockChild,
   CanvasTokenNode,
   CanvasTatetenGroupNode,
+  CanvasHighlightGroupNode,
   CanvasTatetenSeparator,
 } from '../types.js';
 
@@ -527,5 +528,72 @@ describe('buildRenderTree', () => {
 
     const group = asTatetenGroup(tree.blocks[0]!.children[0]!);
     expect(asGroupToken(group.children[0]!).slots.ruby).toBe('し');
+  });
+
+  // highlight grouping
+  it('groups 2 tokens with highlight mark', () => {
+    const doc = threeTokenDoc([
+      { type: 'highlight', anchor: { from: 't1', to: 't2' }, style: 'solid' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    // t1, t2 grouped into highlight-group; t3 standalone
+    expect(tree.blocks[0]!.children).toHaveLength(2);
+    const hlGroup = tree.blocks[0]!.children[0]! as CanvasHighlightGroupNode;
+    expect(hlGroup.type).toBe('highlight-group');
+    expect(hlGroup.highlightStyle).toBe('solid');
+    expect(hlGroup.children).toHaveLength(2);
+    expect(hlGroup.children[0]!.type).toBe('token');
+    expect(hlGroup.children[1]!.type).toBe('token');
+    expect(tree.blocks[0]!.children[1]!.type).toBe('token');
+  });
+
+  it('groups 3 tokens with highlight mark', () => {
+    const doc = threeTokenDoc([{ type: 'highlight', anchor: { from: 't1', to: 't3' } }]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    expect(tree.blocks[0]!.children).toHaveLength(1);
+    const hlGroup = tree.blocks[0]!.children[0]! as CanvasHighlightGroupNode;
+    expect(hlGroup.type).toBe('highlight-group');
+    expect(hlGroup.highlightStyle).toBe('solid'); // default
+    expect(hlGroup.children).toHaveLength(3);
+  });
+
+  it('highlight group contains tateten group (nested)', () => {
+    const doc = threeTokenDoc([
+      { type: 'highlight', anchor: { from: 't1', to: 't3' } },
+      { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    // highlight wraps tateten-group + standalone t3
+    expect(tree.blocks[0]!.children).toHaveLength(1);
+    const hlGroup = tree.blocks[0]!.children[0]! as CanvasHighlightGroupNode;
+    expect(hlGroup.type).toBe('highlight-group');
+    expect(hlGroup.children).toHaveLength(2);
+    expect(hlGroup.children[0]!.type).toBe('tateten-group');
+    expect(hlGroup.children[1]!.type).toBe('token');
+  });
+
+  it('passes highlight style and ref', () => {
+    const doc = threeTokenDoc([
+      { type: 'highlight', anchor: { from: 't1', to: 't1' }, style: 'wavy', ref: 'r1' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const hlGroup = tree.blocks[0]!.children[0]! as CanvasHighlightGroupNode;
+    expect(hlGroup.highlightStyle).toBe('wavy');
+    expect(hlGroup.highlightRef).toBe('r1');
+  });
+
+  it('respects profile: highlight=false', () => {
+    const doc = threeTokenDoc([{ type: 'highlight', anchor: { from: 't1', to: 't2' } }]);
+    const tree = buildRenderTree(doc, { ...PROFILES.full, highlight: false });
+
+    // No grouping: all children are tokens
+    expect(tree.blocks[0]!.children).toHaveLength(3);
+    expect(tree.blocks[0]!.children[0]!.type).toBe('token');
+    expect(tree.blocks[0]!.children[1]!.type).toBe('token');
+    expect(tree.blocks[0]!.children[2]!.type).toBe('token');
   });
 });

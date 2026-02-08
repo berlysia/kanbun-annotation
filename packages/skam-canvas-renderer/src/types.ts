@@ -2,7 +2,7 @@
  * Canvas Renderer 型定義
  */
 
-import type { Token } from '@kanbun/skam';
+import type { Token, HighlightStyle } from '@kanbun/skam';
 import type { RenderProfile } from './profiles.js';
 
 // ============================================================================
@@ -83,7 +83,14 @@ export interface CanvasTatetenGroupNode {
   children: (CanvasTokenNode | CanvasTatetenSeparator)[];
 }
 
-export type CanvasBlockChild = CanvasTokenNode | CanvasTatetenGroupNode;
+export interface CanvasHighlightGroupNode {
+  type: 'highlight-group';
+  highlightStyle: HighlightStyle;
+  highlightRef?: string;
+  children: (CanvasTokenNode | CanvasTatetenGroupNode)[];
+}
+
+export type CanvasBlockChild = CanvasTokenNode | CanvasTatetenGroupNode | CanvasHighlightGroupNode;
 
 export interface CanvasBlockNode {
   type: 'block';
@@ -134,6 +141,14 @@ export interface TatetenSeparatorLayout {
   kaeri?: SlotLayout;
 }
 
+export interface HighlightLineLayout {
+  style: HighlightStyle;
+  x: number;
+  yStart: number;
+  yEnd: number;
+  refLayout?: SlotLayout;
+}
+
 export type ColumnChild = TokenLayout | TatetenSeparatorLayout;
 
 export interface ColumnLayout {
@@ -142,6 +157,7 @@ export interface ColumnLayout {
   width: number;
   height: number;
   children: ColumnChild[];
+  highlightLines?: HighlightLineLayout[];
 }
 
 export interface DocumentLayout {

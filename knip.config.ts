@@ -31,6 +31,10 @@ const config: KnipConfig = {
       entry: ['src/index.ts', 'src/cli.ts'],
       project: ['src/**/*.ts'],
     },
+    'packages/baseline-check': {
+      entry: ['scripts/*.js', 'eslint.config.js', 'eslint-js.config.js', 'stylelint.config.js'],
+      project: ['scripts/**/*.js'],
+    },
   },
   ignore: ['**/*.test.ts', '**/*.spec.ts'],
   ignoreExportsUsedInFile: true,

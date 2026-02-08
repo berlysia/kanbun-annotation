@@ -16,6 +16,8 @@
     "playground:dev": "pnpm --filter @kanbun/playground dev",
     "playground:build": "pnpm --filter @kanbun/playground build",
     "playground:preview": "pnpm --filter @kanbun/playground preview",
+    "baseline": "pnpm --filter @kanbun/baseline-check check",
+    "baseline:report": "pnpm --filter @kanbun/baseline-check report",
     "changeset": "changeset",
     "changeset:version": "changeset version",
     "changeset:publish": "changeset publish",

@@ -19,7 +19,7 @@
     "changeset": "changeset",
     "changeset:version": "changeset version",
     "changeset:publish": "changeset publish",
-    "screenshot": "node --experimental-strip-types packages/skam-screenshot/src/cli.ts",
+    "screenshot": "pnpm --filter @kanbun/skam-screenshot build && node packages/skam-screenshot/dist/cli.js",
     "prepare": "husky"
   },
   "keywords": [

@@ -293,24 +293,14 @@ export function layoutVertical(
     };
   }
 
-  // ruby の最大幅計測、suffix 有無判定
-  let maxRubyWidth = 0;
-  let hasSuffix = false;
+  // hasSuffix は Pass 1 で事前計算済み
+  const { hasSuffix } = tree;
 
+  // ruby の最大幅計測
+  let maxRubyWidth = 0;
   for (const tokenNode of allTokens) {
-    const { slots } = tokenNode;
-    const rubyW = measureTextWidth(slots.ruby, rFont, measurer);
+    const rubyW = measureTextWidth(tokenNode.slots.ruby, rFont, measurer);
     if (rubyW > maxRubyWidth) maxRubyWidth = rubyW;
-    if (
-      slots.okuri ||
-      slots.soegana ||
-      slots.kaeri ||
-      slots.kutoten ||
-      slots.saidokuUnder ||
-      slots.saidokuOkuri2
-    ) {
-      hasSuffix = true;
-    }
   }
 
   let columnWidth: number;

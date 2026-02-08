@@ -38,6 +38,7 @@ import type {
   CanvasTokenNode,
   CanvasBlockChild,
   CanvasHighlightGroupNode,
+  CanvasTatetenGroupNode,
   CanvasTatetenSeparator,
   TokenSlots,
 } from './types.js';
@@ -458,5 +459,51 @@ export function buildRenderTree(doc: SKAMDocument, profile: RenderProfile): Canv
     };
   });
 
-  return { blocks: blockNodes };
+  // hasSuffix: レイアウト拡張スロットの有無を事前計算
+  let hasSuffix = false;
+  outer: for (const block of blockNodes) {
+    for (const child of block.children) {
+      if (checkHasSuffix(child)) {
+        hasSuffix = true;
+        break outer;
+      }
+    }
+  }
+
+  return { blocks: blockNodes, hasSuffix };
+}
+
+/** CanvasBlockChild 内のトークンに suffix スロットがあるか判定 */
+function checkHasSuffix(child: CanvasBlockChild): boolean {
+  if (child.type === 'token') {
+    return tokenHasSuffix(child);
+  }
+  if (child.type === 'tateten-group') {
+    for (const c of child.children) {
+      if (c.type === 'token' && tokenHasSuffix(c)) return true;
+    }
+    return false;
+  }
+  // highlight-group
+  for (const c of child.children) {
+    if (c.type === 'token' && tokenHasSuffix(c)) return true;
+    if (c.type === 'tateten-group') {
+      for (const tc of c.children) {
+        if (tc.type === 'token' && tokenHasSuffix(tc)) return true;
+      }
+    }
+  }
+  return false;
+}
+
+function tokenHasSuffix(node: CanvasTokenNode): boolean {
+  const { slots } = node;
+  return !!(
+    slots.okuri ||
+    slots.soegana ||
+    slots.kaeri ||
+    slots.kutoten ||
+    slots.saidokuUnder ||
+    slots.saidokuOkuri2
+  );
 }

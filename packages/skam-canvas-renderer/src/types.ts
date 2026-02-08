@@ -102,6 +102,8 @@ export interface CanvasBlockNode {
 
 export interface CanvasRenderTree {
   blocks: CanvasBlockNode[];
+  /** 文書内にレイアウト拡張が必要なスロット（okuri/soegana/kaeri/kutoten/saidoku）があるか */
+  hasSuffix: boolean;
 }
 
 // ============================================================================

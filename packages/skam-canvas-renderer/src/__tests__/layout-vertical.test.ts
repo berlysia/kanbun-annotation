@@ -206,18 +206,18 @@ describe('layoutVertical', () => {
     const kutotenX = token.slots.kutoten!.x;
     const kaeriX = token.slots.kaeri!.x;
 
-    // Grid columns (right to left): okuri(row1) > kutoten(row2) > base > kaeri(row3)
+    // okuri と kutoten は base の右側、kaeri は base の左側
     expect(okuriX).toBeGreaterThan(token.x);
     expect(kutotenX).toBeGreaterThan(token.x);
     expect(kaeriX).toBeLessThan(token.x);
 
-    // okuri > kutoten > kaeri with rubyFontSize spacing
+    // 右ゾーン: okuri > kutoten, R 間隔
     expect(okuriX).toBeGreaterThan(kutotenX);
-    expect(kutotenX).toBeGreaterThan(kaeriX);
-
     const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
     expect(okuriX - kutotenX).toBe(rubyFontSize);
-    expect(kutotenX - kaeriX).toBe(rubyFontSize);
+
+    // kutoten と kaeri は base を挟んで R + F 離れている
+    expect(kutotenX - kaeriX).toBe(rubyFontSize + DEFAULT_FONT_SIZE);
   });
 
   it('places soegana and okuri in same column (right side)', () => {
@@ -241,7 +241,7 @@ describe('layoutVertical', () => {
     expect(token.slots.soegana!.y).toBe(token.y + DEFAULT_FONT_SIZE + rubyFontSize);
   });
 
-  it('uses grid model width max(4R, 2R+F) when suffix exists', () => {
+  it('uses grid width 4R+F when suffix exists', () => {
     const ctx = new RecordingContext();
     const docPlain = singleTokenDoc();
     const treePlain = buildRenderTree(docPlain, PROFILES.full);
@@ -256,9 +256,9 @@ describe('layoutVertical', () => {
 
     const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
     // Plain: columnWidth = fontSize = 24
-    // Marked: columnWidth = max(4*12, 2*12+24) = max(48, 48) = 48
+    // Marked: columnWidth = 4R + F = 4*12 + 24 = 72
     // Difference = gridWidth - fontSize
-    const gridWidth = Math.max(4 * rubyFontSize, 2 * rubyFontSize + DEFAULT_FONT_SIZE);
+    const gridWidth = 4 * rubyFontSize + DEFAULT_FONT_SIZE;
     expect(resultMarked.width - resultPlain.width).toBe(gridWidth - DEFAULT_FONT_SIZE);
   });
 
@@ -405,10 +405,9 @@ describe('layoutVertical', () => {
     expect(token.slots.saidokuUnder).toBeDefined();
     // saidoku col4 is on the left side (leftmost column)
     expect(token.slots.saidokuUnder!.x).toBeLessThan(token.x);
-    // saidokuUnder is to the left of kaeri column
+    // saidokuUnder is in the leftmost column (col4)
     const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
-    const gridWidth = Math.max(4 * rubyFontSize, 2 * rubyFontSize + DEFAULT_FONT_SIZE);
-    const col4X = DEFAULT_PADDING + gridWidth - rubyFontSize * 3.5;
+    const col4X = DEFAULT_PADDING + rubyFontSize / 2;
     expect(token.slots.saidokuUnder!.x).toBe(col4X);
   });
 

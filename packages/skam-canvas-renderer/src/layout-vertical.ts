@@ -1,22 +1,27 @@
 /**
  * 縦書き単一列レイアウト
  *
- * HTML renderer の CSS Grid レイアウトに準拠。
- * vertical-rl では grid-template-rows が水平方向の列に展開される。
+ * HTML renderer では suffix-row と ruby-grid が別のインライン要素として
+ * 異なる垂直位置に配置されるため重なりが生じない。
+ * Canvas では同一空間に描画するため、base の左右に分離配置して重なりを回避する。
  *
  * 物理配置（左→右）:
  *
- *   suffix-row:  [saidoku2(R)] [kaeri(R)]  [kutoten(R)] [okuri/soegana(R)]
- *   ruby-grid:   [saidoku-under(R)]  [  base(fontSize) ] [ruby/yomigana(R)]
+ *   [saidoku2(R)] [kaeri(R)] [base(F)] [kutoten(R)] [okuri/soegana(R)]
  *
  *   R = rubyFontSize, F = fontSize
- *   gridWidth = max(4R, 2R + F)
+ *   gridWidth = 4R + F
+ *   baseCenterX = 2R + F/2
  *
- * suffix-row grid-template-rows: R × 4
- *   row1(右):   okuri/soegana     font-size: rubyFontSize
- *   row2(右寄り): kutoten          font-size: fontSize (親継承)
- *   row3(中央):  kaeri            font-size: rubyFontSize, align-self: end
- *   row4(左):   saidoku           font-size: rubyFontSize
+ * 左ゾーン（base の左側）:
+ *   col4: saidoku2       center = R/2        font-size: rubyFontSize
+ *   col3: kaeri          center = R + R/2    font-size: rubyFontSize, bottom-aligned
+ *
+ * 右ゾーン（base の右側）:
+ *   col2: kutoten        center = 2R+F+R/2   font-size: fontSize
+ *   col1: okuri/soegana  center = 3R+F+R/2   font-size: rubyFontSize
+ *   ruby/yomigana は col1 と同じ X（base より上）
+ *   emphasis は col1 の右隣（ruby がある場合はさらに右）
  *
  * 列方向: 右→左。列内: 上→下。
  */
@@ -91,9 +96,11 @@ function layoutSingleToken(
   const slotLayouts: ResolvedSlotLayouts = {};
 
   if (hasSuffix) {
+    // 右ゾーン: base の右側
     const rightColX = columnX + columnWidth - rubyFontSize / 2;
-    const col2X = columnX + columnWidth - rubyFontSize * 1.5;
-    const col3X = columnX + columnWidth - rubyFontSize * 2.5;
+    const col2X = columnX + 2 * rubyFontSize + fontSize + rubyFontSize / 2;
+    // 左ゾーン: base の左側
+    const col3X = columnX + rubyFontSize + rubyFontSize / 2;
 
     if (slots.ruby) {
       slotLayouts.ruby = { text: slots.ruby, x: rightColX, y: tokenY, fontSize: rubyFontSize };
@@ -150,7 +157,7 @@ function layoutSingleToken(
       };
     }
 
-    const col4X = columnX + columnWidth - rubyFontSize * 3.5;
+    const col4X = columnX + rubyFontSize / 2;
     if (slots.saidokuUnder) {
       slotLayouts.saidokuUnder = {
         text: slots.saidokuUnder,
@@ -255,9 +262,10 @@ export function layoutVertical(
   let baseCenterX: number;
 
   if (hasSuffix) {
-    const gridWidth = Math.max(4 * rubyFontSize, 2 * rubyFontSize + fontSize);
+    // base の左右に suffix 列を分離配置するため 4R + F 幅が必要
+    const gridWidth = 4 * rubyFontSize + fontSize;
     columnWidth = gridWidth;
-    baseCenterX = gridWidth - rubyFontSize - fontSize / 2;
+    baseCenterX = 2 * rubyFontSize + fontSize / 2;
   } else if (maxRubyWidth > 0) {
     columnWidth = fontSize + slotGap + maxRubyWidth;
     baseCenterX = fontSize / 2;
@@ -311,7 +319,7 @@ export function layoutVertical(
             fontSize: rubyFontSize,
           };
           if (groupChild.kaeri) {
-            const col3X = columnX + columnWidth - rubyFontSize * 2.5;
+            const col3X = columnX + rubyFontSize + rubyFontSize / 2;
             const kaeriLayout: SlotLayout = {
               text: groupChild.kaeri,
               x: col3X,

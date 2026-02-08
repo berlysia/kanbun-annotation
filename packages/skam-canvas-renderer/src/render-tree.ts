@@ -226,6 +226,107 @@ function getFirstTokenId(child: CanvasBlockChild): string | undefined {
   return undefined;
 }
 
+// ============================================================================
+// Range mark concentration
+// ============================================================================
+
+type RangeConcentration = 'first' | 'last';
+
+interface RangeSlotConfig {
+  type: 'yomigana' | 'okurigana' | 'soegana';
+  slotName: 'ruby' | 'okuri' | 'soegana';
+  profileKey: 'yomigana' | 'okurigana' | 'soegana';
+  concentration: RangeConcentration;
+  /** yomigana のみ: rubySpan を設定する */
+  setSpan: boolean;
+}
+
+const RANGE_CONFIGS: RangeSlotConfig[] = [
+  {
+    type: 'yomigana',
+    slotName: 'ruby',
+    profileKey: 'yomigana',
+    concentration: 'first',
+    setSpan: true,
+  },
+  {
+    type: 'okurigana',
+    slotName: 'okuri',
+    profileKey: 'okurigana',
+    concentration: 'last',
+    setSpan: false,
+  },
+  {
+    type: 'soegana',
+    slotName: 'soegana',
+    profileKey: 'soegana',
+    concentration: 'last',
+    setSpan: false,
+  },
+];
+
+/** TokenSlots から指定スロットを除去したコピーを返す */
+function clearSlot(slots: TokenSlots, slotName: 'ruby' | 'okuri' | 'soegana'): TokenSlots {
+  const newSlots = { ...slots };
+  delete newSlots[slotName];
+  return newSlots;
+}
+
+/**
+ * range mark の値を concentration に従って1つのトークンに集約する。
+ *
+ * - concentration='first': 先頭トークンに値を設定し、後続トークンのスロットをクリア
+ * - concentration='last':  末尾トークンに値を設定し、先行トークンのスロットをクリア
+ */
+function applyRangeConcentration(
+  tokenNodes: CanvasTokenNode[],
+  rangeGroups: Map<string, RangeMarkGroup>,
+  config: RangeSlotConfig
+): void {
+  const processed = new Set<string>();
+
+  for (const tokenNode of tokenNodes) {
+    const rangeGroup = rangeGroups.get(tokenNode.token.id);
+    if (!rangeGroup || processed.has(tokenNode.token.id)) continue;
+    if (rangeGroup.tokenIds[0] !== tokenNode.token.id) continue;
+
+    // 全トークンを処理済みにマーク
+    for (const tid of rangeGroup.tokenIds) {
+      processed.add(tid);
+    }
+
+    if (config.concentration === 'first') {
+      // 先頭トークンに値を設定
+      tokenNode.slots = {
+        ...tokenNode.slots,
+        [config.slotName]: rangeGroup.mark.value,
+        ...(config.setSpan ? { rubySpan: rangeGroup.tokenIds.length } : {}),
+      };
+      // 後続トークンのスロットをクリア
+      for (const tid of rangeGroup.tokenIds.slice(1)) {
+        const node = tokenNodes.find((n) => n.token.id === tid);
+        if (node) {
+          node.slots = clearSlot(node.slots, config.slotName);
+        }
+      }
+    } else {
+      // 末尾トークンに値を設定
+      const lastTokenId = rangeGroup.tokenIds[rangeGroup.tokenIds.length - 1];
+      const lastNode = tokenNodes.find((n) => n.token.id === lastTokenId);
+      if (lastNode) {
+        lastNode.slots = { ...lastNode.slots, [config.slotName]: rangeGroup.mark.value };
+      }
+      // 先行トークンのスロットをクリア
+      for (const tid of rangeGroup.tokenIds.slice(0, -1)) {
+        const node = tokenNodes.find((n) => n.token.id === tid);
+        if (node) {
+          node.slots = clearSlot(node.slots, config.slotName);
+        }
+      }
+    }
+  }
+}
+
 /**
  * Pass 1: SKAMDocument -> CanvasRenderTree
  */
@@ -267,90 +368,11 @@ export function buildRenderTree(doc: SKAMDocument, profile: RenderProfile): Canv
       slots: resolveSlots(token.id, marks, profile, group.tokens),
     }));
 
-    // range yomigana: 先頭トークンに rubySpan を設定し、後続トークンの ruby をクリア
-    if (profile.yomigana) {
-      const yomiganaGroups = getRangeMarkGroups(group.tokens, marks, 'yomigana');
-      const processed = new Set<string>();
-      for (const tokenNode of tokenNodes) {
-        const rangeGroup = yomiganaGroups.get(tokenNode.token.id);
-        if (!rangeGroup || processed.has(tokenNode.token.id)) continue;
-
-        if (rangeGroup.tokenIds[0] === tokenNode.token.id) {
-          // 先頭トークン: ruby 値を設定し rubySpan を記録
-          tokenNode.slots = {
-            ...tokenNode.slots,
-            ruby: rangeGroup.mark.value,
-            rubySpan: rangeGroup.tokenIds.length,
-          };
-          // 後続トークンの ruby をクリア
-          for (const tid of rangeGroup.tokenIds.slice(1)) {
-            processed.add(tid);
-            const subsequent = tokenNodes.find((n) => n.token.id === tid);
-            if (subsequent) {
-              const { ruby: _removed, ...restSlots } = subsequent.slots;
-              subsequent.slots = restSlots;
-            }
-          }
-        }
-      }
-    }
-
-    // range okurigana: 最終トークンにのみ okuri を設定し、先行トークンをクリア
-    if (profile.okurigana) {
-      const okuriganaGroups = getRangeMarkGroups(group.tokens, marks, 'okurigana');
-      const processed = new Set<string>();
-      for (const tokenNode of tokenNodes) {
-        const rangeGroup = okuriganaGroups.get(tokenNode.token.id);
-        if (!rangeGroup || processed.has(tokenNode.token.id)) continue;
-
-        const lastTokenId = rangeGroup.tokenIds[rangeGroup.tokenIds.length - 1];
-        if (rangeGroup.tokenIds[0] === tokenNode.token.id) {
-          // 最終トークンに okuri を設定
-          const lastNode = tokenNodes.find((n) => n.token.id === lastTokenId);
-          if (lastNode) {
-            lastNode.slots = { ...lastNode.slots, okuri: rangeGroup.mark.value };
-          }
-          // 先行トークンの okuri をクリア
-          for (const tid of rangeGroup.tokenIds.slice(0, -1)) {
-            processed.add(tid);
-            const node = tokenNodes.find((n) => n.token.id === tid);
-            if (node) {
-              const { okuri: _removed, ...restSlots } = node.slots;
-              node.slots = restSlots;
-            }
-          }
-          processed.add(lastTokenId!);
-        }
-      }
-    }
-
-    // range soegana: 最終トークンにのみ soegana を設定し、先行トークンをクリア
-    if (profile.soegana) {
-      const soeganaGroups = getRangeMarkGroups(group.tokens, marks, 'soegana');
-      const processed = new Set<string>();
-      for (const tokenNode of tokenNodes) {
-        const rangeGroup = soeganaGroups.get(tokenNode.token.id);
-        if (!rangeGroup || processed.has(tokenNode.token.id)) continue;
-
-        const lastTokenId = rangeGroup.tokenIds[rangeGroup.tokenIds.length - 1];
-        if (rangeGroup.tokenIds[0] === tokenNode.token.id) {
-          // 最終トークンに soegana を設定
-          const lastNode = tokenNodes.find((n) => n.token.id === lastTokenId);
-          if (lastNode) {
-            lastNode.slots = { ...lastNode.slots, soegana: rangeGroup.mark.value };
-          }
-          // 先行トークンの soegana をクリア
-          for (const tid of rangeGroup.tokenIds.slice(0, -1)) {
-            processed.add(tid);
-            const node = tokenNodes.find((n) => n.token.id === tid);
-            if (node) {
-              const { soegana: _removed, ...restSlots } = node.slots;
-              node.slots = restSlots;
-            }
-          }
-          processed.add(lastTokenId!);
-        }
-      }
+    // range mark 処理: 各タイプの range mark を対応するスロットに集約
+    for (const config of RANGE_CONFIGS) {
+      if (!profile[config.profileKey]) continue;
+      const rangeGroups = getRangeMarkGroups(group.tokens, marks, config.type);
+      applyRangeConcentration(tokenNodes, rangeGroups, config);
     }
 
     // ref 解決: position-based ref marks をトークンスロットに配置

@@ -11,6 +11,8 @@ import {
 
 const DEFAULT_VIEWPORT = { width: 1280, height: 720 };
 
+const DEFAULT_SCALE = 2;
+
 function buildTasks(
   html: string,
   options: {
@@ -18,12 +20,14 @@ function buildTasks(
     viewport?: { width: number; height: number };
     format?: 'png' | 'jpeg';
     fullPage?: boolean;
+    scale?: number;
   },
 ): CaptureTask[] {
   const browsers = options.browsers ?? getDefaultBrowsers();
   const viewport = options.viewport ?? DEFAULT_VIEWPORT;
   const format = options.format ?? 'png';
   const fullPage = options.fullPage ?? true;
+  const scale = options.scale ?? DEFAULT_SCALE;
 
   return browsers.map((browser) => ({
     browser,
@@ -31,6 +35,7 @@ function buildTasks(
     viewport,
     fullPage,
     format,
+    scale,
   }));
 }
 

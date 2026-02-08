@@ -7,6 +7,7 @@ export interface CaptureTask {
   viewport: Viewport;
   fullPage: boolean;
   format: ImageFormat;
+  scale: number;
 }
 
 export interface CaptureSuccess {
@@ -46,7 +47,9 @@ async function captureOne(
   let browser;
   try {
     browser = await pw[task.browser].launch();
-    const context = await browser.newContext();
+    const context = await browser.newContext({
+      deviceScaleFactor: task.scale,
+    });
     const page = await context.newPage();
     await page.setViewportSize(task.viewport);
     await page.setContent(task.html, { waitUntil: 'networkidle' });

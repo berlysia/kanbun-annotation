@@ -16,6 +16,7 @@ Options:
   -f, --format <fmt>       Image format: png | jpeg (default: png)
       --writing-mode <m>   vertical | horizontal
       --viewport <WxH>     Viewport size (default: 800x1200)
+      --scale <n>          Device scale factor (default: 2 for Retina quality)
       --no-full-page       Capture viewport only instead of full page
       --render-options <j>  JSON string for full RenderOptions
   -h, --help               Show this help
@@ -49,6 +50,7 @@ async function main(): Promise<void> {
       format: { type: 'string', short: 'f', default: 'png' },
       'writing-mode': { type: 'string' },
       viewport: { type: 'string', default: '800x1200' },
+      scale: { type: 'string', default: '2' },
       'full-page': { type: 'boolean', default: true },
       'render-options': { type: 'string' },
       help: { type: 'boolean', short: 'h', default: false },
@@ -70,6 +72,10 @@ async function main(): Promise<void> {
 
   const format = validateFormat(values.format!);
   const viewport = parseViewport(values.viewport!);
+  const scale = Number(values.scale);
+  if (!Number.isFinite(scale) || scale < 1) {
+    throw new Error(`Invalid --scale: "${values.scale}". Expected a number >= 1`);
+  }
   const fullPage = values['full-page']!;
   const outputDir = resolve(values.output!);
 
@@ -139,6 +145,7 @@ async function main(): Promise<void> {
     viewport,
     format,
     fullPage,
+    scale,
   });
 
   // Write output

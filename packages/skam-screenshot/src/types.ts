@@ -17,6 +17,8 @@ export interface CaptureOptions {
   viewport?: Viewport;
   format?: ImageFormat;
   fullPage?: boolean;
+  /** Device scale factor (default: 2 for Retina-quality output) */
+  scale?: number;
   renderOptions?: RenderOptions;
 }
 
@@ -26,6 +28,8 @@ export interface CaptureHTMLOptions {
   viewport?: Viewport;
   format?: ImageFormat;
   fullPage?: boolean;
+  /** Device scale factor (default: 2 for Retina-quality output) */
+  scale?: number;
 }
 
 /** Options for generateCompareHTML(screenshots, options?) */

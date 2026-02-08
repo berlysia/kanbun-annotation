@@ -151,12 +151,14 @@ function generateCommonStyles(
   vertical-align: calc(var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 0.5em + 0.5em));
 }
 
+/* Chromium baseline バグ補正: row1 にプレースホルダーを配置してベースラインを安定させる */
 :where(.${prefix}-ruby-grid)::before {
   content: '';
   grid-row: 1;
 }
 
-:where(.${prefix}-ruby-grid:has(> .${prefix}-ruby))::before {
+/* ruby に内容がある場合はプレースホルダー不要（:not(:empty) で空 ruby を除外） */
+:where(.${prefix}-ruby-grid:has(> .${prefix}-ruby:not(:empty)))::before {
   display: none;
 }
 
@@ -184,12 +186,14 @@ function generateCommonStyles(
   vertical-align: calc(var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 0.5em + 0.5em));
 }
 
+/* Chromium baseline バグ補正: row1 にプレースホルダーを配置してベースラインを安定させる */
 :where(.${prefix}-saidoku-grid)::before {
   content: '';
   grid-row: 1;
 }
 
-:where(.${prefix}-saidoku-grid:has(> .${prefix}-ruby:first-child))::before {
+/* ruby-over に内容がある場合はプレースホルダー不要（:not(:empty) で空 ruby を除外） */
+:where(.${prefix}-saidoku-grid:has(> .${prefix}-ruby:first-child:not(:empty)))::before {
   display: none;
 }
 
@@ -241,16 +245,13 @@ function generateCommonStyles(
  * Ruby Grid - Emphasis Variant (4行グリッド)
  *
  * row1: emphasis, row2: ruby, row3: base/tateten-group
+ * emphasis-row が必ず row1 を占めるため ::before プレースホルダーは不要
  */
 :where(.${prefix}-ruby-grid--emphasis) {
   display: inline-grid;
   grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) calc(var(--${vp}-ruby-ratio) * 1em) auto calc(var(--${vp}-ruby-ratio) * 1em);
   line-height: 1;
   vertical-align: calc(var(--${vp}-ruby-ratio) * 0.5em + var(--${vp}-grid-baseline-fix, 0) * 1em);
-}
-
-:where(.${prefix}-ruby-grid--emphasis)::before {
-  display: none;
 }
 
 :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-ruby) {
@@ -268,16 +269,13 @@ function generateCommonStyles(
  * Saidoku Grid - Emphasis Variant (4行グリッド)
  *
  * row1: emphasis, row2: ruby-over, row3: base, row4: ruby-under
+ * emphasis-row が必ず row1 を占めるため ::before プレースホルダーは不要
  */
 :where(.${prefix}-saidoku-grid--emphasis) {
   display: inline-grid;
   grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) calc(var(--${vp}-ruby-ratio) * 1em) auto calc(var(--${vp}-ruby-ratio) * 1em);
   line-height: 1;
   vertical-align: calc(var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 1em + 0.5em));
-}
-
-:where(.${prefix}-saidoku-grid--emphasis)::before {
-  display: none;
 }
 
 :where(.${prefix}-saidoku-grid--emphasis) > :where(.${prefix}-ruby:not(.${prefix}-saidoku-under)) {

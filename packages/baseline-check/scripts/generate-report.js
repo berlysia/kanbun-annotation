@@ -160,8 +160,13 @@ function main() {
   run('node scripts/extract-css.js');
 
   // 2. Run tools
-  console.error('Running ESLint CSS...');
+  console.error('Running ESLint CSS (widely)...');
   const eslintCssJson = run(`${bin}/eslint -c eslint.config.js -f json 'extracted/css/**/*.css'`);
+
+  console.error('Running ESLint CSS (newly)...');
+  const eslintCssNewlyJson = run(
+    `${bin}/eslint -c eslint-newly.config.js -f json 'extracted/css/**/*.css'`
+  );
 
   console.error('Running Stylelint...');
   // Stylelint outputs JSON formatter to stderr
@@ -173,8 +178,18 @@ function main() {
 
   // 3. Parse results
   const eslintCssResults = parseEslintJson(eslintCssJson, 'eslint-css');
+  const eslintCssNewlyResults = parseEslintJson(eslintCssNewlyJson, 'eslint-css-newly');
   const stylelintResults = parseStylelintJson(stylelintJson);
   const eslintJsResults = parseEslintJson(eslintJsJson, 'eslint-js');
+
+  // 3.5. Determine baseline status per feature
+  // Features warned by "newly" check = limited (not supported in all browsers)
+  // Features warned only by "widely" check = newly available (supported but < 30 months)
+  const limitedFeatures = new Set(eslintCssNewlyResults.map((r) => r.feature));
+  /** @param {string} feature */
+  function getBaselineStatus(feature) {
+    return limitedFeatures.has(feature) ? 'limited' : 'newly';
+  }
 
   // 4. Summarize
   const cssSummary = summarize(eslintCssResults);
@@ -220,11 +235,14 @@ function main() {
   // CSS details
   lines.push(`## CSS Baseline Violations`);
   lines.push(``);
-  lines.push(`| Feature | Category | Occurrences | Origin |`);
-  lines.push(`|---------|----------|-------------|--------|`);
+  lines.push(`| Feature | Category | Status | Occurrences | Origin |`);
+  lines.push(`|---------|----------|--------|-------------|--------|`);
   for (const entry of cssSummary) {
     const origin = classifyOrigin(entry.files);
-    lines.push(`| \`${entry.feature}\` | ${entry.category} | ${entry.count} | ${origin} |`);
+    const status = getBaselineStatus(entry.feature);
+    lines.push(
+      `| \`${entry.feature}\` | ${entry.category} | ${status} | ${entry.count} | ${origin} |`
+    );
   }
   lines.push(``);
 
@@ -258,7 +276,8 @@ function main() {
     lines.push(``);
     for (const feature of [...unique].sort()) {
       const count = results.filter((r) => r.feature === feature).length;
-      lines.push(`- \`${feature}\` (${count}x)`);
+      const status = getBaselineStatus(feature);
+      lines.push(`- \`${feature}\` (${count}x) [${status}]`);
     }
     lines.push(``);
   }

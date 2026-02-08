@@ -96,19 +96,61 @@ function collectTokensFromChild(child: CanvasBlockChild, tokens: CanvasTokenNode
   }
 }
 
+/** 事前計算済みグリッド列位置（絶対 X 座標） */
+interface GridColumns {
+  suffixX: number; // ruby, okuri, soegana
+  kaeriX: number; // 返り点
+  saidoku2X: number; // 再読2回目
+  kutotenX: number; // 句読点
+  emphasisBaseX: number; // 傍点（ruby なし時）
+  emphasisWithRubyX: number; // 傍点（ruby あり時）
+}
+
+/** hasSuffix に応じた列位置を事前計算 */
+function computeGridColumns(
+  columnX: number,
+  columnWidth: number,
+  fontSize: number,
+  rubyFontSize: number,
+  slotGap: number,
+  hasSuffix: boolean,
+  baseCenterX: number
+): GridColumns {
+  if (hasSuffix) {
+    const rightColX = columnX + columnWidth - rubyFontSize / 2;
+    return {
+      suffixX: rightColX,
+      kaeriX: columnX + rubyFontSize + rubyFontSize / 2,
+      saidoku2X: columnX + rubyFontSize / 2,
+      kutotenX: rightColX - rubyFontSize,
+      emphasisBaseX: rightColX,
+      emphasisWithRubyX: rightColX + rubyFontSize,
+    };
+  }
+  // hasSuffix=false: kaeri/kutoten/saidoku スロットは存在しないため
+  // kaeriX/saidoku2X/kutotenX は参照されない
+  const suffixBaseX = columnX + baseCenterX + fontSize / 2 + slotGap;
+  return {
+    suffixX: suffixBaseX,
+    kaeriX: 0,
+    saidoku2X: 0,
+    kutotenX: 0,
+    emphasisBaseX: suffixBaseX,
+    emphasisWithRubyX: suffixBaseX + rubyFontSize,
+  };
+}
+
 interface LayoutContext {
-  columnX: number;
-  columnY: number;
-  columnWidth: number;
-  baseCenterX: number;
   fontSize: number;
   rubyFontSize: number;
   cellAdvance: number;
-  slotGap: number;
-  hasSuffix: boolean;
+  grid: GridColumns;
 }
 
-/** 単一トークンのスロットレイアウトを計算 */
+/**
+ * 単一トークンのスロットレイアウトを計算。
+ * hasSuffix の分岐は GridColumns に吸収済み。
+ */
 function layoutSingleToken(
   tokenNode: CanvasTokenNode,
   tokenX: number,
@@ -116,135 +158,87 @@ function layoutSingleToken(
   lctx: LayoutContext
 ): TokenLayout {
   const { slots } = tokenNode;
-  const { columnX, columnWidth, fontSize, rubyFontSize, cellAdvance, slotGap, hasSuffix } = lctx;
+  const { fontSize, rubyFontSize, cellAdvance, grid } = lctx;
   const slotLayouts: ResolvedSlotLayouts = {};
 
-  if (hasSuffix) {
-    // 右ゾーン: base の右側
-    const rightColX = columnX + columnWidth - rubyFontSize / 2;
-    // 左ゾーン: base の左側
-    const col3X = columnX + rubyFontSize + rubyFontSize / 2;
-
-    if (slots.ruby) {
-      let rubyY = tokenY;
-      if (slots.rubySpan && slots.rubySpan > 1) {
-        // range yomigana: N セル分の中央にセンタリング
-        const spanHeight = slots.rubySpan * cellAdvance;
-        const rubyTextHeight = [...slots.ruby].length * rubyFontSize;
-        rubyY = tokenY + (spanHeight - rubyTextHeight) / 2;
-      }
-      slotLayouts.ruby = { text: slots.ruby, x: rightColX, y: rubyY, fontSize: rubyFontSize };
+  if (slots.ruby) {
+    let rubyY = tokenY;
+    if (slots.rubySpan && slots.rubySpan > 1) {
+      const spanHeight = slots.rubySpan * cellAdvance;
+      const rubyTextHeight = [...slots.ruby].length * rubyFontSize;
+      rubyY = tokenY + (spanHeight - rubyTextHeight) / 2;
     }
-
-    if (slots.okuri) {
-      const rubyChars = slots.ruby ? [...slots.ruby].length : 0;
-      // 送り仮名は基底文字の下端から開始（ruby が長い場合はその後から）
-      const okuriStartY = tokenY + Math.max(fontSize, rubyChars * rubyFontSize);
-      slotLayouts.okuri = {
-        text: slots.okuri,
-        x: rightColX,
-        y: okuriStartY,
-        fontSize: rubyFontSize,
-      };
-    }
-
-    if (slots.soegana) {
-      const rubyChars = slots.ruby ? [...slots.ruby].length : 0;
-      const okuriChars = slots.okuri ? [...slots.okuri].length : 0;
-      // 添え仮名は送り仮名の後に配置
-      const soeganaStartY =
-        tokenY + Math.max(fontSize, rubyChars * rubyFontSize) + okuriChars * rubyFontSize;
-      slotLayouts.soegana = {
-        text: slots.soegana,
-        x: rightColX,
-        y: soeganaStartY,
-        fontSize: rubyFontSize,
-      };
-    }
-
-    if (slots.kutoten) {
-      // HTML suffix-row row2 相当: base 下方、rightColX から R 左
-      const kutotenX = rightColX - rubyFontSize;
-      const kutotenY = tokenY + fontSize;
-      slotLayouts.kutoten = {
-        text: slots.kutoten,
-        x: kutotenX,
-        y: kutotenY,
-        fontSize, // HTML 同様、親の fontSize を継承
-      };
-    }
-
-    if (slots.kaeri) {
-      // 返り点は基底文字の下端に揃える（bottom-aligned）
-      const kaeriChars = [...slots.kaeri].length;
-      slotLayouts.kaeri = {
-        text: slots.kaeri,
-        x: col3X,
-        y: tokenY + fontSize - kaeriChars * rubyFontSize,
-        fontSize: rubyFontSize,
-      };
-    }
-
-    if (slots.emphasis) {
-      const emphasisX = slots.ruby ? rightColX + rubyFontSize : rightColX;
-      slotLayouts.emphasis = {
-        text: slots.emphasis,
-        x: emphasisX,
-        y: tokenY,
-        fontSize: rubyFontSize,
-      };
-    }
-
-    const col4X = columnX + rubyFontSize / 2;
-    if (slots.saidokuUnder) {
-      slotLayouts.saidokuUnder = {
-        text: slots.saidokuUnder,
-        x: col4X,
-        y: tokenY,
-        fontSize: rubyFontSize,
-      };
-    }
-    if (slots.saidokuOkuri2) {
-      const underChars = slots.saidokuUnder ? [...slots.saidokuUnder].length : 0;
-      // 再読2回目送り仮名は基底文字の下端から開始（saidokuUnder が長い場合はその後から）
-      const saidokuOkuri2StartY = tokenY + Math.max(fontSize, underChars * rubyFontSize);
-      slotLayouts.saidokuOkuri2 = {
-        text: slots.saidokuOkuri2,
-        x: col4X,
-        y: saidokuOkuri2StartY,
-        fontSize: rubyFontSize,
-      };
-    }
-  } else {
-    if (slots.ruby) {
-      let rubyY = tokenY;
-      if (slots.rubySpan && slots.rubySpan > 1) {
-        const spanHeight = slots.rubySpan * cellAdvance;
-        const rubyTextHeight = [...slots.ruby].length * rubyFontSize;
-        rubyY = tokenY + (spanHeight - rubyTextHeight) / 2;
-      }
-      slotLayouts.ruby = {
-        text: slots.ruby,
-        x: tokenX + fontSize / 2 + slotGap,
-        y: rubyY,
-        fontSize: rubyFontSize,
-      };
-    }
-
-    if (slots.emphasis) {
-      const emphasisX = slots.ruby
-        ? tokenX + fontSize / 2 + slotGap + rubyFontSize
-        : tokenX + fontSize / 2 + slotGap;
-      slotLayouts.emphasis = {
-        text: slots.emphasis,
-        x: emphasisX,
-        y: tokenY,
-        fontSize: rubyFontSize,
-      };
-    }
+    slotLayouts.ruby = { text: slots.ruby, x: grid.suffixX, y: rubyY, fontSize: rubyFontSize };
   }
 
-  // ref: base の上方向（block-start）に配置。hasSuffix/非 suffix 共通。
+  if (slots.okuri) {
+    const rubyChars = slots.ruby ? [...slots.ruby].length : 0;
+    const okuriStartY = tokenY + Math.max(fontSize, rubyChars * rubyFontSize);
+    slotLayouts.okuri = {
+      text: slots.okuri,
+      x: grid.suffixX,
+      y: okuriStartY,
+      fontSize: rubyFontSize,
+    };
+  }
+
+  if (slots.soegana) {
+    const rubyChars = slots.ruby ? [...slots.ruby].length : 0;
+    const okuriChars = slots.okuri ? [...slots.okuri].length : 0;
+    const soeganaStartY =
+      tokenY + Math.max(fontSize, rubyChars * rubyFontSize) + okuriChars * rubyFontSize;
+    slotLayouts.soegana = {
+      text: slots.soegana,
+      x: grid.suffixX,
+      y: soeganaStartY,
+      fontSize: rubyFontSize,
+    };
+  }
+
+  if (slots.kutoten) {
+    slotLayouts.kutoten = { text: slots.kutoten, x: grid.kutotenX, y: tokenY + fontSize, fontSize };
+  }
+
+  if (slots.kaeri) {
+    const kaeriChars = [...slots.kaeri].length;
+    slotLayouts.kaeri = {
+      text: slots.kaeri,
+      x: grid.kaeriX,
+      y: tokenY + fontSize - kaeriChars * rubyFontSize,
+      fontSize: rubyFontSize,
+    };
+  }
+
+  if (slots.emphasis) {
+    const emphasisX = slots.ruby ? grid.emphasisWithRubyX : grid.emphasisBaseX;
+    slotLayouts.emphasis = {
+      text: slots.emphasis,
+      x: emphasisX,
+      y: tokenY,
+      fontSize: rubyFontSize,
+    };
+  }
+
+  if (slots.saidokuUnder) {
+    slotLayouts.saidokuUnder = {
+      text: slots.saidokuUnder,
+      x: grid.saidoku2X,
+      y: tokenY,
+      fontSize: rubyFontSize,
+    };
+  }
+
+  if (slots.saidokuOkuri2) {
+    const underChars = slots.saidokuUnder ? [...slots.saidokuUnder].length : 0;
+    const saidokuOkuri2StartY = tokenY + Math.max(fontSize, underChars * rubyFontSize);
+    slotLayouts.saidokuOkuri2 = {
+      text: slots.saidokuOkuri2,
+      x: grid.saidoku2X,
+      y: saidokuOkuri2StartY,
+      fontSize: rubyFontSize,
+    };
+  }
+
   if (slots.ref) {
     const refChars = [...slots.ref].length;
     slotLayouts.ref = {
@@ -331,17 +325,16 @@ export function layoutVertical(
     const blockColumnX =
       padding.left + (numBlocks - 1 - blockIdx) * (columnWidth + options.columnGap);
 
-    const blockLctx: LayoutContext = {
-      columnX: blockColumnX,
-      columnY,
+    const grid = computeGridColumns(
+      blockColumnX,
       columnWidth,
-      baseCenterX,
       fontSize,
       rubyFontSize,
-      cellAdvance,
       slotGap,
       hasSuffix,
-    };
+      baseCenterX
+    );
+    const blockLctx: LayoutContext = { fontSize, rubyFontSize, cellAdvance, grid };
 
     const columnChildren: ColumnChild[] = [];
     const highlightLines: HighlightLineLayout[] = [];
@@ -367,10 +360,9 @@ export function layoutVertical(
             fontSize: rubyFontSize,
           };
           if (groupChild.kaeri) {
-            const col3X = blockColumnX + rubyFontSize + rubyFontSize / 2;
             const kaeriLayout: SlotLayout = {
               text: groupChild.kaeri,
-              x: col3X,
+              x: grid.kaeriX,
               y: sepY,
               fontSize: rubyFontSize,
             };

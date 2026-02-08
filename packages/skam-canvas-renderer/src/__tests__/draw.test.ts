@@ -2,7 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { draw } from '../draw.js';
 import { resolveOptions } from '../layout.js';
 import { RecordingContext } from './recording-context.js';
-import type { DocumentLayout, TokenLayout, ResolvedSlotLayouts } from '../types.js';
+import type {
+  DocumentLayout,
+  TokenLayout,
+  TatetenSeparatorLayout,
+  ResolvedSlotLayouts,
+} from '../types.js';
 
 function createSimpleLayout(tokens: Partial<TokenLayout>[]): DocumentLayout {
   return {
@@ -255,5 +260,87 @@ describe('draw', () => {
     const restores = ctx.getCalls('restore').length;
     expect(saves).toBe(restores);
     expect(saves).toBeGreaterThan(0);
+  });
+
+  it('draws tateten separator character U+3190', () => {
+    const ctx = new RecordingContext();
+    const sep: TatetenSeparatorLayout = {
+      type: 'tateten-separator',
+      x: 100,
+      y: 64,
+      fontSize: 12,
+    };
+    const docLayout: DocumentLayout = {
+      width: 200,
+      height: 400,
+      columns: [
+        {
+          x: 100,
+          y: 16,
+          width: 48,
+          height: 368,
+          children: [
+            {
+              type: 'token' as const,
+              tokenId: 't1',
+              x: 100,
+              y: 16,
+              baseChar: '而',
+              slots: {} as ResolvedSlotLayouts,
+            },
+            sep,
+            {
+              type: 'token' as const,
+              tokenId: 't2',
+              x: 100,
+              y: 100,
+              baseChar: '已',
+              slots: {} as ResolvedSlotLayouts,
+            },
+          ],
+        },
+      ],
+    };
+    const options = resolveOptions();
+
+    draw(ctx, docLayout, options);
+
+    const fillTexts = ctx.getCalls('fillText');
+    const texts = fillTexts.map((c) => c.args[0]);
+    expect(texts).toContain('\u3190');
+    expect(texts).toContain('而');
+    expect(texts).toContain('已');
+  });
+
+  it('draws tateten separator kaeri slot', () => {
+    const ctx = new RecordingContext();
+    const sep: TatetenSeparatorLayout = {
+      type: 'tateten-separator',
+      x: 100,
+      y: 64,
+      fontSize: 12,
+      kaeri: { text: '\u3192', x: 70, y: 64, fontSize: 12 },
+    };
+    const docLayout: DocumentLayout = {
+      width: 200,
+      height: 400,
+      columns: [
+        {
+          x: 100,
+          y: 16,
+          width: 48,
+          height: 368,
+          children: [sep],
+        },
+      ],
+    };
+    const options = resolveOptions();
+
+    draw(ctx, docLayout, options);
+
+    const fillTexts = ctx.getCalls('fillText');
+    const texts = fillTexts.map((c) => c.args[0]);
+    expect(texts).toContain('\u3190');
+    expect(texts).toContain('\u3192');
   });
 });

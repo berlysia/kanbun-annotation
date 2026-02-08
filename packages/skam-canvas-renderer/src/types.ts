@@ -71,10 +71,22 @@ export interface CanvasTokenNode {
   slots: TokenSlots;
 }
 
+export interface CanvasTatetenSeparator {
+  type: 'tateten-separator';
+  kaeri?: string;
+}
+
+export interface CanvasTatetenGroupNode {
+  type: 'tateten-group';
+  children: (CanvasTokenNode | CanvasTatetenSeparator)[];
+}
+
+export type CanvasBlockChild = CanvasTokenNode | CanvasTatetenGroupNode;
+
 export interface CanvasBlockNode {
   type: 'block';
   blockId: string;
-  children: CanvasTokenNode[];
+  children: CanvasBlockChild[];
 }
 
 export interface CanvasRenderTree {
@@ -112,12 +124,22 @@ export interface TokenLayout {
   slots: ResolvedSlotLayouts;
 }
 
+export interface TatetenSeparatorLayout {
+  type: 'tateten-separator';
+  x: number;
+  y: number;
+  fontSize: number;
+  kaeri?: SlotLayout;
+}
+
+export type ColumnChild = TokenLayout | TatetenSeparatorLayout;
+
 export interface ColumnLayout {
   x: number;
   y: number;
   width: number;
   height: number;
-  children: TokenLayout[];
+  children: ColumnChild[];
 }
 
 export interface DocumentLayout {

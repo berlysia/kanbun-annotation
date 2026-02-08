@@ -4,6 +4,20 @@ import { buildRenderTree } from '../render-tree.js';
 import { layout } from '../layout.js';
 import { PROFILES } from '../profiles.js';
 import { RecordingContext } from './recording-context.js';
+import type { ColumnChild, TokenLayout, TatetenSeparatorLayout } from '../types.js';
+
+/** Narrow ColumnChild to TokenLayout for test assertions */
+function asToken(child: ColumnChild): TokenLayout {
+  if (child.type !== 'token') throw new Error(`Expected token, got ${child.type}`);
+  return child;
+}
+
+/** Narrow ColumnChild to TatetenSeparatorLayout for test assertions */
+function asSep(child: ColumnChild): TatetenSeparatorLayout {
+  if (child.type !== 'tateten-separator')
+    throw new Error(`Expected tateten-separator, got ${child.type}`);
+  return child;
+}
 
 const DEFAULT_FONT_SIZE = 24;
 const DEFAULT_RUBY_RATIO = 0.5;
@@ -43,7 +57,7 @@ describe('layoutVertical', () => {
     expect(result.columns).toHaveLength(1);
     expect(result.columns[0]!.children).toHaveLength(1);
 
-    const token = result.columns[0]!.children[0]!;
+    const token = asToken(result.columns[0]!.children[0]!);
     // baseCenterX = 0 (no ruby) + fontSize/2 = 12
     // tokenX = padding + baseCenterX = 16 + 12 = 28
     expect(token.x).toBe(DEFAULT_PADDING + DEFAULT_FONT_SIZE / 2);
@@ -79,7 +93,7 @@ describe('layoutVertical', () => {
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
 
-    const token = result.columns[0]!.children[0]!;
+    const token = asToken(result.columns[0]!.children[0]!);
     expect(token.slots.ruby).toBeDefined();
     // ruby x should be to the right of the base character center
     expect(token.slots.ruby!.x).toBeGreaterThan(token.x);
@@ -95,7 +109,7 @@ describe('layoutVertical', () => {
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
 
-    const token = result.columns[0]!.children[0]!;
+    const token = asToken(result.columns[0]!.children[0]!);
     expect(token.slots.okuri).toBeDefined();
     // okuri is in rightmost grid column (same as ruby)
     expect(token.slots.okuri!.x).toBeGreaterThan(token.x);
@@ -110,7 +124,7 @@ describe('layoutVertical', () => {
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
 
-    const token = result.columns[0]!.children[0]!;
+    const token = asToken(result.columns[0]!.children[0]!);
     expect(token.slots.soegana).toBeDefined();
     expect(token.slots.soegana!.x).toBeGreaterThan(token.x);
   });
@@ -123,7 +137,7 @@ describe('layoutVertical', () => {
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
 
-    const t2 = result.columns[0]!.children[1]!;
+    const t2 = asToken(result.columns[0]!.children[1]!);
     expect(t2.slots.kaeri).toBeDefined();
     expect(t2.slots.kaeri!.text).toBe('\u3191');
     expect(t2.slots.kaeri!.x).toBeLessThan(t2.x);
@@ -137,7 +151,7 @@ describe('layoutVertical', () => {
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
 
-    const t3 = result.columns[0]!.children[2]!;
+    const t3 = asToken(result.columns[0]!.children[2]!);
     expect(t3.slots.kutoten).toBeDefined();
     expect(t3.slots.kutoten!.text).toBe('。');
     // kutoten is in grid row2 (right of base center, left of okuri/ruby)
@@ -154,7 +168,7 @@ describe('layoutVertical', () => {
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
 
-    const token = result.columns[0]!.children[0]!;
+    const token = asToken(result.columns[0]!.children[0]!);
     expect(token.slots.ruby).toBeDefined();
     expect(token.slots.okuri).toBeDefined();
     expect(token.slots.kaeri).toBeDefined();
@@ -175,7 +189,7 @@ describe('layoutVertical', () => {
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
 
-    const token = result.columns[0]!.children[0]!;
+    const token = asToken(result.columns[0]!.children[0]!);
     const okuriX = token.slots.okuri!.x;
     const kutotenX = token.slots.kutoten!.x;
     const kaeriX = token.slots.kaeri!.x;
@@ -203,7 +217,7 @@ describe('layoutVertical', () => {
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
 
-    const token = result.columns[0]!.children[0]!;
+    const token = asToken(result.columns[0]!.children[0]!);
     // okuri and soegana share the same x (rightmost column)
     expect(token.slots.okuri!.x).toBe(token.slots.soegana!.x);
     // Both are on right side of base
@@ -240,7 +254,7 @@ describe('layoutVertical', () => {
       padding: { top: 20, right: 30, bottom: 20, left: 30 },
     });
 
-    const token = result.columns[0]!.children[0]!;
+    const token = asToken(result.columns[0]!.children[0]!);
     // x offset includes left padding
     expect(token.x).toBe(30 + DEFAULT_FONT_SIZE / 2);
     // y offset includes top padding
@@ -257,7 +271,7 @@ describe('layoutVertical', () => {
     const tree = buildRenderTree(singleTokenDoc(), PROFILES.full);
     const result = layout(tree, ctx, { fontSize: 32 });
 
-    const token = result.columns[0]!.children[0]!;
+    const token = asToken(result.columns[0]!.children[0]!);
     // With fontSize=32: baseCenterX = 0 + 32/2 = 16
     expect(token.x).toBe(DEFAULT_PADDING + 32 / 2);
   });
@@ -301,7 +315,7 @@ describe('layoutVertical', () => {
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
 
-    const token = result.columns[0]!.children[0]!;
+    const token = asToken(result.columns[0]!.children[0]!);
     expect(token.slots.emphasis).toBeDefined();
     // emphasis is in rightmost column (same as ruby/okuri)
     expect(token.slots.emphasis!.x).toBeGreaterThan(token.x);
@@ -319,7 +333,7 @@ describe('layoutVertical', () => {
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
 
-    const token = result.columns[0]!.children[0]!;
+    const token = asToken(result.columns[0]!.children[0]!);
     expect(token.slots.ruby).toBeDefined();
     expect(token.slots.emphasis).toBeDefined();
     // emphasis x = ruby x + rubyFontSize
@@ -333,7 +347,7 @@ describe('layoutVertical', () => {
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
 
-    const token = result.columns[0]!.children[0]!;
+    const token = asToken(result.columns[0]!.children[0]!);
     expect(token.slots.emphasis).toBeDefined();
     expect(token.slots.emphasis!.x).toBeGreaterThan(token.x);
   });
@@ -347,7 +361,7 @@ describe('layoutVertical', () => {
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
 
-    const token = result.columns[0]!.children[0]!;
+    const token = asToken(result.columns[0]!.children[0]!);
     expect(token.slots.ruby).toBeDefined();
     expect(token.slots.emphasis).toBeDefined();
     const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
@@ -369,7 +383,7 @@ describe('layoutVertical', () => {
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
 
-    const token = result.columns[0]!.children[0]!;
+    const token = asToken(result.columns[0]!.children[0]!);
     // saidoku triggers hasSuffix via saidokuUnder
     expect(token.slots.ruby).toBeDefined();
     expect(token.slots.okuri).toBeDefined();
@@ -381,5 +395,70 @@ describe('layoutVertical', () => {
     const gridWidth = Math.max(4 * rubyFontSize, 2 * rubyFontSize + DEFAULT_FONT_SIZE);
     const col4X = DEFAULT_PADDING + gridWidth - rubyFontSize * 3.5;
     expect(token.slots.saidokuUnder!.x).toBe(col4X);
+  });
+
+  // tateten layout
+  it('lays out tateten group with token + separator + token', () => {
+    const ctx = new RecordingContext();
+    const doc = threeTokenDoc([{ type: 'tateten', anchor: { from: 't1', to: 't2' } }]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    const result = layout(tree, ctx);
+
+    const children = result.columns[0]!.children;
+    // 2 tokens from group + 1 separator + 1 standalone token = 4 children
+    expect(children).toHaveLength(4);
+
+    const t1 = asToken(children[0]!);
+    const sep = asSep(children[1]!);
+    const t2 = asToken(children[2]!);
+    const t3 = asToken(children[3]!);
+
+    const cellAdvance = DEFAULT_FONT_SIZE * DEFAULT_LINE_HEIGHT;
+    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+    const separatorAdvance = 2 * DEFAULT_RUBY_RATIO * DEFAULT_FONT_SIZE;
+
+    // t1 at y = padding + fontSize/2
+    expect(t1.baseChar).toBe('子');
+    // separator after t1
+    expect(sep.type).toBe('tateten-separator');
+    expect(sep.fontSize).toBe(rubyFontSize);
+    // t2 after separator
+    expect(t2.baseChar).toBe('曰');
+    // y increments: t1 → sep (cellAdvance), sep → t2 (separatorAdvance)
+    expect(sep.y - t1.y).toBeCloseTo(cellAdvance - DEFAULT_FONT_SIZE / 2 + separatorAdvance / 2, 5);
+    // t3 is standalone, after the group
+    expect(t3.baseChar).toBe('學');
+  });
+
+  it('tateten separator has correct height contribution to column', () => {
+    const ctx = new RecordingContext();
+    const docPlain = threeTokenDoc();
+    const treePlain = buildRenderTree(docPlain, PROFILES.full);
+    const resultPlain = layout(treePlain, ctx);
+
+    const ctxTateten = new RecordingContext();
+    const docTateten = threeTokenDoc([{ type: 'tateten', anchor: { from: 't1', to: 't2' } }]);
+    const treeTateten = buildRenderTree(docTateten, PROFILES.full);
+    const resultTateten = layout(treeTateten, ctxTateten);
+
+    const separatorAdvance = 2 * DEFAULT_RUBY_RATIO * DEFAULT_FONT_SIZE;
+
+    // Tateten version is taller by one separator
+    expect(resultTateten.height - resultPlain.height).toBe(separatorAdvance);
+  });
+
+  it('places kaeri on tateten separator', () => {
+    const ctx = new RecordingContext();
+    const doc = threeTokenDoc([
+      { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '一レ' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    const result = layout(tree, ctx);
+
+    const sep = asSep(result.columns[0]!.children[1]!);
+    // separator should have kaeri slot with 一 (non-レ part)
+    expect(sep.kaeri).toBeDefined();
+    expect(sep.kaeri!.text).toBe('\u3192');
   });
 });

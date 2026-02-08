@@ -17,11 +17,24 @@ import type {
   KutotenMark,
   EmphasisMark,
   SaidokuMark,
+  TatetenMark,
 } from '@kanbun/skam';
 import { isPositionBasedMark } from '@kanbun/skam';
-import type { CanvasRenderTree, CanvasBlockNode, CanvasTokenNode, TokenSlots } from './types.js';
+import type {
+  CanvasRenderTree,
+  CanvasBlockNode,
+  CanvasTokenNode,
+  CanvasBlockChild,
+  CanvasTatetenGroupNode,
+  CanvasTatetenSeparator,
+  TokenSlots,
+} from './types.js';
 import type { RenderProfile } from './profiles.js';
-import { convertKaeriToUnicode, resolveEmphasisCharacter } from './helpers.js';
+import {
+  convertKaeriToUnicode,
+  resolveEmphasisCharacter,
+  splitKaeriForTateten,
+} from './helpers.js';
 
 /**
  * Token ごとのマークをマップに整理する。
@@ -215,6 +228,91 @@ function groupTokensByBlock(
 }
 
 /**
+ * tateten マークのアンカー範囲に含まれるトークンを同一マーク参照にマッピング。
+ * 連続判定で === 参照比較を使えるよう、同じ TatetenMark オブジェクトを割り当てる。
+ */
+function getTatetenGroups(blockTokens: Token[], marks: Mark[]): Map<string, TatetenMark> {
+  const tatetenMarks = marks.filter((m): m is TatetenMark => m.type === 'tateten');
+  const result = new Map<string, TatetenMark>();
+
+  for (const mark of tatetenMarks) {
+    const fromIdx = blockTokens.findIndex((t) => t.id === mark.anchor.from);
+    const toIdx = blockTokens.findIndex((t) => t.id === mark.anchor.to);
+    if (fromIdx === -1 || toIdx === -1) continue;
+
+    for (let i = fromIdx; i <= toIdx; i++) {
+      result.set(blockTokens[i]!.id, mark);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * tateten グループを構築。
+ * N トークン → N-1 セパレータ挿入。
+ * kaeri: splitKaeriForTateten() でレ→トークン suffix、非レ→セパレータ kaeri。
+ * 最終トークンの非レ kaeri は最後のセパレータに配置。
+ */
+function buildTatetenGroup(
+  tokenNodes: CanvasTokenNode[],
+  blockId: string,
+  marks: Mark[],
+  profile: RenderProfile
+): CanvasTatetenGroupNode {
+  const separators: CanvasTatetenSeparator[] = [];
+  for (let i = 0; i < tokenNodes.length - 1; i++) {
+    separators.push({ type: 'tateten-separator' as const });
+  }
+
+  // kaeri 分割処理（profile.kaeriten が有効な場合のみ）
+  if (profile.kaeriten) {
+    const kaeriMarks = marks.filter((m): m is KaeriMark => m.type === 'kaeri');
+
+    for (let i = 0; i < tokenNodes.length; i++) {
+      const tokenNode = tokenNodes[i]!;
+      const tokenId = tokenNode.token.id;
+      const kaeriMark = kaeriMarks.find(
+        (m) => m.position.after === tokenId && m.position.blockId === blockId
+      );
+
+      if (kaeriMark) {
+        const { re, nonRe } = splitKaeriForTateten(kaeriMark.value);
+
+        // レ成分 → トークンの kaeri スロット
+        if (re) {
+          tokenNode.slots = { ...tokenNode.slots, kaeri: re };
+        } else {
+          const { kaeri: _removed, ...restSlots } = tokenNode.slots;
+          tokenNode.slots = restSlots;
+        }
+
+        // 非レ成分 → セパレータの kaeri
+        if (nonRe && separators.length > 0) {
+          if (i < tokenNodes.length - 1) {
+            separators[i]!.kaeri = nonRe;
+          } else {
+            // 最終トークン: 最後のセパレータに配置
+            separators[separators.length - 1]!.kaeri = nonRe;
+          }
+        }
+      }
+    }
+  }
+
+  // トークンとセパレータを交互に配置
+  const children: (CanvasTokenNode | CanvasTatetenSeparator)[] = [];
+  for (let i = 0; i < tokenNodes.length; i++) {
+    children.push(tokenNodes[i]!);
+    if (i < separators.length) {
+      children.push(separators[i]!);
+    }
+  }
+
+  return { type: 'tateten-group' as const, children };
+}
+
+/**
  * Pass 1: SKAMDocument -> CanvasRenderTree
  */
 export function buildRenderTree(doc: SKAMDocument, profile: RenderProfile): CanvasRenderTree {
@@ -229,10 +327,39 @@ export function buildRenderTree(doc: SKAMDocument, profile: RenderProfile): Canv
       slots: resolveSlots(token.id, marks, profile, group.tokens),
     }));
 
+    // tateten グルーピング: 連続する同一マーク参照のトークンをグループ化
+    let children: CanvasBlockChild[];
+    if (profile.tateten) {
+      const tatetenMap = getTatetenGroups(group.tokens, marks);
+      children = [];
+      let i = 0;
+      while (i < tokenNodes.length) {
+        const tokenNode = tokenNodes[i]!;
+        const tatetenMark = tatetenMap.get(tokenNode.token.id);
+
+        if (!tatetenMark) {
+          children.push(tokenNode);
+          i++;
+        } else {
+          // 同一 tateten マーク参照の連続トークンを収集
+          const groupTokens: CanvasTokenNode[] = [tokenNode];
+          let j = i + 1;
+          while (j < tokenNodes.length && tatetenMap.get(tokenNodes[j]!.token.id) === tatetenMark) {
+            groupTokens.push(tokenNodes[j]!);
+            j++;
+          }
+          children.push(buildTatetenGroup(groupTokens, group.blockId, marks, profile));
+          i = j;
+        }
+      }
+    } else {
+      children = tokenNodes;
+    }
+
     return {
       type: 'block' as const,
       blockId: group.blockId,
-      children: tokenNodes,
+      children,
     };
   });
 

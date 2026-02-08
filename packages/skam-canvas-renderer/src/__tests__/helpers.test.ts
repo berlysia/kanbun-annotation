@@ -1,6 +1,10 @@
 import { describe, it } from 'vitest';
 import { expect } from 'vitest';
-import { convertKaeriToUnicode, resolveEmphasisCharacter } from '../helpers.js';
+import {
+  convertKaeriToUnicode,
+  resolveEmphasisCharacter,
+  splitKaeriForTateten,
+} from '../helpers.js';
 
 describe('convertKaeriToUnicode', () => {
   it('converts single kaeri characters', () => {
@@ -80,5 +84,37 @@ describe('resolveEmphasisCharacter', () => {
 
   it('returns filled sesame for "filled sesame"', () => {
     expect(resolveEmphasisCharacter('filled sesame')).toBe('\uFE45');
+  });
+});
+
+describe('splitKaeriForTateten', () => {
+  it('splits レ into re component', () => {
+    const result = splitKaeriForTateten('レ');
+    expect(result.re).toBe('\u3191');
+    expect(result.nonRe).toBe('');
+  });
+
+  it('splits 一レ into re and nonRe', () => {
+    const result = splitKaeriForTateten('一レ');
+    expect(result.re).toBe('\u3191');
+    expect(result.nonRe).toBe('\u3192');
+  });
+
+  it('splits 上 into nonRe only', () => {
+    const result = splitKaeriForTateten('上');
+    expect(result.re).toBe('');
+    expect(result.nonRe).toBe('\u3196');
+  });
+
+  it('splits 上レ into both components', () => {
+    const result = splitKaeriForTateten('上レ');
+    expect(result.re).toBe('\u3191');
+    expect(result.nonRe).toBe('\u3196');
+  });
+
+  it('handles 二 (nonRe only)', () => {
+    const result = splitKaeriForTateten('二');
+    expect(result.re).toBe('');
+    expect(result.nonRe).toBe('\u3193');
   });
 });

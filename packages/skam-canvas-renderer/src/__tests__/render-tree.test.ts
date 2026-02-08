@@ -2,6 +2,37 @@ import { describe, it, expect } from 'vitest';
 import type { SKAMDocument, Mark } from '@kanbun/skam';
 import { buildRenderTree } from '../render-tree.js';
 import { PROFILES } from '../profiles.js';
+import type {
+  CanvasBlockChild,
+  CanvasTokenNode,
+  CanvasTatetenGroupNode,
+  CanvasTatetenSeparator,
+} from '../types.js';
+
+/** Narrow CanvasBlockChild to CanvasTokenNode for test assertions */
+function asTokenNode(child: CanvasBlockChild): CanvasTokenNode {
+  if (child.type !== 'token') throw new Error(`Expected token, got ${child.type}`);
+  return child;
+}
+
+/** Narrow CanvasBlockChild to CanvasTatetenGroupNode for test assertions */
+function asTatetenGroup(child: CanvasBlockChild): CanvasTatetenGroupNode {
+  if (child.type !== 'tateten-group') throw new Error(`Expected tateten-group, got ${child.type}`);
+  return child;
+}
+
+/** Narrow tateten group child to CanvasTokenNode */
+function asGroupToken(child: CanvasTokenNode | CanvasTatetenSeparator): CanvasTokenNode {
+  if (child.type !== 'token') throw new Error(`Expected token in group, got ${child.type}`);
+  return child;
+}
+
+/** Narrow tateten group child to CanvasTatetenSeparator */
+function asSeparator(child: CanvasTokenNode | CanvasTatetenSeparator): CanvasTatetenSeparator {
+  if (child.type !== 'tateten-separator')
+    throw new Error(`Expected tateten-separator in group, got ${child.type}`);
+  return child;
+}
 
 function threeTokenDoc(marks: Mark[] = []): SKAMDocument {
   return {
@@ -25,7 +56,7 @@ describe('buildRenderTree', () => {
     expect(tree.blocks[0]!.blockId).toBe('b1');
     expect(tree.blocks[0]!.children).toHaveLength(3);
 
-    const [t1, t2, t3] = tree.blocks[0]!.children;
+    const [t1, t2, t3] = tree.blocks[0]!.children.map((c) => asTokenNode(c));
     expect(t1!.token.text).toBe('子');
     expect(t2!.token.text).toBe('曰');
     expect(t3!.token.text).toBe('學');
@@ -42,9 +73,9 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    expect(tree.blocks[0]!.children[2]!.slots.ruby).toBe('まな');
-    expect(tree.blocks[0]!.children[0]!.slots.ruby).toBeUndefined();
-    expect(tree.blocks[0]!.children[1]!.slots.ruby).toBeUndefined();
+    expect(asTokenNode(tree.blocks[0]!.children[2]!).slots.ruby).toBe('まな');
+    expect(asTokenNode(tree.blocks[0]!.children[0]!).slots.ruby).toBeUndefined();
+    expect(asTokenNode(tree.blocks[0]!.children[1]!).slots.ruby).toBeUndefined();
   });
 
   it('resolves okurigana into okuri slot', () => {
@@ -53,14 +84,14 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    expect(tree.blocks[0]!.children[2]!.slots.okuri).toBe('ぶ');
+    expect(asTokenNode(tree.blocks[0]!.children[2]!).slots.okuri).toBe('ぶ');
   });
 
   it('resolves soegana into soegana slot', () => {
     const doc = threeTokenDoc([{ type: 'soegana', anchor: { from: 't1', to: 't1' }, value: 'は' }]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    expect(tree.blocks[0]!.children[0]!.slots.soegana).toBe('は');
+    expect(asTokenNode(tree.blocks[0]!.children[0]!).slots.soegana).toBe('は');
   });
 
   it('resolves single kaeri into Unicode', () => {
@@ -69,7 +100,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    expect(tree.blocks[0]!.children[1]!.slots.kaeri).toBe('\u3191');
+    expect(asTokenNode(tree.blocks[0]!.children[1]!).slots.kaeri).toBe('\u3191');
   });
 
   it('resolves compound kaeri into Unicode', () => {
@@ -78,7 +109,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    expect(tree.blocks[0]!.children[2]!.slots.kaeri).toBe('\u3192\u3191');
+    expect(asTokenNode(tree.blocks[0]!.children[2]!).slots.kaeri).toBe('\u3192\u3191');
   });
 
   it('resolves kutoten slot', () => {
@@ -87,7 +118,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    expect(tree.blocks[0]!.children[2]!.slots.kutoten).toBe('。');
+    expect(asTokenNode(tree.blocks[0]!.children[2]!).slots.kutoten).toBe('。');
   });
 
   it('resolves multiple marks on same token', () => {
@@ -98,7 +129,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    const t3 = tree.blocks[0]!.children[2]!;
+    const t3 = asTokenNode(tree.blocks[0]!.children[2]!);
     expect(t3.slots.ruby).toBe('まな');
     expect(t3.slots.okuri).toBe('ぶ');
     expect(t3.slots.kaeri).toBe('\u3192\u3191');
@@ -110,7 +141,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, { ...PROFILES.full, kaeriten: false });
 
-    expect(tree.blocks[0]!.children[1]!.slots.kaeri).toBeUndefined();
+    expect(asTokenNode(tree.blocks[0]!.children[1]!).slots.kaeri).toBeUndefined();
   });
 
   it('respects profile: yomigana=false', () => {
@@ -119,7 +150,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, { ...PROFILES.full, yomigana: false });
 
-    expect(tree.blocks[0]!.children[2]!.slots.ruby).toBeUndefined();
+    expect(asTokenNode(tree.blocks[0]!.children[2]!).slots.ruby).toBeUndefined();
   });
 
   it('handles multiple blocks', () => {
@@ -165,7 +196,7 @@ describe('buildRenderTree', () => {
     const doc = threeTokenDoc([{ type: 'okimoji', anchor: { from: 't1', to: 't3' } }]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    const tokens = tree.blocks[0]!.children;
+    const tokens = tree.blocks[0]!.children.map((c) => asTokenNode(c));
     // All three tokens should match (from, intermediate, to)
     expect(tokens[0]!.slots.isOkimoji).toBe(true);
     expect(tokens[1]!.slots.isOkimoji).toBe(true);
@@ -176,24 +207,24 @@ describe('buildRenderTree', () => {
     const doc = threeTokenDoc([{ type: 'okimoji', anchor: { from: 't2', to: 't2' } }]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    expect(tree.blocks[0]!.children[1]!.slots.isOkimoji).toBe(true);
-    expect(tree.blocks[0]!.children[0]!.slots.isOkimoji).toBeUndefined();
-    expect(tree.blocks[0]!.children[2]!.slots.isOkimoji).toBeUndefined();
+    expect(asTokenNode(tree.blocks[0]!.children[1]!).slots.isOkimoji).toBe(true);
+    expect(asTokenNode(tree.blocks[0]!.children[0]!).slots.isOkimoji).toBeUndefined();
+    expect(asTokenNode(tree.blocks[0]!.children[2]!).slots.isOkimoji).toBeUndefined();
   });
 
   it('resolves joji flag for single token', () => {
     const doc = threeTokenDoc([{ type: 'joji', anchor: { from: 't1', to: 't1' } }]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    expect(tree.blocks[0]!.children[0]!.slots.isJoji).toBe(true);
-    expect(tree.blocks[0]!.children[1]!.slots.isJoji).toBeUndefined();
+    expect(asTokenNode(tree.blocks[0]!.children[0]!).slots.isJoji).toBe(true);
+    expect(asTokenNode(tree.blocks[0]!.children[1]!).slots.isJoji).toBeUndefined();
   });
 
   it('resolves okimoji flag for token range', () => {
     const doc = threeTokenDoc([{ type: 'okimoji', anchor: { from: 't1', to: 't3' } }]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    const tokens = tree.blocks[0]!.children;
+    const tokens = tree.blocks[0]!.children.map((c) => asTokenNode(c));
     expect(tokens[0]!.slots.isOkimoji).toBe(true);
     expect(tokens[1]!.slots.isOkimoji).toBe(true);
     expect(tokens[2]!.slots.isOkimoji).toBe(true);
@@ -203,14 +234,14 @@ describe('buildRenderTree', () => {
     const doc = threeTokenDoc([{ type: 'okimoji', anchor: { from: 't2', to: 't2' } }]);
     const tree = buildRenderTree(doc, { ...PROFILES.full, okimoji: false });
 
-    expect(tree.blocks[0]!.children[1]!.slots.isOkimoji).toBeUndefined();
+    expect(asTokenNode(tree.blocks[0]!.children[1]!).slots.isOkimoji).toBeUndefined();
   });
 
   it('respects profile: joji=false', () => {
     const doc = threeTokenDoc([{ type: 'joji', anchor: { from: 't1', to: 't1' } }]);
     const tree = buildRenderTree(doc, { ...PROFILES.full, joji: false });
 
-    expect(tree.blocks[0]!.children[0]!.slots.isJoji).toBeUndefined();
+    expect(asTokenNode(tree.blocks[0]!.children[0]!).slots.isJoji).toBeUndefined();
   });
 
   it('resolves emphasis for all tokens in range', () => {
@@ -219,7 +250,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    const tokens = tree.blocks[0]!.children;
+    const tokens = tree.blocks[0]!.children.map((c) => asTokenNode(c));
     expect(tokens[0]!.slots.emphasis).toBe('\uFE45');
     expect(tokens[1]!.slots.emphasis).toBe('\uFE45');
     expect(tokens[2]!.slots.emphasis).toBe('\uFE45');
@@ -229,7 +260,7 @@ describe('buildRenderTree', () => {
     const doc = threeTokenDoc([{ type: 'emphasis', anchor: { from: 't2', to: 't2' } }]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    expect(tree.blocks[0]!.children[1]!.slots.emphasis).toBe('\u2022');
+    expect(asTokenNode(tree.blocks[0]!.children[1]!).slots.emphasis).toBe('\u2022');
   });
 
   it('respects profile: emphasis=false', () => {
@@ -238,7 +269,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, { ...PROFILES.full, emphasis: false });
 
-    expect(tree.blocks[0]!.children[0]!.slots.emphasis).toBeUndefined();
+    expect(asTokenNode(tree.blocks[0]!.children[0]!).slots.emphasis).toBeUndefined();
   });
 
   it('resolves saidoku forms into slots', () => {
@@ -254,7 +285,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    const t1 = tree.blocks[0]!.children[0]!;
+    const t1 = asTokenNode(tree.blocks[0]!.children[0]!);
     expect(t1.slots.ruby).toBe('まさ');
     expect(t1.slots.okuri).toBe('に');
     expect(t1.slots.saidokuUnder).toBe('はた');
@@ -274,7 +305,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    const t2 = tree.blocks[0]!.children[1]!;
+    const t2 = asTokenNode(tree.blocks[0]!.children[1]!);
     expect(t2.slots.ruby).toBe('まさ');
     expect(t2.slots.okuri).toBe('に');
     expect(t2.slots.saidokuUnder).toBe('はた');
@@ -291,7 +322,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    const t1 = tree.blocks[0]!.children[0]!;
+    const t1 = asTokenNode(tree.blocks[0]!.children[0]!);
     expect(t1.slots.ruby).toBe('まさ');
     expect(t1.slots.saidokuUnder).toBeUndefined();
     expect(t1.slots.saidokuOkuri2).toBeUndefined();
@@ -307,7 +338,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    const t1 = tree.blocks[0]!.children[0]!;
+    const t1 = asTokenNode(tree.blocks[0]!.children[0]!);
     expect(t1.slots.ruby).toBeUndefined();
     expect(t1.slots.saidokuUnder).toBeUndefined();
   });
@@ -325,8 +356,104 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, { ...PROFILES.full, saidoku: false });
 
-    const t1 = tree.blocks[0]!.children[0]!;
+    const t1 = asTokenNode(tree.blocks[0]!.children[0]!);
     expect(t1.slots.ruby).toBeUndefined();
     expect(t1.slots.saidokuUnder).toBeUndefined();
+  });
+
+  // tateten grouping
+  it('groups 2 tokens with tateten mark', () => {
+    const doc = threeTokenDoc([{ type: 'tateten', anchor: { from: 't1', to: 't2' } }]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    // t1, t2 are grouped; t3 remains standalone
+    expect(tree.blocks[0]!.children).toHaveLength(2);
+    const group = asTatetenGroup(tree.blocks[0]!.children[0]!);
+    expect(group.children).toHaveLength(3); // token, sep, token
+    expect(asGroupToken(group.children[0]!).token.text).toBe('子');
+    expect(group.children[1]!.type).toBe('tateten-separator');
+    expect(asGroupToken(group.children[2]!).token.text).toBe('曰');
+
+    // t3 is standalone
+    expect(asTokenNode(tree.blocks[0]!.children[1]!).token.text).toBe('學');
+  });
+
+  it('groups 3 tokens with tateten mark', () => {
+    const doc = threeTokenDoc([{ type: 'tateten', anchor: { from: 't1', to: 't3' } }]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    expect(tree.blocks[0]!.children).toHaveLength(1);
+    const group = asTatetenGroup(tree.blocks[0]!.children[0]!);
+    // 3 tokens + 2 separators = 5 children
+    expect(group.children).toHaveLength(5);
+    expect(asGroupToken(group.children[0]!).token.text).toBe('子');
+    expect(group.children[1]!.type).toBe('tateten-separator');
+    expect(asGroupToken(group.children[2]!).token.text).toBe('曰');
+    expect(group.children[3]!.type).toBe('tateten-separator');
+    expect(asGroupToken(group.children[4]!).token.text).toBe('學');
+  });
+
+  it('splits kaeri in tateten group: レ→token, non-レ→separator', () => {
+    const doc = threeTokenDoc([
+      { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '一レ' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const group = asTatetenGroup(tree.blocks[0]!.children[0]!);
+    // t1 gets レ component only
+    expect(asGroupToken(group.children[0]!).slots.kaeri).toBe('\u3191');
+    // separator gets 一 component
+    expect(asSeparator(group.children[1]!).kaeri).toBe('\u3192');
+  });
+
+  it('puts non-レ only kaeri on separator, removes from token', () => {
+    const doc = threeTokenDoc([
+      { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '上' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const group = asTatetenGroup(tree.blocks[0]!.children[0]!);
+    // t1 has no kaeri (レ part is empty)
+    expect(asGroupToken(group.children[0]!).slots.kaeri).toBeUndefined();
+    // separator gets 上
+    expect(asSeparator(group.children[1]!).kaeri).toBe('\u3196');
+  });
+
+  it('puts last token non-レ kaeri on last separator', () => {
+    const doc = threeTokenDoc([
+      { type: 'tateten', anchor: { from: 't1', to: 't3' } },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: '一' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const group = asTatetenGroup(tree.blocks[0]!.children[0]!);
+    // last token (t3) has no kaeri (レ part is empty)
+    expect(asGroupToken(group.children[4]!).slots.kaeri).toBeUndefined();
+    // last separator gets 一
+    expect(asSeparator(group.children[3]!).kaeri).toBe('\u3192');
+  });
+
+  it('respects profile: tateten=false', () => {
+    const doc = threeTokenDoc([{ type: 'tateten', anchor: { from: 't1', to: 't2' } }]);
+    const tree = buildRenderTree(doc, { ...PROFILES.full, tateten: false });
+
+    // No grouping: all children are tokens
+    expect(tree.blocks[0]!.children).toHaveLength(3);
+    expect(tree.blocks[0]!.children[0]!.type).toBe('token');
+    expect(tree.blocks[0]!.children[1]!.type).toBe('token');
+    expect(tree.blocks[0]!.children[2]!.type).toBe('token');
+  });
+
+  it('preserves token slots within tateten group', () => {
+    const doc = threeTokenDoc([
+      { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'し' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const group = asTatetenGroup(tree.blocks[0]!.children[0]!);
+    expect(asGroupToken(group.children[0]!).slots.ruby).toBe('し');
   });
 });

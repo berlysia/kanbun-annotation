@@ -24,29 +24,45 @@ export function draw(
     ctx.restore();
   }
 
-  // 2. For each column -> each token
+  // 2. For each column -> each child (token or tateten-separator)
   for (const column of documentLayout.columns) {
-    for (const tokenLayout of column.children) {
+    for (const child of column.children) {
+      if (child.type === 'tateten-separator') {
+        // Draw tateten separator character (〼 U+3190)
+        drawChar(
+          ctx,
+          '\u3190',
+          child.x,
+          child.y,
+          child.fontSize,
+          options.textColor,
+          options.fontFamily
+        );
+        // Draw kaeri on separator if present
+        drawSlotIfPresent(ctx, child.kaeri, options);
+        continue;
+      }
+
       // Draw base character
       drawChar(
         ctx,
-        tokenLayout.baseChar,
-        tokenLayout.x,
-        tokenLayout.y,
+        child.baseChar,
+        child.x,
+        child.y,
         options.fontSize,
         options.textColor,
         options.fontFamily
       );
 
       // Draw slots
-      drawSlotIfPresent(ctx, tokenLayout.slots.ruby, options);
-      drawSlotIfPresent(ctx, tokenLayout.slots.okuri, options);
-      drawSlotIfPresent(ctx, tokenLayout.slots.soegana, options);
-      drawSlotIfPresent(ctx, tokenLayout.slots.kaeri, options);
-      drawSlotIfPresent(ctx, tokenLayout.slots.kutoten, options);
-      drawSlotIfPresent(ctx, tokenLayout.slots.emphasis, options);
-      drawSlotIfPresent(ctx, tokenLayout.slots.saidokuUnder, options);
-      drawSlotIfPresent(ctx, tokenLayout.slots.saidokuOkuri2, options);
+      drawSlotIfPresent(ctx, child.slots.ruby, options);
+      drawSlotIfPresent(ctx, child.slots.okuri, options);
+      drawSlotIfPresent(ctx, child.slots.soegana, options);
+      drawSlotIfPresent(ctx, child.slots.kaeri, options);
+      drawSlotIfPresent(ctx, child.slots.kutoten, options);
+      drawSlotIfPresent(ctx, child.slots.emphasis, options);
+      drawSlotIfPresent(ctx, child.slots.saidokuUnder, options);
+      drawSlotIfPresent(ctx, child.slots.saidokuOkuri2, options);
     }
   }
 }

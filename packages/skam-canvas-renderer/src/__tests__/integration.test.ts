@@ -189,6 +189,38 @@ describe('integration: render()', () => {
     expect(chars).toContain('た');
   });
 
+  it('renders tateten group with separator', () => {
+    const canvas = new RecordingCanvas();
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '而' },
+        { id: 't2', text: '已' },
+        { id: 't3', text: '矣' },
+      ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
+      marks: [
+        { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+        { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '一レ' },
+      ],
+      readings: [],
+    };
+    render(doc, canvas);
+
+    const ctx = canvas.getContext('2d');
+    const chars = ctx.getCalls('fillText').map((c) => c.args[0]);
+    // Base characters
+    expect(chars).toContain('而');
+    expect(chars).toContain('已');
+    expect(chars).toContain('矣');
+    // Tateten separator U+3190
+    expect(chars).toContain('\u3190');
+    // レ component stays on token
+    expect(chars).toContain('\u3191');
+    // 一 component goes to separator kaeri
+    expect(chars).toContain('\u3192');
+  });
+
   it('renders multiple blocks', () => {
     const canvas = new RecordingCanvas();
     const doc: SKAMDocument = {

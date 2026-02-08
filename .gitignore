@@ -22,6 +22,9 @@ coverage/
 .tmp/
 *.log
 
+# Screenshot output
+screenshots/
+
 # Environment
 .env
 .env.local

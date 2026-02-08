@@ -114,6 +114,8 @@ describe('layoutVertical', () => {
     // okuri is in rightmost grid column (same as ruby)
     expect(token.slots.okuri!.x).toBeGreaterThan(token.x);
     expect(token.slots.okuri!.fontSize).toBe(Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO));
+    // okuri starts at the bottom of the base character
+    expect(token.slots.okuri!.y).toBe(token.y + DEFAULT_FONT_SIZE);
   });
 
   it('places soegana on right side (same column as okuri/ruby)', () => {
@@ -141,6 +143,9 @@ describe('layoutVertical', () => {
     expect(t2.slots.kaeri).toBeDefined();
     expect(t2.slots.kaeri!.text).toBe('\u3191');
     expect(t2.slots.kaeri!.x).toBeLessThan(t2.x);
+    // kaeri is bottom-aligned with base character
+    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+    expect(t2.slots.kaeri!.y).toBe(t2.y + DEFAULT_FONT_SIZE - rubyFontSize);
   });
 
   it('places kutoten right of base center (grid row2)', () => {
@@ -168,6 +173,7 @@ describe('layoutVertical', () => {
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
 
+    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
     const token = asToken(result.columns[0]!.children[0]!);
     expect(token.slots.ruby).toBeDefined();
     expect(token.slots.okuri).toBeDefined();
@@ -177,6 +183,12 @@ describe('layoutVertical', () => {
     expect(token.slots.okuri!.x).toBeGreaterThan(token.x);
     expect(token.slots.ruby!.x).toBe(token.slots.okuri!.x);
     expect(token.slots.kaeri!.x).toBeLessThan(token.x);
+    // Y positions: ruby top-aligned, okuri below base (after ruby), kaeri bottom-aligned
+    expect(token.slots.ruby!.y).toBe(token.y);
+    // ruby has 2 chars (まな) = 2 * 12 = 24, which equals fontSize, so okuri starts at tokenY + fontSize
+    expect(token.slots.okuri!.y).toBe(token.y + DEFAULT_FONT_SIZE);
+    // kaeri "一レ" → 2 Unicode chars: height = 2 * rubyFontSize = fontSize, so bottom-aligned = tokenY
+    expect(token.slots.kaeri!.y).toBe(token.y + DEFAULT_FONT_SIZE - 2 * rubyFontSize);
   });
 
   it('places suffix types in separate grid columns (right to left)', () => {
@@ -217,13 +229,16 @@ describe('layoutVertical', () => {
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
 
+    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
     const token = asToken(result.columns[0]!.children[0]!);
     // okuri and soegana share the same x (rightmost column)
     expect(token.slots.okuri!.x).toBe(token.slots.soegana!.x);
     // Both are on right side of base
     expect(token.slots.okuri!.x).toBeGreaterThan(token.x);
-    // soegana is below okuri (different y)
-    expect(token.slots.soegana!.y).toBeGreaterThan(token.slots.okuri!.y);
+    // okuri starts at bottom of base character
+    expect(token.slots.okuri!.y).toBe(token.y + DEFAULT_FONT_SIZE);
+    // soegana is below okuri
+    expect(token.slots.soegana!.y).toBe(token.y + DEFAULT_FONT_SIZE + rubyFontSize);
   });
 
   it('uses grid model width max(4R, 2R+F) when suffix exists', () => {

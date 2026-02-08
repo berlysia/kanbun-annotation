@@ -101,10 +101,12 @@ function layoutSingleToken(
 
     if (slots.okuri) {
       const rubyChars = slots.ruby ? [...slots.ruby].length : 0;
+      // 送り仮名は基底文字の下端から開始（ruby が長い場合はその後から）
+      const okuriStartY = tokenY + Math.max(fontSize, rubyChars * rubyFontSize);
       slotLayouts.okuri = {
         text: slots.okuri,
         x: rightColX,
-        y: tokenY + rubyChars * rubyFontSize,
+        y: okuriStartY,
         fontSize: rubyFontSize,
       };
     }
@@ -112,10 +114,13 @@ function layoutSingleToken(
     if (slots.soegana) {
       const rubyChars = slots.ruby ? [...slots.ruby].length : 0;
       const okuriChars = slots.okuri ? [...slots.okuri].length : 0;
+      // 添え仮名は送り仮名の後に配置
+      const soeganaStartY =
+        tokenY + Math.max(fontSize, rubyChars * rubyFontSize) + okuriChars * rubyFontSize;
       slotLayouts.soegana = {
         text: slots.soegana,
         x: rightColX,
-        y: tokenY + (rubyChars + okuriChars) * rubyFontSize,
+        y: soeganaStartY,
         fontSize: rubyFontSize,
       };
     }
@@ -125,7 +130,14 @@ function layoutSingleToken(
     }
 
     if (slots.kaeri) {
-      slotLayouts.kaeri = { text: slots.kaeri, x: col3X, y: tokenY, fontSize: rubyFontSize };
+      // 返り点は基底文字の下端に揃える（bottom-aligned）
+      const kaeriChars = [...slots.kaeri].length;
+      slotLayouts.kaeri = {
+        text: slots.kaeri,
+        x: col3X,
+        y: tokenY + fontSize - kaeriChars * rubyFontSize,
+        fontSize: rubyFontSize,
+      };
     }
 
     if (slots.emphasis) {
@@ -149,10 +161,12 @@ function layoutSingleToken(
     }
     if (slots.saidokuOkuri2) {
       const underChars = slots.saidokuUnder ? [...slots.saidokuUnder].length : 0;
+      // 再読2回目送り仮名は基底文字の下端から開始（saidokuUnder が長い場合はその後から）
+      const saidokuOkuri2StartY = tokenY + Math.max(fontSize, underChars * rubyFontSize);
       slotLayouts.saidokuOkuri2 = {
         text: slots.saidokuOkuri2,
         x: col4X,
-        y: tokenY + underChars * rubyFontSize,
+        y: saidokuOkuri2StartY,
         fontSize: rubyFontSize,
       };
     }

@@ -4,7 +4,7 @@
 
 Accepted
 
-実装計画: [Plan](../plans/plan-canvas-renderer.md) | [Phase 2 Plan](../plans/plan-canvas-renderer-phase2.md)
+実装計画: [Plan](../plans/plan-canvas-renderer.md) | [Phase 2 Plan](../plans/plan-canvas-renderer-phase2.md) | [Layout Fixes Plan](../plans/plan-canvas-renderer-layout-fixes.md)
 
 ## コンテキスト
 
@@ -69,7 +69,7 @@ Accepted
 
 ### ネガティブ
 
-- render tree 構築ロジックの重複（約 200-300 行）
+- ~~render tree 構築ロジックの重複（約 200-300 行）~~ → `@kanbun/skam/rendering` サブパスに共有ユーティリティを集約して解消済み
 - Canvas API にはネイティブの縦書きサポートがないため、1 文字ずつの描画が必要
 - フォントメトリクスの環境差（ブラウザ vs node-canvas）への対応が必要
 - 新パッケージのメンテナンスコスト

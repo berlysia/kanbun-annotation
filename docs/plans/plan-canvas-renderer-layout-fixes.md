@@ -180,4 +180,4 @@ suffix-row は `inline` 要素のため、base 文字の**下方**（インラ�
 - rightColX 依存テスト: 座標値更新（R だけ変化）
 - multi-block テスト追加
 
-詳細な実装計画: [Plan Mode 計画ファイル](../../.claude/plans/spicy-foraging-widget.md)
+**実装済み**: commit a7d7a40 にてグリッドモデル修正、kutoten 下方配置、複数ブロックカラム対応を完了。後続のリファクタリング（94a9f4b〜6698f21）で共有ユーティリティ抽出・hasSuffix 事前計算・GridColumns 抽象化を実施。

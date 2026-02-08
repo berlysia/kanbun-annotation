@@ -17,7 +17,7 @@ Canvas API を使った独立パッケージとして `@kanbun/skam-canvas-rende
 
 **対象環境**: ブラウザ + Node.js (node-canvas)
 **インタラクティブ機能**: 不要（静的描画のみ）
-**既存 HTML renderer との関係**: 完全独立（コード共有なし）。render tree 設計は HTML renderer の反省を活かした改善版（スロットモデル）。将来 HTML renderer にも逆輸入予定。
+**既存 HTML renderer との関係**: 当初は完全独立で設計。Phase 3 完了後のリファクタリングで `@kanbun/skam/rendering` サブパスに共有ユーティリティを集約し、両レンダラーが共通の mark 解決・グルーピングロジックを使用する形に移行。render tree 設計は HTML renderer の反省を活かした改善版（スロットモデル）。
 
 ---
 
@@ -76,24 +76,25 @@ interface CanvasTokenNode {
 
 ### 物理レイアウトモデル（縦書き）
 
-漢文の標準レイアウト。各文字スロット:
+漢文の標準レイアウト。リファクタリング後のグリッドモデル:
 
 ```
-[saidoku2] [kaeri] [kutoten] [okuri/soegana]  BASE  [ruby/yomigana] [emphasis]
- LEFT <--                                    CENTER                --> RIGHT
+[saidoku2(R)] [kaeri(R)] [BASE(F)] [okuri/soegana/ruby(R)]
+ LEFT <--                CENTER                --> RIGHT
+
+kutoten は base の下方に配置（suffix-row row2 相当、gridWidth に含めない）
+emphasis は ruby の右隣（ruby がある場合）
+gridWidth = 3R + F, baseCenterX = 2R + F/2
 ```
 
-- 右: ruby (読み仮名)、emphasis (傍点)
+- 右: ruby (読み仮名)、okuri/soegana、emphasis (傍点)
 - 中央: 本文文字
-- 左: suffix 領域 (送り仮名、句読点、返り点、再読第2形)
+- 左: kaeri (返り点)、saidoku2 (再読第2形)
+- 下方: kutoten (句読点)
 
 列は右→左へ配置。列内は上→下。
 
-**根拠**: HTML renderer の `styles.ts` で確認済み:
-
-- `ruby-position: over` → 縦書きでは右側
-- `text-emphasis-position: right` → 右側
-- suffix-row grid: okuri(row1) → kutoten(row2) → kaeri(row3) → saidoku2(row4)、縦書きでは左側に配置
+**GridColumns**: `computeGridColumns()` が hasSuffix に応じた全スロット X 座標を事前計算し、`layoutSingleToken()` から条件分岐を排除。
 
 ### Canvas コンテキスト抽象化
 
@@ -201,19 +202,19 @@ packages/skam-canvas-renderer/
   vitest.config.ts
   src/
     index.ts                # Public exports
-    types.ts                # 全型定義
+    types.ts                # 全型定義 (CanvasRenderTree, DocumentLayout, GridColumns 等)
     canvas-context.ts       # CanvasLike, CanvasRenderingContext2DLike
-    constants.ts            # Unicode定数 (kaeri, iroha, gojuon 等)
-    helpers.ts              # ドメインヘルパー (kaeri変換, emphasis解決, ref書式)
+    helpers.ts              # Canvas固有ヘルパー (splitKaeriForTateten のみ)
     profiles.ts             # RenderProfile, PROFILES
-    render-tree.ts          # Pass 1: SKAMDocument -> CanvasRenderTree
+    render-tree.ts          # Pass 1: SKAMDocument -> CanvasRenderTree (+ applyRangeConcentration)
     measure.ts              # テキスト計測ユーティリティ (キャッシュ付き)
     layout.ts               # レイアウトオーケストレータ
-    layout-vertical.ts      # 縦書き列レイアウト
+    layout-vertical.ts      # 縦書き列レイアウト (computeGridColumns + layoutSingleToken)
     layout-horizontal.ts    # 横書き行レイアウト (Phase 4)
     draw.ts                 # Pass 3: DocumentLayout -> canvas draw calls
     draw-text.ts            # テキスト描画 (縦書き文字単位描画)
     draw-marks.ts           # マーク描画 (emphasis, highlight, okototen)
+    font-loader.ts          # フォント読み込み
     renderer.ts             # オーケストレータ: measure -> layout -> draw
     __tests__/
       helpers.test.ts
@@ -223,6 +224,18 @@ packages/skam-canvas-renderer/
       draw.test.ts
       integration.test.ts
       recording-context.ts  # テスト用: draw call 記録コンテキスト
+
+# 共有ユーティリティ（リファクタリング後）
+packages/skam/src/rendering/
+  index.ts                  # Public exports (サブパス @kanbun/skam/rendering)
+  types.ts                  # RangeMarkGroup
+  constants.ts              # KAERI_UNICODE, IROHA_SEQUENCE, CIRCLED_NUMBERS 等
+  kaeri.ts                  # convertKaeriToUnicode
+  emphasis.ts               # resolveEmphasisCharacter
+  ref.ts                    # formatRefIndex, resolveRefValues
+  mark-groups.ts            # getTatetenGroups, getHighlightGroups, getRangeMarkGroups
+  mark-lookup.ts            # getMarksForToken
+  block-utils.ts            # groupTokensByBlock
 ```
 
 ---

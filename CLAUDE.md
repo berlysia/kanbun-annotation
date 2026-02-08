@@ -36,12 +36,14 @@ pnpm playground:preview  # ビルド結果のプレビュー
 
 ```
 packages/
-├── skam/               # @kanbun/skam - SKAM v0.1 型定義・バリデーター・操作
-├── skam-xml-parser/    # @kanbun/skam-xml-parser - SKAM-ML/XML パーサー
-├── skam-xml-stringify/ # @kanbun/skam-xml-stringify - SKAM JSON → SKAM-ML/XML シリアライザー
-├── skam-html-renderer/ # @kanbun/skam-html-renderer - HTML レンダラー
-├── integration-tests/  # @kanbun/integration-tests - パッケージ間統合テスト（parse/stringify roundtrip 等）
-└── playground/         # @kanbun/playground - インタラクティブデモ (GitHub Pages)
+├── skam/                 # @kanbun/skam - SKAM v0.1 型定義・バリデーター・操作
+│                         #   サブパス: @kanbun/skam/rendering - レンダラー共有ユーティリティ
+├── skam-xml-parser/      # @kanbun/skam-xml-parser - SKAM-ML/XML パーサー
+├── skam-xml-stringify/   # @kanbun/skam-xml-stringify - SKAM JSON → SKAM-ML/XML シリアライザー
+├── skam-html-renderer/   # @kanbun/skam-html-renderer - HTML レンダラー
+├── skam-canvas-renderer/ # @kanbun/skam-canvas-renderer - Canvas レンダラー（画像エクスポート用）
+├── integration-tests/    # @kanbun/integration-tests - パッケージ間統合テスト（parse/stringify roundtrip 等）
+└── playground/           # @kanbun/playground - インタラクティブデモ (GitHub Pages)
 ```
 
 ### @kanbun/skam 主要 API
@@ -88,6 +90,51 @@ import {
   isMarkType,
   filterMarksByType,
 } from '@kanbun/skam';
+```
+
+### @kanbun/skam/rendering 主要 API
+
+Canvas/HTML 両レンダラーで共有するマーク解決・変換ユーティリティ。
+
+```typescript
+import {
+  // 定数
+  KAERI_UNICODE,
+  IROHA_SEQUENCE,
+  CIRCLED_NUMBERS,
+  // 返り点
+  convertKaeriToUnicode,
+  // 傍点
+  resolveEmphasisCharacter,
+  // Ref
+  formatRefIndex,
+  resolveRefValues,
+  // マークグルーピング
+  getTatetenGroups,
+  getHighlightGroups,
+  getRangeMarkGroups,
+  // マーク検索
+  getMarksForToken,
+  // ブロック
+  groupTokensByBlock,
+} from '@kanbun/skam/rendering';
+import type { RangeMarkGroup } from '@kanbun/skam/rendering';
+```
+
+### @kanbun/skam-canvas-renderer 主要 API
+
+3-Pass パイプラインで SKAM ドキュメントを Canvas に描画。
+
+```typescript
+import { render, measure, PROFILES } from '@kanbun/skam-canvas-renderer';
+
+// Canvas に描画
+render(doc, canvas, { writingMode: 'vertical', fontSize: 24 });
+
+// サイズ計測のみ
+const { width, height } = measure(doc, ctx);
+
+// プロファイル: PROFILES.full | PROFILES.learningBasic | PROFILES.learningHint
 ```
 
 ### @kanbun/skam-xml-parser 主要 API

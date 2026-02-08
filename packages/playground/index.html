@@ -65,6 +65,15 @@
           <div class="preview-toolbar">
             <h2>レンダリング結果</h2>
             <div class="render-options">
+              <label>
+                <input type="radio" name="renderer" value="html" checked />
+                HTML
+              </label>
+              <label>
+                <input type="radio" name="renderer" value="canvas" />
+                Canvas
+              </label>
+              <span class="option-separator">|</span>
               <label for="profile-select">プロファイル:</label>
               <select id="profile-select">
                 <option value="full">すべて表示</option>
@@ -81,23 +90,26 @@
                 <input type="radio" name="writing-mode" value="horizontal" />
                 横書き
               </label>
-              <span class="option-separator">|</span>
-              <label>
+              <span class="option-separator html-only-option">|</span>
+              <label class="html-only-option">
                 <input type="radio" name="ruby-method" value="ruby" checked />
                 Ruby
               </label>
-              <label>
+              <label class="html-only-option">
                 <input type="radio" name="ruby-method" value="grid" />
                 Grid
               </label>
-              <span class="option-separator">|</span>
-              <label>
+              <span class="option-separator html-only-option">|</span>
+              <label class="html-only-option">
                 <input type="checkbox" id="inline-mode" />
                 インライン
               </label>
             </div>
             <p class="horizontal-notice" id="horizontal-notice" hidden>
               ※ 横書き表示は実験的な機能です。表示が不安定な場合があります。
+            </p>
+            <p class="canvas-notice" id="canvas-notice" hidden>
+              ※ Canvasモードでは選択・編集機能は使用できません。横書きは未実装です。
             </p>
             <details class="profile-details" id="profile-details">
               <summary>表示要素を個別設定</summary>

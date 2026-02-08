@@ -42,6 +42,13 @@ import {
   hasMarkValue,
   isExactAnchorMatch,
 } from '@kanbun/skam';
+import {
+  render as canvasRender,
+  measure as canvasMeasure,
+  loadDefaultFont,
+  type CanvasRenderingContext2DLike,
+  type CanvasLike,
+} from '@kanbun/skam-canvas-renderer';
 import { SAMPLES } from './samples.js';
 import { ErrorPanel, type ParseError } from './editor/error-panel.js';
 import { XmlEditor } from './editor/xml-editor.js';
@@ -62,6 +69,8 @@ const htmlOutput = document.getElementById('html-output')?.querySelector('code')
 const sampleSelect = document.getElementById('sample-select') as HTMLSelectElement;
 const copyJsonBtn = document.getElementById('copy-json-btn') as HTMLButtonElement;
 const copyHtmlBtn = document.getElementById('copy-html-btn') as HTMLButtonElement;
+const rendererRadios = document.querySelectorAll<HTMLInputElement>('input[name="renderer"]');
+const canvasNotice = document.getElementById('canvas-notice') as HTMLParagraphElement;
 const writingModeRadios = document.querySelectorAll<HTMLInputElement>('input[name="writing-mode"]');
 const rubyMethodRadios = document.querySelectorAll<HTMLInputElement>('input[name="ruby-method"]');
 const horizontalNotice = document.getElementById('horizontal-notice') as HTMLSpanElement;
@@ -317,6 +326,7 @@ let currentProfileSettings: RenderProfile = { ...PROFILES.full };
 
 interface URLState {
   sample: number;
+  renderer: 'html' | 'canvas';
   mode: 'vertical' | 'horizontal';
   inline: boolean;
   profile: ProfileName;
@@ -335,6 +345,9 @@ function getStateFromURL(): URLState {
     }
   }
 
+  const rendererStr = params.get('renderer');
+  const renderer: 'html' | 'canvas' = rendererStr === 'canvas' ? 'canvas' : 'html';
+
   const modeStr = params.get('mode');
   const mode: 'vertical' | 'horizontal' = modeStr === 'horizontal' ? 'horizontal' : 'vertical';
 
@@ -348,7 +361,7 @@ function getStateFromURL(): URLState {
   const rubyMethodStr = params.get('rubyMethod');
   const rubyMethod: RubyMethod = rubyMethodStr === 'grid' ? 'grid' : 'ruby';
 
-  return { sample, mode, inline, profile, rubyMethod };
+  return { sample, renderer, mode, inline, profile, rubyMethod };
 }
 
 function updateURL(state: Partial<URLState>): void {
@@ -359,6 +372,14 @@ function updateURL(state: Partial<URLState>): void {
       params.delete('sample');
     } else {
       params.set('sample', String(state.sample));
+    }
+  }
+
+  if (state.renderer !== undefined) {
+    if (state.renderer === 'html') {
+      params.delete('renderer');
+    } else {
+      params.set('renderer', state.renderer);
     }
   }
 
@@ -456,6 +477,11 @@ function applyCustomStyles(): void {
 }`;
   styleEl.textContent = css;
   updateRangeDisplays();
+
+  // Canvas mode: re-render with new customize values
+  if (getRendererMode() === 'canvas' && currentDocument) {
+    renderCanvasDocument(currentDocument);
+  }
 }
 
 function resetCustomize(): void {
@@ -467,6 +493,23 @@ function resetCustomize(): void {
   rubyRatioInput.value = DEFAULT_CUSTOMIZE_STATE.rubyRatio;
   lineHeightInput.value = DEFAULT_CUSTOMIZE_STATE.lineHeight;
   applyCustomStyles();
+}
+
+function getRendererMode(): 'html' | 'canvas' {
+  for (const radio of rendererRadios) {
+    if (radio.checked) {
+      return radio.value as 'html' | 'canvas';
+    }
+  }
+  return 'html';
+}
+
+let canvasFontLoaded = false;
+
+async function ensureCanvasFontLoaded(): Promise<void> {
+  if (canvasFontLoaded) return;
+  await loadDefaultFont();
+  canvasFontLoaded = true;
 }
 
 function getWritingMode(): 'vertical' | 'horizontal' {
@@ -1690,7 +1733,88 @@ function updateMarksList(doc: SKAMDocument | null): void {
   marksList.innerHTML = html;
 }
 
+function renderCanvasDocument(doc: SKAMDocument): void {
+  currentDocument = doc;
+
+  // Cleanup previous interactive handlers (not used in Canvas mode)
+  cleanupInteractiveHandlers?.();
+  cleanupInteractiveHandlers = null;
+
+  // Update marks list panel
+  updateMarksList(doc);
+
+  // JSON output
+  jsonOutput.textContent = JSON.stringify(doc, null, 2);
+
+  // Build Canvas render options from customize panel
+  const state = getCustomizeState();
+  const fontSize = parseFloat(state.glyphSize) * 16; // em → px
+  const fontFamily = state.fontFamily.replace(/'/g, '');
+  const rubyRatio = parseFloat(state.rubyRatio);
+  const lineHeight = parseFloat(state.lineHeight);
+  const profile = getProfileSettings();
+
+  // Map HTML RenderProfile to Canvas RenderProfile
+  const canvasProfile: Record<string, boolean> = {};
+  for (const [key, value] of Object.entries(profile)) {
+    canvasProfile[key] = value;
+  }
+
+  const dpr = window.devicePixelRatio || 1;
+
+  // Get or create canvas element
+  let canvas = renderOutput.querySelector('canvas');
+  if (!canvas) {
+    renderOutput.innerHTML = '';
+    canvas = document.createElement('canvas');
+    renderOutput.appendChild(canvas);
+  }
+
+  const ctx = canvas.getContext('2d');
+  if (!ctx) return;
+
+  // Cast to CanvasRenderingContext2DLike (browser's fillStyle is wider than string-only)
+  const ctxLike = ctx as unknown as CanvasRenderingContext2DLike;
+
+  // Measure dimensions
+  const dims = canvasMeasure(doc, ctxLike, {
+    writingMode: 'vertical',
+    profile: canvasProfile,
+    fontSize,
+    fontFamily,
+    rubyRatio,
+    lineHeight,
+  });
+
+  // HiDPI setup
+  canvas.width = dims.width * dpr;
+  canvas.height = dims.height * dpr;
+  canvas.style.width = dims.width + 'px';
+  canvas.style.height = dims.height + 'px';
+
+  // Render (cast to CanvasLike for type compatibility)
+  canvasRender(doc, canvas as unknown as CanvasLike, {
+    writingMode: 'vertical',
+    profile: canvasProfile,
+    fontSize,
+    fontFamily,
+    rubyRatio,
+    lineHeight,
+    textColor: '#000',
+    backgroundColor: '#fff',
+    pixelRatio: dpr,
+  });
+
+  // HTML output placeholder
+  htmlOutput.textContent = '(Canvas mode - no HTML output)';
+}
+
 function renderDocument(doc: SKAMDocument): void {
+  if (getRendererMode() === 'canvas') {
+    renderCanvasDocument(doc);
+    return;
+  }
+
   currentDocument = doc;
 
   // Cleanup previous interactive handlers
@@ -1775,19 +1899,25 @@ function parseAndRender(): void {
   try {
     const doc = parse(xmlText);
 
-    // Try to restore selection from position (using canonical blocks order)
-    const fromToken = savedRange ? getTokenByIndex(doc, savedRange.fromIndex) : undefined;
-    const toToken = savedRange ? getTokenByIndex(doc, savedRange.toIndex) : undefined;
-    if (fromToken && toToken) {
-      const fromId = fromToken.id;
-      const toId = toToken.id;
-      renderDocument(doc);
-      updateSelectionPanel(fromId, toId);
-      setSelectionClasses(renderOutput, fromId, toId);
-    } else {
-      // Token count changed or no selection - clear all selection state
+    // Canvas mode: skip selection restoration (no interactive selection in Canvas)
+    if (getRendererMode() === 'canvas') {
       clearSelectionPanel();
       renderDocument(doc);
+    } else {
+      // Try to restore selection from position (using canonical blocks order)
+      const fromToken = savedRange ? getTokenByIndex(doc, savedRange.fromIndex) : undefined;
+      const toToken = savedRange ? getTokenByIndex(doc, savedRange.toIndex) : undefined;
+      if (fromToken && toToken) {
+        const fromId = fromToken.id;
+        const toId = toToken.id;
+        renderDocument(doc);
+        updateSelectionPanel(fromId, toId);
+        setSelectionClasses(renderOutput, fromId, toId);
+      } else {
+        // Token count changed or no selection - clear all selection state
+        clearSelectionPanel();
+        renderDocument(doc);
+      }
     }
   } catch (err) {
     if (err instanceof SKAMXMLParseError) {
@@ -2182,6 +2312,54 @@ function updateHorizontalNotice(): void {
   horizontalNotice.hidden = getWritingMode() !== 'horizontal';
 }
 
+function updateRendererModeUI(): void {
+  const isCanvas = getRendererMode() === 'canvas';
+  previewPane.classList.toggle('canvas-mode', isCanvas);
+  canvasNotice.hidden = !isCanvas;
+
+  // Disable horizontal writing mode in Canvas mode (not implemented)
+  for (const radio of writingModeRadios) {
+    if (radio.value === 'horizontal') {
+      radio.disabled = isCanvas;
+      if (isCanvas && radio.checked) {
+        // Force vertical when switching to Canvas mode with horizontal active
+        for (const r of writingModeRadios) {
+          r.checked = r.value === 'vertical';
+        }
+        updateURL({ mode: 'vertical' });
+        updateHorizontalNotice();
+      }
+    }
+  }
+
+  // Inline mode not available in Canvas mode
+  inlineModeCheckbox.disabled = isCanvas;
+  if (isCanvas && inlineModeCheckbox.checked) {
+    inlineModeCheckbox.checked = false;
+    updateURL({ inline: false });
+  }
+}
+
+// Renderer mode change
+for (const radio of rendererRadios) {
+  radio.addEventListener('change', () => {
+    updateURL({ renderer: getRendererMode() });
+    updateRendererModeUI();
+    if (getRendererMode() === 'canvas') {
+      ensureCanvasFontLoaded().then(() => {
+        if (currentDocument) {
+          renderDocument(currentDocument);
+        }
+      });
+    } else {
+      // Switching back to HTML: clear canvas and re-render
+      if (currentDocument) {
+        renderDocument(currentDocument);
+      }
+    }
+  });
+}
+
 for (const radio of writingModeRadios) {
   radio.addEventListener('change', () => {
     updateURL({ mode: getWritingMode() });
@@ -2392,6 +2570,12 @@ calibrateGridBaseline(renderOutput);
 // Restore state from URL
 const initialState = getStateFromURL();
 
+// Set renderer mode
+for (const radio of rendererRadios) {
+  radio.checked = radio.value === initialState.renderer;
+}
+updateRendererModeUI();
+
 // Set writing mode
 for (const radio of writingModeRadios) {
   radio.checked = radio.value === initialState.mode;
@@ -2408,6 +2592,9 @@ for (const radio of rubyMethodRadios) {
 
 // Set profile and sync checkboxes
 applyPresetProfile(initialState.profile);
+
+// Preload Canvas font in background (index.html already loads Noto Serif JP via <link>)
+ensureCanvasFontLoaded();
 
 // Load sample (without updating URL since we're restoring from URL)
 loadSample(initialState.sample, false);

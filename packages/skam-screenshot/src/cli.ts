@@ -2,7 +2,8 @@ import { parseArgs } from 'node:util';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { resolve, extname } from 'node:path';
 import type { RenderOptions } from '@kanbun/skam-html-renderer';
-import type { Browser, ImageFormat, Viewport } from './types.js';
+import type { CanvasRenderOptions } from '@kanbun/skam-canvas-renderer';
+import type { Browser, ImageFormat, RendererType, Viewport } from './types.js';
 import { parseBrowserList, getDefaultBrowsers } from './platform.js';
 
 const HELP = `Usage: pnpm screenshot <input-file> [options]
@@ -14,11 +15,13 @@ Options:
   -o, --output <dir>       Output directory (default: ./screenshots)
   -b, --browsers <list>    Comma-separated browser list (default: platform-dependent)
   -f, --format <fmt>       Image format: png | jpeg (default: png)
+  -r, --renderer <type>    Renderer: html | canvas (default: html)
       --writing-mode <m>   vertical | horizontal
       --viewport <WxH>     Viewport size (default: 800x1200)
       --scale <n>          Device scale factor (default: 2 for Retina quality)
       --no-full-page       Capture viewport only instead of full page
-      --render-options <j>  JSON string for full RenderOptions
+      --render-options <j>  JSON string for full RenderOptions (HTML renderer)
+      --canvas-options <j>  JSON string for CanvasRenderOptions (Canvas renderer)
   -h, --help               Show this help
 `;
 
@@ -48,11 +51,13 @@ async function main(): Promise<void> {
       output: { type: 'string', short: 'o', default: './screenshots' },
       browsers: { type: 'string', short: 'b' },
       format: { type: 'string', short: 'f', default: 'png' },
+      renderer: { type: 'string', short: 'r', default: 'html' },
       'writing-mode': { type: 'string' },
       viewport: { type: 'string', default: '800x1200' },
       scale: { type: 'string', default: '2' },
       'full-page': { type: 'boolean', default: true },
       'render-options': { type: 'string' },
+      'canvas-options': { type: 'string' },
       help: { type: 'boolean', short: 'h', default: false },
     },
   });
@@ -79,6 +84,12 @@ async function main(): Promise<void> {
   const fullPage = values['full-page']!;
   const outputDir = resolve(values.output!);
 
+  // Validate renderer type
+  const renderer = values.renderer as RendererType;
+  if (renderer !== 'html' && renderer !== 'canvas') {
+    throw new Error(`Invalid --renderer: "${values.renderer}". Expected: html | canvas`);
+  }
+
   // Parse browsers
   let browsers: Browser[];
   if (values.browsers) {
@@ -87,66 +98,88 @@ async function main(): Promise<void> {
     browsers = getDefaultBrowsers();
   }
 
-  // Build render options
-  let renderOptions: RenderOptions = {};
-  if (values['render-options']) {
-    try {
-      renderOptions = JSON.parse(values['render-options']) as RenderOptions;
-    } catch {
-      throw new Error(`Invalid --render-options JSON: ${values['render-options']}`);
-    }
-  }
-  // Individual flags override render-options
-  if (values['writing-mode']) {
-    const wm = values['writing-mode'];
-    if (wm !== 'vertical' && wm !== 'horizontal') {
-      throw new Error(`Invalid --writing-mode: "${wm}". Expected: vertical | horizontal`);
-    }
-    renderOptions.writingMode = wm;
-  }
-
   // Read and parse input file
   const inputPath = resolve(inputFile);
   const content = await readFile(inputPath, 'utf-8');
   const ext = extname(inputPath).toLowerCase();
 
-  // Dynamic imports to avoid loading heavy modules at parse-args time
   const { isSKAMDocument } = await import('@kanbun/skam');
-  const { render } = await import('@kanbun/skam-html-renderer');
+  const { generateCompareHTML } = await import('./compare-html.js');
 
-  let html: string;
-  let css: string;
-
+  let doc: import('@kanbun/skam').SKAMDocument;
   if (ext === '.xml') {
     const { parse } = await import('@kanbun/skam-xml-parser');
-    const doc = parse(content);
-    const result = render(doc, renderOptions);
-    html = result.html;
-    css = result.css;
+    doc = parse(content);
   } else if (ext === '.json') {
     const data: unknown = JSON.parse(content);
     if (!isSKAMDocument(data)) {
       throw new Error(`File is not a valid SKAMDocument: ${inputPath}`);
     }
-    const result = render(data, renderOptions);
-    html = result.html;
-    css = result.css;
+    doc = data;
   } else {
     throw new Error(`Unsupported file extension: ${ext}. Expected .xml or .json`);
   }
 
-  // Capture
-  const { captureHTML } = await import('./capture.js');
-  const { generateCompareHTML } = await import('./compare-html.js');
+  let screenshots: Map<Browser, Buffer>;
 
-  log(`Capturing screenshots with ${browsers.join(', ')}...`);
-  const screenshots = await captureHTML(html, css, {
-    browsers,
-    viewport,
-    format,
-    fullPage,
-    scale,
-  });
+  if (renderer === 'canvas') {
+    // Canvas renderer path
+    let canvasOptions: CanvasRenderOptions = {};
+    if (values['canvas-options']) {
+      try {
+        canvasOptions = JSON.parse(values['canvas-options']) as CanvasRenderOptions;
+      } catch {
+        throw new Error(`Invalid --canvas-options JSON: ${values['canvas-options']}`);
+      }
+    }
+    if (values['writing-mode']) {
+      const wm = values['writing-mode'];
+      if (wm !== 'vertical' && wm !== 'horizontal') {
+        throw new Error(`Invalid --writing-mode: "${wm}". Expected: vertical | horizontal`);
+      }
+      canvasOptions.writingMode = wm;
+    }
+
+    const { captureCanvas } = await import('./capture.js');
+    log(`Capturing canvas screenshots with ${browsers.join(', ')}...`);
+    screenshots = await captureCanvas(doc, {
+      browsers,
+      viewport,
+      format,
+      fullPage,
+      scale,
+      canvasRenderOptions: canvasOptions,
+    });
+  } else {
+    // HTML renderer path
+    let renderOptions: RenderOptions = {};
+    if (values['render-options']) {
+      try {
+        renderOptions = JSON.parse(values['render-options']) as RenderOptions;
+      } catch {
+        throw new Error(`Invalid --render-options JSON: ${values['render-options']}`);
+      }
+    }
+    if (values['writing-mode']) {
+      const wm = values['writing-mode'];
+      if (wm !== 'vertical' && wm !== 'horizontal') {
+        throw new Error(`Invalid --writing-mode: "${wm}". Expected: vertical | horizontal`);
+      }
+      renderOptions.writingMode = wm;
+    }
+
+    const { render } = await import('@kanbun/skam-html-renderer');
+    const { captureHTML } = await import('./capture.js');
+    const result = render(doc, renderOptions);
+    log(`Capturing screenshots with ${browsers.join(', ')}...`);
+    screenshots = await captureHTML(result.html, result.css, {
+      browsers,
+      viewport,
+      format,
+      fullPage,
+      scale,
+    });
+  }
 
   // Write output
   await mkdir(outputDir, { recursive: true });

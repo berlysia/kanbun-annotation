@@ -9,6 +9,7 @@ export default defineConfig({
   external: [
     'playwright',
     '@kanbun/skam',
+    '@kanbun/skam-canvas-renderer',
     '@kanbun/skam-html-renderer',
     '@kanbun/skam-xml-parser',
   ],

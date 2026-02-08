@@ -51,6 +51,9 @@ async function captureOne(
     await page.setViewportSize(task.viewport);
     await page.setContent(task.html, { waitUntil: 'networkidle' });
 
+    // Wait for web fonts (e.g. Google Fonts Noto Serif JP) to finish loading
+    await page.evaluate(() => document.fonts.ready);
+
     // Fit viewport to actual content size so the screenshot is tight
     const contentSize = await page.evaluate(() => {
       const root = document.getElementById('skam-root');

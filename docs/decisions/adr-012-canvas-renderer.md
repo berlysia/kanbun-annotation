@@ -4,7 +4,7 @@
 
 Accepted
 
-実装計画: [Plan](../plans/plan-canvas-renderer.md)
+実装計画: [Plan](../plans/plan-canvas-renderer.md) | [Phase 2 Plan](../plans/plan-canvas-renderer-phase2.md)
 
 ## コンテキスト
 

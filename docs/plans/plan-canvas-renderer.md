@@ -3,6 +3,7 @@
 <!-- validated -->
 
 関連 ADR: [ADR-012](../decisions/adr-012-canvas-renderer.md)
+Phase 2 Plan: [Phase 2](plan-canvas-renderer-phase2.md)
 
 ## Context
 

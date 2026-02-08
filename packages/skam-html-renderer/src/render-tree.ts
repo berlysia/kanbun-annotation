@@ -13,12 +13,8 @@ import type {
   RenderNode,
 } from './render-tree-types.js';
 import type { RenderProfile, RubyMethod } from './renderer.js';
-import {
-  escapeHtml,
-  renderToken,
-  resolveEmphasisCharacter,
-  generateEmphasisMarks,
-} from './renderer.js';
+import { resolveEmphasisCharacter } from '@kanbun/skam/rendering';
+import { escapeHtml, renderToken, generateEmphasisMarks } from './renderer.js';
 
 /** @internal */
 export interface RenderTreeContext {

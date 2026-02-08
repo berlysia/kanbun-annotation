@@ -4,10 +4,10 @@ import type { Token, Mark, RefMark } from '@kanbun/skam';
 import {
   convertKaeriToUnicode,
   resolveEmphasisCharacter,
-  splitKaeriForTateten,
   formatRefIndex,
   resolveRefValues,
-} from '../helpers.js';
+} from '@kanbun/skam/rendering';
+import { splitKaeriForTateten } from '../helpers.js';
 
 describe('convertKaeriToUnicode', () => {
   it('converts single kaeri characters', () => {

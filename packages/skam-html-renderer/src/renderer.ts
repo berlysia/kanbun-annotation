@@ -20,13 +20,22 @@ import type {
   EmphasisMark,
   SaidokuMark,
   OkototenMark,
-  TatetenMark,
   HighlightMark,
   RefMark,
-  RefFormat,
   Reading,
 } from '@kanbun/skam';
 import { isPositionBasedMark } from '@kanbun/skam';
+import {
+  convertKaeriToUnicode,
+  resolveEmphasisCharacter,
+  resolveRefValues,
+  getMarksForToken,
+  getTatetenGroups,
+  getRangeMarkGroups,
+  getHighlightGroups,
+  groupTokensByBlock,
+} from '@kanbun/skam/rendering';
+import type { RangeMarkGroup } from '@kanbun/skam/rendering';
 import { getDefaultStyles } from './styles.js';
 import type { RangeMarkContext, RangeTokenInfo, TokenRenderResult } from './render-tree-types.js';
 import { buildBlockRenderTree, type BuildTreeContext } from './build-render-tree.js';
@@ -246,116 +255,6 @@ export const PROFILES = {
 } as const;
 
 // ============================================================================
-// Unicode Constants
-// ============================================================================
-
-/**
- * イロハ順（カタカナ）
- */
-const IROHA_SEQUENCE =
-  'イロハニホヘトチリヌルヲワカヨタレソツネナラムウヰノオクヤマケフコエテアサキユメミシヱヒモセス';
-
-/**
- * イロハ順（ひらがな）
- */
-const IROHA_HIRAGANA_SEQUENCE =
-  'いろはにほへとちりぬるをわかよたれそつねならむうゐのおくやまけふこえてあさきゆめみしゑひもせす';
-
-/**
- * 五十音順（カタカナ）
- */
-const GOJUON_SEQUENCE =
-  'アイウエオカキクケコサシスセソタチツテトナニヌネノハヒフヘホマミムメモヤユヨラリルレロワヲン';
-
-/**
- * 五十音順（ひらがな）
- */
-const GOJUON_HIRAGANA_SEQUENCE =
-  'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん';
-
-/**
- * 漢数字
- */
-const KANJI_NUMBERS = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
-
-/**
- * 丸数字（①〜㊿）
- */
-const CIRCLED_NUMBERS = [
-  '①',
-  '②',
-  '③',
-  '④',
-  '⑤',
-  '⑥',
-  '⑦',
-  '⑧',
-  '⑨',
-  '⑩',
-  '⑪',
-  '⑫',
-  '⑬',
-  '⑭',
-  '⑮',
-  '⑯',
-  '⑰',
-  '⑱',
-  '⑲',
-  '⑳',
-  '㉑',
-  '㉒',
-  '㉓',
-  '㉔',
-  '㉕',
-  '㉖',
-  '㉗',
-  '㉘',
-  '㉙',
-  '㉚',
-  '㉛',
-  '㉜',
-  '㉝',
-  '㉞',
-  '㉟',
-  '㊱',
-  '㊲',
-  '㊳',
-  '㊴',
-  '㊵',
-  '㊶',
-  '㊷',
-  '㊸',
-  '㊹',
-  '㊺',
-  '㊻',
-  '㊼',
-  '㊽',
-  '㊾',
-  '㊿',
-];
-
-/**
- * 返り点のUnicode対応表
- */
-const KAERI_UNICODE: Record<string, string> = {
-  レ: '\u3191',
-  一: '\u3192',
-  二: '\u3193',
-  三: '\u3194',
-  四: '\u3195',
-  上: '\u3196',
-  中: '\u3197',
-  下: '\u3198',
-  甲: '\u3199',
-  乙: '\u319A',
-  丙: '\u319B',
-  丁: '\u319C',
-  天: '\u319D',
-  地: '\u319E',
-  人: '\u319F',
-};
-
-// ============================================================================
 // Helper Functions
 // ============================================================================
 
@@ -370,14 +269,6 @@ export function escapeHtml(text: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#x27;');
-}
-
-/** Get the token ID that a position-based mark is attached to (after) */
-function getPositionAfterTokenId(position: Position): string | undefined {
-  if ('after' in position && position.after) {
-    return position.after;
-  }
-  return undefined;
 }
 
 /** Check if a position-based mark is at block start (empty position) */
@@ -414,189 +305,6 @@ export function getBlockStartMarks(
 }
 
 /**
- * Token IDから Markを取得
- *
- * 範囲マーク（複数トークンにまたがるマーク）の特別処理:
- * - yomigana: anchor.fromで返す（熟語全体にルビをかけるため）
- * - okurigana, soegana: anchor.toで返す（熟語の後に付くため）
- *
- * Position-basedマーク（kutoten, ref）の処理:
- * - position.afterで返す（トークンの後に配置）
- * @internal
- */
-export function getMarksForToken(
-  tokenId: string,
-  marks: Mark[],
-  tokens: Token[]
-): Map<Mark['type'], Mark[]> {
-  const result = new Map<Mark['type'], Mark[]>();
-
-  // anchor.fromで返すマーク（先頭に付く）
-  const startMarks = new Set(['yomigana']);
-  // anchor.toで返すマーク（末尾に付く）
-  const endMarks = new Set(['okurigana', 'soegana']);
-
-  for (const mark of marks) {
-    // Position-based marks (kaeri, kutoten, ref)
-    if (isPositionBasedMark(mark)) {
-      const afterTokenId = getPositionAfterTokenId(mark.position);
-      if (afterTokenId === tokenId) {
-        const existing = result.get(mark.type) ?? [];
-        existing.push(mark);
-        result.set(mark.type, existing);
-      }
-      continue;
-    }
-
-    // Anchor-based marks
-    if (startMarks.has(mark.type)) {
-      // 先頭マーク: anchor.fromでのみ返す
-      if (mark.anchor.from === tokenId) {
-        const existing = result.get(mark.type) ?? [];
-        existing.push(mark);
-        result.set(mark.type, existing);
-      }
-    } else if (endMarks.has(mark.type)) {
-      // 末尾マーク: anchor.toでのみ返す
-      if (mark.anchor.to === tokenId) {
-        const existing = result.get(mark.type) ?? [];
-        existing.push(mark);
-        result.set(mark.type, existing);
-      }
-    } else {
-      // 他のマーク: from/toの完全一致に加え、範囲内の中間トークンもマッチ
-      let matched = mark.anchor.from === tokenId || mark.anchor.to === tokenId;
-      if (!matched && mark.anchor.from !== mark.anchor.to) {
-        const fromIdx = tokens.findIndex((t) => t.id === mark.anchor.from);
-        const toIdx = tokens.findIndex((t) => t.id === mark.anchor.to);
-        const tokenIdx = tokens.findIndex((t) => t.id === tokenId);
-        if (fromIdx !== -1 && toIdx !== -1 && tokenIdx !== -1) {
-          matched = tokenIdx > fromIdx && tokenIdx < toIdx;
-        }
-      }
-      if (matched) {
-        const existing = result.get(mark.type) ?? [];
-        existing.push(mark);
-        result.set(mark.type, existing);
-      }
-    }
-  }
-
-  return result;
-}
-
-/**
- * TatetenMarkの範囲に含まれるTokenを特定
- * @internal
- */
-export function getTatetenGroups(tokens: Token[], marks: Mark[]): Map<string, TatetenMark> {
-  const tatetenMarks = marks.filter((m): m is TatetenMark => m.type === 'tateten');
-  const tokenIdToGroup = new Map<string, TatetenMark>();
-
-  for (const tateten of tatetenMarks) {
-    const fromIndex = tokens.findIndex((t) => t.id === tateten.anchor.from);
-    const toIndex = tokens.findIndex((t) => t.id === tateten.anchor.to);
-
-    if (fromIndex !== -1 && toIndex !== -1) {
-      for (let i = fromIndex; i <= toIndex; i++) {
-        const token = tokens[i];
-        if (token) {
-          tokenIdToGroup.set(token.id, tateten);
-        }
-      }
-    }
-  }
-
-  return tokenIdToGroup;
-}
-
-/**
- * 範囲を持つマーク（yomigana, okurigana, soegana）のグループ情報
- * @internal
- */
-export interface RangeMarkGroup {
-  mark: YomiganaMark | OkuriganaMark | SoeganaMark;
-  tokenIds: string[];
-}
-
-/**
- * 範囲マークのグループを取得（anchor.from !== anchor.to のマーク）
- * @internal
- */
-export function getRangeMarkGroups(
-  tokens: Token[],
-  marks: Mark[],
-  type: 'yomigana' | 'okurigana' | 'soegana'
-): Map<string, RangeMarkGroup> {
-  // Filter to anchor-based marks of the specified type
-  const targetMarks = marks.filter(
-    (m): m is YomiganaMark | OkuriganaMark | SoeganaMark =>
-      m.type === type && !isPositionBasedMark(m) && m.anchor.from !== m.anchor.to
-  );
-  const tokenIdToGroup = new Map<string, RangeMarkGroup>();
-
-  for (const mark of targetMarks) {
-    const fromIndex = tokens.findIndex((t) => t.id === mark.anchor.from);
-    const toIndex = tokens.findIndex((t) => t.id === mark.anchor.to);
-
-    if (fromIndex !== -1 && toIndex !== -1) {
-      const tokenIds: string[] = [];
-      for (let i = fromIndex; i <= toIndex; i++) {
-        const token = tokens[i];
-        if (token) {
-          tokenIds.push(token.id);
-        }
-      }
-      const group: RangeMarkGroup = {
-        mark: mark as YomiganaMark | OkuriganaMark | SoeganaMark,
-        tokenIds,
-      };
-      for (const tokenId of tokenIds) {
-        tokenIdToGroup.set(tokenId, group);
-      }
-    }
-  }
-
-  return tokenIdToGroup;
-}
-
-/**
- * 返り点記号をUnicodeに変換
- * 複合返り点（例: 一レ）は1文字ずつ変換して連結する
- */
-function convertKaeriToUnicode(value: string): string {
-  // 単一文字の場合はそのままマッピング
-  if (value.length === 1) {
-    return KAERI_UNICODE[value] ?? value;
-  }
-
-  // 複合返り点: 各文字を個別に変換
-  let result = '';
-  for (const char of value) {
-    result += KAERI_UNICODE[char] ?? char;
-  }
-  return result;
-}
-
-/**
- * CSS text-emphasis-style 値から対応する Unicode 傍点文字を解決
- *
- * CSS spec: https://drafts.csswg.org/css-text-decor-3/#text-emphasis-style-property
- * @internal
- */
-export function resolveEmphasisCharacter(style: string): string {
-  const s = style.trim().toLowerCase();
-  const open = s.includes('open');
-
-  if (s.includes('sesame')) return open ? '\uFE46' : '\uFE45';
-  if (s.includes('double-circle')) return open ? '\u25CE' : '\u25C9';
-  if (s.includes('circle')) return open ? '\u25CB' : '\u25CF';
-  if (s.includes('triangle')) return open ? '\u25B3' : '\u25B2';
-  // 'dot' or default
-  return open ? '\u25E6' : '\u2022';
-}
-
-/**
  * テキストの各文字に対応する傍点マーク文字列を生成
  * @internal
  */
@@ -626,155 +334,6 @@ export function shouldApplyTateChuYoko(text: string): boolean {
     return true;
   }
   return false;
-}
-
-/**
- * インデックスをフォーマットに従って文字列化
- */
-function formatRefIndex(index: number, format: RefFormat): string {
-  switch (format) {
-    case 'alpha-upper':
-      return `(${String.fromCharCode(65 + index)})`; // A=65
-    case 'alpha-lower':
-      return `(${String.fromCharCode(97 + index)})`; // a=97
-    case 'numeric-paren':
-      return `(${index + 1})`;
-    case 'numeric-bracket':
-      return `[${index + 1}]`;
-    case 'numeric-circled':
-      return CIRCLED_NUMBERS[index] ?? `(${index + 1})`;
-    case 'iroha-katakana':
-      return `（${IROHA_SEQUENCE[index] ?? String(index + 1)}）`;
-    case 'iroha-hiragana':
-      return `（${IROHA_HIRAGANA_SEQUENCE[index] ?? String(index + 1)}）`;
-    case 'gojuon-katakana':
-      return `（${GOJUON_SEQUENCE[index] ?? String(index + 1)}）`;
-    case 'gojuon-hiragana':
-      return `（${GOJUON_HIRAGANA_SEQUENCE[index] ?? String(index + 1)}）`;
-    case 'kanji-numeric':
-      return `（${KANJI_NUMBERS[index] ?? String(index + 1)}）`;
-    default:
-      return `(${index + 1})`;
-  }
-}
-
-/**
- * ドキュメント内のRefMarkを解決してマップを生成
- *
- * 同一性判定:
- * - 同じ label 値を持つ ref は同一
- * - 同じ format + 同じ ext.value を持つ ref は同一
- *
- * 番号付けは文書内での登場順（anchor.fromのtoken位置）に基づく
- * @internal
- */
-export function resolveRefValues(tokens: Token[], marks: Mark[]): Map<RefMark, string> {
-  const refMarks = marks.filter((m): m is RefMark => m.type === 'ref');
-
-  // token位置のインデックスマップを作成
-  const tokenIndexMap = new Map<string, number>();
-  for (let i = 0; i < tokens.length; i++) {
-    const token = tokens[i];
-    if (token) {
-      tokenIndexMap.set(token.id, i);
-    }
-  }
-
-  // position.afterのtoken位置でソート（文書内の登場順）
-  const sortedRefMarks = [...refMarks].sort((a, b) => {
-    const aTokenId = getPositionAfterTokenId(a.position);
-    const bTokenId = getPositionAfterTokenId(b.position);
-    const aIndex = aTokenId ? (tokenIndexMap.get(aTokenId) ?? Infinity) : Infinity;
-    const bIndex = bTokenId ? (tokenIndexMap.get(bTokenId) ?? Infinity) : Infinity;
-    return aIndex - bIndex;
-  });
-
-  const result = new Map<RefMark, string>();
-
-  // label指定ありのrefをlabel値でグループ化
-  const labelToIndex = new Map<string, number>();
-
-  // format指定ありのrefをフォーマット別にグループ化（登場順を維持）
-  const formatGroups = new Map<string, RefMark[]>();
-
-  let nextLabelIndex = 0;
-
-  for (const ref of sortedRefMarks) {
-    if (ref.label) {
-      // labelあり: 同一labelは同一インデックス
-      let index = labelToIndex.get(ref.label);
-      if (index === undefined) {
-        index = nextLabelIndex++;
-        labelToIndex.set(ref.label, index);
-      }
-      result.set(ref, ref.label);
-    } else if (ref.format) {
-      const group = formatGroups.get(ref.format) ?? [];
-      group.push(ref);
-      formatGroups.set(ref.format, group);
-    } else if (ref.content && !ref.label && !ref.format) {
-      // contentのみの場合: 暗黙的にnumeric-bracketフォーマットで番号を割り当て
-      const group = formatGroups.get('numeric-bracket') ?? [];
-      group.push(ref);
-      formatGroups.set('numeric-bracket', group);
-    }
-  }
-
-  // 各フォーマットグループ内でインデックスを割り当て（既に登場順でソート済み）
-  for (const [format, refs] of formatGroups) {
-    const valueToIndex = new Map<string, number>();
-    let nextIndex = 0;
-
-    for (const ref of refs) {
-      let index: number;
-
-      // ext.value を同一性判定に使用
-      const extValue = ref.ext?.['value'] as string | undefined;
-
-      if (extValue !== undefined) {
-        // valueありの場合：同一valueは同一インデックス
-        const existingIndex = valueToIndex.get(extValue);
-        if (existingIndex !== undefined) {
-          index = existingIndex;
-        } else {
-          index = nextIndex++;
-          valueToIndex.set(extValue, index);
-        }
-      } else {
-        // valueなしの場合：単純にインクリメント
-        index = nextIndex++;
-      }
-
-      result.set(ref, formatRefIndex(index, format as RefFormat));
-    }
-  }
-
-  return result;
-}
-
-/**
- * Highlight Markの範囲に含まれるTokenを特定
- * @internal
- */
-export function getHighlightGroups(tokens: Token[], marks: Mark[]): Map<string, HighlightMark> {
-  const highlightMarks = marks.filter((m): m is HighlightMark => m.type === 'highlight');
-  const tokenIdToGroup = new Map<string, HighlightMark>();
-
-  for (const highlight of highlightMarks) {
-    const fromIndex = tokens.findIndex((t) => t.id === highlight.anchor.from);
-    const toIndex = tokens.findIndex((t) => t.id === highlight.anchor.to);
-
-    if (fromIndex !== -1 && toIndex !== -1) {
-      for (let i = fromIndex; i <= toIndex; i++) {
-        const token = tokens[i];
-        if (token) {
-          tokenIdToGroup.set(token.id, highlight);
-        }
-      }
-    }
-  }
-
-  return tokenIdToGroup;
 }
 
 // ============================================================================
@@ -1265,45 +824,6 @@ function renderRefNotes(
     .join('');
 
   return `<aside class="${prefix}-notes">${noteItems}</aside>`;
-}
-
-/**
- * doc.blocks を使って Token をブロックごとにグループ化
- *
- * blocks が存在する場合は各 block の tokenIds から tokens を解決する。
- * blocks が空の場合は全 tokens を blockId=null の単一グループとして返す。
- * @internal
- */
-export function groupTokensByBlock(
-  blocks: Block[],
-  tokens: Token[]
-): { blockId: string; tokens: Token[] }[] {
-  if (blocks.length === 0) {
-    // blocks が空の場合は全 tokens を単一グループとして返す
-    return tokens.length > 0 ? [{ blockId: '', tokens }] : [];
-  }
-
-  const tokenMap = new Map<string, Token>();
-  for (const token of tokens) {
-    tokenMap.set(token.id, token);
-  }
-
-  const groups: { blockId: string; tokens: Token[] }[] = [];
-
-  for (const block of blocks) {
-    const blockTokens: Token[] = [];
-    for (const tokenId of block.tokenIds) {
-      const token = tokenMap.get(tokenId);
-      if (token) {
-        blockTokens.push(token);
-      }
-    }
-    if (blockTokens.length > 0) {
-      groups.push({ blockId: block.id, tokens: blockTokens });
-    }
-  }
-
-  return groups;
 }
 
 /**

@@ -8,105 +8,41 @@
 import type {
   SKAMDocument,
   Token,
-  Block,
   Mark,
   KaeriMark,
-  OkuriganaMark,
   YomiganaMark,
+  OkuriganaMark,
   SoeganaMark,
   KutotenMark,
   EmphasisMark,
   SaidokuMark,
-  TatetenMark,
   HighlightMark,
   RefMark,
 } from '@kanbun/skam';
-import { isPositionBasedMark } from '@kanbun/skam';
 
-/** range mark グループ情報 */
-interface RangeMarkGroup {
-  mark: YomiganaMark | OkuriganaMark | SoeganaMark;
-  tokenIds: string[];
-}
+import {
+  convertKaeriToUnicode,
+  resolveEmphasisCharacter,
+  resolveRefValues,
+  getMarksForToken as resolveTokenMarks,
+  getRangeMarkGroups,
+  getTatetenGroups,
+  getHighlightGroups,
+  groupTokensByBlock,
+} from '@kanbun/skam/rendering';
+import type { RangeMarkGroup } from '@kanbun/skam/rendering';
+
 import type {
   CanvasRenderTree,
   CanvasBlockNode,
   CanvasTokenNode,
   CanvasBlockChild,
-  CanvasTatetenGroupNode,
   CanvasHighlightGroupNode,
   CanvasTatetenSeparator,
   TokenSlots,
 } from './types.js';
 import type { RenderProfile } from './profiles.js';
-import {
-  convertKaeriToUnicode,
-  resolveEmphasisCharacter,
-  splitKaeriForTateten,
-  resolveRefValues,
-} from './helpers.js';
-
-/**
- * Token ごとのマークをマップに整理する。
- * Position-based marks は position.after の tokenId で紐付け。
- * Anchor-based marks は type に応じて from / to で紐付け。
- */
-function resolveTokenMarks(
-  tokenId: string,
-  marks: Mark[],
-  allTokens: Token[]
-): Map<Mark['type'], Mark[]> {
-  const result = new Map<Mark['type'], Mark[]>();
-
-  // yomigana は anchor.from で紐付け
-  const startMarkTypes = new Set(['yomigana']);
-  // okurigana, soegana は anchor.to で紐付け
-  const endMarkTypes = new Set(['okurigana', 'soegana']);
-
-  for (const mark of marks) {
-    if (isPositionBasedMark(mark)) {
-      // position-based: after が一致する場合のみ
-      if ('after' in mark.position && mark.position.after === tokenId) {
-        const existing = result.get(mark.type) ?? [];
-        existing.push(mark);
-        result.set(mark.type, existing);
-      }
-      continue;
-    }
-
-    // anchor-based
-    if (startMarkTypes.has(mark.type)) {
-      if (mark.anchor.from === tokenId) {
-        const existing = result.get(mark.type) ?? [];
-        existing.push(mark);
-        result.set(mark.type, existing);
-      }
-    } else if (endMarkTypes.has(mark.type)) {
-      if (mark.anchor.to === tokenId) {
-        const existing = result.get(mark.type) ?? [];
-        existing.push(mark);
-        result.set(mark.type, existing);
-      }
-    } else {
-      let matched = mark.anchor.from === tokenId || mark.anchor.to === tokenId;
-      if (!matched && mark.anchor.from !== mark.anchor.to) {
-        const fromIdx = allTokens.findIndex((t) => t.id === mark.anchor.from);
-        const toIdx = allTokens.findIndex((t) => t.id === mark.anchor.to);
-        const tokenIdx = allTokens.findIndex((t) => t.id === tokenId);
-        if (fromIdx !== -1 && toIdx !== -1 && tokenIdx !== -1) {
-          matched = tokenIdx > fromIdx && tokenIdx < toIdx;
-        }
-      }
-      if (matched) {
-        const existing = result.get(mark.type) ?? [];
-        existing.push(mark);
-        result.set(mark.type, existing);
-      }
-    }
-  }
-
-  return result;
-}
+import { splitKaeriForTateten } from './helpers.js';
 
 /**
  * Token のスロットを解決する
@@ -202,115 +138,6 @@ function resolveSlots(
   }
 
   return slots;
-}
-
-/**
- * Token をブロックごとにグループ化する
- */
-function groupTokensByBlock(
-  blocks: Block[],
-  tokens: Token[]
-): { blockId: string; tokens: Token[] }[] {
-  if (blocks.length === 0) {
-    return tokens.length > 0 ? [{ blockId: '', tokens }] : [];
-  }
-
-  const tokenMap = new Map<string, Token>();
-  for (const token of tokens) {
-    tokenMap.set(token.id, token);
-  }
-
-  const groups: { blockId: string; tokens: Token[] }[] = [];
-  for (const block of blocks) {
-    const blockTokens: Token[] = [];
-    for (const tokenId of block.tokenIds) {
-      const token = tokenMap.get(tokenId);
-      if (token) {
-        blockTokens.push(token);
-      }
-    }
-    if (blockTokens.length > 0) {
-      groups.push({ blockId: block.id, tokens: blockTokens });
-    }
-  }
-
-  return groups;
-}
-
-/**
- * tateten マークのアンカー範囲に含まれるトークンを同一マーク参照にマッピング。
- * 連続判定で === 参照比較を使えるよう、同じ TatetenMark オブジェクトを割り当てる。
- */
-function getTatetenGroups(blockTokens: Token[], marks: Mark[]): Map<string, TatetenMark> {
-  const tatetenMarks = marks.filter((m): m is TatetenMark => m.type === 'tateten');
-  const result = new Map<string, TatetenMark>();
-
-  for (const mark of tatetenMarks) {
-    const fromIdx = blockTokens.findIndex((t) => t.id === mark.anchor.from);
-    const toIdx = blockTokens.findIndex((t) => t.id === mark.anchor.to);
-    if (fromIdx === -1 || toIdx === -1) continue;
-
-    for (let i = fromIdx; i <= toIdx; i++) {
-      result.set(blockTokens[i]!.id, mark);
-    }
-  }
-
-  return result;
-}
-
-/**
- * highlight マークのアンカー範囲に含まれるトークンを同一マーク参照にマッピング。
- * tateten と同様に === 参照比較で連続判定する。
- */
-function getHighlightGroups(blockTokens: Token[], marks: Mark[]): Map<string, HighlightMark> {
-  const highlightMarks = marks.filter((m): m is HighlightMark => m.type === 'highlight');
-  const result = new Map<string, HighlightMark>();
-
-  for (const mark of highlightMarks) {
-    const fromIdx = blockTokens.findIndex((t) => t.id === mark.anchor.from);
-    const toIdx = blockTokens.findIndex((t) => t.id === mark.anchor.to);
-    if (fromIdx === -1 || toIdx === -1) continue;
-
-    for (let i = fromIdx; i <= toIdx; i++) {
-      result.set(blockTokens[i]!.id, mark);
-    }
-  }
-
-  return result;
-}
-
-/**
- * anchor.from !== anchor.to の anchor-based マークをグループ化。
- * 各トークン ID → 所属する RangeMarkGroup のマップを返す。
- */
-function getRangeMarkGroups(
-  blockTokens: Token[],
-  marks: Mark[],
-  type: 'yomigana' | 'okurigana' | 'soegana'
-): Map<string, RangeMarkGroup> {
-  const targetMarks = marks.filter(
-    (m): m is YomiganaMark | OkuriganaMark | SoeganaMark =>
-      m.type === type && !isPositionBasedMark(m) && m.anchor.from !== m.anchor.to
-  );
-  const result = new Map<string, RangeMarkGroup>();
-
-  for (const mark of targetMarks) {
-    const fromIdx = blockTokens.findIndex((t) => t.id === mark.anchor.from);
-    const toIdx = blockTokens.findIndex((t) => t.id === mark.anchor.to);
-    if (fromIdx === -1 || toIdx === -1) continue;
-
-    const tokenIds: string[] = [];
-    for (let i = fromIdx; i <= toIdx; i++) {
-      tokenIds.push(blockTokens[i]!.id);
-    }
-
-    const group: RangeMarkGroup = { mark, tokenIds };
-    for (const tokenId of tokenIds) {
-      result.set(tokenId, group);
-    }
-  }
-
-  return result;
 }
 
 /**

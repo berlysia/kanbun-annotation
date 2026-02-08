@@ -27,14 +27,10 @@ import type {
   BlockRenderTree,
   RenderNode,
 } from './render-tree-types.js';
-import type { RenderProfile, RangeMarkGroup } from './renderer.js';
-import {
-  escapeHtml,
-  shouldApplyTateChuYoko,
-  getBlockStartMarks,
-  getMarksForToken,
-  getRangeMarkGroups,
-} from './renderer.js';
+import type { RangeMarkGroup } from '@kanbun/skam/rendering';
+import { getMarksForToken, getRangeMarkGroups } from '@kanbun/skam/rendering';
+import type { RenderProfile } from './renderer.js';
+import { escapeHtml, shouldApplyTateChuYoko, getBlockStartMarks } from './renderer.js';
 
 /** @internal */
 export interface BuildTreeContext {

@@ -7,23 +7,27 @@
  *
  * 物理配置（左→右）:
  *
- *   [saidoku2(R)] [kaeri(R)] [base(F)] [kutoten(R)] [okuri/soegana(R)]
+ *   [saidoku2(R)] [kaeri(R)] [base(F)] [okuri/soegana(R)]
  *
  *   R = rubyFontSize, F = fontSize
- *   gridWidth = 4R + F
+ *   gridWidth = 3R + F
  *   baseCenterX = 2R + F/2
+ *   kutoten は base の下方に配置（HTML suffix-row のインライン配置と同等）
  *
  * 左ゾーン（base の左側）:
  *   col4: saidoku2       center = R/2        font-size: rubyFontSize
  *   col3: kaeri          center = R + R/2    font-size: rubyFontSize, bottom-aligned
  *
  * 右ゾーン（base の右側）:
- *   col2: kutoten        center = 2R+F+R/2   font-size: fontSize
- *   col1: okuri/soegana  center = 3R+F+R/2   font-size: rubyFontSize
+ *   col1: okuri/soegana  center = 2R+F+R/2   font-size: rubyFontSize
  *   ruby/yomigana は col1 と同じ X（base より上）
  *   emphasis は col1 の右隣（ruby がある場合はさらに右）
  *
- * 列方向: 右→左。列内: 上→下。
+ * 下方配置:
+ *   kutoten: base の下方、rightColX - R の X 座標、font-size: fontSize
+ *
+ * 列方向: 右→左（block[0] が右端）。各ブロックが独立カラムとなる。
+ * 列内: 上→下。
  */
 
 import type { HighlightStyle } from '@kanbun/skam';
@@ -118,7 +122,6 @@ function layoutSingleToken(
   if (hasSuffix) {
     // 右ゾーン: base の右側
     const rightColX = columnX + columnWidth - rubyFontSize / 2;
-    const col2X = columnX + 2 * rubyFontSize + fontSize + rubyFontSize / 2;
     // 左ゾーン: base の左側
     const col3X = columnX + rubyFontSize + rubyFontSize / 2;
 
@@ -160,7 +163,15 @@ function layoutSingleToken(
     }
 
     if (slots.kutoten) {
-      slotLayouts.kutoten = { text: slots.kutoten, x: col2X, y: tokenY, fontSize };
+      // HTML suffix-row row2 相当: base 下方、rightColX から R 左
+      const kutotenX = rightColX - rubyFontSize;
+      const kutotenY = tokenY + fontSize;
+      slotLayouts.kutoten = {
+        text: slots.kutoten,
+        x: kutotenX,
+        y: kutotenY,
+        fontSize, // HTML 同様、親の fontSize を継承
+      };
     }
 
     if (slots.kaeri) {
@@ -306,8 +317,8 @@ export function layoutVertical(
   let baseCenterX: number;
 
   if (hasSuffix) {
-    // base の左右に suffix 列を分離配置するため 4R + F 幅が必要
-    const gridWidth = 4 * rubyFontSize + fontSize;
+    // base の左右に suffix 列を分離配置するため 3R + F 幅が必要
+    const gridWidth = 3 * rubyFontSize + fontSize;
     columnWidth = gridWidth;
     baseCenterX = 2 * rubyFontSize + fontSize / 2;
   } else if (maxRubyWidth > 0) {
@@ -318,131 +329,136 @@ export function layoutVertical(
     baseCenterX = fontSize / 2;
   }
 
-  const columnX = padding.left;
   const columnY = padding.top;
-
-  const lctx: LayoutContext = {
-    columnX,
-    columnY,
-    columnWidth,
-    baseCenterX,
-    fontSize,
-    rubyFontSize,
-    cellAdvance,
-    slotGap,
-    hasSuffix,
-  };
-
-  // ブロックの children をフラットに展開してレイアウト
-  const columnChildren: ColumnChild[] = [];
-  const highlightLines: HighlightLineLayout[] = [];
-  let yOffset = 0;
-
-  // highlight 線の x 座標: 左側（col4 の外側）に配置
   const highlightGap = 2;
-  const highlightLineX = columnX - highlightGap;
 
-  /** tateten グループの children をレイアウト */
-  function layoutTatetenChildren(children: (CanvasTokenNode | CanvasTatetenSeparator)[]): void {
-    for (const groupChild of children) {
-      if (groupChild.type === 'token') {
-        const tokenX = columnX + baseCenterX;
-        const tokenY = columnY + yOffset + fontSize / 2;
-        columnChildren.push(layoutSingleToken(groupChild, tokenX, tokenY, lctx));
-        yOffset += cellAdvance;
-      } else {
-        // tateten-separator
-        const sepX = columnX + baseCenterX;
-        const sepY = columnY + yOffset + separatorAdvance / 2;
-        const sepLayout: TatetenSeparatorLayout = {
-          type: 'tateten-separator',
-          x: sepX,
-          y: sepY,
-          fontSize: rubyFontSize,
-        };
-        if (groupChild.kaeri) {
-          const col3X = columnX + rubyFontSize + rubyFontSize / 2;
-          const kaeriLayout: SlotLayout = {
-            text: groupChild.kaeri,
-            x: col3X,
+  // ブロックごとにカラムを作成（右→左配置: block[0] が右端）
+  const numBlocks = tree.blocks.length;
+  const columns: ColumnLayout[] = [];
+
+  for (let blockIdx = 0; blockIdx < numBlocks; blockIdx++) {
+    const block = tree.blocks[blockIdx]!;
+    const blockColumnX =
+      padding.left + (numBlocks - 1 - blockIdx) * (columnWidth + options.columnGap);
+
+    const blockLctx: LayoutContext = {
+      columnX: blockColumnX,
+      columnY,
+      columnWidth,
+      baseCenterX,
+      fontSize,
+      rubyFontSize,
+      cellAdvance,
+      slotGap,
+      hasSuffix,
+    };
+
+    const columnChildren: ColumnChild[] = [];
+    const highlightLines: HighlightLineLayout[] = [];
+    let yOffset = 0;
+    const highlightLineX = blockColumnX - highlightGap;
+
+    /** tateten グループの children をレイアウト */
+    function layoutTatetenChildren(children: (CanvasTokenNode | CanvasTatetenSeparator)[]): void {
+      for (const groupChild of children) {
+        if (groupChild.type === 'token') {
+          const tokenX = blockColumnX + baseCenterX;
+          const tokenY = columnY + yOffset + fontSize / 2;
+          columnChildren.push(layoutSingleToken(groupChild, tokenX, tokenY, blockLctx));
+          yOffset += cellAdvance;
+        } else {
+          // tateten-separator
+          const sepX = blockColumnX + baseCenterX;
+          const sepY = columnY + yOffset + separatorAdvance / 2;
+          const sepLayout: TatetenSeparatorLayout = {
+            type: 'tateten-separator',
+            x: sepX,
             y: sepY,
             fontSize: rubyFontSize,
           };
-          sepLayout.kaeri = kaeriLayout;
+          if (groupChild.kaeri) {
+            const col3X = blockColumnX + rubyFontSize + rubyFontSize / 2;
+            const kaeriLayout: SlotLayout = {
+              text: groupChild.kaeri,
+              x: col3X,
+              y: sepY,
+              fontSize: rubyFontSize,
+            };
+            sepLayout.kaeri = kaeriLayout;
+          }
+          columnChildren.push(sepLayout);
+          yOffset += separatorAdvance;
         }
-        columnChildren.push(sepLayout);
-        yOffset += separatorAdvance;
       }
     }
-  }
 
-  /** CanvasBlockChild を展開してレイアウトに追加 */
-  function layoutBlockChild(child: CanvasBlockChild): void {
-    if (child.type === 'token') {
-      const tokenX = columnX + baseCenterX;
-      const tokenY = columnY + yOffset + fontSize / 2;
-      columnChildren.push(layoutSingleToken(child, tokenX, tokenY, lctx));
-      yOffset += cellAdvance;
-    } else if (child.type === 'tateten-group') {
-      layoutTatetenChildren(child.children);
-    } else {
-      // highlight-group: track y range and layout children
-      const yStart = columnY + yOffset;
-      for (const highlightChild of child.children) {
-        if (highlightChild.type === 'token') {
-          const tokenX = columnX + baseCenterX;
-          const tokenY = columnY + yOffset + fontSize / 2;
-          columnChildren.push(layoutSingleToken(highlightChild, tokenX, tokenY, lctx));
-          yOffset += cellAdvance;
-        } else {
-          // tateten-group inside highlight-group
-          layoutTatetenChildren(highlightChild.children);
+    /** CanvasBlockChild を展開してレイアウトに追加 */
+    function layoutBlockChild(child: CanvasBlockChild): void {
+      if (child.type === 'token') {
+        const tokenX = blockColumnX + baseCenterX;
+        const tokenY = columnY + yOffset + fontSize / 2;
+        columnChildren.push(layoutSingleToken(child, tokenX, tokenY, blockLctx));
+        yOffset += cellAdvance;
+      } else if (child.type === 'tateten-group') {
+        layoutTatetenChildren(child.children);
+      } else {
+        // highlight-group: track y range and layout children
+        const yStart = columnY + yOffset;
+        for (const highlightChild of child.children) {
+          if (highlightChild.type === 'token') {
+            const tokenX = blockColumnX + baseCenterX;
+            const tokenY = columnY + yOffset + fontSize / 2;
+            columnChildren.push(layoutSingleToken(highlightChild, tokenX, tokenY, blockLctx));
+            yOffset += cellAdvance;
+          } else {
+            // tateten-group inside highlight-group
+            layoutTatetenChildren(highlightChild.children);
+          }
         }
-      }
-      const yEnd = columnY + yOffset;
+        const yEnd = columnY + yOffset;
 
-      // highlight-ref: ラベルを highlight 線の上端に配置
-      let refLayout: SlotLayout | undefined;
-      if (child.refLabel) {
-        const refChars = [...child.refLabel].length;
-        refLayout = {
-          text: child.refLabel,
+        // highlight-ref: ラベルを highlight 線の上端に配置
+        let refLayout: SlotLayout | undefined;
+        if (child.refLabel) {
+          const refChars = [...child.refLabel].length;
+          refLayout = {
+            text: child.refLabel,
+            x: highlightLineX,
+            y: yStart - refChars * rubyFontSize,
+            fontSize: rubyFontSize,
+          };
+        }
+
+        highlightLines.push({
+          style: child.highlightStyle as HighlightStyle,
           x: highlightLineX,
-          y: yStart - refChars * rubyFontSize,
-          fontSize: rubyFontSize,
-        };
+          yStart,
+          yEnd,
+          ...(refLayout ? { refLayout } : {}),
+        });
       }
-
-      highlightLines.push({
-        style: child.highlightStyle as HighlightStyle,
-        x: highlightLineX,
-        yStart,
-        yEnd,
-        ...(refLayout ? { refLayout } : {}),
-      });
     }
-  }
 
-  for (const block of tree.blocks) {
     for (const child of block.children) {
       layoutBlockChild(child);
     }
+
+    columns.push({
+      x: blockColumnX,
+      y: columnY,
+      width: columnWidth,
+      height: yOffset,
+      children: columnChildren,
+      ...(highlightLines.length > 0 ? { highlightLines } : {}),
+    });
   }
 
-  const columnHeight = yOffset;
-
-  const column: ColumnLayout = {
-    x: columnX,
-    y: columnY,
-    width: columnWidth,
-    height: columnHeight,
-    children: columnChildren,
-    ...(highlightLines.length > 0 ? { highlightLines } : {}),
-  };
+  const totalWidth = numBlocks * columnWidth + Math.max(0, numBlocks - 1) * options.columnGap;
+  const maxColumnHeight = Math.max(...columns.map((c) => c.height));
 
   return {
-    width: padding.left + columnWidth + padding.right,
-    height: padding.top + columnHeight + padding.bottom,
-    columns: [column],
+    width: padding.left + totalWidth + padding.right,
+    height: padding.top + maxColumnHeight + padding.bottom,
+    columns,
   };
 }

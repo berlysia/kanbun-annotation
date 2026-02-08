@@ -191,7 +191,7 @@ describe('layoutVertical', () => {
     expect(token.slots.kaeri!.y).toBe(token.y + DEFAULT_FONT_SIZE - 2 * rubyFontSize);
   });
 
-  it('places suffix types in separate grid columns (right to left)', () => {
+  it('places suffix types with kutoten below base', () => {
     const ctx = new RecordingContext();
     const doc = singleTokenDoc([
       { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'ぶ' },
@@ -204,20 +204,24 @@ describe('layoutVertical', () => {
     const token = asToken(result.columns[0]!.children[0]!);
     const okuriX = token.slots.okuri!.x;
     const kutotenX = token.slots.kutoten!.x;
+    const kutotenY = token.slots.kutoten!.y;
     const kaeriX = token.slots.kaeri!.x;
 
-    // okuri と kutoten は base の右側、kaeri は base の左側
+    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+
+    // okuri は base の右側、kaeri は base の左側
     expect(okuriX).toBeGreaterThan(token.x);
-    expect(kutotenX).toBeGreaterThan(token.x);
     expect(kaeriX).toBeLessThan(token.x);
 
-    // 右ゾーン: okuri > kutoten, R 間隔
-    expect(okuriX).toBeGreaterThan(kutotenX);
-    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
-    expect(okuriX - kutotenX).toBe(rubyFontSize);
-
-    // kutoten と kaeri は base を挟んで R + F 離れている
-    expect(kutotenX - kaeriX).toBe(rubyFontSize + DEFAULT_FONT_SIZE);
+    // kutoten は base の下方に配置
+    expect(kutotenY).toBe(token.y + DEFAULT_FONT_SIZE);
+    // kutoten のフォントサイズは fontSize（rubyFontSize ではない）
+    expect(token.slots.kutoten!.fontSize).toBe(DEFAULT_FONT_SIZE);
+    // kutoten X = rightColX - rubyFontSize
+    const columnX = result.columns[0]!.x;
+    const columnWidth = result.columns[0]!.width;
+    const rightColX = columnX + columnWidth - rubyFontSize / 2;
+    expect(kutotenX).toBe(rightColX - rubyFontSize);
   });
 
   it('places soegana and okuri in same column (right side)', () => {
@@ -241,7 +245,7 @@ describe('layoutVertical', () => {
     expect(token.slots.soegana!.y).toBe(token.y + DEFAULT_FONT_SIZE + rubyFontSize);
   });
 
-  it('uses grid width 4R+F when suffix exists', () => {
+  it('uses grid width 3R+F when suffix exists', () => {
     const ctx = new RecordingContext();
     const docPlain = singleTokenDoc();
     const treePlain = buildRenderTree(docPlain, PROFILES.full);
@@ -256,9 +260,9 @@ describe('layoutVertical', () => {
 
     const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
     // Plain: columnWidth = fontSize = 24
-    // Marked: columnWidth = 4R + F = 4*12 + 24 = 72
+    // Marked: columnWidth = 3R + F = 3*12 + 24 = 60
     // Difference = gridWidth - fontSize
-    const gridWidth = 4 * rubyFontSize + DEFAULT_FONT_SIZE;
+    const gridWidth = 3 * rubyFontSize + DEFAULT_FONT_SIZE;
     expect(resultMarked.width - resultPlain.width).toBe(gridWidth - DEFAULT_FONT_SIZE);
   });
 
@@ -628,5 +632,92 @@ describe('layoutVertical', () => {
     const column = result.columns[0]!;
     expect(column.highlightLines).toBeDefined();
     expect(column.highlightLines![0]!.refLayout).toBeUndefined();
+  });
+
+  // multi-block (multi-column) layout
+  describe('multi-block layout', () => {
+    const DEFAULT_COLUMN_GAP = 16;
+
+    function twoBlockDoc(marks: Mark[] = []): SKAMDocument {
+      return {
+        format: 'skam@0.1',
+        tokens: [
+          { id: 't1', text: '子' },
+          { id: 't2', text: '曰' },
+          { id: 't3', text: '學' },
+          { id: 't4', text: '而' },
+        ],
+        blocks: [
+          { id: 'b1', tokenIds: ['t1', 't2'] },
+          { id: 'b2', tokenIds: ['t3', 't4'] },
+        ],
+        marks,
+        readings: [],
+      };
+    }
+
+    it('creates separate columns for each block', () => {
+      const ctx = new RecordingContext();
+      const tree = buildRenderTree(twoBlockDoc(), PROFILES.full);
+      const result = layout(tree, ctx);
+
+      expect(result.columns).toHaveLength(2);
+      expect(result.columns[0]!.children).toHaveLength(2);
+      expect(result.columns[1]!.children).toHaveLength(2);
+    });
+
+    it('arranges columns right-to-left (first block is rightmost)', () => {
+      const ctx = new RecordingContext();
+      const tree = buildRenderTree(twoBlockDoc(), PROFILES.full);
+      const result = layout(tree, ctx);
+
+      expect(result.columns[0]!.x).toBeGreaterThan(result.columns[1]!.x);
+    });
+
+    it('applies columnGap between columns', () => {
+      const ctx = new RecordingContext();
+      const tree = buildRenderTree(twoBlockDoc(), PROFILES.full);
+      const result = layout(tree, ctx);
+
+      const col0 = result.columns[0]!;
+      const col1 = result.columns[1]!;
+      // Gap = col0.x - (col1.x + col1.width)
+      expect(col0.x - (col1.x + col1.width)).toBe(DEFAULT_COLUMN_GAP);
+    });
+
+    it('computes document width for multi-block', () => {
+      const ctx = new RecordingContext();
+      const tree = buildRenderTree(twoBlockDoc(), PROFILES.full);
+      const result = layout(tree, ctx);
+
+      const colWidth = result.columns[0]!.width;
+      const expectedWidth = DEFAULT_PADDING + 2 * colWidth + DEFAULT_COLUMN_GAP + DEFAULT_PADDING;
+      expect(result.width).toBe(expectedWidth);
+    });
+
+    it('columns have independent heights', () => {
+      const ctx = new RecordingContext();
+      const tree = buildRenderTree(twoBlockDoc(), PROFILES.full);
+      const result = layout(tree, ctx);
+
+      const cellAdvance = DEFAULT_FONT_SIZE * DEFAULT_LINE_HEIGHT;
+      expect(result.columns[0]!.height).toBe(2 * cellAdvance);
+      expect(result.columns[1]!.height).toBe(2 * cellAdvance);
+    });
+
+    it('places highlight lines relative to their column in multi-block', () => {
+      const ctx = new RecordingContext();
+      const doc = twoBlockDoc([
+        { type: 'highlight', anchor: { from: 't1', to: 't2' }, style: 'solid' },
+      ]);
+      const tree = buildRenderTree(doc, PROFILES.full);
+      const result = layout(tree, ctx);
+
+      const col0 = result.columns[0]!;
+      expect(col0.highlightLines).toBeDefined();
+      expect(col0.highlightLines).toHaveLength(1);
+      // highlight line X is relative to col0.x
+      expect(col0.highlightLines![0]!.x).toBe(col0.x - 2);
+    });
   });
 });

@@ -87,7 +87,7 @@ describe('layoutVertical', () => {
     expect(token.slots.ruby!.text).toBe('まな');
   });
 
-  it('places okurigana on left side of base', () => {
+  it('places okurigana on right side of base (same column as ruby)', () => {
     const ctx = new RecordingContext();
     const doc = singleTokenDoc([
       { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'ぶ' },
@@ -97,12 +97,12 @@ describe('layoutVertical', () => {
 
     const token = result.columns[0]!.tokens[0]!;
     expect(token.slots.okuri).toBeDefined();
-    // okuri x should be to the left of the base character center
-    expect(token.slots.okuri!.x).toBeLessThan(token.x);
+    // okuri is in rightmost grid column (same as ruby)
+    expect(token.slots.okuri!.x).toBeGreaterThan(token.x);
     expect(token.slots.okuri!.fontSize).toBe(Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO));
   });
 
-  it('places soegana on left side', () => {
+  it('places soegana on right side (same column as okuri/ruby)', () => {
     const ctx = new RecordingContext();
     const doc = singleTokenDoc([
       { type: 'soegana', anchor: { from: 't1', to: 't1' }, value: 'は' },
@@ -112,7 +112,7 @@ describe('layoutVertical', () => {
 
     const token = result.columns[0]!.tokens[0]!;
     expect(token.slots.soegana).toBeDefined();
-    expect(token.slots.soegana!.x).toBeLessThan(token.x);
+    expect(token.slots.soegana!.x).toBeGreaterThan(token.x);
   });
 
   it('places kaeri on left side with Unicode conversion', () => {
@@ -129,7 +129,7 @@ describe('layoutVertical', () => {
     expect(t2.slots.kaeri!.x).toBeLessThan(t2.x);
   });
 
-  it('places kutoten on left side', () => {
+  it('places kutoten right of base center (grid row2)', () => {
     const ctx = new RecordingContext();
     const doc = threeTokenDoc([
       { type: 'kutoten', position: { blockId: 'b1', after: 't3' }, value: '。' },
@@ -140,7 +140,8 @@ describe('layoutVertical', () => {
     const t3 = result.columns[0]!.tokens[2]!;
     expect(t3.slots.kutoten).toBeDefined();
     expect(t3.slots.kutoten!.text).toBe('。');
-    expect(t3.slots.kutoten!.x).toBeLessThan(t3.x);
+    // kutoten is in grid row2 (right of base center, left of okuri/ruby)
+    expect(t3.slots.kutoten!.x).toBeGreaterThan(t3.x);
   });
 
   it('handles multiple marks on same token', () => {
@@ -157,10 +158,79 @@ describe('layoutVertical', () => {
     expect(token.slots.ruby).toBeDefined();
     expect(token.slots.okuri).toBeDefined();
     expect(token.slots.kaeri).toBeDefined();
-    // Ruby is on right, others on left
+    // Ruby and okuri are on right (same column), kaeri is on left
     expect(token.slots.ruby!.x).toBeGreaterThan(token.x);
-    expect(token.slots.okuri!.x).toBeLessThan(token.x);
+    expect(token.slots.okuri!.x).toBeGreaterThan(token.x);
+    expect(token.slots.ruby!.x).toBe(token.slots.okuri!.x);
     expect(token.slots.kaeri!.x).toBeLessThan(token.x);
+  });
+
+  it('places suffix types in separate grid columns (right to left)', () => {
+    const ctx = new RecordingContext();
+    const doc = singleTokenDoc([
+      { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'ぶ' },
+      { type: 'kutoten', position: { blockId: 'b1', after: 't1' }, value: '。' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    const result = layout(tree, ctx);
+
+    const token = result.columns[0]!.tokens[0]!;
+    const okuriX = token.slots.okuri!.x;
+    const kutotenX = token.slots.kutoten!.x;
+    const kaeriX = token.slots.kaeri!.x;
+
+    // Grid columns (right to left): okuri(row1) > kutoten(row2) > base > kaeri(row3)
+    expect(okuriX).toBeGreaterThan(token.x);
+    expect(kutotenX).toBeGreaterThan(token.x);
+    expect(kaeriX).toBeLessThan(token.x);
+
+    // okuri > kutoten > kaeri with rubyFontSize spacing
+    expect(okuriX).toBeGreaterThan(kutotenX);
+    expect(kutotenX).toBeGreaterThan(kaeriX);
+
+    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+    expect(okuriX - kutotenX).toBe(rubyFontSize);
+    expect(kutotenX - kaeriX).toBe(rubyFontSize);
+  });
+
+  it('places soegana and okuri in same column (right side)', () => {
+    const ctx = new RecordingContext();
+    const doc = singleTokenDoc([
+      { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'び' },
+      { type: 'soegana', anchor: { from: 't1', to: 't1' }, value: 'て' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    const result = layout(tree, ctx);
+
+    const token = result.columns[0]!.tokens[0]!;
+    // okuri and soegana share the same x (rightmost column)
+    expect(token.slots.okuri!.x).toBe(token.slots.soegana!.x);
+    // Both are on right side of base
+    expect(token.slots.okuri!.x).toBeGreaterThan(token.x);
+    // soegana is below okuri (different y)
+    expect(token.slots.soegana!.y).toBeGreaterThan(token.slots.okuri!.y);
+  });
+
+  it('uses grid model width max(4R, 2R+F) when suffix exists', () => {
+    const ctx = new RecordingContext();
+    const docPlain = singleTokenDoc();
+    const treePlain = buildRenderTree(docPlain, PROFILES.full);
+    const resultPlain = layout(treePlain, ctx);
+
+    const ctxMarked = new RecordingContext();
+    const docMarked = singleTokenDoc([
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+    ]);
+    const treeMarked = buildRenderTree(docMarked, PROFILES.full);
+    const resultMarked = layout(treeMarked, ctxMarked);
+
+    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+    // Plain: columnWidth = fontSize = 24
+    // Marked: columnWidth = max(4*12, 2*12+24) = max(48, 48) = 48
+    // Difference = gridWidth - fontSize
+    const gridWidth = Math.max(4 * rubyFontSize, 2 * rubyFontSize + DEFAULT_FONT_SIZE);
+    expect(resultMarked.width - resultPlain.width).toBe(gridWidth - DEFAULT_FONT_SIZE);
   });
 
   it('applies custom padding', () => {

@@ -1,9 +1,22 @@
 /**
  * 縦書き単一列レイアウト (Phase 1)
  *
- * 物理レイアウトモデル:
- *   [kaeri] [kutoten] [okuri/soegana]  BASE  [ruby/yomigana]
- *    LEFT <--                         CENTER           --> RIGHT
+ * HTML renderer の CSS Grid レイアウトに準拠。
+ * vertical-rl では grid-template-rows が水平方向の列に展開される。
+ *
+ * 物理配置（左→右）:
+ *
+ *   suffix-row:  [saidoku2(R)] [kaeri(R)]  [kutoten(R)] [okuri/soegana(R)]
+ *   ruby-grid:   [saidoku-under(R)]  [  base(fontSize) ] [ruby/yomigana(R)]
+ *
+ *   R = rubyFontSize, F = fontSize
+ *   gridWidth = max(4R, 2R + F)
+ *
+ * suffix-row grid-template-rows: R × 4
+ *   row1(右):   okuri/soegana     font-size: rubyFontSize
+ *   row2(右寄り): kutoten          font-size: fontSize (親継承)
+ *   row3(中央):  kaeri            font-size: rubyFontSize, align-self: end
+ *   row4(左):   saidoku (Phase 2+) font-size: rubyFontSize
  *
  * 列方向: 右→左。列内: 上→下。
  */
@@ -11,18 +24,13 @@
 import type { CanvasRenderTree, CanvasTokenNode, DocumentLayout, ColumnLayout, TokenLayout, ResolvedSlotLayouts, ResolvedOptions } from './types.js';
 import type { TextMeasurer } from './measure.js';
 
-/** ベースフォント文字列を生成 */
-function baseFont(options: ResolvedOptions): string {
-  return `${options.fontSize}px ${options.fontFamily}`;
-}
-
 /** ルビフォント文字列を生成 */
 function rubyFont(options: ResolvedOptions): string {
   return `${Math.round(options.fontSize * options.rubyRatio)}px ${options.fontFamily}`;
 }
 
-/** スロットの幅を計測。未定義なら 0。 */
-function measureSlotWidth(
+/** テキストの幅を計測。未定義なら 0。 */
+function measureTextWidth(
   text: string | undefined,
   font: string,
   measurer: TextMeasurer,
@@ -40,12 +48,11 @@ export function layoutVertical(
   options: ResolvedOptions,
 ): DocumentLayout {
   const { fontSize, padding, lineHeight } = options;
-  const bFont = baseFont(options);
   const rFont = rubyFont(options);
   const rubyFontSize = Math.round(fontSize * options.rubyRatio);
   const cellAdvance = fontSize * lineHeight;
 
-  // suffix 領域とベース文字の間のギャップ
+  // base-ruby 間のギャップ（suffix なしの場合のみ使用）
   const slotGap = 2;
 
   // 全トークンをフラットに集めてレイアウト
@@ -64,37 +71,47 @@ export function layoutVertical(
     };
   }
 
-  // 列の幅を計算するため、全トークンの左右マージンを計算
+  // ruby の最大幅計測、suffix 有無判定
   let maxRubyWidth = 0;
-  let maxSuffixWidth = 0;
+  let hasSuffix = false;
 
   for (const tokenNode of allTokens) {
     const { slots } = tokenNode;
-    // 右側: ruby
-    const rubyW = measureSlotWidth(slots.ruby, rFont, measurer);
+    const rubyW = measureTextWidth(slots.ruby, rFont, measurer);
     if (rubyW > maxRubyWidth) maxRubyWidth = rubyW;
-
-    // 左側: okuri, soegana, kaeri, kutoten の最大幅
-    const okuriW = measureSlotWidth(slots.okuri, rFont, measurer);
-    const soeganaW = measureSlotWidth(slots.soegana, rFont, measurer);
-    const kaeriW = measureSlotWidth(slots.kaeri, rFont, measurer);
-    const kutotenW = measureSlotWidth(slots.kutoten, bFont, measurer);
-    const suffixW = Math.max(okuriW, soeganaW, kaeriW, kutotenW);
-    if (suffixW > maxSuffixWidth) maxSuffixWidth = suffixW;
+    if (slots.okuri || slots.soegana || slots.kaeri || slots.kutoten) {
+      hasSuffix = true;
+    }
   }
 
-  // 列幅 = ruby 領域 + gap + ベース文字幅 + gap + suffix 領域
-  const rubyArea = maxRubyWidth > 0 ? maxRubyWidth + slotGap : 0;
-  const suffixArea = maxSuffixWidth > 0 ? maxSuffixWidth + slotGap : 0;
-  const columnWidth = rubyArea + fontSize + suffixArea;
+  // 列幅とベース文字中心X座標の計算
+  //
+  // suffix あり: CSS Grid モデル（suffix-row 4列 + ruby-grid が整列）
+  //   gridWidth = max(4R, 2R + F) で両グリッドを包含
+  //   物理列（左→右）: [saidoku2(R)][kaeri(R)][kutoten(R)][okuri(R)]
+  //                     [saidoku-under(R)] [   base(F)   ][ruby(R) ]
+  //
+  // suffix なし: base + gap + ruby の単純モデル
+  let columnWidth: number;
+  let baseCenterX: number;
 
-  // ベース文字の中心X座標（列内）
-  const baseCenterX = rubyArea + fontSize / 2;
+  if (hasSuffix) {
+    const gridWidth = Math.max(4 * rubyFontSize, 2 * rubyFontSize + fontSize);
+    columnWidth = gridWidth;
+    // base center = 左端から R + F/2（ruby-grid の row2 中心）
+    baseCenterX = gridWidth - rubyFontSize - fontSize / 2;
+  } else if (maxRubyWidth > 0) {
+    columnWidth = fontSize + slotGap + maxRubyWidth;
+    baseCenterX = fontSize / 2;
+  } else {
+    columnWidth = fontSize;
+    baseCenterX = fontSize / 2;
+  }
 
   // 列の高さ
   const columnHeight = allTokens.length * cellAdvance;
 
-  // 列の絶対位置（Phase 1: 単一列、右→左で1列目のみ）
+  // 列の絶対位置（Phase 1: 単一列）
   const columnX = padding.left;
   const columnY = padding.top;
 
@@ -106,55 +123,78 @@ export function layoutVertical(
 
     const slotLayouts: ResolvedSlotLayouts = {};
 
-    // Ruby (right side)
-    if (slots.ruby) {
-      slotLayouts.ruby = {
-        text: slots.ruby,
-        x: tokenX + fontSize / 2 + slotGap,
-        y: tokenY,
-        fontSize: rubyFontSize,
-      };
-    }
+    if (hasSuffix) {
+      // Grid model: suffix-row の各列中心（列の右端からの距離）
+      //   row1(右):     R/2 from right  → okuri/soegana, ruby
+      //   row2(右寄り): 1.5R from right → kutoten
+      //   row3(中央):   2.5R from right → kaeri
+      //   row4(左):     3.5R from right → saidoku (Phase 2+)
+      const rightColX = columnX + columnWidth - rubyFontSize / 2;
+      const col2X = columnX + columnWidth - rubyFontSize * 1.5;
+      const col3X = columnX + columnWidth - rubyFontSize * 2.5;
 
-    // Okurigana (left side)
-    if (slots.okuri) {
-      slotLayouts.okuri = {
-        text: slots.okuri,
-        x: tokenX - fontSize / 2 - slotGap,
-        y: tokenY,
-        fontSize: rubyFontSize,
-      };
-    }
+      // Ruby (RIGHT: 最右列、okuri と共有)
+      if (slots.ruby) {
+        slotLayouts.ruby = {
+          text: slots.ruby,
+          x: rightColX,
+          y: tokenY,
+          fontSize: rubyFontSize,
+        };
+      }
 
-    // Soegana (left side, below okurigana)
-    if (slots.soegana) {
-      const okuriOffset = slots.okuri ? rubyFontSize : 0;
-      slotLayouts.soegana = {
-        text: slots.soegana,
-        x: tokenX - fontSize / 2 - slotGap,
-        y: tokenY + okuriOffset,
-        fontSize: rubyFontSize,
-      };
-    }
+      // Okurigana (RIGHT: ruby と同じ列、ruby の下に配置)
+      if (slots.okuri) {
+        const rubyChars = slots.ruby ? [...slots.ruby].length : 0;
+        slotLayouts.okuri = {
+          text: slots.okuri,
+          x: rightColX,
+          y: tokenY + rubyChars * rubyFontSize,
+          fontSize: rubyFontSize,
+        };
+      }
 
-    // Kutoten (left side)
-    if (slots.kutoten) {
-      slotLayouts.kutoten = {
-        text: slots.kutoten,
-        x: tokenX - fontSize / 2 - slotGap,
-        y: tokenY + cellAdvance / 2,
-        fontSize,
-      };
-    }
+      // Soegana (RIGHT: okuri と同じ列、okuri の下に配置)
+      if (slots.soegana) {
+        const rubyChars = slots.ruby ? [...slots.ruby].length : 0;
+        const okuriChars = slots.okuri ? [...slots.okuri].length : 0;
+        slotLayouts.soegana = {
+          text: slots.soegana,
+          x: rightColX,
+          y: tokenY + (rubyChars + okuriChars) * rubyFontSize,
+          fontSize: rubyFontSize,
+        };
+      }
 
-    // Kaeri (left side, furthest left)
-    if (slots.kaeri) {
-      slotLayouts.kaeri = {
-        text: slots.kaeri,
-        x: tokenX - fontSize / 2 - slotGap,
-        y: tokenY,
-        fontSize: rubyFontSize,
-      };
+      // Kutoten (row2: base 右半分の位置、親フォントサイズ継承)
+      if (slots.kutoten) {
+        slotLayouts.kutoten = {
+          text: slots.kutoten,
+          x: col2X,
+          y: tokenY,
+          fontSize,
+        };
+      }
+
+      // Kaeri (row3: base 左半分の位置)
+      if (slots.kaeri) {
+        slotLayouts.kaeri = {
+          text: slots.kaeri,
+          x: col3X,
+          y: tokenY,
+          fontSize: rubyFontSize,
+        };
+      }
+    } else {
+      // suffix なし: ruby のみ右側に配置
+      if (slots.ruby) {
+        slotLayouts.ruby = {
+          text: slots.ruby,
+          x: tokenX + fontSize / 2 + slotGap,
+          y: tokenY,
+          fontSize: rubyFontSize,
+        };
+      }
     }
 
     return {

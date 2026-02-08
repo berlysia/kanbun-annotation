@@ -65,6 +65,7 @@ export interface TokenSlots {
   emphasis?: string;
   saidokuUnder?: string;
   saidokuOkuri2?: string;
+  ref?: string;
 }
 
 export interface CanvasTokenNode {
@@ -87,6 +88,7 @@ export interface CanvasHighlightGroupNode {
   type: 'highlight-group';
   highlightStyle: HighlightStyle;
   highlightRef?: string;
+  refLabel?: string;
   children: (CanvasTokenNode | CanvasTatetenGroupNode)[];
 }
 
@@ -122,6 +124,7 @@ export interface ResolvedSlotLayouts {
   emphasis?: SlotLayout;
   saidokuUnder?: SlotLayout;
   saidokuOkuri2?: SlotLayout;
+  ref?: SlotLayout;
 }
 
 export interface TokenLayout {

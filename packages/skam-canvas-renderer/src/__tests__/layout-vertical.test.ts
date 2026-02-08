@@ -564,4 +564,69 @@ describe('layoutVertical', () => {
     expect(sep.kaeri).toBeDefined();
     expect(sep.kaeri!.text).toBe('\u3192');
   });
+
+  // ref layout
+  it('places ref slot above the base character', () => {
+    const ctx = new RecordingContext();
+    const doc = threeTokenDoc([
+      {
+        type: 'ref',
+        id: 'r1',
+        position: { blockId: 'b1', after: 't2' },
+        label: '※',
+      },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    const result = layout(tree, ctx);
+
+    const t2 = asToken(result.columns[0]!.children[1]!);
+    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+    expect(t2.slots.ref).toBeDefined();
+    expect(t2.slots.ref!.text).toBe('※');
+    expect(t2.slots.ref!.fontSize).toBe(rubyFontSize);
+    // ref y is above the token top: tokenY - 1 char * rubyFontSize
+    expect(t2.slots.ref!.y).toBe(t2.y - rubyFontSize);
+    // ref x is at token x (baseCenterX)
+    expect(t2.slots.ref!.x).toBe(t2.x);
+  });
+
+  it('places highlight-ref refLayout above highlight group start', () => {
+    const ctx = new RecordingContext();
+    const doc = threeTokenDoc([
+      { type: 'highlight', anchor: { from: 't1', to: 't2' }, style: 'solid', ref: 'r1' },
+      {
+        type: 'ref',
+        id: 'r1',
+        position: { blockId: 'b1', after: 't2' },
+        label: '注',
+      },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    const result = layout(tree, ctx);
+
+    const column = result.columns[0]!;
+    expect(column.highlightLines).toBeDefined();
+    expect(column.highlightLines).toHaveLength(1);
+    const hl = column.highlightLines![0]!;
+    expect(hl.refLayout).toBeDefined();
+    expect(hl.refLayout!.text).toBe('注');
+    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+    expect(hl.refLayout!.fontSize).toBe(rubyFontSize);
+    // refLayout y is above the highlight start: yStart - 1 char * rubyFontSize
+    expect(hl.refLayout!.y).toBe(hl.yStart - rubyFontSize);
+    expect(hl.refLayout!.x).toBe(hl.x);
+  });
+
+  it('highlight line has no refLayout when no refLabel', () => {
+    const ctx = new RecordingContext();
+    const doc = threeTokenDoc([
+      { type: 'highlight', anchor: { from: 't1', to: 't2' }, style: 'solid' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    const result = layout(tree, ctx);
+
+    const column = result.columns[0]!;
+    expect(column.highlightLines).toBeDefined();
+    expect(column.highlightLines![0]!.refLayout).toBeUndefined();
+  });
 });

@@ -64,12 +64,14 @@ export function draw(
       drawSlotIfPresent(ctx, child.slots.emphasis, options);
       drawSlotIfPresent(ctx, child.slots.saidokuUnder, options);
       drawSlotIfPresent(ctx, child.slots.saidokuOkuri2, options);
+      drawSlotIfPresent(ctx, child.slots.ref, options);
     }
 
-    // 3. Highlight lines
+    // 3. Highlight lines + highlight-ref labels
     if (column.highlightLines) {
       for (const hl of column.highlightLines) {
         drawHighlightLine(ctx, hl, options.textColor);
+        drawSlotIfPresent(ctx, hl.refLayout, options);
       }
     }
   }

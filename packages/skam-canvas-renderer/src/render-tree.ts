@@ -19,6 +19,7 @@ import type {
   SaidokuMark,
   TatetenMark,
   HighlightMark,
+  RefMark,
 } from '@kanbun/skam';
 import { isPositionBasedMark } from '@kanbun/skam';
 
@@ -42,6 +43,7 @@ import {
   convertKaeriToUnicode,
   resolveEmphasisCharacter,
   splitKaeriForTateten,
+  resolveRefValues,
 } from './helpers.js';
 
 /**
@@ -404,6 +406,32 @@ export function buildRenderTree(doc: SKAMDocument, profile: RenderProfile): Canv
 
   const blockGroups = groupTokensByBlock(blocks ?? [], tokens);
 
+  // ref 解決: 文書順のトークン列から ref ラベルマップを生成
+  const allTokensOrdered = blockGroups.flatMap((g) => g.tokens);
+  const refValueMap = profile.ref
+    ? resolveRefValues(allTokensOrdered, marks)
+    : new Map<RefMark, string>();
+
+  // ref mark を ID で引けるマップ
+  const refMarkById = new Map<string, RefMark>();
+  for (const refMark of refValueMap.keys()) {
+    if (refMark.id) {
+      refMarkById.set(refMark.id, refMark);
+    }
+  }
+
+  // highlight が参照する ref mark ID を収集（これらは token slot ではなく highlight group に配置）
+  const highlightRefIds = new Set<string>();
+  if (profile.highlight) {
+    for (const mark of marks) {
+      if (mark.type === 'highlight' && (mark as HighlightMark).ref) {
+        highlightRefIds.add((mark as HighlightMark).ref!);
+      }
+    }
+  }
+
+  const refMarks = profile.ref ? marks.filter((m): m is RefMark => m.type === 'ref') : [];
+
   const blockNodes: CanvasBlockNode[] = blockGroups.map((group) => {
     const tokenNodes: CanvasTokenNode[] = group.tokens.map((token) => ({
       type: 'token' as const,
@@ -497,6 +525,23 @@ export function buildRenderTree(doc: SKAMDocument, profile: RenderProfile): Canv
       }
     }
 
+    // ref 解決: position-based ref marks をトークンスロットに配置
+    if (profile.ref) {
+      for (const tokenNode of tokenNodes) {
+        const tokenId = tokenNode.token.id;
+        for (const ref of refMarks) {
+          if (ref.position.blockId !== group.blockId) continue;
+          if (ref.position.after !== tokenId) continue;
+          // highlight に属する ref は token slot から除外
+          if (ref.id && highlightRefIds.has(ref.id)) continue;
+          const label = refValueMap.get(ref);
+          if (label) {
+            tokenNode.slots = { ...tokenNode.slots, ref: label };
+          }
+        }
+      }
+    }
+
     // tateten グルーピング: 連続する同一マーク参照のトークンをグループ化
     let children: CanvasBlockChild[];
     if (profile.tateten) {
@@ -555,10 +600,20 @@ export function buildRenderTree(doc: SKAMDocument, profile: RenderProfile): Canv
           }
 
           if (hlChildren.length > 0) {
+            // highlight-ref のラベル解決
+            let resolvedRefLabel: string | undefined;
+            if (profile.ref && highlightMark.ref) {
+              const refMark = refMarkById.get(highlightMark.ref);
+              if (refMark) {
+                resolvedRefLabel = refValueMap.get(refMark);
+              }
+            }
+
             const hlGroup: CanvasHighlightGroupNode = {
               type: 'highlight-group',
               highlightStyle: highlightMark.style ?? 'solid',
               ...(highlightMark.ref ? { highlightRef: highlightMark.ref } : {}),
+              ...(resolvedRefLabel ? { refLabel: resolvedRefLabel } : {}),
               children: hlChildren,
             };
             grouped.push(hlGroup);

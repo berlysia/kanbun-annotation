@@ -6,6 +6,7 @@ import type {
   DocumentLayout,
   TokenLayout,
   TatetenSeparatorLayout,
+  HighlightLineLayout,
   ResolvedSlotLayouts,
 } from '../types.js';
 
@@ -342,5 +343,68 @@ describe('draw', () => {
     const texts = fillTexts.map((c) => c.args[0]);
     expect(texts).toContain('\u3190');
     expect(texts).toContain('\u3192');
+  });
+
+  it('draws ref slot on token', () => {
+    const ctx = new RecordingContext();
+    const docLayout = createSimpleLayout([
+      {
+        baseChar: '學',
+        slots: {
+          ref: { text: '※', x: 100, y: 4, fontSize: 12 },
+        },
+      },
+    ]);
+    const options = resolveOptions();
+
+    draw(ctx, docLayout, options);
+
+    const fillTexts = ctx.getCalls('fillText');
+    const texts = fillTexts.map((c) => c.args[0]);
+    expect(texts).toContain('學');
+    expect(texts).toContain('※');
+  });
+
+  it('draws highlight-ref label from refLayout', () => {
+    const ctx = new RecordingContext();
+    const hl: HighlightLineLayout = {
+      style: 'solid',
+      x: 14,
+      yStart: 16,
+      yEnd: 112,
+      refLayout: { text: '注', x: 14, y: 4, fontSize: 12 },
+    };
+    const docLayout: DocumentLayout = {
+      width: 200,
+      height: 400,
+      columns: [
+        {
+          x: 100,
+          y: 16,
+          width: 48,
+          height: 368,
+          children: [
+            {
+              type: 'token' as const,
+              tokenId: 't1',
+              x: 100,
+              y: 16,
+              baseChar: '子',
+              slots: {} as ResolvedSlotLayouts,
+            },
+          ],
+          highlightLines: [hl],
+        },
+      ],
+    };
+    const options = resolveOptions();
+
+    draw(ctx, docLayout, options);
+
+    const fillTexts = ctx.getCalls('fillText');
+    const texts = fillTexts.map((c) => c.args[0]);
+    expect(texts).toContain('注');
+    // Also verify highlight line was drawn
+    expect(ctx.getCalls('stroke')).toHaveLength(1);
   });
 });

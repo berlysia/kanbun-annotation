@@ -596,4 +596,105 @@ describe('buildRenderTree', () => {
     expect(tree.blocks[0]!.children[1]!.type).toBe('token');
     expect(tree.blocks[0]!.children[2]!.type).toBe('token');
   });
+
+  // ref resolution
+  it('resolves ref mark with label to token slot', () => {
+    const doc = threeTokenDoc([
+      {
+        type: 'ref',
+        id: 'r1',
+        position: { blockId: 'b1', after: 't2' },
+        label: '※',
+      },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const t1 = asTokenNode(tree.blocks[0]!.children[0]!);
+    const t2 = asTokenNode(tree.blocks[0]!.children[1]!);
+    const t3 = asTokenNode(tree.blocks[0]!.children[2]!);
+    expect(t1.slots.ref).toBeUndefined();
+    expect(t2.slots.ref).toBe('※');
+    expect(t3.slots.ref).toBeUndefined();
+  });
+
+  it('resolves ref mark with format to token slot', () => {
+    const doc = threeTokenDoc([
+      {
+        type: 'ref',
+        id: 'r1',
+        position: { blockId: 'b1', after: 't1' },
+        format: 'numeric-paren' as const,
+        content: 'note 1',
+      },
+      {
+        type: 'ref',
+        id: 'r2',
+        position: { blockId: 'b1', after: 't3' },
+        format: 'numeric-paren' as const,
+        content: 'note 2',
+      },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const t1 = asTokenNode(tree.blocks[0]!.children[0]!);
+    const t3 = asTokenNode(tree.blocks[0]!.children[2]!);
+    expect(t1.slots.ref).toBe('(1)');
+    expect(t3.slots.ref).toBe('(2)');
+  });
+
+  it('excludes highlight-bound ref from token slot, places refLabel on highlight group', () => {
+    const doc = threeTokenDoc([
+      { type: 'highlight', anchor: { from: 't1', to: 't2' }, style: 'solid', ref: 'r1' },
+      {
+        type: 'ref',
+        id: 'r1',
+        position: { blockId: 'b1', after: 't2' },
+        label: '注',
+      },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    // highlight group should have refLabel
+    const hlGroup = tree.blocks[0]!.children[0]! as CanvasHighlightGroupNode;
+    expect(hlGroup.type).toBe('highlight-group');
+    expect(hlGroup.highlightRef).toBe('r1');
+    expect(hlGroup.refLabel).toBe('注');
+
+    // t2 (inside highlight) should NOT have ref slot
+    const t2 = hlGroup.children[1]! as CanvasTokenNode;
+    expect(t2.token.id).toBe('t2');
+    expect(t2.slots.ref).toBeUndefined();
+  });
+
+  it('respects profile: ref=false', () => {
+    const doc = threeTokenDoc([
+      {
+        type: 'ref',
+        id: 'r1',
+        position: { blockId: 'b1', after: 't1' },
+        label: '※',
+      },
+    ]);
+    const tree = buildRenderTree(doc, { ...PROFILES.full, ref: false });
+
+    const t1 = asTokenNode(tree.blocks[0]!.children[0]!);
+    expect(t1.slots.ref).toBeUndefined();
+  });
+
+  it('highlight group has no refLabel when profile.ref=false', () => {
+    const doc = threeTokenDoc([
+      { type: 'highlight', anchor: { from: 't1', to: 't2' }, style: 'solid', ref: 'r1' },
+      {
+        type: 'ref',
+        id: 'r1',
+        position: { blockId: 'b1', after: 't2' },
+        label: '注',
+      },
+    ]);
+    const tree = buildRenderTree(doc, { ...PROFILES.full, ref: false });
+
+    const hlGroup = tree.blocks[0]!.children[0]! as CanvasHighlightGroupNode;
+    expect(hlGroup.highlightRef).toBe('r1');
+    expect(hlGroup.refLabel).toBeUndefined();
+  });
 });

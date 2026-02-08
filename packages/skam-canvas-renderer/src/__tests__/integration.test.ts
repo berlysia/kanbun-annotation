@@ -221,6 +221,65 @@ describe('integration: render()', () => {
     expect(chars).toContain('\u3192');
   });
 
+  it('renders ref mark label', () => {
+    const canvas = new RecordingCanvas();
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '子' },
+        { id: 't2', text: '曰' },
+      ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
+      marks: [
+        {
+          type: 'ref',
+          id: 'r1',
+          position: { blockId: 'b1', after: 't1' },
+          label: '※',
+        },
+      ],
+      readings: [],
+    };
+    render(doc, canvas);
+
+    const ctx = canvas.getContext('2d');
+    const chars = ctx.getCalls('fillText').map((c) => c.args[0]);
+    expect(chars).toContain('子');
+    expect(chars).toContain('曰');
+    expect(chars).toContain('※');
+  });
+
+  it('renders highlight with ref label', () => {
+    const canvas = new RecordingCanvas();
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '子' },
+        { id: 't2', text: '曰' },
+      ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
+      marks: [
+        { type: 'highlight', anchor: { from: 't1', to: 't2' }, style: 'solid', ref: 'r1' },
+        {
+          type: 'ref',
+          id: 'r1',
+          position: { blockId: 'b1', after: 't2' },
+          label: '注',
+        },
+      ],
+      readings: [],
+    };
+    render(doc, canvas);
+
+    const ctx = canvas.getContext('2d');
+    const chars = ctx.getCalls('fillText').map((c) => c.args[0]);
+    expect(chars).toContain('子');
+    expect(chars).toContain('曰');
+    expect(chars).toContain('注');
+    // Highlight line should be drawn
+    expect(ctx.getCalls('stroke').length).toBeGreaterThan(0);
+  });
+
   it('renders multiple blocks', () => {
     const canvas = new RecordingCanvas();
     const doc: SKAMDocument = {

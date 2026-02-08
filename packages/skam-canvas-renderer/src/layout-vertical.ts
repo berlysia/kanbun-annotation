@@ -233,6 +233,17 @@ function layoutSingleToken(
     }
   }
 
+  // ref: base の上方向（block-start）に配置。hasSuffix/非 suffix 共通。
+  if (slots.ref) {
+    const refChars = [...slots.ref].length;
+    slotLayouts.ref = {
+      text: slots.ref,
+      x: tokenX,
+      y: tokenY - refChars * rubyFontSize,
+      fontSize: rubyFontSize,
+    };
+  }
+
   return {
     type: 'token' as const,
     tokenId: tokenNode.token.id,
@@ -389,11 +400,25 @@ export function layoutVertical(
         }
       }
       const yEnd = columnY + yOffset;
+
+      // highlight-ref: ラベルを highlight 線の上端に配置
+      let refLayout: SlotLayout | undefined;
+      if (child.refLabel) {
+        const refChars = [...child.refLabel].length;
+        refLayout = {
+          text: child.refLabel,
+          x: highlightLineX,
+          y: yStart - refChars * rubyFontSize,
+          fontSize: rubyFontSize,
+        };
+      }
+
       highlightLines.push({
         style: child.highlightStyle as HighlightStyle,
         x: highlightLineX,
         yStart,
         yEnd,
+        ...(refLayout ? { refLayout } : {}),
       });
     }
   }

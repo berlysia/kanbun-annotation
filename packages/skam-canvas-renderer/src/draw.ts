@@ -44,6 +44,9 @@ export function draw(
       drawSlotIfPresent(ctx, tokenLayout.slots.soegana, options);
       drawSlotIfPresent(ctx, tokenLayout.slots.kaeri, options);
       drawSlotIfPresent(ctx, tokenLayout.slots.kutoten, options);
+      drawSlotIfPresent(ctx, tokenLayout.slots.emphasis, options);
+      drawSlotIfPresent(ctx, tokenLayout.slots.saidokuUnder, options);
+      drawSlotIfPresent(ctx, tokenLayout.slots.saidokuOkuri2, options);
     }
   }
 }

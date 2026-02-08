@@ -291,4 +291,95 @@ describe('layoutVertical', () => {
     expect(result.width).toBe(DEFAULT_PADDING * 2);
     expect(result.height).toBe(DEFAULT_PADDING * 2);
   });
+
+  it('places emphasis on right side (suffix mode, no ruby)', () => {
+    const ctx = new RecordingContext();
+    const doc = singleTokenDoc([
+      { type: 'emphasis', anchor: { from: 't1', to: 't1' } },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    const result = layout(tree, ctx);
+
+    const token = result.columns[0]!.tokens[0]!;
+    expect(token.slots.emphasis).toBeDefined();
+    // emphasis is in rightmost column (same as ruby/okuri)
+    expect(token.slots.emphasis!.x).toBeGreaterThan(token.x);
+    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+    expect(token.slots.emphasis!.fontSize).toBe(rubyFontSize);
+  });
+
+  it('places emphasis to right of ruby when both present (suffix mode)', () => {
+    const ctx = new RecordingContext();
+    const doc = singleTokenDoc([
+      { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
+      { type: 'emphasis', anchor: { from: 't1', to: 't1' } },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    const result = layout(tree, ctx);
+
+    const token = result.columns[0]!.tokens[0]!;
+    expect(token.slots.ruby).toBeDefined();
+    expect(token.slots.emphasis).toBeDefined();
+    // emphasis x = ruby x + rubyFontSize
+    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+    expect(token.slots.emphasis!.x).toBe(token.slots.ruby!.x + rubyFontSize);
+  });
+
+  it('places emphasis on right side (no suffix mode)', () => {
+    const ctx = new RecordingContext();
+    const doc = singleTokenDoc([{ type: 'emphasis', anchor: { from: 't1', to: 't1' } }]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    const result = layout(tree, ctx);
+
+    const token = result.columns[0]!.tokens[0]!;
+    expect(token.slots.emphasis).toBeDefined();
+    expect(token.slots.emphasis!.x).toBeGreaterThan(token.x);
+  });
+
+  it('places emphasis right of ruby (no suffix mode)', () => {
+    const ctx = new RecordingContext();
+    const doc = singleTokenDoc([
+      { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
+      { type: 'emphasis', anchor: { from: 't1', to: 't1' } },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    const result = layout(tree, ctx);
+
+    const token = result.columns[0]!.tokens[0]!;
+    expect(token.slots.ruby).toBeDefined();
+    expect(token.slots.emphasis).toBeDefined();
+    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+    expect(token.slots.emphasis!.x).toBe(token.slots.ruby!.x + rubyFontSize);
+  });
+
+  it('places saidoku col4 on left side', () => {
+    const ctx = new RecordingContext();
+    const doc = singleTokenDoc([
+      {
+        type: 'saidoku',
+        anchor: { from: 't1', to: 't1' },
+        forms: [
+          { n: 1, yomi: 'まさ', okuri: 'に' },
+          { n: 2, yomi: 'はた' },
+        ],
+      },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    const result = layout(tree, ctx);
+
+    const token = result.columns[0]!.tokens[0]!;
+    // saidoku triggers hasSuffix via saidokuUnder
+    expect(token.slots.ruby).toBeDefined();
+    expect(token.slots.okuri).toBeDefined();
+    expect(token.slots.saidokuUnder).toBeDefined();
+    // saidoku col4 is on the left side (leftmost column)
+    expect(token.slots.saidokuUnder!.x).toBeLessThan(token.x);
+    // saidokuUnder is to the left of kaeri column
+    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+    const gridWidth = Math.max(4 * rubyFontSize, 2 * rubyFontSize + DEFAULT_FONT_SIZE);
+    const col4X = DEFAULT_PADDING + gridWidth - rubyFontSize * 3.5;
+    expect(token.slots.saidokuUnder!.x).toBe(col4X);
+  });
 });

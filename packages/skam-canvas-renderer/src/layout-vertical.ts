@@ -83,7 +83,14 @@ export function layoutVertical(
     const { slots } = tokenNode;
     const rubyW = measureTextWidth(slots.ruby, rFont, measurer);
     if (rubyW > maxRubyWidth) maxRubyWidth = rubyW;
-    if (slots.okuri || slots.soegana || slots.kaeri || slots.kutoten) {
+    if (
+      slots.okuri ||
+      slots.soegana ||
+      slots.kaeri ||
+      slots.kutoten ||
+      slots.saidokuUnder ||
+      slots.saidokuOkuri2
+    ) {
       hasSuffix = true;
     }
   }
@@ -189,12 +196,56 @@ export function layoutVertical(
           fontSize: rubyFontSize,
         };
       }
+
+      // Emphasis (右側、ruby と共存時は ruby の右にオフセット)
+      if (slots.emphasis) {
+        const emphasisX = slots.ruby ? rightColX + rubyFontSize : rightColX;
+        slotLayouts.emphasis = {
+          text: slots.emphasis,
+          x: emphasisX,
+          y: tokenY,
+          fontSize: rubyFontSize,
+        };
+      }
+
+      // Saidoku col4 (左端列: 3.5R from right)
+      const col4X = columnX + columnWidth - rubyFontSize * 3.5;
+      if (slots.saidokuUnder) {
+        slotLayouts.saidokuUnder = {
+          text: slots.saidokuUnder,
+          x: col4X,
+          y: tokenY,
+          fontSize: rubyFontSize,
+        };
+      }
+      if (slots.saidokuOkuri2) {
+        const underChars = slots.saidokuUnder ? [...slots.saidokuUnder].length : 0;
+        slotLayouts.saidokuOkuri2 = {
+          text: slots.saidokuOkuri2,
+          x: col4X,
+          y: tokenY + underChars * rubyFontSize,
+          fontSize: rubyFontSize,
+        };
+      }
     } else {
       // suffix なし: ruby のみ右側に配置
       if (slots.ruby) {
         slotLayouts.ruby = {
           text: slots.ruby,
           x: tokenX + fontSize / 2 + slotGap,
+          y: tokenY,
+          fontSize: rubyFontSize,
+        };
+      }
+
+      // Emphasis (suffix なし: ruby の右に配置)
+      if (slots.emphasis) {
+        const emphasisX = slots.ruby
+          ? tokenX + fontSize / 2 + slotGap + rubyFontSize
+          : tokenX + fontSize / 2 + slotGap;
+        slotLayouts.emphasis = {
+          text: slots.emphasis,
+          x: emphasisX,
           y: tokenY,
           fontSize: rubyFontSize,
         };

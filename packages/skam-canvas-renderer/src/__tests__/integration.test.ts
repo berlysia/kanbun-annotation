@@ -137,6 +137,58 @@ describe('integration: render()', () => {
     expect(() => render(emptyDoc, canvas)).not.toThrow();
   });
 
+  it('renders emphasis marks', () => {
+    const canvas = new RecordingCanvas();
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '子' },
+        { id: 't2', text: '曰' },
+      ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
+      marks: [{ type: 'emphasis', anchor: { from: 't1', to: 't2' }, style: 'sesame' }],
+      readings: [],
+    };
+    render(doc, canvas);
+
+    const ctx = canvas.getContext('2d');
+    const chars = ctx.getCalls('fillText').map((c) => c.args[0]);
+    expect(chars).toContain('子');
+    expect(chars).toContain('曰');
+    // Sesame emphasis character
+    expect(chars).toContain('\uFE45');
+  });
+
+  it('renders saidoku marks', () => {
+    const canvas = new RecordingCanvas();
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '將' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+      marks: [
+        {
+          type: 'saidoku',
+          anchor: { from: 't1', to: 't1' },
+          forms: [
+            { n: 1, yomi: 'まさ', okuri: 'に' },
+            { n: 2, yomi: 'はた' },
+          ],
+        },
+      ],
+      readings: [],
+    };
+    render(doc, canvas);
+
+    const ctx = canvas.getContext('2d');
+    const chars = ctx.getCalls('fillText').map((c) => c.args[0]);
+    expect(chars).toContain('將');
+    expect(chars).toContain('ま');
+    expect(chars).toContain('さ');
+    expect(chars).toContain('に');
+    expect(chars).toContain('は');
+    expect(chars).toContain('た');
+  });
+
   it('renders multiple blocks', () => {
     const canvas = new RecordingCanvas();
     const doc: SKAMDocument = {

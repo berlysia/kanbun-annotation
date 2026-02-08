@@ -212,4 +212,121 @@ describe('buildRenderTree', () => {
 
     expect(tree.blocks[0]!.tokens[0]!.slots.isJoji).toBeUndefined();
   });
+
+  it('resolves emphasis for all tokens in range', () => {
+    const doc = threeTokenDoc([
+      { type: 'emphasis', anchor: { from: 't1', to: 't3' }, style: 'sesame' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const tokens = tree.blocks[0]!.tokens;
+    expect(tokens[0]!.slots.emphasis).toBe('\uFE45');
+    expect(tokens[1]!.slots.emphasis).toBe('\uFE45');
+    expect(tokens[2]!.slots.emphasis).toBe('\uFE45');
+  });
+
+  it('resolves emphasis with default style (undefined)', () => {
+    const doc = threeTokenDoc([{ type: 'emphasis', anchor: { from: 't2', to: 't2' } }]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    expect(tree.blocks[0]!.tokens[1]!.slots.emphasis).toBe('\u2022');
+  });
+
+  it('respects profile: emphasis=false', () => {
+    const doc = threeTokenDoc([
+      { type: 'emphasis', anchor: { from: 't1', to: 't1' }, style: 'dot' },
+    ]);
+    const tree = buildRenderTree(doc, { ...PROFILES.full, emphasis: false });
+
+    expect(tree.blocks[0]!.tokens[0]!.slots.emphasis).toBeUndefined();
+  });
+
+  it('resolves saidoku forms into slots', () => {
+    const doc = threeTokenDoc([
+      {
+        type: 'saidoku',
+        anchor: { from: 't1', to: 't1' },
+        forms: [
+          { n: 1, yomi: 'まさ', okuri: 'に' },
+          { n: 2, yomi: 'はた' },
+        ],
+      },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const t1 = tree.blocks[0]!.tokens[0]!;
+    expect(t1.slots.ruby).toBe('まさ');
+    expect(t1.slots.okuri).toBe('に');
+    expect(t1.slots.saidokuUnder).toBe('はた');
+    expect(t1.slots.saidokuOkuri2).toBeUndefined();
+  });
+
+  it('resolves saidoku with both form okuri', () => {
+    const doc = threeTokenDoc([
+      {
+        type: 'saidoku',
+        anchor: { from: 't2', to: 't2' },
+        forms: [
+          { n: 1, yomi: 'まさ', okuri: 'に' },
+          { n: 2, yomi: 'はた', okuri: 'す' },
+        ],
+      },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const t2 = tree.blocks[0]!.tokens[1]!;
+    expect(t2.slots.ruby).toBe('まさ');
+    expect(t2.slots.okuri).toBe('に');
+    expect(t2.slots.saidokuUnder).toBe('はた');
+    expect(t2.slots.saidokuOkuri2).toBe('す');
+  });
+
+  it('resolves saidoku with single form', () => {
+    const doc = threeTokenDoc([
+      {
+        type: 'saidoku',
+        anchor: { from: 't1', to: 't1' },
+        forms: [{ n: 1, yomi: 'まさ' }],
+      },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const t1 = tree.blocks[0]!.tokens[0]!;
+    expect(t1.slots.ruby).toBe('まさ');
+    expect(t1.slots.saidokuUnder).toBeUndefined();
+    expect(t1.slots.saidokuOkuri2).toBeUndefined();
+  });
+
+  it('resolves saidoku with empty forms', () => {
+    const doc = threeTokenDoc([
+      {
+        type: 'saidoku',
+        anchor: { from: 't1', to: 't1' },
+        forms: [],
+      },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const t1 = tree.blocks[0]!.tokens[0]!;
+    expect(t1.slots.ruby).toBeUndefined();
+    expect(t1.slots.saidokuUnder).toBeUndefined();
+  });
+
+  it('respects profile: saidoku=false', () => {
+    const doc = threeTokenDoc([
+      {
+        type: 'saidoku',
+        anchor: { from: 't1', to: 't1' },
+        forms: [
+          { n: 1, yomi: 'まさ' },
+          { n: 2, yomi: 'はた' },
+        ],
+      },
+    ]);
+    const tree = buildRenderTree(doc, { ...PROFILES.full, saidoku: false });
+
+    const t1 = tree.blocks[0]!.tokens[0]!;
+    expect(t1.slots.ruby).toBeUndefined();
+    expect(t1.slots.saidokuUnder).toBeUndefined();
+  });
 });

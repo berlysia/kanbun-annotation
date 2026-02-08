@@ -15,11 +15,13 @@ import type {
   YomiganaMark,
   SoeganaMark,
   KutotenMark,
+  EmphasisMark,
+  SaidokuMark,
 } from '@kanbun/skam';
 import { isPositionBasedMark } from '@kanbun/skam';
 import type { CanvasRenderTree, CanvasBlockNode, CanvasTokenNode, TokenSlots } from './types.js';
 import type { RenderProfile } from './profiles.js';
-import { convertKaeriToUnicode } from './helpers.js';
+import { convertKaeriToUnicode, resolveEmphasisCharacter } from './helpers.js';
 
 /**
  * Token ごとのマークをマップに整理する。
@@ -143,6 +145,37 @@ function resolveSlots(
   // joji -> isJoji flag
   if (profile.joji && tokenMarks.has('joji')) {
     slots.isJoji = true;
+  }
+
+  // emphasis -> emphasis (Unicode 傍点文字)
+  if (profile.emphasis) {
+    const emphasisMarks = (tokenMarks.get('emphasis') ?? []) as EmphasisMark[];
+    if (emphasisMarks.length > 0) {
+      slots.emphasis = resolveEmphasisCharacter(emphasisMarks[0]!.style);
+    }
+  }
+
+  // saidoku -> ruby/okuri + saidokuUnder/saidokuOkuri2
+  // saidoku は yomigana より優先: forms[0] を既存 ruby/okuri スロットに割り当て
+  if (profile.saidoku) {
+    const saidokuMarks = (tokenMarks.get('saidoku') ?? []) as SaidokuMark[];
+    if (saidokuMarks.length > 0) {
+      const mark = saidokuMarks[0]!;
+      const form0 = mark.forms[0];
+      const form1 = mark.forms[1];
+      if (form0?.yomi) {
+        slots.ruby = form0.yomi;
+      }
+      if (form0?.okuri) {
+        slots.okuri = form0.okuri;
+      }
+      if (form1?.yomi) {
+        slots.saidokuUnder = form1.yomi;
+      }
+      if (form1?.okuri) {
+        slots.saidokuOkuri2 = form1.okuri;
+      }
+    }
   }
 
   return slots;

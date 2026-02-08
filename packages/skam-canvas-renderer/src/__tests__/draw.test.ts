@@ -193,6 +193,49 @@ describe('draw', () => {
     expect(texts).toContain('。');
   });
 
+  it('draws emphasis slot', () => {
+    const ctx = new RecordingContext();
+    const docLayout = createSimpleLayout([
+      {
+        baseChar: '學',
+        slots: {
+          emphasis: { text: '\uFE45', x: 120, y: 16, fontSize: 12 },
+        },
+      },
+    ]);
+    const options = resolveOptions();
+
+    draw(ctx, docLayout, options);
+
+    const fillTexts = ctx.getCalls('fillText');
+    const texts = fillTexts.map((c) => c.args[0]);
+    expect(texts).toContain('\uFE45');
+  });
+
+  it('draws saidokuUnder and saidokuOkuri2 slots', () => {
+    const ctx = new RecordingContext();
+    const docLayout = createSimpleLayout([
+      {
+        baseChar: '將',
+        slots: {
+          ruby: { text: 'まさ', x: 120, y: 16, fontSize: 12 },
+          okuri: { text: 'に', x: 120, y: 40, fontSize: 12 },
+          saidokuUnder: { text: 'はた', x: 50, y: 16, fontSize: 12 },
+          saidokuOkuri2: { text: 'す', x: 50, y: 40, fontSize: 12 },
+        },
+      },
+    ]);
+    const options = resolveOptions();
+
+    draw(ctx, docLayout, options);
+
+    const fillTexts = ctx.getCalls('fillText');
+    const texts = fillTexts.map((c) => c.args[0]);
+    expect(texts).toContain('は');
+    expect(texts).toContain('た');
+    expect(texts).toContain('す');
+  });
+
   it('save/restore calls are balanced', () => {
     const ctx = new RecordingContext();
     const docLayout = createSimpleLayout([

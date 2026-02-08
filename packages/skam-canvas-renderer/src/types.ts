@@ -60,6 +60,9 @@ export interface TokenSlots {
   kutoten?: string;
   isOkimoji?: boolean;
   isJoji?: boolean;
+  emphasis?: string;
+  saidokuUnder?: string;
+  saidokuOkuri2?: string;
 }
 
 export interface CanvasTokenNode {
@@ -95,6 +98,9 @@ export interface ResolvedSlotLayouts {
   soegana?: SlotLayout;
   kaeri?: SlotLayout;
   kutoten?: SlotLayout;
+  emphasis?: SlotLayout;
+  saidokuUnder?: SlotLayout;
+  saidokuOkuri2?: SlotLayout;
 }
 
 export interface TokenLayout {

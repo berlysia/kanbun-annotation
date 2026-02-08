@@ -1,4 +1,5 @@
 import type { Browser, ImageFormat, Viewport } from './types.js';
+import { PADDING } from './page-builder.js';
 
 export interface CaptureTask {
   browser: Browser;
@@ -49,6 +50,24 @@ async function captureOne(
     const page = await context.newPage();
     await page.setViewportSize(task.viewport);
     await page.setContent(task.html, { waitUntil: 'networkidle' });
+
+    // Fit viewport to actual content size so the screenshot is tight
+    const contentSize = await page.evaluate(() => {
+      const root = document.getElementById('skam-root');
+      if (!root) return null;
+      const rect = root.getBoundingClientRect();
+      return { width: rect.width, height: rect.height };
+    });
+
+    if (contentSize) {
+      const fitWidth = Math.ceil(contentSize.width) + PADDING * 2;
+      const fitHeight = Math.ceil(contentSize.height) + PADDING * 2;
+      await page.setViewportSize({
+        width: Math.max(fitWidth, 100),
+        height: Math.max(fitHeight, 100),
+      });
+    }
+
     const screenshot = await page.screenshot({
       fullPage: task.fullPage,
       type: task.format,

@@ -11,11 +11,11 @@ describe('buildHTMLPage', () => {
     expect(result).toContain('.test { color: red; }');
   });
 
-  it('should include CSS reset', () => {
+  it('should include CSS reset with larger font size', () => {
     const result = buildHTMLPage('', '');
 
     expect(result).toContain('box-sizing: border-box');
-    expect(result).toContain('body { margin: 0; padding: 16px; }');
+    expect(result).toContain('font-size: 32px');
   });
 
   it('should embed css inside a style tag', () => {
@@ -25,10 +25,16 @@ describe('buildHTMLPage', () => {
     expect(result).toMatch(/<style>[\s\S]*\.kanbun[\s\S]*<\/style>/);
   });
 
-  it('should place html inside body', () => {
+  it('should wrap html in #skam-root inside body', () => {
     const html = '<div class="skam-document">content</div>';
     const result = buildHTMLPage(html, '');
 
-    expect(result).toMatch(/<body>\s*<div class="skam-document">content<\/div>/);
+    expect(result).toContain('<div id="skam-root"><div class="skam-document">content</div></div>');
+  });
+
+  it('should set width: fit-content on #skam-root', () => {
+    const result = buildHTMLPage('', '');
+
+    expect(result).toContain('width: fit-content');
   });
 });

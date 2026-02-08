@@ -2,6 +2,8 @@
 
 <!-- validated -->
 
+関連 ADR: [ADR-012](../decisions/adr-012-canvas-renderer.md)
+
 ## Context
 
 既存の `@kanbun/skam-html-renderer` は HTML+CSS による漢文レンダリングを提供するが、以下の用途には不向き:

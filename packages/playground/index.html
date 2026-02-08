@@ -72,7 +72,6 @@
                 <option value="learningHint">返り点＋送り仮名</option>
                 <option value="custom" disabled>カスタム</option>
               </select>
-              <span class="option-separator">|</span>
               <label>
                 <input type="radio" name="writing-mode" value="vertical" checked />
                 縦書き
@@ -81,79 +80,152 @@
                 <input type="radio" name="writing-mode" value="horizontal" />
                 横書き
               </label>
-              <span class="option-separator">|</span>
-              <label>
-                <input type="radio" name="ruby-method" value="ruby" checked />
-                Ruby
-              </label>
-              <label>
-                <input type="radio" name="ruby-method" value="grid" />
-                Grid
-              </label>
-              <span class="option-separator">|</span>
-              <label>
-                <input type="checkbox" id="inline-mode" />
-                インライン
-              </label>
             </div>
             <p class="horizontal-notice" id="horizontal-notice" hidden>
               ※ 横書き表示は実験的な機能です。表示が不安定な場合があります。
             </p>
-            <details class="profile-details" id="profile-details">
-              <summary>表示要素を個別設定</summary>
-              <div class="profile-checkboxes" id="profile-checkboxes">
-                <label title="ルビとして表示される読み">
-                  <input type="checkbox" data-profile-key="yomigana" />
-                  読み仮名
-                </label>
-                <label title="漢字の後に付く仮名">
-                  <input type="checkbox" data-profile-key="okurigana" />
-                  送り仮名
-                </label>
-                <label title="レ、一二、上下、甲乙など">
-                  <input type="checkbox" data-profile-key="kaeriten" />
-                  返り点
-                </label>
-                <label title="訓読時に補う助詞">
-                  <input type="checkbox" data-profile-key="soegana" />
-                  添え仮名
-                </label>
-                <label title="。、など">
-                  <input type="checkbox" data-profile-key="kutoten" />
-                  句読点
-                </label>
-                <label title="2回読む漢字（将、未など）">
-                  <input type="checkbox" data-profile-key="saidoku" />
-                  再読文字
-                </label>
-                <label title="読まない漢字のマーク">
-                  <input type="checkbox" data-profile-key="okimoji" />
-                  置字
-                </label>
-                <label title="文法機能の分類ラベル">
-                  <input type="checkbox" data-profile-key="joji" />
-                  助字
-                </label>
-                <label title="強調の点（圏点）">
-                  <input type="checkbox" data-profile-key="emphasis" />
-                  傍点
-                </label>
-                <label title="アンダーライン">
-                  <input type="checkbox" data-profile-key="highlight" />
-                  傍線
-                </label>
-                <label title="注釈への参照">
-                  <input type="checkbox" data-profile-key="ref" />
-                  参照
-                </label>
-                <label title="熟語境界マーク">
-                  <input type="checkbox" data-profile-key="tateten" />
-                  たて点
-                </label>
-                <label title="古式の読み点">
-                  <input type="checkbox" data-profile-key="okototen" />
-                  ヲコト点
-                </label>
+            <details class="settings-panel" id="settings-panel">
+              <summary>詳細設定</summary>
+              <div class="settings-sections">
+                <fieldset class="settings-section">
+                  <legend>レンダリング方式</legend>
+                  <div class="settings-section-content">
+                    <label>
+                      <input type="radio" name="ruby-method" value="ruby" checked />
+                      Ruby
+                    </label>
+                    <label>
+                      <input type="radio" name="ruby-method" value="grid" />
+                      Grid
+                    </label>
+                    <label>
+                      <input type="checkbox" id="inline-mode" />
+                      インライン
+                    </label>
+                  </div>
+                </fieldset>
+                <fieldset class="settings-section">
+                  <legend>表示要素</legend>
+                  <div class="profile-checkboxes" id="profile-checkboxes">
+                    <label title="ルビとして表示される読み">
+                      <input type="checkbox" data-profile-key="yomigana" />
+                      読み仮名
+                    </label>
+                    <label title="漢字の後に付く仮名">
+                      <input type="checkbox" data-profile-key="okurigana" />
+                      送り仮名
+                    </label>
+                    <label title="レ、一二、上下、甲乙など">
+                      <input type="checkbox" data-profile-key="kaeriten" />
+                      返り点
+                    </label>
+                    <label title="訓読時に補う助詞">
+                      <input type="checkbox" data-profile-key="soegana" />
+                      添え仮名
+                    </label>
+                    <label title="。、など">
+                      <input type="checkbox" data-profile-key="kutoten" />
+                      句読点
+                    </label>
+                    <label title="2回読む漢字（将、未など）">
+                      <input type="checkbox" data-profile-key="saidoku" />
+                      再読文字
+                    </label>
+                    <label title="読まない漢字のマーク">
+                      <input type="checkbox" data-profile-key="okimoji" />
+                      置字
+                    </label>
+                    <label title="文法機能の分類ラベル">
+                      <input type="checkbox" data-profile-key="joji" />
+                      助字
+                    </label>
+                    <label title="強調の点（圏点）">
+                      <input type="checkbox" data-profile-key="emphasis" />
+                      傍点
+                    </label>
+                    <label title="アンダーライン">
+                      <input type="checkbox" data-profile-key="highlight" />
+                      傍線
+                    </label>
+                    <label title="注釈への参照">
+                      <input type="checkbox" data-profile-key="ref" />
+                      参照
+                    </label>
+                    <label title="熟語境界マーク">
+                      <input type="checkbox" data-profile-key="tateten" />
+                      たて点
+                    </label>
+                    <label title="古式の読み点">
+                      <input type="checkbox" data-profile-key="okototen" />
+                      ヲコト点
+                    </label>
+                  </div>
+                </fieldset>
+                <fieldset class="settings-section">
+                  <legend>スタイル</legend>
+                  <div class="customize-options">
+                    <div class="customize-group">
+                      <label>
+                        返り点の色
+                        <input type="color" id="color-kaeriten" value="#000000" />
+                      </label>
+                      <label>
+                        ルビの色
+                        <input type="color" id="color-ruby" value="#000000" />
+                      </label>
+                      <label>
+                        傍点の色
+                        <input type="color" id="color-emphasis" value="#000000" />
+                      </label>
+                    </div>
+                    <div class="customize-group">
+                      <label>
+                        フォント
+                        <select id="font-family">
+                          <option value="'Noto Serif JP', serif" selected>Noto Serif JP</option>
+                          <option value="inherit">継承</option>
+                          <option value="'Yu Mincho', 'YuMincho', serif">游明朝</option>
+                          <option value="'Hiragino Mincho ProN', serif">ヒラギノ明朝</option>
+                          <option value="'MS Mincho', serif">MS 明朝</option>
+                        </select>
+                      </label>
+                    </div>
+                    <div class="customize-group">
+                      <label>
+                        文字サイズ
+                        <input type="range" id="glyph-size" min="1" max="3" step="0.1" value="2" />
+                        <span id="glyph-size-value">2em</span>
+                      </label>
+                      <label>
+                        ルビ比率
+                        <input
+                          type="range"
+                          id="ruby-ratio"
+                          min="0.3"
+                          max="0.8"
+                          step="0.05"
+                          value="0.5"
+                        />
+                        <span id="ruby-ratio-value">0.5</span>
+                      </label>
+                      <label>
+                        行間
+                        <input
+                          type="range"
+                          id="line-height"
+                          min="1.5"
+                          max="3"
+                          step="0.1"
+                          value="2"
+                        />
+                        <span id="line-height-value">2</span>
+                      </label>
+                    </div>
+                    <button id="reset-customize-btn" type="button" class="reset-btn">
+                      リセット
+                    </button>
+                  </div>
+                </fieldset>
               </div>
             </details>
           </div>
@@ -407,55 +479,6 @@
               </details>
             </aside>
           </div>
-          <details class="customize-panel">
-            <summary>CSSカスタマイズ</summary>
-            <div class="customize-options">
-              <div class="customize-group">
-                <label>
-                  返り点の色
-                  <input type="color" id="color-kaeriten" value="#000000" />
-                </label>
-                <label>
-                  ルビの色
-                  <input type="color" id="color-ruby" value="#000000" />
-                </label>
-                <label>
-                  傍点の色
-                  <input type="color" id="color-emphasis" value="#000000" />
-                </label>
-              </div>
-              <div class="customize-group">
-                <label>
-                  フォント
-                  <select id="font-family">
-                    <option value="'Noto Serif JP', serif" selected>Noto Serif JP</option>
-                    <option value="inherit">継承</option>
-                    <option value="'Yu Mincho', 'YuMincho', serif">游明朝</option>
-                    <option value="'Hiragino Mincho ProN', serif">ヒラギノ明朝</option>
-                    <option value="'MS Mincho', serif">MS 明朝</option>
-                  </select>
-                </label>
-              </div>
-              <div class="customize-group">
-                <label>
-                  文字サイズ
-                  <input type="range" id="glyph-size" min="1" max="3" step="0.1" value="2" />
-                  <span id="glyph-size-value">2em</span>
-                </label>
-                <label>
-                  ルビ比率
-                  <input type="range" id="ruby-ratio" min="0.3" max="0.8" step="0.05" value="0.5" />
-                  <span id="ruby-ratio-value">0.5</span>
-                </label>
-                <label>
-                  行間
-                  <input type="range" id="line-height" min="1.5" max="3" step="0.1" value="2" />
-                  <span id="line-height-value">2</span>
-                </label>
-              </div>
-              <button id="reset-customize-btn" type="button" class="reset-btn">リセット</button>
-            </div>
-          </details>
         </div>
       </div>
 

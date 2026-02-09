@@ -359,6 +359,8 @@ describe('layoutVertical', () => {
     expect(token.slots.emphasis!.x).toBeGreaterThan(token.x);
     const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
     expect(token.slots.emphasis!.fontSize).toBe(rubyFontSize);
+    // emphasis Y is vertically centered on the base character
+    expect(token.slots.emphasis!.y).toBe(token.y + (DEFAULT_FONT_SIZE - rubyFontSize) / 2);
   });
 
   it('places emphasis to right of ruby when both present (suffix mode)', () => {
@@ -377,6 +379,8 @@ describe('layoutVertical', () => {
     // emphasis x = ruby x + rubyFontSize
     const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
     expect(token.slots.emphasis!.x).toBe(token.slots.ruby!.x + rubyFontSize);
+    // emphasis Y is vertically centered on the base character
+    expect(token.slots.emphasis!.y).toBe(token.y + (DEFAULT_FONT_SIZE - rubyFontSize) / 2);
   });
 
   it('places emphasis on right side (no suffix mode)', () => {
@@ -388,6 +392,8 @@ describe('layoutVertical', () => {
     const token = asToken(result.columns[0]!.children[0]!);
     expect(token.slots.emphasis).toBeDefined();
     expect(token.slots.emphasis!.x).toBeGreaterThan(token.x);
+    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+    expect(token.slots.emphasis!.y).toBe(token.y + (DEFAULT_FONT_SIZE - rubyFontSize) / 2);
   });
 
   it('places emphasis right of ruby (no suffix mode)', () => {
@@ -404,6 +410,7 @@ describe('layoutVertical', () => {
     expect(token.slots.emphasis).toBeDefined();
     const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
     expect(token.slots.emphasis!.x).toBe(token.slots.ruby!.x + rubyFontSize);
+    expect(token.slots.emphasis!.y).toBe(token.y + (DEFAULT_FONT_SIZE - rubyFontSize) / 2);
   });
 
   it('places saidoku col4 on left side', () => {
@@ -461,8 +468,10 @@ describe('layoutVertical', () => {
     expect(sep.fontSize).toBe(rubyFontSize);
     // t2 after separator
     expect(t2.baseChar).toBe('曰');
-    // y increments: t1 → sep (cellAdvance), sep → t2 (separatorAdvance)
-    expect(sep.y - t1.y).toBeCloseTo(cellAdvance - DEFAULT_FONT_SIZE / 2 + separatorAdvance / 2, 5);
+    // y increments: t1 → sep (fontSize), sep → t2 (separatorAdvance)
+    // sep.y = columnY + fontSize + separatorAdvance/2, t1.y = columnY + fontSize/2
+    // sep.y - t1.y = fontSize - fontSize/2 + separatorAdvance/2 = fontSize/2 + separatorAdvance/2
+    expect(sep.y - t1.y).toBeCloseTo(DEFAULT_FONT_SIZE / 2 + separatorAdvance / 2, 5);
     // t3 is standalone, after the group
     expect(t3.baseChar).toBe('學');
   });
@@ -480,8 +489,13 @@ describe('layoutVertical', () => {
 
     const separatorAdvance = 2 * DEFAULT_RUBY_RATIO * DEFAULT_FONT_SIZE;
 
-    // Tateten version is taller by one separator
-    expect(resultTateten.height - resultPlain.height).toBe(separatorAdvance);
+    // Tateten version: 2 tokens * fontSize(24) + separator(24) + 1 standalone token * cellAdvance(48) = 120
+    // Plain version: 3 tokens * cellAdvance(48) = 144
+    // Difference: 120 - 144 = -24 (tateten is shorter due to tight packing)
+    const cellAdvance = DEFAULT_FONT_SIZE * DEFAULT_LINE_HEIGHT;
+    expect(resultTateten.height - resultPlain.height).toBe(
+      2 * DEFAULT_FONT_SIZE + separatorAdvance + cellAdvance - 3 * cellAdvance
+    );
   });
 
   // rubySpan layout
@@ -558,6 +572,8 @@ describe('layoutVertical', () => {
     expect(column.highlightLines).toHaveLength(1);
     const hl = column.highlightLines![0]!;
     expect(hl.style).toBe('solid');
+    // highlight line is on the right side of the column
+    expect(hl.x).toBe(column.x + column.width + 2);
     // yStart = columnY = padding
     expect(hl.yStart).toBe(DEFAULT_PADDING);
     // yEnd = columnY + 2 * cellAdvance (2 tokens)
@@ -735,8 +751,60 @@ describe('layoutVertical', () => {
       const col0 = result.columns[0]!;
       expect(col0.highlightLines).toBeDefined();
       expect(col0.highlightLines).toHaveLength(1);
-      // highlight line X is relative to col0.x
-      expect(col0.highlightLines![0]!.x).toBe(col0.x - 2);
+      // highlight line X is on the right side of col0
+      expect(col0.highlightLines![0]!.x).toBe(col0.x + col0.width + 2);
+    });
+  });
+
+  // ruby overflow tests
+  describe('ruby overflow', () => {
+    it('expands cell when ruby+okuri overflow cellAdvance', () => {
+      const ctx = new RecordingContext();
+      const doc = threeTokenDoc([
+        // ruby 4 chars on t1 → exceeds cellAdvance
+        { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まなびや' },
+        { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'ぶ' },
+        // trigger suffix mode
+        { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: 'レ' },
+      ]);
+      const tree = buildRenderTree(doc, PROFILES.full);
+      const result = layout(tree, ctx);
+
+      const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+      const cellAdvance = DEFAULT_FONT_SIZE * DEFAULT_LINE_HEIGHT;
+
+      const t1 = asToken(result.columns[0]!.children[0]!);
+      const t2 = asToken(result.columns[0]!.children[1]!);
+
+      // contentHeight = fontSize/2 + max(fontSize, 4*R) + 1*R
+      //               = 12 + max(24, 48) + 12 = 72 > 48 = cellAdvance
+      const contentHeight =
+        DEFAULT_FONT_SIZE / 2 + Math.max(DEFAULT_FONT_SIZE, 4 * rubyFontSize) + rubyFontSize;
+      expect(contentHeight).toBeGreaterThan(cellAdvance);
+
+      // t2.y - t1.y should be contentHeight (not cellAdvance)
+      expect(t2.y - t1.y).toBe(contentHeight);
+    });
+
+    it('does not expand cell when ruby fits within cellAdvance', () => {
+      const ctx = new RecordingContext();
+      const doc = threeTokenDoc([
+        // ruby 2 chars on t1 → fits in cellAdvance
+        { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
+        // trigger suffix mode
+        { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: 'レ' },
+      ]);
+      const tree = buildRenderTree(doc, PROFILES.full);
+      const result = layout(tree, ctx);
+
+      const cellAdvance = DEFAULT_FONT_SIZE * DEFAULT_LINE_HEIGHT;
+
+      const t1 = asToken(result.columns[0]!.children[0]!);
+      const t2 = asToken(result.columns[0]!.children[1]!);
+
+      // contentHeight = 12 + max(24, 24) = 36 < 48 = cellAdvance
+      // Uses cellAdvance
+      expect(t2.y - t1.y).toBe(cellAdvance);
     });
   });
 });

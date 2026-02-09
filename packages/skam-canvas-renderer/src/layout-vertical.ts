@@ -44,6 +44,7 @@ import type {
   ColumnLayout,
   ColumnChild,
   TokenLayout,
+  TokenSlots,
   TatetenSeparatorLayout,
   HighlightLineLayout,
   ResolvedSlotLayouts,
@@ -226,7 +227,7 @@ function layoutSingleToken(
     slotLayouts.emphasis = {
       text: slots.emphasis,
       x: emphasisX,
-      y: tokenY,
+      y: tokenY + (fontSize - rubyFontSize) / 2,
       fontSize: rubyFontSize,
     };
   }
@@ -269,6 +270,47 @@ function layoutSingleToken(
     baseChar: tokenNode.token.text,
     slots: slotLayouts,
   };
+}
+
+/**
+ * トークンの垂直コンテンツ高さを計算。
+ * セル開始位置（tokenY - fontSize/2）からコンテンツ最下端までの距離。
+ *
+ * Suffix row（kaeri/kutoten）は除外:
+ * - kaeri は cellAdvance にちょうど収まる
+ * - kutoten は現行コードで既に 12px 超過しているが視覚的問題なし
+ * - overflow の原因は右列/左列の積み上げ高さのみ
+ */
+function computeTokenContentHeight(
+  slots: TokenSlots,
+  fontSize: number,
+  rubyFontSize: number
+): number {
+  const R = rubyFontSize;
+
+  // rubySpan > 1 の場合、ruby は複数セルに分散 → 単一セルの高さに含めない
+  const rubyChars =
+    slots.rubySpan && slots.rubySpan > 1 ? 0 : slots.ruby ? [...slots.ruby].length : 0;
+  const okuriChars = slots.okuri ? [...slots.okuri].length : 0;
+  const soeganaChars = slots.soegana ? [...slots.soegana].length : 0;
+  const saidokuUnderChars = slots.saidokuUnder ? [...slots.saidokuUnder].length : 0;
+  const saidokuOkuri2Chars = slots.saidokuOkuri2 ? [...slots.saidokuOkuri2].length : 0;
+
+  // tokenY からの最大延伸量
+  let maxExtent = fontSize; // ベース文字高さ
+
+  // 右列: ruby → okuri → soegana（縦に積み上げ）
+  const rightExtent = Math.max(fontSize, rubyChars * R) + okuriChars * R + soeganaChars * R;
+  maxExtent = Math.max(maxExtent, rightExtent);
+
+  // 左列: saidokuUnder → saidokuOkuri2
+  if (saidokuUnderChars > 0 || saidokuOkuri2Chars > 0) {
+    const leftExtent = Math.max(fontSize, saidokuUnderChars * R) + saidokuOkuri2Chars * R;
+    maxExtent = Math.max(maxExtent, leftExtent);
+  }
+
+  // セル開始位置からの全高 = top gap (fontSize/2) + tokenY からの延伸量
+  return fontSize / 2 + maxExtent;
 }
 
 /**
@@ -353,7 +395,7 @@ export function layoutVertical(
     const columnChildren: ColumnChild[] = [];
     const highlightLines: HighlightLineLayout[] = [];
     let yOffset = 0;
-    const highlightLineX = blockColumnX - highlightGap;
+    const highlightLineX = blockColumnX + columnWidth + highlightGap;
 
     /** tateten グループの children をレイアウト */
     function layoutTatetenChildren(children: (CanvasTokenNode | CanvasTatetenSeparator)[]): void {
@@ -362,7 +404,10 @@ export function layoutVertical(
           const tokenX = blockColumnX + baseCenterX;
           const tokenY = columnY + yOffset + fontSize / 2;
           columnChildren.push(layoutSingleToken(groupChild, tokenX, tokenY, blockLctx));
-          yOffset += cellAdvance;
+          // tateten 内はトップギャップ不要（密着配置）。contentHeight からギャップ分を除いて比較
+          const tatetenContentExtent =
+            computeTokenContentHeight(groupChild.slots, fontSize, rubyFontSize) - fontSize / 2;
+          yOffset += Math.max(fontSize, tatetenContentExtent);
         } else {
           // tateten-separator
           const sepX = blockColumnX + baseCenterX;
@@ -394,7 +439,8 @@ export function layoutVertical(
         const tokenX = blockColumnX + baseCenterX;
         const tokenY = columnY + yOffset + fontSize / 2;
         columnChildren.push(layoutSingleToken(child, tokenX, tokenY, blockLctx));
-        yOffset += cellAdvance;
+        const contentHeight = computeTokenContentHeight(child.slots, fontSize, rubyFontSize);
+        yOffset += Math.max(cellAdvance, contentHeight);
       } else if (child.type === 'tateten-group') {
         layoutTatetenChildren(child.children);
       } else {
@@ -405,7 +451,12 @@ export function layoutVertical(
             const tokenX = blockColumnX + baseCenterX;
             const tokenY = columnY + yOffset + fontSize / 2;
             columnChildren.push(layoutSingleToken(highlightChild, tokenX, tokenY, blockLctx));
-            yOffset += cellAdvance;
+            const hlContentHeight = computeTokenContentHeight(
+              highlightChild.slots,
+              fontSize,
+              rubyFontSize
+            );
+            yOffset += Math.max(cellAdvance, hlContentHeight);
           } else {
             // tateten-group inside highlight-group
             layoutTatetenChildren(highlightChild.children);

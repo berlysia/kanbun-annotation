@@ -238,6 +238,7 @@ function generateCommonStyles(
           color: var(--${vp}-color-emphasis);
           font-size: calc(var(--${vp}-ruby-ratio) * 1em);
           -webkit-user-select: none;
+          /* stylelint-disable-next-line plugin/use-baseline -- suppress by vendor prefix */
           user-select: none;
           align-self: end;
           text-align: center;
@@ -262,9 +263,9 @@ function generateCommonStyles(
  */
         :where(.${prefix}-ruby-grid--emphasis) {
           display: inline-grid;
-          grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) calc(
-              var(--${vp}-ruby-ratio) * 1em
-            ) auto calc(var(--${vp}-ruby-ratio) * 1em);
+          grid-template-rows:
+            calc(var(--${vp}-ruby-ratio) * 1em) calc(var(--${vp}-ruby-ratio) * 1em)
+            auto calc(var(--${vp}-ruby-ratio) * 1em);
           line-height: 1;
           vertical-align: calc(
             var(--${vp}-ruby-ratio) * 0.5em + var(--${vp}-grid-baseline-fix, 0) * 1em
@@ -290,9 +291,9 @@ function generateCommonStyles(
  */
         :where(.${prefix}-saidoku-grid--emphasis) {
           display: inline-grid;
-          grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) calc(
-              var(--${vp}-ruby-ratio) * 1em
-            ) auto calc(var(--${vp}-ruby-ratio) * 1em);
+          grid-template-rows:
+            calc(var(--${vp}-ruby-ratio) * 1em) calc(var(--${vp}-ruby-ratio) * 1em)
+            auto calc(var(--${vp}-ruby-ratio) * 1em);
           line-height: 1;
           vertical-align: calc(
             var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 1em + 0.5em)
@@ -395,6 +396,7 @@ ${rubyStyles}
   /* text-emphasis は継承するため、親要素の傍点がルビに伝播するのを防止 */
   text-emphasis: none;
   -webkit-user-select: none;
+  /* stylelint-disable-next-line plugin/use-baseline -- suppress by vendor prefix */
   user-select: none;
 }
 ${gridStyles}
@@ -464,6 +466,7 @@ ${gridStyles}
   grid-row: 1;
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   -webkit-user-select: none;
+  /* stylelint-disable-next-line plugin/use-baseline -- suppress by vendor prefix */
   user-select: none;
 }
 
@@ -473,6 +476,7 @@ ${gridStyles}
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   align-self: end;
   -webkit-user-select: none;
+  /* stylelint-disable-next-line plugin/use-baseline -- suppress by vendor prefix */
   user-select: none;
 }
 
@@ -481,6 +485,7 @@ ${gridStyles}
   grid-row: 4;
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   -webkit-user-select: none;
+  /* stylelint-disable-next-line plugin/use-baseline -- suppress by vendor prefix */
   user-select: none;
 }
 
@@ -488,6 +493,7 @@ ${gridStyles}
 :where(.${prefix}-kaeriten) {
   color: var(--${vp}-color-kaeriten);
   -webkit-user-select: none;
+  /* stylelint-disable-next-line plugin/use-baseline -- suppress by vendor prefix */
   user-select: none;
 }
 
@@ -496,6 +502,7 @@ ${gridStyles}
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   vertical-align: top;
   -webkit-user-select: none;
+  /* stylelint-disable-next-line plugin/use-baseline -- suppress by vendor prefix */
   user-select: none;
 }
 
@@ -541,6 +548,7 @@ ${
   top: calc((var(--okototen-y) / var(--okototen-grid)) * var(--${vp}-glyph-size));
   pointer-events: none;
   -webkit-user-select: none;
+  /* stylelint-disable-next-line plugin/use-baseline -- suppress by vendor prefix */
   user-select: none;
 }
 
@@ -581,6 +589,7 @@ ${
   vertical-align: middle;
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   -webkit-user-select: none;
+  /* stylelint-disable-next-line plugin/use-baseline -- suppress by vendor prefix */
   user-select: none;
   /* text-emphasis は継承するため、親要素の傍点が竪点記号に伝播するのを防止 */
   text-emphasis: none;
@@ -634,6 +643,7 @@ ${
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   align-self: center;
   -webkit-user-select: none;
+  /* stylelint-disable-next-line plugin/use-baseline -- suppress by vendor prefix */
   user-select: none;
 }
 

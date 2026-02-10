@@ -31,8 +31,15 @@ describe('rubyMethod: grid', () => {
       ],
     });
 
-    it('should use ruby element by default', () => {
+    it('should use grid by default', () => {
       const result = render(doc);
+      expect(result.html).toContain('skam-ruby-grid');
+      expect(result.html).toContain('<span class="skam-ruby">まな</span>');
+      expect(result.html).not.toContain('<ruby>');
+    });
+
+    it('should use ruby element when rubyMethod is ruby', () => {
+      const result = render(doc, { rubyMethod: 'ruby' });
       expect(result.html).toContain('<ruby>');
       expect(result.html).toContain('<rt class="skam-ruby">まな</rt>');
       expect(result.html).not.toContain('skam-ruby-grid');
@@ -70,10 +77,11 @@ describe('rubyMethod: grid', () => {
       ],
     });
 
-    it('should render range yomigana with ruby by default', () => {
+    it('should render range yomigana with grid by default', () => {
       const result = render(doc);
-      expect(result.html).toContain('<ruby>');
+      expect(result.html).toContain('skam-ruby-grid');
       expect(result.html).toContain('ろんご');
+      expect(result.html).not.toContain('<ruby>');
     });
 
     it('should render range yomigana with grid', () => {
@@ -106,8 +114,15 @@ describe('rubyMethod: grid', () => {
       ],
     });
 
-    it('should use nested ruby by default', () => {
+    it('should use saidoku-grid by default', () => {
       const result = render(doc);
+      expect(result.html).toContain('skam-saidoku-grid');
+      expect(result.html).not.toContain('skam-saidoku-outer');
+      expect(result.html).not.toContain('skam-saidoku-inner');
+    });
+
+    it('should use nested ruby when rubyMethod is ruby', () => {
+      const result = render(doc, { rubyMethod: 'ruby' });
       expect(result.html).toContain('skam-saidoku-outer');
       expect(result.html).toContain('skam-saidoku-inner');
       expect(result.html).not.toContain('skam-saidoku-grid');
@@ -162,11 +177,12 @@ describe('rubyMethod: grid', () => {
       ],
     });
 
-    it('should wrap tateten group with ruby by default', () => {
+    it('should wrap tateten group with grid by default', () => {
       const result = render(doc);
-      expect(result.html).toContain('<ruby');
+      expect(result.html).toContain('skam-ruby-grid');
       expect(result.html).toContain('skam-tateten-group');
       expect(result.html).toContain('てんか');
+      expect(result.html).not.toContain('<ruby');
     });
 
     it('should wrap tateten group with ruby-grid in grid mode', () => {
@@ -203,8 +219,16 @@ describe('rubyMethod: grid', () => {
       ],
     });
 
-    it('ruby mode: emphasis wraps ruby from outside', () => {
+    it('default (grid) mode: emphasis-row in grid', () => {
       const result = render(doc);
+      expect(result.html).toContain('skam-ruby-grid--emphasis');
+      expect(result.html).toContain('skam-emphasis-row');
+      // individual tokens should not have emphasis
+      expect(result.html).not.toMatch(/skam-token skam-emphasis/);
+    });
+
+    it('ruby mode: emphasis wraps ruby from outside', () => {
+      const result = render(doc, { rubyMethod: 'ruby' });
       expect(result.html).toMatch(/skam-emphasis.*<ruby/s);
       // individual tokens should not have emphasis
       expect(result.html).not.toMatch(/skam-token skam-emphasis/);
@@ -372,8 +396,16 @@ describe('rubyMethod: grid', () => {
   });
 
   describe('CSS generation', () => {
-    it('should include ruby CSS by default', () => {
+    it('should include grid CSS by default', () => {
       const css = generateCSS();
+      expect(css).toContain('skam-ruby-grid');
+      expect(css).toContain('skam-saidoku-grid');
+      expect(css).not.toContain('.skam-token ruby');
+      expect(css).not.toContain('skam-saidoku-outer');
+    });
+
+    it('should include ruby CSS when rubyMethod is ruby', () => {
+      const css = generateCSS({ rubyMethod: 'ruby' });
       expect(css).toContain('.skam-token ruby');
       expect(css).toContain('ruby-align');
       expect(css).not.toContain('skam-ruby-grid');
@@ -426,7 +458,7 @@ describe('rubyMethod: grid', () => {
   });
 
   describe('backward compatibility', () => {
-    it('should not change output when rubyMethod is not specified', () => {
+    it('should use grid when rubyMethod is not specified', () => {
       const doc = createDoc({
         marks: [
           {
@@ -437,8 +469,8 @@ describe('rubyMethod: grid', () => {
         ],
       });
       const withoutOption = render(doc);
-      const withRubyOption = render(doc, { rubyMethod: 'ruby' });
-      expect(withoutOption.html).toBe(withRubyOption.html);
+      const withGridOption = render(doc, { rubyMethod: 'grid' });
+      expect(withoutOption.html).toBe(withGridOption.html);
     });
   });
 

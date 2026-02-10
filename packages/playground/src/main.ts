@@ -359,7 +359,7 @@ function getStateFromURL(): URLState {
     profileStr === 'learningBasic' || profileStr === 'learningHint' ? profileStr : 'full';
 
   const rubyMethodStr = params.get('rubyMethod');
-  const rubyMethod: RubyMethod = rubyMethodStr === 'grid' ? 'grid' : 'ruby';
+  const rubyMethod: RubyMethod = rubyMethodStr === 'ruby' ? 'ruby' : 'grid';
 
   return { sample, renderer, mode, inline, profile, rubyMethod };
 }
@@ -408,7 +408,7 @@ function updateURL(state: Partial<URLState>): void {
   }
 
   if (state.rubyMethod !== undefined) {
-    if (state.rubyMethod === 'ruby') {
+    if (state.rubyMethod === 'grid') {
       params.delete('rubyMethod');
     } else {
       params.set('rubyMethod', state.rubyMethod);

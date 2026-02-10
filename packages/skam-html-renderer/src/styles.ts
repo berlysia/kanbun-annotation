@@ -67,7 +67,7 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
   const inline = options.inline ?? false;
   const useLayer = options.useLayer ?? true;
   const layerName = options.layerName ?? 'skam-kanbun';
-  const rubyMethod = options.rubyMethod ?? 'ruby';
+  const rubyMethod = options.rubyMethod ?? 'grid';
 
   const commonStyles = generateCommonStyles(prefix, vp, rubyMethod);
   const inlineStyles = inline ? generateInlineStyles(prefix) : '';
@@ -124,7 +124,7 @@ ${inlineStyles}`.trim();
 function generateCommonStyles(
   prefix: string,
   vp: string,
-  rubyMethod: RubyMethod | 'both' = 'ruby'
+  rubyMethod: RubyMethod | 'both' = 'grid'
 ): string {
   const includeRuby = rubyMethod === 'ruby' || rubyMethod === 'both';
   const includeGrid = rubyMethod === 'grid' || rubyMethod === 'both';

@@ -84,14 +84,14 @@ describe('1. addMark → レンダリング反映', () => {
 
   it('1.3 yomigana: 読み仮名追加', () => {
     const doc = createBaseDocument();
-    const beforeHtml = render(doc).html;
+    const beforeHtml = render(doc, { rubyMethod: 'ruby' }).html;
 
     const afterDoc = addMark(doc, {
       type: 'yomigana',
       anchor: { from: 't3', to: 't3' },
       value: 'まな',
     });
-    const afterHtml = render(afterDoc).html;
+    const afterHtml = render(afterDoc, { rubyMethod: 'ruby' }).html;
 
     expect(beforeHtml).not.toContain('<ruby>');
     expect(beforeHtml).not.toContain('skam-ruby');
@@ -163,7 +163,7 @@ describe('1. addMark → レンダリング反映', () => {
 
   it('1.8 saidoku: 再読文字追加', () => {
     const doc = createBaseDocument();
-    const beforeHtml = render(doc).html;
+    const beforeHtml = render(doc, { rubyMethod: 'ruby' }).html;
 
     const afterDoc = addMark(doc, {
       type: 'saidoku',
@@ -173,7 +173,7 @@ describe('1. addMark → レンダリング反映', () => {
         { n: 2, okuri: 'す' },
       ],
     });
-    const afterHtml = render(afterDoc).html;
+    const afterHtml = render(afterDoc, { rubyMethod: 'ruby' }).html;
 
     expect(beforeHtml).not.toContain('skam-saidoku');
     expect(afterHtml).toContain('skam-saidoku');
@@ -322,10 +322,10 @@ describe('2. removeMark → レンダリング反映', () => {
         value: 'まな',
       },
     ]);
-    const beforeHtml = render(doc).html;
+    const beforeHtml = render(doc, { rubyMethod: 'ruby' }).html;
 
     const afterDoc = removeMark(doc, 'mk1');
-    const afterHtml = render(afterDoc).html;
+    const afterHtml = render(afterDoc, { rubyMethod: 'ruby' }).html;
 
     expect(beforeHtml).toContain('<rt');
     expect(beforeHtml).toContain('まな');
@@ -416,10 +416,10 @@ describe('2. removeMark → レンダリング反映', () => {
         ],
       },
     ]);
-    const beforeHtml = render(doc).html;
+    const beforeHtml = render(doc, { rubyMethod: 'ruby' }).html;
 
     const afterDoc = removeMark(doc, 'mk1');
-    const afterHtml = render(afterDoc).html;
+    const afterHtml = render(afterDoc, { rubyMethod: 'ruby' }).html;
 
     expect(beforeHtml).toContain('skam-saidoku');
     expect(beforeHtml).toContain('skam-saidoku-outer');
@@ -626,14 +626,14 @@ describe('4. replaceMark → レンダリング反映', () => {
         value: 'ブ',
       },
     ]);
-    const beforeHtml = render(doc).html;
+    const beforeHtml = render(doc, { rubyMethod: 'ruby' }).html;
 
     const afterDoc = replaceMark(doc, 'mk1', {
       type: 'yomigana',
       anchor: { from: 't3', to: 't3' },
       value: 'まな',
     });
-    const afterHtml = render(afterDoc).html;
+    const afterHtml = render(afterDoc, { rubyMethod: 'ruby' }).html;
 
     // okurigana elements should disappear
     expect(beforeHtml).toContain('skam-okuri');

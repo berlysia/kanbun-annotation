@@ -839,7 +839,7 @@ function renderDisplayLayer(
   profile: RenderProfile,
   inline: boolean,
   interactive: boolean,
-  rubyMethod: RubyMethod = 'ruby'
+  rubyMethod: RubyMethod = 'grid'
 ): { tokens: string; prefix: string } {
   const { tokens, marks } = doc;
 
@@ -927,7 +927,7 @@ export function render(doc: SKAMDocument, options: RenderOptions = {}): RenderRe
   const inline = options.inline ?? false;
   const copyable = options.copyable;
   const interactive = options.interactive ?? false;
-  const rubyMethod = options.rubyMethod ?? 'ruby';
+  const rubyMethod = options.rubyMethod ?? 'grid';
 
   // Display層
   const displayResult = renderDisplayLayer(doc, prefix, profile, inline, interactive, rubyMethod);
@@ -998,7 +998,7 @@ export function renderHTML(doc: SKAMDocument, options: RenderHTMLOptions = {}): 
   const inline = options.inline ?? false;
   const copyable = options.copyable;
   const interactive = options.interactive ?? false;
-  const rubyMethod = options.rubyMethod ?? 'ruby';
+  const rubyMethod = options.rubyMethod ?? 'grid';
 
   // Display層
   const displayResult = renderDisplayLayer(doc, prefix, profile, inline, interactive, rubyMethod);

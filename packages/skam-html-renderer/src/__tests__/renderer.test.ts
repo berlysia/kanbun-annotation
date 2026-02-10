@@ -91,7 +91,7 @@ describe('render', () => {
         readings: [],
       };
 
-      const result = render(doc);
+      const result = render(doc, { rubyMethod: 'ruby' });
 
       expect(result.html).toContain('<ruby>');
       // rb要素にはdata-token-id属性が付与されない（デフォルト）
@@ -116,7 +116,7 @@ describe('render', () => {
         readings: [],
       };
 
-      const result = render(doc, { interactive: true });
+      const result = render(doc, { interactive: true, rubyMethod: 'ruby' });
 
       expect(result.html).toContain('<ruby>');
       // rb要素にはdata-token-id属性が付与される（interactive: true）
@@ -143,7 +143,7 @@ describe('render', () => {
         readings: [],
       };
 
-      const result = render(doc);
+      const result = render(doc, { rubyMethod: 'ruby' });
 
       expect(result.html).toContain('skam-okuri');
       expect(result.html).toContain('びて');
@@ -344,7 +344,7 @@ describe('render', () => {
         readings: [],
       };
 
-      const result = render(doc);
+      const result = render(doc, { rubyMethod: 'ruby' });
 
       // First reading yomi should be in inner ruby's rt element (without okuri)
       expect(result.html).toMatch(/<rt class="skam-ruby" data-saidoku-n="1">まさ<\/rt>/);
@@ -1626,7 +1626,7 @@ describe('data-token-id attributes', () => {
       readings: [],
     };
 
-    const result = render(doc, { interactive: true });
+    const result = render(doc, { interactive: true, rubyMethod: 'ruby' });
 
     // rb要素にdata-token-id属性が付与されている
     expect(result.html).toContain('data-token-id="t1"');
@@ -1666,7 +1666,7 @@ describe('data-token-id attributes', () => {
       readings: [],
     };
 
-    const result = render(doc, { interactive: true });
+    const result = render(doc, { interactive: true, rubyMethod: 'ruby' });
 
     // rb要素にdata-token-id属性が付与されている
     expect(result.html).toContain('<rb class="skam-base" data-token-id="t1">將</rb>');

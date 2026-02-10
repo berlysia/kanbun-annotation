@@ -112,7 +112,7 @@ describe('Three-element compound: range kana + tateten + emphasis', () => {
       { type: 'tateten', anchor: { from: 't1', to: 't3' } },
       { type: 'emphasis', anchor: { from: 't1', to: 't3' }, style: 'filled dot' },
     ]);
-    const { html } = render(doc);
+    const { html } = render(doc, { rubyMethod: 'ruby' });
     expect(html).toContain('てんちじん');
     expect(html).toContain('skam-tateten');
     expect(html).toContain('skam-emphasis');
@@ -295,7 +295,7 @@ describe('Four-element compound and saidoku compound', () => {
         format: 'alpha-upper',
       },
     ]);
-    const { html } = render(doc);
+    const { html } = render(doc, { rubyMethod: 'ruby' });
     expect(html).toContain('じゅうようご');
     expect(html).toContain('skam-tateten');
     expect(html).toContain('skam-emphasis');
@@ -475,7 +475,7 @@ describe('Range kana + tateten + kaeri: kaeri must not disappear', () => {
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しゅんぷう' },
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
     ]);
-    const { html } = render(doc);
+    const { html } = render(doc, { rubyMethod: 'ruby' });
     // <ruby> が tateten-group を含む
     expect(html).toMatch(/<ruby>.*skam-tateten-group.*<\/ruby>/s);
     // 個別トークンが tateten-group 内にある（インライン結合ではない）
@@ -489,7 +489,7 @@ describe('Range kana + tateten + kaeri: kaeri must not disappear', () => {
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'こっか' },
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
     ]);
-    const { html } = render(doc);
+    const { html } = render(doc, { rubyMethod: 'ruby' });
     // グループレベルの ruby は1つだけ
     const rtMatches = html.match(/<rt class="skam-ruby">こっか<\/rt>/g);
     expect(rtMatches).toHaveLength(1);
@@ -570,7 +570,7 @@ describe('Tateten + yomigana: last token suffix-row extracted outside ruby', () 
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
       { type: 'kutoten', position: { blockId: 'b1', after: 't2' }, value: '。' },
     ]);
-    const { html } = render(doc);
+    const { html } = render(doc, { rubyMethod: 'ruby' });
     // kutoten が出力に存在する
     expect(html).toContain('skam-suffix-kutoten');
     // suffix-row は </ruby> の後に配置される
@@ -586,7 +586,7 @@ describe('Tateten + yomigana: last token suffix-row extracted outside ruby', () 
       { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '二' },
       { type: 'kutoten', position: { blockId: 'b1', after: 't2' }, value: '。' },
     ]);
-    const { html } = render(doc);
+    const { html } = render(doc, { rubyMethod: 'ruby' });
     // 非レ kaeri は tateten-sep に配置
     expect(html).toMatch(/skam-tateten-sep.*skam-kaeriten/s);
     // suffix-row（kutoten含む）は ruby の外に配置
@@ -616,7 +616,7 @@ describe('Tateten + yomigana: last token suffix-row extracted outside ruby', () 
       { type: 'soegana', anchor: { from: 't1', to: 't2' }, value: 'ヲ' },
       { type: 'kutoten', position: { blockId: 'b1', after: 't2' }, value: '。' },
     ]);
-    const { html } = render(doc);
+    const { html } = render(doc, { rubyMethod: 'ruby' });
     // soegana と kutoten を含む suffix-row が ruby の外に配置
     expect(html).toContain('skam-soegana');
     expect(html).toContain('skam-suffix-kutoten');
@@ -633,7 +633,7 @@ describe('Tateten + yomigana: last token suffix-row extracted outside ruby', () 
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
       { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
     ]);
-    const { html } = render(doc);
+    const { html } = render(doc, { rubyMethod: 'ruby' });
     // 中間トークン(t1)のレ kaeri は suffix-kaeri 内（rb 内）に残る
     expect(html).toMatch(/<rb.*skam-suffix-kaeri.*skam-kaeriten.*<\/rb>/s);
   });

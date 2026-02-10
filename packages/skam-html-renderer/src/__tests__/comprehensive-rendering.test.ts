@@ -1594,7 +1594,7 @@ describe('Interactive mode with mark combinations', () => {
     const doc = createSingleTokenDoc('學', [
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
     ]);
-    const { html } = render(doc, { interactive: true });
+    const { html } = render(doc, { interactive: true, rubyMethod: 'ruby' });
     expect(html).toContain('data-token-id="t1"');
     expect(html).toContain('<rb class="skam-base" data-token-id="t1">學</rb>');
   });

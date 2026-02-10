@@ -2,11 +2,11 @@
 export default {
   plugins: ['stylelint-plugin-use-baseline'],
   rules: {
-    // Widely available: supported in all core browsers for 30+ months
+    // Newly available: supported in all core browsers, but for less than 30 months
     'plugin/use-baseline': [
       true,
       {
-        available: 'widely',
+        available: 'newly',
         severity: 'warning',
       },
     ],

@@ -37,10 +37,9 @@ const config: KnipConfig = {
     'packages/baseline-check': {
       entry: [
         'scripts/*.js',
-        'eslint.config.js',
         'eslint-js.config.js',
-        'eslint-newly.config.js',
         'stylelint.config.js',
+        'stylelint-newly.config.js',
       ],
       project: ['scripts/**/*.js'],
     },

@@ -1,7 +1,7 @@
 /**
- * Generate a Baseline compatibility report from ESLint CSS, Stylelint, and ESLint JS results.
+ * Generate a Baseline compatibility report from Stylelint and ESLint JS results.
  *
- * Runs all three tools in JSON mode, aggregates findings,
+ * Runs both tools in JSON mode, aggregates findings,
  * and outputs a markdown report to stdout (and optionally to a file).
  */
 
@@ -160,46 +160,38 @@ function main() {
   run('node scripts/extract-css.js');
 
   // 2. Run tools
-  console.error('Running ESLint CSS (widely)...');
-  const eslintCssJson = run(`${bin}/eslint -c eslint.config.js -f json 'extracted/css/**/*.css'`);
-
-  console.error('Running ESLint CSS (newly)...');
-  const eslintCssNewlyJson = run(
-    `${bin}/eslint -c eslint-newly.config.js -f json 'extracted/css/**/*.css'`
+  console.error('Running Stylelint (widely)...');
+  const stylelintWidelyOut = runCaptureBoth(
+    `${bin}/stylelint -f json --config stylelint.config.js 'extracted/css/**/*.css'`
   );
+  const stylelintWidelyJson = stylelintWidelyOut.stderr || stylelintWidelyOut.stdout;
 
-  console.error('Running Stylelint...');
-  // Stylelint outputs JSON formatter to stderr
-  const stylelintOut = runCaptureBoth(`${bin}/stylelint -f json 'extracted/css/**/*.css'`);
-  const stylelintJson = stylelintOut.stderr || stylelintOut.stdout;
+  console.error('Running Stylelint (newly)...');
+  const stylelintNewlyOut = runCaptureBoth(
+    `${bin}/stylelint -f json --config stylelint-newly.config.js 'extracted/css/**/*.css'`
+  );
+  const stylelintNewlyJson = stylelintNewlyOut.stderr || stylelintNewlyOut.stdout;
 
   console.error('Running ESLint JS...');
   const eslintJsJson = run(`${bin}/eslint -c eslint-js.config.js -f json 'extracted/js/**/*.js'`);
 
   // 3. Parse results
-  const eslintCssResults = parseEslintJson(eslintCssJson, 'eslint-css');
-  const eslintCssNewlyResults = parseEslintJson(eslintCssNewlyJson, 'eslint-css-newly');
-  const stylelintResults = parseStylelintJson(stylelintJson);
+  const stylelintWidelyResults = parseStylelintJson(stylelintWidelyJson);
+  const stylelintNewlyResults = parseStylelintJson(stylelintNewlyJson);
   const eslintJsResults = parseEslintJson(eslintJsJson, 'eslint-js');
 
   // 3.5. Determine baseline status per feature
   // Features warned by "newly" check = limited (not supported in all browsers)
   // Features warned only by "widely" check = newly available (supported but < 30 months)
-  const limitedFeatures = new Set(eslintCssNewlyResults.map((r) => r.feature));
+  const limitedFeatures = new Set(stylelintNewlyResults.map((r) => r.feature));
   /** @param {string} feature */
   function getBaselineStatus(feature) {
     return limitedFeatures.has(feature) ? 'limited' : 'newly';
   }
 
   // 4. Summarize
-  const cssSummary = summarize(eslintCssResults);
+  const cssSummary = summarize(stylelintWidelyResults);
   const jsSummary = summarize(eslintJsResults);
-
-  // 5. Check tool consistency
-  const eslintFeatures = new Set(eslintCssResults.map((r) => r.feature));
-  const stylelintFeatures = new Set(stylelintResults.map((r) => r.feature));
-  const onlyEslint = [...eslintFeatures].filter((f) => !stylelintFeatures.has(f));
-  const onlyStylelint = [...stylelintFeatures].filter((f) => !eslintFeatures.has(f));
 
   // 6. Generate report
   const lines = [];
@@ -212,24 +204,8 @@ function main() {
   lines.push(``);
   lines.push(`| Category | Unique Features | Total Occurrences |`);
   lines.push(`|----------|----------------|-------------------|`);
-  lines.push(`| CSS (ESLint) | ${cssSummary.length} | ${eslintCssResults.length} |`);
-  lines.push(
-    `| CSS (Stylelint) | ${summarize(stylelintResults).length} | ${stylelintResults.length} |`
-  );
+  lines.push(`| CSS (Stylelint) | ${cssSummary.length} | ${stylelintWidelyResults.length} |`);
   lines.push(`| JS (ESLint) | ${jsSummary.length} | ${eslintJsResults.length} |`);
-  lines.push(``);
-
-  // Tool consistency
-  if (onlyEslint.length === 0 && onlyStylelint.length === 0) {
-    lines.push(`> ESLint CSS and Stylelint produced **identical** results.`);
-  } else {
-    if (onlyEslint.length > 0) {
-      lines.push(`> ESLint-only detections: ${onlyEslint.join(', ')}`);
-    }
-    if (onlyStylelint.length > 0) {
-      lines.push(`> Stylelint-only detections: ${onlyStylelint.join(', ')}`);
-    }
-  }
   lines.push(``);
 
   // CSS details
@@ -264,7 +240,7 @@ function main() {
   lines.push(`## Per-File Breakdown (CSS)`);
   lines.push(``);
   const byFile = new Map();
-  for (const r of eslintCssResults) {
+  for (const r of stylelintWidelyResults) {
     if (!byFile.has(r.file)) byFile.set(r.file, []);
     byFile.get(r.file).push(r);
   }

@@ -1,0 +1,537 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SKAM Web Component Demo</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      *,
+      *::before,
+      *::after {
+        box-sizing: border-box;
+      }
+
+      :root {
+        --bg: #fafaf7;
+        --surface: #fff;
+        --border: #e0ddd8;
+        --text: #333;
+        --text-secondary: #666;
+        --primary: #3b82f6;
+        --font-sans: system-ui, -apple-system, sans-serif;
+        --font-mono: 'SF Mono', 'Fira Code', monospace;
+      }
+
+      body {
+        margin: 0;
+        font-family: var(--font-sans);
+        background: var(--bg);
+        color: var(--text);
+        line-height: 1.6;
+      }
+
+      .header {
+        padding: 1rem 2rem;
+        background: var(--surface);
+        border-bottom: 1px solid var(--border);
+      }
+
+      .header-title {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .header-title h1 {
+        margin: 0;
+        font-size: 1.5rem;
+      }
+
+      .header nav {
+        margin-top: 0.5rem;
+      }
+
+      .header nav a {
+        color: var(--primary);
+        text-decoration: none;
+      }
+
+      .header nav a:hover {
+        text-decoration: underline;
+      }
+
+      .main {
+        max-width: 1200px;
+        margin: 0 auto;
+        padding: 2rem;
+      }
+
+      .demo-section {
+        margin-bottom: 2rem;
+        background: var(--surface);
+        border: 1px solid var(--border);
+        border-radius: 8px;
+        overflow: hidden;
+      }
+
+      .demo-section h2 {
+        margin: 0;
+        padding: 0.75rem 1rem;
+        font-size: 1.1rem;
+        background: #f5f5f0;
+        border-bottom: 1px solid var(--border);
+      }
+
+      .demo-content {
+        padding: 1.5rem;
+      }
+
+      .demo-row {
+        display: flex;
+        gap: 1.5rem;
+        align-items: flex-start;
+      }
+
+      .demo-preview {
+        flex: 1;
+        min-height: 200px;
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 1rem;
+        background: #fafaf7;
+        border: 1px dashed var(--border);
+        border-radius: 4px;
+      }
+
+      .demo-code {
+        flex: 1;
+      }
+
+      .demo-code pre {
+        margin: 0;
+        padding: 1rem;
+        background: #1e1e2e;
+        color: #cdd6f4;
+        border-radius: 4px;
+        overflow-x: auto;
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        line-height: 1.5;
+        white-space: pre-wrap;
+        word-break: break-all;
+      }
+
+      .controls {
+        margin-top: 1rem;
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+        align-items: center;
+      }
+
+      .controls label {
+        display: flex;
+        align-items: center;
+        gap: 0.25rem;
+        font-size: 0.9rem;
+      }
+
+      .controls select,
+      .controls input[type='text'] {
+        padding: 0.25rem 0.5rem;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        font-size: 0.85rem;
+      }
+
+      .controls button {
+        padding: 0.25rem 0.75rem;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        background: var(--surface);
+        cursor: pointer;
+        font-size: 0.85rem;
+      }
+
+      .controls button:hover {
+        background: #f0f0f0;
+      }
+
+      .interactive-section {
+        margin-top: 2rem;
+      }
+
+      .interactive-section h3 {
+        margin: 0 0 1rem;
+        font-size: 1rem;
+      }
+
+      .xml-editor-area {
+        width: 100%;
+        min-height: 200px;
+        padding: 0.75rem;
+        font-family: var(--font-mono);
+        font-size: 0.85rem;
+        border: 1px solid var(--border);
+        border-radius: 4px;
+        resize: vertical;
+      }
+
+      .apply-btn {
+        margin-top: 0.5rem;
+        padding: 0.5rem 1.5rem;
+        background: var(--primary);
+        color: #fff;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+      }
+
+      .apply-btn:hover {
+        opacity: 0.9;
+      }
+
+      .event-log {
+        margin-top: 1rem;
+        padding: 0.75rem;
+        background: #1e1e2e;
+        color: #a6e3a1;
+        border-radius: 4px;
+        font-family: var(--font-mono);
+        font-size: 0.8rem;
+        max-height: 200px;
+        overflow-y: auto;
+        white-space: pre-wrap;
+      }
+
+      .event-log:empty::before {
+        content: 'Events will appear here...';
+        color: #585b70;
+      }
+
+      .css-vars-demo {
+        display: flex;
+        gap: 1rem;
+        align-items: center;
+        flex-wrap: wrap;
+      }
+
+      .css-vars-demo label {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-size: 0.85rem;
+      }
+
+      .footer {
+        padding: 1rem 2rem;
+        text-align: center;
+        color: var(--text-secondary);
+        font-size: 0.85rem;
+        border-top: 1px solid var(--border);
+      }
+
+      .footer a {
+        color: var(--primary);
+        text-decoration: none;
+      }
+
+      .description {
+        margin: 0.5rem 0 0;
+        color: var(--text-secondary);
+        font-size: 0.9rem;
+      }
+    </style>
+  </head>
+  <body>
+    <header class="header">
+      <div class="header-title">
+        <h1>&lt;skam-renderer&gt; Web Component Demo</h1>
+      </div>
+      <nav><a href="./">← Playground に戻る</a></nav>
+      <p class="description">
+        <code>&lt;skam-renderer&gt;</code>
+        カスタムエレメントの動作確認ページ。宣言的なHTML埋め込みとプログラマティックな操作をテストできます。
+      </p>
+    </header>
+
+    <main class="main">
+      <!-- Demo 1: Basic declarative usage -->
+      <section class="demo-section" id="demo-basic">
+        <h2>1. 基本的な宣言的利用</h2>
+        <div class="demo-content">
+          <div class="demo-row">
+            <div class="demo-preview">
+              <skam-renderer id="basic-renderer">
+                <script type="text/skam-ml">
+                  <?xml version="1.0" encoding="UTF-8"?>
+                  <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+                    <skam:body>
+                      <skam:block>
+                        <skam:kun yomi="まな" okuri="ビテ">學</skam:kun>而
+                        <skam:kun okuri="ニ">時</skam:kun>
+                        <skam:kun okuri="フ">習</skam:kun>
+                        <skam:kun soe="ヲ">之</skam:kun><skam:kaeri kind="re"/><skam:kutoten value="。" kind="ku"/>
+                      </skam:block>
+                    </skam:body>
+                    <skam:readings>
+                      <skam:reading kind="kakikudashi">学びて時に之を習ふ。</skam:reading>
+                    </skam:readings>
+                  </skam:doc>
+                </script>
+              </skam-renderer>
+            </div>
+            <div class="demo-code">
+              <pre><code>&lt;skam-renderer&gt;
+  &lt;script type="text/skam-ml"&gt;
+    &lt;?xml version="1.0" encoding="UTF-8"?&gt;
+    &lt;skam:doc xmlns:skam="urn:skam:1"
+              xml:lang="ja"&gt;
+      &lt;skam:body&gt;
+        &lt;skam:block&gt;
+          &lt;skam:kun yomi="まな"
+                    okuri="ビテ"&gt;學&lt;/skam:kun&gt;而
+          ...
+        &lt;/skam:block&gt;
+      &lt;/skam:body&gt;
+    &lt;/skam:doc&gt;
+  &lt;/script&gt;
+&lt;/skam-renderer&gt;</code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Demo 2: Writing mode -->
+      <section class="demo-section" id="demo-writing-mode">
+        <h2>2. 書字方向の切り替え</h2>
+        <div class="demo-content">
+          <div class="controls">
+            <label>
+              <input type="radio" name="wm-demo" value="vertical" checked />
+              縦書き
+            </label>
+            <label>
+              <input type="radio" name="wm-demo" value="horizontal" />
+              横書き
+            </label>
+          </div>
+          <div class="demo-row" style="margin-top: 1rem">
+            <div class="demo-preview">
+              <skam-renderer id="wm-renderer" writing-mode="vertical">
+                <script type="text/skam-ml">
+                  <?xml version="1.0" encoding="UTF-8"?>
+                  <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+                    <skam:body>
+                      <skam:block>
+                        <skam:kun yomi="まな" okuri="ビテ">學</skam:kun>而
+                        <skam:kun okuri="ニ">時</skam:kun>
+                        <skam:kun okuri="フ">習</skam:kun>
+                        <skam:kun soe="ヲ">之</skam:kun><skam:kaeri kind="re"/><skam:kutoten value="。" kind="ku"/>
+                      </skam:block>
+                    </skam:body>
+                  </skam:doc>
+                </script>
+              </skam-renderer>
+            </div>
+            <div class="demo-code">
+              <pre><code>&lt;skam-renderer writing-mode="vertical"&gt;
+  ...
+&lt;/skam-renderer&gt;
+
+// JS で切り替え
+el.setAttribute('writing-mode', 'horizontal');</code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Demo 3: Profile -->
+      <section class="demo-section" id="demo-profile">
+        <h2>3. プロファイル切り替え</h2>
+        <div class="demo-content">
+          <div class="controls">
+            <label>
+              プロファイル:
+              <select id="profile-demo-select">
+                <option value="">full（デフォルト）</option>
+                <option value="learningBasic">learningBasic（返り点のみ）</option>
+                <option value="learningHint">learningHint（返り点＋送り仮名）</option>
+              </select>
+            </label>
+          </div>
+          <div class="demo-row" style="margin-top: 1rem">
+            <div class="demo-preview">
+              <skam-renderer id="profile-renderer">
+                <script type="text/skam-ml">
+                  <?xml version="1.0" encoding="UTF-8"?>
+                  <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+                    <skam:body>
+                      <skam:block>
+                        <skam:kun yomi="まな" okuri="ビテ">學</skam:kun>而
+                        <skam:kun okuri="ニ">時</skam:kun>
+                        <skam:kun okuri="フ">習</skam:kun>
+                        <skam:kun soe="ヲ">之</skam:kun><skam:kaeri kind="re"/><skam:kutoten value="。" kind="ku"/>
+                      </skam:block>
+                    </skam:body>
+                    <skam:readings>
+                      <skam:reading kind="kakikudashi">学びて時に之を習ふ。</skam:reading>
+                    </skam:readings>
+                  </skam:doc>
+                </script>
+              </skam-renderer>
+            </div>
+            <div class="demo-code">
+              <pre><code>&lt;skam-renderer profile="learningBasic"&gt;
+  ...
+&lt;/skam-renderer&gt;
+
+// プリセット名 or JSON で指定
+el.setAttribute('profile',
+  '{"yomigana":true,"okurigana":false}');</code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Demo 4: CSS Variables -->
+      <section class="demo-section" id="demo-css-vars">
+        <h2>4. CSS Variables でスタイルカスタマイズ</h2>
+        <div class="demo-content">
+          <div class="css-vars-demo">
+            <label>
+              フォントサイズ:
+              <input type="range" id="css-font-size" min="1" max="3" step="0.1" value="2" />
+              <span id="css-font-size-value">2em</span>
+            </label>
+            <label>
+              返り点色:
+              <input type="color" id="css-kaeri-color" value="#000000" />
+            </label>
+            <label>
+              ルビ色:
+              <input type="color" id="css-ruby-color" value="#000000" />
+            </label>
+          </div>
+          <div class="demo-row" style="margin-top: 1rem">
+            <div class="demo-preview">
+              <skam-renderer id="css-vars-renderer">
+                <script type="text/skam-ml">
+                  <?xml version="1.0" encoding="UTF-8"?>
+                  <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+                    <skam:body>
+                      <skam:block>
+                        <skam:kun yomi="まな" okuri="ビテ">學</skam:kun>而
+                        <skam:kun okuri="ニ">時</skam:kun>
+                        <skam:kun okuri="フ">習</skam:kun>
+                        <skam:kun soe="ヲ">之</skam:kun><skam:kaeri kind="re"/><skam:kutoten value="。" kind="ku"/>
+                      </skam:block>
+                    </skam:body>
+                  </skam:doc>
+                </script>
+              </skam-renderer>
+            </div>
+            <div class="demo-code">
+              <pre><code>/* CSS Variables は Shadow DOM を貫通 */
+skam-renderer {
+  --skam-glyph-size: 2em;
+  --skam-kaeriten-color: #c00;
+  --skam-ruby-color: #06c;
+}</code></pre>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Demo 5: Programmatic / Interactive -->
+      <section class="demo-section" id="demo-interactive">
+        <h2>5. プログラマティック操作</h2>
+        <div class="demo-content">
+          <div class="demo-row">
+            <div class="demo-preview">
+              <skam-renderer id="interactive-renderer"></skam-renderer>
+            </div>
+            <div class="demo-code" style="flex: 1.5">
+              <div class="interactive-section">
+                <h3>SKAM-ML を入力して適用</h3>
+                <textarea id="interactive-xml" class="xml-editor-area">
+<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:kun yomi="まな" okuri="ビテ">學</skam:kun>而
+      <skam:kun okuri="ニ">時</skam:kun>
+      <skam:kun okuri="フ">習</skam:kun>
+      <skam:kun soe="ヲ">之</skam:kun><skam:kaeri kind="re"/><skam:kutoten value="。" kind="ku"/>
+    </skam:block>
+  </skam:body>
+  <skam:readings>
+    <skam:reading kind="kakikudashi">学びて時に之を習ふ。</skam:reading>
+  </skam:readings>
+</skam:doc></textarea
+                >
+                <button id="apply-xml-btn" class="apply-btn" type="button">
+                  xmlContent に適用
+                </button>
+              </div>
+              <h3 style="margin-top: 1rem">イベントログ</h3>
+              <div id="event-log" class="event-log"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Demo 6: Error handling -->
+      <section class="demo-section" id="demo-error">
+        <h2>6. エラーハンドリング</h2>
+        <div class="demo-content">
+          <div class="demo-row">
+            <div class="demo-preview">
+              <skam-renderer id="error-renderer">
+                <script type="text/skam-ml">
+                  <invalid>not valid SKAM-ML
+                </script>
+              </skam-renderer>
+            </div>
+            <div class="demo-code">
+              <pre><code>// 不正な XML を渡すとエラー表示
+&lt;skam-renderer&gt;
+  &lt;script type="text/skam-ml"&gt;
+    &lt;invalid&gt;not valid SKAM-ML
+  &lt;/script&gt;
+&lt;/skam-renderer&gt;
+
+// skam-error イベントで検知可能
+el.addEventListener('skam-error', (e) => {
+  console.error(e.detail.error);
+});</code></pre>
+              <div id="error-log" class="event-log" style="margin-top: 0.5rem"></div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer class="footer">
+      <a href="./">← Playground に戻る</a>
+      |
+      <a
+        href="https://github.com/berlysia/kanbun-annotation"
+        target="_blank"
+        rel="noopener noreferrer"
+        >GitHub</a
+      >
+      | SKAM (Stand-off Kanbun Annotation Model)
+    </footer>
+
+    <script type="module" src="/src/web-component.ts"></script>
+  </body>
+</html>

@@ -28,6 +28,7 @@
     "@kanbun/skam-canvas-renderer": "workspace:*",
     "@kanbun/skam-html-renderer": "workspace:*",
     "@kanbun/skam-xml-parser": "workspace:*",
+    "@kanbun/skam-web-component": "workspace:*",
     "@kanbun/skam-xml-stringify": "workspace:*",
     "prismjs": "1.30.0"
   },

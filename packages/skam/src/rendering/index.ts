@@ -36,3 +36,6 @@ export { getMarksForToken } from './mark-lookup.js';
 
 // ブロック
 export { groupTokensByBlock } from './block-utils.js';
+
+// 改行制御
+export { canBreakBefore } from './line-break.js';

@@ -44,11 +44,11 @@ function updateCssVars(): void {
 cssFontSize.addEventListener('input', updateCssVars);
 
 cssKaeriColor.addEventListener('input', () => {
-  cssVarsRenderer.style.setProperty('--skam-kaeriten-color', cssKaeriColor.value);
+  cssVarsRenderer.style.setProperty('--skam-color-kaeriten', cssKaeriColor.value);
 });
 
 cssRubyColor.addEventListener('input', () => {
-  cssVarsRenderer.style.setProperty('--skam-ruby-color', cssRubyColor.value);
+  cssVarsRenderer.style.setProperty('--skam-color-ruby', cssRubyColor.value);
 });
 
 // --- Demo 5: Programmatic / Interactive ---

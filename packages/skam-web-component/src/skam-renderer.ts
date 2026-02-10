@@ -25,6 +25,52 @@ const ERROR_CSS = `
 }
 `;
 
+/**
+ * Shadow DOM 内の CSS 変数をホスト要素から継承可能にするオーバーライド CSS を生成する。
+ *
+ * 問題: HTML レンダラーが生成する CSS は `:where(.skam-document)` に変数デフォルト値を
+ * 直接宣言する。Shadow DOM ではホスト要素に設定した CSS 変数は継承で子に伝わるが、
+ * 子要素に直接宣言があると継承値より優先される。
+ *
+ * 解決: `:host` にデフォルト値を設定し、`.skam-document` で `inherit` に上書きする。
+ * `.skam-document` (specificity 0,1,0) は `:where(.skam-document)` (0,0,0) に勝つ。
+ * ユーザーのインラインスタイルは `:host` ルールより優先される。
+ *
+ * 注意: --font-family / --font-family-ruby は font-loader が :host で設定するため、
+ * ここでは :host のデフォルトを宣言しない（cascade 順序で上書きしてしまう）。
+ * .document 側は inherit のままで問題ない（生成 CSS も元から inherit）。
+ */
+function generateVarOverrideCss(prefix: string): string {
+  const vp = prefix;
+  return `
+:host {
+  --${vp}-color-fg: currentColor;
+  --${vp}-color-kaeriten: currentColor;
+  --${vp}-color-ruby: currentColor;
+  --${vp}-color-emphasis: currentColor;
+  --${vp}-glyph-size: 1em;
+  --${vp}-ruby-ratio: 0.5;
+  --${vp}-line-height: 2;
+  --${vp}-letter-spacing: 0;
+  --${vp}-selection-bg: rgba(66, 133, 244, 0.3);
+  --${vp}-selection-border: #4285f4;
+}
+.${vp}-document {
+  --${vp}-color-fg: inherit;
+  --${vp}-color-kaeriten: inherit;
+  --${vp}-color-ruby: inherit;
+  --${vp}-color-emphasis: inherit;
+  --${vp}-font-family: inherit;
+  --${vp}-font-family-ruby: inherit;
+  --${vp}-glyph-size: inherit;
+  --${vp}-ruby-ratio: inherit;
+  --${vp}-line-height: inherit;
+  --${vp}-letter-spacing: inherit;
+  --${vp}-selection-bg: inherit;
+  --${vp}-selection-border: inherit;
+}`;
+}
+
 export class SkamRendererElement extends HTMLElement {
   static observedAttributes = [
     'writing-mode',
@@ -148,14 +194,15 @@ export class SkamRendererElement extends HTMLElement {
       const options = buildRenderOptions(attrs);
       const { html, css } = render(doc, options);
 
-      this.#mainStyle.textContent = css;
+      const prefix = options.classPrefix ?? 'skam';
+      this.#mainStyle.textContent = css + generateVarOverrideCss(prefix);
       this.#ensureFont();
-      this.#updateFontStyle(options.classPrefix ?? 'skam');
+      this.#updateFontStyle(prefix);
       this.#contentDiv.innerHTML = html;
 
       // Chromium inline-grid baseline bug の検出・補正
       calibrateGridBaseline(this.#contentDiv, {
-        variablePrefix: options.classPrefix ?? 'skam',
+        variablePrefix: prefix,
       });
 
       // Interactive handlers

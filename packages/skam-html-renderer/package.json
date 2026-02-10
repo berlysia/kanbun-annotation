@@ -16,7 +16,9 @@
     "build": "tsup",
     "typecheck": "tsgo --noEmit",
     "lint": "oxlint src",
-    "lint:baseline": "stylelint 'src/**/*.ts'",
+    "lint:baseline": "pnpm lint:baseline:css; pnpm lint:baseline:js",
+    "lint:baseline:css": "stylelint 'src/**/*.ts'",
+    "lint:baseline:js": "eslint -c eslint-baseline.config.js 'src/**/*.ts'",
     "test": "vitest",
     "test:run": "vitest run"
   },
@@ -50,8 +52,11 @@
   },
   "devDependencies": {
     "@kanbun/skam-xml-parser": "workspace:*",
+    "eslint": "^9.39.2",
+    "eslint-plugin-baseline-js": "^0.5.0",
     "postcss-styled-syntax": "^0.7.1",
     "stylelint": "^16.26.1",
-    "stylelint-plugin-use-baseline": "^1.2.1"
+    "stylelint-plugin-use-baseline": "^1.2.1",
+    "typescript-eslint": "8.54.0"
   }
 }

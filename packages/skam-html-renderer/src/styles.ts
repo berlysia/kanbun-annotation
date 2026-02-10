@@ -133,7 +133,6 @@ function generateCommonStyles(
     ? css`
         /* Ruby styling */
         :where(.${prefix}-token ruby) {
-          /* stylelint-disable-next-line plugin/use-baseline -- ruby-align is baseline 2024*/
           ruby-align: center;
           block-size: 1em;
         }
@@ -238,7 +237,6 @@ function generateCommonStyles(
           color: var(--${vp}-color-emphasis);
           font-size: calc(var(--${vp}-ruby-ratio) * 1em);
           -webkit-user-select: none;
-          /* stylelint-disable-next-line plugin/use-baseline -- suppress by vendor prefix */
           user-select: none;
           align-self: end;
           text-align: center;
@@ -396,7 +394,6 @@ ${rubyStyles}
   /* text-emphasis は継承するため、親要素の傍点がルビに伝播するのを防止 */
   text-emphasis: none;
   -webkit-user-select: none;
-  /* stylelint-disable-next-line plugin/use-baseline -- suppress by vendor prefix */
   user-select: none;
 }
 ${gridStyles}
@@ -466,7 +463,6 @@ ${gridStyles}
   grid-row: 1;
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   -webkit-user-select: none;
-  /* stylelint-disable-next-line plugin/use-baseline -- suppress by vendor prefix */
   user-select: none;
 }
 
@@ -476,7 +472,6 @@ ${gridStyles}
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   align-self: end;
   -webkit-user-select: none;
-  /* stylelint-disable-next-line plugin/use-baseline -- suppress by vendor prefix */
   user-select: none;
 }
 
@@ -485,7 +480,6 @@ ${gridStyles}
   grid-row: 4;
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   -webkit-user-select: none;
-  /* stylelint-disable-next-line plugin/use-baseline -- suppress by vendor prefix */
   user-select: none;
 }
 
@@ -493,7 +487,6 @@ ${gridStyles}
 :where(.${prefix}-kaeriten) {
   color: var(--${vp}-color-kaeriten);
   -webkit-user-select: none;
-  /* stylelint-disable-next-line plugin/use-baseline -- suppress by vendor prefix */
   user-select: none;
 }
 
@@ -502,7 +495,6 @@ ${gridStyles}
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   vertical-align: top;
   -webkit-user-select: none;
-  /* stylelint-disable-next-line plugin/use-baseline -- suppress by vendor prefix */
   user-select: none;
 }
 
@@ -524,12 +516,10 @@ ${
  * - ruby-position は継承するため、内側 ruby にも明示的に設定が必要
  */
         :where(.${prefix}-saidoku-outer) {
-          /* stylelint-disable-next-line plugin/use-baseline -- ruby-position: under is baseline 2024 */
           ruby-position: under;
         }
 
         :where(.${prefix}-saidoku-inner) {
-          /* stylelint-disable-next-line plugin/use-baseline -- ruby-position: over is baseline 2024 */
           ruby-position: over;
         }
       `
@@ -548,7 +538,6 @@ ${
   top: calc((var(--okototen-y) / var(--okototen-grid)) * var(--${vp}-glyph-size));
   pointer-events: none;
   -webkit-user-select: none;
-  /* stylelint-disable-next-line plugin/use-baseline -- suppress by vendor prefix */
   user-select: none;
 }
 
@@ -589,7 +578,6 @@ ${
   vertical-align: middle;
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   -webkit-user-select: none;
-  /* stylelint-disable-next-line plugin/use-baseline -- suppress by vendor prefix */
   user-select: none;
   /* text-emphasis は継承するため、親要素の傍点が竪点記号に伝播するのを防止 */
   text-emphasis: none;
@@ -643,7 +631,6 @@ ${
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   align-self: center;
   -webkit-user-select: none;
-  /* stylelint-disable-next-line plugin/use-baseline -- suppress by vendor prefix */
   user-select: none;
 }
 
@@ -739,6 +726,7 @@ ${
 /* ruby をコピー可能にする */
 :where(.${prefix}-document[data-copyable~="ruby"]) :where(.${prefix}-ruby),
 :where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-ruby) {
+  -webkit-user-select: text;
   user-select: text;
 }
 
@@ -749,12 +737,14 @@ ${
 :where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-suffix-okuri),
 :where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-suffix-saidoku),
 :where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-suffix-kana) {
+  -webkit-user-select: text;
   user-select: text;
 }
 
 /* soegana をコピー可能にする (suffix-okuri, suffix-kana と同じ要素) */
 :where(.${prefix}-document[data-copyable~="soegana"]) :where(.${prefix}-suffix-okuri),
 :where(.${prefix}-document[data-copyable~="soegana"]) :where(.${prefix}-suffix-kana) {
+  -webkit-user-select: text;
   user-select: text;
 }
 
@@ -763,12 +753,14 @@ ${
 :where(.${prefix}-document[data-copyable~="kaeriten"]) :where(.${prefix}-kaeriten),
 :where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-suffix-kaeri),
 :where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-kaeriten) {
+  -webkit-user-select: text;
   user-select: text;
 }
 
 /* okototen をコピー可能にする */
 :where(.${prefix}-document[data-copyable~="okototen"]) :where(.${prefix}-okototen),
 :where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-okototen) {
+  -webkit-user-select: text;
   user-select: text;
 }`;
 }

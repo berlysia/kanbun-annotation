@@ -86,6 +86,9 @@ importers:
       '@kanbun/skam-html-renderer':
         specifier: workspace:*
         version: link:../skam-html-renderer
+      '@kanbun/skam-web-component':
+        specifier: workspace:*
+        version: link:../skam-web-component
       '@kanbun/skam-xml-parser':
         specifier: workspace:*
         version: link:../skam-xml-parser
@@ -156,6 +159,15 @@ importers:
       playwright:
         specifier: 1.52.0
         version: 1.52.0
+
+  packages/skam-web-component:
+    dependencies:
+      '@kanbun/skam-html-renderer':
+        specifier: workspace:*
+        version: link:../skam-html-renderer
+      '@kanbun/skam-xml-parser':
+        specifier: workspace:*
+        version: link:../skam-xml-parser
 
   packages/skam-xml-parser:
     dependencies:

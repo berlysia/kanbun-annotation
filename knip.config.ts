@@ -20,7 +20,7 @@ const config: KnipConfig = {
       project: ['src/**/*.ts'],
     },
     'packages/playground': {
-      entry: ['src/main.ts', 'index.html'],
+      entry: ['src/main.ts', 'src/web-component.ts', 'index.html', 'web-component.html'],
       project: ['src/**/*.ts'],
     },
     'packages/integration-tests': {
@@ -29,6 +29,9 @@ const config: KnipConfig = {
     },
     'packages/skam-screenshot': {
       entry: ['src/index.ts', 'src/cli.ts'],
+      project: ['src/**/*.ts'],
+    },
+    'packages/skam-web-component': {
       project: ['src/**/*.ts'],
     },
     'packages/baseline-check': {

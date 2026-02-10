@@ -9,6 +9,7 @@
     { "path": "packages/skam-canvas-renderer" },
     { "path": "packages/playground" },
     { "path": "packages/integration-tests" },
-    { "path": "packages/skam-screenshot" }
+    { "path": "packages/skam-screenshot" },
+    { "path": "packages/skam-web-component" }
   ]
 }

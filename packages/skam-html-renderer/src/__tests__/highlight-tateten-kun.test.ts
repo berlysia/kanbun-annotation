@@ -158,8 +158,9 @@ describe('Partial range: multi-token kun + highlight + tateten with surrounding 
 
     // 夜 and 聲 should NOT be inside highlight
     // highlight-content の中身を抽出（ネストした span に対応するため greedy + 末端でマッチ）
+    // <wbr> が highlight の後に挿入される場合があるため考慮
     const highlightMatch = html.match(
-      /skam-highlight-content">(.*)<\/span><\/span><span class="skam-token/s
+      /skam-highlight-content">(.*)<\/span><\/span>(?:<wbr>)?<span class="skam-token/s
     );
     expect(highlightMatch).toBeTruthy();
     const highlightContent = highlightMatch![1]!;

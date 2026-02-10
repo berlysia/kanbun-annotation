@@ -13,7 +13,7 @@ import type {
   RenderNode,
 } from './render-tree-types.js';
 import type { RenderProfile, RubyMethod } from './renderer.js';
-import { resolveEmphasisCharacter } from '@kanbun/skam/rendering';
+import { resolveEmphasisCharacter, canBreakBefore } from '@kanbun/skam/rendering';
 import { escapeHtml, renderToken, generateEmphasisMarks } from './renderer.js';
 
 /** @internal */
@@ -197,12 +197,16 @@ function renderHighlightGroupNode(node: HighlightGroupNode, ctx: RenderTreeConte
 
   const contentParts: string[] = [];
 
-  for (const child of node.items) {
+  for (let i = 0; i < node.items.length; i++) {
+    const child = node.items[i]!;
+    // highlight グループ内: 先頭以外では改行可能
+    if (i > 0) {
+      contentParts.push('<wbr>');
+    }
     if (child.type === 'token') {
       const result = callRenderToken(child, ctx);
       contentParts.push(result.html);
     } else {
-      // tateten-group
       contentParts.push(renderTatetenGroup(child, ctx));
     }
   }
@@ -236,8 +240,14 @@ function renderNode(node: RenderNode, ctx: RenderTreeContext): string {
  * @internal
  */
 export function renderBlockTree(tree: BlockRenderTree, ctx: RenderTreeContext): string {
+  const hasBlockStartContent = tree.blockStartHtml.length > 0;
   const parts = [tree.blockStartHtml];
-  for (const node of tree.items) {
+
+  for (let i = 0; i < tree.items.length; i++) {
+    const node = tree.items[i]!;
+    if (canBreakBefore(i, hasBlockStartContent)) {
+      parts.push('<wbr>');
+    }
     parts.push(renderNode(node, ctx));
   }
   return parts.join('');

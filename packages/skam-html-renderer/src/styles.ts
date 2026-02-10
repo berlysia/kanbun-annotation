@@ -130,92 +130,102 @@ function generateCommonStyles(
   const includeGrid = rubyMethod === 'grid' || rubyMethod === 'both';
 
   const rubyStyles = includeRuby
-    ? `
-/* Ruby styling */
-:where(.${prefix}-token ruby) {
-  ruby-align: center;
-  block-size: 1em;
-}`
+    ? css`
+        /* Ruby styling */
+        :where(.${prefix}-token ruby) {
+          /* stylelint-disable-next-line plugin/use-baseline -- ruby-align is baseline 2024*/
+          ruby-align: center;
+          block-size: 1em;
+        }
+      `
     : '';
 
   const gridStyles = includeGrid
-    ? `
-/*
+    ? css`
+        /*
  * Ruby Grid (inline-grid 代替パターン)
  *
  * 2行グリッド: row1=ruby, row2=base
  * vertical-align: Chromium baseline バグ補正 (suffix-row と同形式)
  */
-:where(.${prefix}-ruby-grid) {
-  display: inline-grid;
-  grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) auto calc(var(--${vp}-ruby-ratio) * 1em);
-  line-height: 1;
-  vertical-align: calc(var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 0.5em + 0.5em));
-}
+        :where(.${prefix}-ruby-grid) {
+          display: inline-grid;
+          grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) auto calc(
+              var(--${vp}-ruby-ratio) * 1em
+            );
+          line-height: 1;
+          vertical-align: calc(
+            var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 0.5em + 0.5em)
+          );
+        }
 
-/* Chromium baseline バグ補正: row1 にプレースホルダーを配置してベースラインを安定させる */
-:where(.${prefix}-ruby-grid)::before {
-  content: '';
-  grid-row: 1;
-}
+        /* Chromium baseline バグ補正: row1 にプレースホルダーを配置してベースラインを安定させる */
+        :where(.${prefix}-ruby-grid)::before {
+          content: '';
+          grid-row: 1;
+        }
 
-/* ruby に内容がある場合はプレースホルダー不要（:not(:empty) で空 ruby を除外） */
-:where(.${prefix}-ruby-grid:has(> .${prefix}-ruby:not(:empty)))::before {
-  display: none;
-}
+        /* ruby に内容がある場合はプレースホルダー不要（:not(:empty) で空 ruby を除外） */
+        :where(.${prefix}-ruby-grid:has(> .${prefix}-ruby:not(:empty)))::before {
+          display: none;
+        }
 
-:where(.${prefix}-ruby-grid) > :where(.${prefix}-ruby) {
-  grid-row: 1;
-  align-self: end;
-  text-align: center;
-}
+        :where(.${prefix}-ruby-grid) > :where(.${prefix}-ruby) {
+          grid-row: 1;
+          align-self: end;
+          text-align: center;
+        }
 
-:where(.${prefix}-ruby-grid) > :where(.${prefix}-base),
-:where(.${prefix}-ruby-grid) > :where(.${prefix}-tateten-group) {
-  grid-row: 2;
-}
+        :where(.${prefix}-ruby-grid) > :where(.${prefix}-base),
+        :where(.${prefix}-ruby-grid) > :where(.${prefix}-tateten-group) {
+          grid-row: 2;
+        }
 
-/*
+        /*
  * Saidoku Grid (inline-grid 代替パターン)
  *
  * 3行グリッド: row1=ruby-over, row2=base, row3=ruby-under
  * vertical-align: Chromium baseline バグ補正 (suffix-row と同形式)
  */
-:where(.${prefix}-saidoku-grid) {
-  display: inline-grid;
-  grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) auto calc(var(--${vp}-ruby-ratio) * 1em);
-  line-height: 1;
-  vertical-align: calc(var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 0.5em + 0.5em));
-}
+        :where(.${prefix}-saidoku-grid) {
+          display: inline-grid;
+          grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) auto calc(
+              var(--${vp}-ruby-ratio) * 1em
+            );
+          line-height: 1;
+          vertical-align: calc(
+            var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 0.5em + 0.5em)
+          );
+        }
 
-/* Chromium baseline バグ補正: row1 にプレースホルダーを配置してベースラインを安定させる */
-:where(.${prefix}-saidoku-grid)::before {
-  content: '';
-  grid-row: 1;
-}
+        /* Chromium baseline バグ補正: row1 にプレースホルダーを配置してベースラインを安定させる */
+        :where(.${prefix}-saidoku-grid)::before {
+          content: '';
+          grid-row: 1;
+        }
 
-/* ruby-over に内容がある場合はプレースホルダー不要（:not(:empty) で空 ruby を除外） */
-:where(.${prefix}-saidoku-grid:has(> .${prefix}-ruby:first-child:not(:empty)))::before {
-  display: none;
-}
+        /* ruby-over に内容がある場合はプレースホルダー不要（:not(:empty) で空 ruby を除外） */
+        :where(.${prefix}-saidoku-grid:has(> .${prefix}-ruby:first-child:not(:empty)))::before {
+          display: none;
+        }
 
-:where(.${prefix}-saidoku-grid) > :where(.${prefix}-ruby:not(.${prefix}-saidoku-under)) {
-  grid-row: 1;
-  align-self: end;
-  text-align: center;
-}
+        :where(.${prefix}-saidoku-grid) > :where(.${prefix}-ruby:not(.${prefix}-saidoku-under)) {
+          grid-row: 1;
+          align-self: end;
+          text-align: center;
+        }
 
-:where(.${prefix}-saidoku-grid) > :where(.${prefix}-base) {
-  grid-row: 2;
-}
+        :where(.${prefix}-saidoku-grid) > :where(.${prefix}-base) {
+          grid-row: 2;
+        }
 
-:where(.${prefix}-saidoku-grid) > :where(.${prefix}-saidoku-under) {
-  grid-row: 3;
-  align-self: start;
-  text-align: center;
-}
+        :where(.${prefix}-saidoku-grid) > :where(.${prefix}-saidoku-under) {
+          grid-row: 3;
+          align-self: start;
+          text-align: center;
+        }
 
-/*
+        /*
  * Emphasis Row (emphasis + ruby 共存時の傍点専用行)
  *
  * Grid モードで yomigana と emphasis が共存する場合、
@@ -223,78 +233,89 @@ function generateCommonStyles(
  * 透明テキスト + text-emphasis-style 方式では不可視文字分の空白が生じるため、
  * 傍点文字（●, ﹅ 等）を直接出力する。
  */
-:where(.${prefix}-emphasis-row) {
-  grid-row: 1;
-  color: var(--${vp}-color-emphasis);
-  font-size: calc(var(--${vp}-ruby-ratio) * 1em);
-  user-select: none;
-  align-self: end;
-  text-align: center;
-}
+        :where(.${prefix}-emphasis-row) {
+          grid-row: 1;
+          color: var(--${vp}-color-emphasis);
+          font-size: calc(var(--${vp}-ruby-ratio) * 1em);
+          -webkit-user-select: none;
+          user-select: none;
+          align-self: end;
+          text-align: center;
+        }
 
-/*
+        /*
  * tateten-sep 相当のスペーサー（emphasis-row 内でトークン間の傍点位置を揃える）
  *
  * 中心間距離の一致条件: token(1em) + sep(r*1em) - dot(r*1em) = 1em (glyph-size 定数)
  * emphasis context (font-size = r*1em) 換算: 1em_glyph / r = calc(1em / ruby-ratio)
  */
-:where(.${prefix}-emphasis-spacer) {
-  display: inline-block;
-  inline-size: calc(1em / var(--${vp}-ruby-ratio));
-}
+        :where(.${prefix}-emphasis-spacer) {
+          display: inline-block;
+          inline-size: calc(1em / var(--${vp}-ruby-ratio));
+        }
 
-/*
+        /*
  * Ruby Grid - Emphasis Variant (4行グリッド)
  *
  * row1: emphasis, row2: ruby, row3: base/tateten-group
  * emphasis-row が必ず row1 を占めるため ::before プレースホルダーは不要
  */
-:where(.${prefix}-ruby-grid--emphasis) {
-  display: inline-grid;
-  grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) calc(var(--${vp}-ruby-ratio) * 1em) auto calc(var(--${vp}-ruby-ratio) * 1em);
-  line-height: 1;
-  vertical-align: calc(var(--${vp}-ruby-ratio) * 0.5em + var(--${vp}-grid-baseline-fix, 0) * 1em);
-}
+        :where(.${prefix}-ruby-grid--emphasis) {
+          display: inline-grid;
+          grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) calc(
+              var(--${vp}-ruby-ratio) * 1em
+            ) auto calc(var(--${vp}-ruby-ratio) * 1em);
+          line-height: 1;
+          vertical-align: calc(
+            var(--${vp}-ruby-ratio) * 0.5em + var(--${vp}-grid-baseline-fix, 0) * 1em
+          );
+        }
 
-:where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-ruby) {
-  grid-row: 2;
-  align-self: end;
-  text-align: center;
-}
+        :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-ruby) {
+          grid-row: 2;
+          align-self: end;
+          text-align: center;
+        }
 
-:where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-base),
-:where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-tateten-group) {
-  grid-row: 3;
-}
+        :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-base),
+        :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-tateten-group) {
+          grid-row: 3;
+        }
 
-/*
+        /*
  * Saidoku Grid - Emphasis Variant (4行グリッド)
  *
  * row1: emphasis, row2: ruby-over, row3: base, row4: ruby-under
  * emphasis-row が必ず row1 を占めるため ::before プレースホルダーは不要
  */
-:where(.${prefix}-saidoku-grid--emphasis) {
-  display: inline-grid;
-  grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) calc(var(--${vp}-ruby-ratio) * 1em) auto calc(var(--${vp}-ruby-ratio) * 1em);
-  line-height: 1;
-  vertical-align: calc(var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 1em + 0.5em));
-}
+        :where(.${prefix}-saidoku-grid--emphasis) {
+          display: inline-grid;
+          grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) calc(
+              var(--${vp}-ruby-ratio) * 1em
+            ) auto calc(var(--${vp}-ruby-ratio) * 1em);
+          line-height: 1;
+          vertical-align: calc(
+            var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 1em + 0.5em)
+          );
+        }
 
-:where(.${prefix}-saidoku-grid--emphasis) > :where(.${prefix}-ruby:not(.${prefix}-saidoku-under)) {
-  grid-row: 2;
-  align-self: end;
-  text-align: center;
-}
+        :where(.${prefix}-saidoku-grid--emphasis)
+          > :where(.${prefix}-ruby:not(.${prefix}-saidoku-under)) {
+          grid-row: 2;
+          align-self: end;
+          text-align: center;
+        }
 
-:where(.${prefix}-saidoku-grid--emphasis) > :where(.${prefix}-base) {
-  grid-row: 3;
-}
+        :where(.${prefix}-saidoku-grid--emphasis) > :where(.${prefix}-base) {
+          grid-row: 3;
+        }
 
-:where(.${prefix}-saidoku-grid--emphasis) > :where(.${prefix}-saidoku-under) {
-  grid-row: 4;
-  align-self: start;
-  text-align: center;
-}`
+        :where(.${prefix}-saidoku-grid--emphasis) > :where(.${prefix}-saidoku-under) {
+          grid-row: 4;
+          align-self: start;
+          text-align: center;
+        }
+      `
     : '';
 
   return css`
@@ -332,6 +353,10 @@ function generateCommonStyles(
 /* Block (論理的なブロック単位、句や段落など) */
 :where(.${prefix}-block) {
   display: block;
+  /* CJK 文字間のデフォルト改行を抑止し、<wbr> のみで改行位置を制御する。
+   * word-break: keep-all は CJK 改行機会を除去するが、<wbr> による
+   * 明示的な改行機会は維持される。 */
+  word-break: keep-all;
 }
 
 /* Reading Layer (a11y, visually hidden) */
@@ -342,15 +367,18 @@ function generateCommonStyles(
   padding: 0;
   margin: -1px;
   overflow: hidden;
-  clip: rect(0, 0, 0, 0);
+  clip-path: inset(0);
   white-space: nowrap;
   border: 0;
 }
 
 /* Token */
 :where(.${prefix}-token) {
-  /* position: relative; */
-  /* display: inline-block; */
+  /* 不可分単位: トークンとその付随マーク（suffix-row 内の送り仮名・返り点・句読点）の
+   * 間での改行を禁止する。改行許可位置は <wbr> で明示的に指定する。
+   * 子要素に継承されるが、suffix-row (display: inline-grid) は独立した
+   * フォーマッティングコンテキストを生成するため、grid レイアウトに悪影響はない。 */
+  white-space: nowrap;
 }
 
 /* Base character */
@@ -366,6 +394,7 @@ ${rubyStyles}
   color: var(--${vp}-color-ruby);
   /* text-emphasis は継承するため、親要素の傍点がルビに伝播するのを防止 */
   text-emphasis: none;
+  -webkit-user-select: none;
   user-select: none;
 }
 ${gridStyles}
@@ -434,6 +463,7 @@ ${gridStyles}
 :where(.${prefix}-suffix-okuri) {
   grid-row: 1;
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -442,6 +472,7 @@ ${gridStyles}
   grid-row: 3;
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   align-self: end;
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -449,12 +480,14 @@ ${gridStyles}
 :where(.${prefix}-suffix-saidoku) {
   grid-row: 4;
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
+  -webkit-user-select: none;
   user-select: none;
 }
 
 /* Kaeriten (返り点) */
 :where(.${prefix}-kaeriten) {
   color: var(--${vp}-color-kaeriten);
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -462,6 +495,7 @@ ${gridStyles}
 :where(.${prefix}-suffix-kana) {
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   vertical-align: top;
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -472,7 +506,8 @@ ${gridStyles}
 
 ${
   includeRuby
-    ? `/*
+    ? css`
+        /*
  * Saidoku (再読文字) - 入れ子ruby方式
  *
  * 構造: <ruby class="outer"><ruby class="inner">將<rt>まさに</rt></ruby><rt>す</rt></ruby>
@@ -481,13 +516,16 @@ ${
  * - ruby-position は ruby 要素に適用する（rt 要素ではない）
  * - ruby-position は継承するため、内側 ruby にも明示的に設定が必要
  */
-:where(.${prefix}-saidoku-outer) {
-  ruby-position: under;
-}
+        :where(.${prefix}-saidoku-outer) {
+          /* stylelint-disable-next-line plugin/use-baseline -- ruby-position: under is baseline 2024 */
+          ruby-position: under;
+        }
 
-:where(.${prefix}-saidoku-inner) {
-  ruby-position: over;
-}`
+        :where(.${prefix}-saidoku-inner) {
+          /* stylelint-disable-next-line plugin/use-baseline -- ruby-position: over is baseline 2024 */
+          ruby-position: over;
+        }
+      `
     : ''
 }
 
@@ -502,6 +540,7 @@ ${
   left: calc((var(--okototen-x) / var(--okototen-grid)) * var(--${vp}-glyph-size));
   top: calc((var(--okototen-y) / var(--okototen-grid)) * var(--${vp}-glyph-size));
   pointer-events: none;
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -533,12 +572,15 @@ ${
 /* Tateten (たて点) - 共通部分 */
 :where(.${prefix}-tateten-group) {
   display: inline;
+  /* 不可分単位: tateten グループ内のトークン間での改行を禁止する。 */
+  white-space: nowrap;
 }
 
 :where(.${prefix}-tateten-mark) {
   display: inline-block;
   vertical-align: middle;
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
+  -webkit-user-select: none;
   user-select: none;
   /* text-emphasis は継承するため、親要素の傍点が竪点記号に伝播するのを防止 */
   text-emphasis: none;
@@ -591,6 +633,7 @@ ${
   grid-column: 1;
   font-size: calc(var(--${vp}-ruby-ratio) * 1em);
   align-self: center;
+  -webkit-user-select: none;
   user-select: none;
 }
 
@@ -739,8 +782,7 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
       }
 
       :where(.${prefix}-highlight-content) {
-        display: inline-block;
-        position: relative;
+        display: inline;
       }
 
       :where(.${prefix}-highlight[data-style="solid"]) > :where(.${prefix}-highlight-content) {
@@ -778,25 +820,15 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
 
       :where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content) {
         box-shadow: none;
-        position: relative;
-      }
-
-      :where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::before,
-:where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::after {
-        content: '';
-        position: absolute;
-        background-color: currentColor;
-        top: 0;
-        bottom: 0;
-        width: 1px;
-      }
-
-      :where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::before {
-        right: 0;
-      }
-
-      :where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::after {
-        right: 3px;
+        background-image: linear-gradient(
+          to left,
+          currentColor 1px,
+          transparent 1px 2px,
+          currentColor 2px 3px,
+          transparent 3px
+        );
+        background-repeat: repeat;
+        background-position: right;
       }
 
       /* Label - 縦書き: 傍線の開始位置（上）に配置 */
@@ -833,6 +865,7 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
       }
 
       :where(.${prefix}-highlight-content) {
+        display: inline;
         box-shadow: inset 0 -1px 0 0 currentColor;
       }
 
@@ -867,25 +900,15 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
 
       :where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content) {
         box-shadow: none;
-        position: relative;
-      }
-
-      :where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::before,
-:where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::after {
-        content: '';
-        position: absolute;
-        background-color: currentColor;
-        left: 0;
-        right: 0;
-        height: 1px;
-      }
-
-      :where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::before {
-        bottom: 0;
-      }
-
-      :where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content)::after {
-        bottom: 3px;
+        background-image: linear-gradient(
+          to top,
+          currentColor 1px,
+          transparent 1px 2px,
+          currentColor 2px 3px,
+          transparent 3px
+        );
+        background-repeat: repeat;
+        background-position: bottom;
       }
 
       /* Label - 横書き: 傍線の開始位置（下）に配置 */

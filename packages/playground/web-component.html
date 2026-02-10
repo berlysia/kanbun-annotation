@@ -4,12 +4,9 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SKAM Web Component Demo</title>
+    <!-- Noto Serif JP は <skam-renderer auto-font> で自動ロード -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&display=swap"
-      rel="stylesheet"
-    />
     <style>
       *,
       *::before,
@@ -270,7 +267,7 @@
         <div class="demo-content">
           <div class="demo-row">
             <div class="demo-preview">
-              <skam-renderer id="basic-renderer">
+              <skam-renderer id="basic-renderer" auto-font>
                 <script type="text/skam-ml">
                   <?xml version="1.0" encoding="UTF-8"?>
                   <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
@@ -326,7 +323,7 @@
           </div>
           <div class="demo-row" style="margin-top: 1rem">
             <div class="demo-preview">
-              <skam-renderer id="wm-renderer" writing-mode="vertical">
+              <skam-renderer id="wm-renderer" auto-font writing-mode="vertical">
                 <script type="text/skam-ml">
                   <?xml version="1.0" encoding="UTF-8"?>
                   <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
@@ -370,7 +367,7 @@ el.setAttribute('writing-mode', 'horizontal');</code></pre>
           </div>
           <div class="demo-row" style="margin-top: 1rem">
             <div class="demo-preview">
-              <skam-renderer id="profile-renderer">
+              <skam-renderer id="profile-renderer" auto-font>
                 <script type="text/skam-ml">
                   <?xml version="1.0" encoding="UTF-8"?>
                   <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
@@ -423,7 +420,7 @@ el.setAttribute('profile',
           </div>
           <div class="demo-row" style="margin-top: 1rem">
             <div class="demo-preview">
-              <skam-renderer id="css-vars-renderer">
+              <skam-renderer id="css-vars-renderer" auto-font>
                 <script type="text/skam-ml">
                   <?xml version="1.0" encoding="UTF-8"?>
                   <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
@@ -457,7 +454,7 @@ skam-renderer {
         <div class="demo-content">
           <div class="demo-row">
             <div class="demo-preview">
-              <skam-renderer id="interactive-renderer"></skam-renderer>
+              <skam-renderer id="interactive-renderer" auto-font></skam-renderer>
             </div>
             <div class="demo-code" style="flex: 1.5">
               <div class="interactive-section">
@@ -495,7 +492,7 @@ skam-renderer {
         <div class="demo-content">
           <div class="demo-row">
             <div class="demo-preview">
-              <skam-renderer id="error-renderer">
+              <skam-renderer id="error-renderer" auto-font>
                 <script type="text/skam-ml">
                   <invalid>not valid SKAM-ML
                 </script>

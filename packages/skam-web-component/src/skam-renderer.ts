@@ -6,10 +6,15 @@
  */
 
 import { parse } from '@kanbun/skam-xml-parser';
-import { render, attachInteractiveHandlers, generateCSS } from '@kanbun/skam-html-renderer';
+import {
+  render,
+  attachInteractiveHandlers,
+  calibrateGridBaseline,
+} from '@kanbun/skam-html-renderer';
 import type { InteractiveCallbacks } from '@kanbun/skam-html-renderer';
 import { buildRenderOptions, type AttributeValues } from './attribute-map.js';
 import { extractXml } from './xml-extraction.js';
+import { injectGoogleFontsLink, buildFontStyle } from './font-loader.js';
 
 const ERROR_CSS = `
 [role="alert"] {
@@ -29,11 +34,13 @@ export class SkamRendererElement extends HTMLElement {
     'include-reading-layer',
     'copyable',
     'class-prefix',
+    'auto-font',
   ];
 
   #shadow: ShadowRoot;
   #mainStyle: HTMLStyleElement;
   #errorStyle: HTMLStyleElement;
+  #fontStyle: HTMLStyleElement;
   #contentDiv: HTMLDivElement;
 
   #xmlContent: string | undefined;
@@ -52,9 +59,13 @@ export class SkamRendererElement extends HTMLElement {
     this.#errorStyle.id = 'error-css';
     this.#errorStyle.textContent = ERROR_CSS;
 
+    this.#fontStyle = document.createElement('style');
+    this.#fontStyle.id = 'font-css';
+
     this.#contentDiv = document.createElement('div');
     this.#contentDiv.id = 'content';
 
+    this.#shadow.appendChild(this.#fontStyle);
     this.#shadow.appendChild(this.#mainStyle);
     this.#shadow.appendChild(this.#errorStyle);
     this.#shadow.appendChild(this.#contentDiv);
@@ -75,6 +86,9 @@ export class SkamRendererElement extends HTMLElement {
   }
 
   connectedCallback(): void {
+    // auto-font 属性があれば Google Fonts を注入
+    this.#ensureFont();
+
     // MutationObserver で Light DOM の変更を検知
     this.#observer = new MutationObserver(() => {
       this.#scheduleRender();
@@ -135,7 +149,14 @@ export class SkamRendererElement extends HTMLElement {
       const { html, css } = render(doc, options);
 
       this.#mainStyle.textContent = css;
+      this.#ensureFont();
+      this.#updateFontStyle(options.classPrefix ?? 'skam');
       this.#contentDiv.innerHTML = html;
+
+      // Chromium inline-grid baseline bug の検出・補正
+      calibrateGridBaseline(this.#contentDiv, {
+        variablePrefix: options.classPrefix ?? 'skam',
+      });
 
       // Interactive handlers
       this.#interactiveCleanup?.();
@@ -174,6 +195,22 @@ export class SkamRendererElement extends HTMLElement {
         composed: true,
       })
     );
+  }
+
+  /** auto-font 属性があれば Google Fonts <link> を document.head に注入 */
+  #ensureFont(): void {
+    if (this.hasAttribute('auto-font')) {
+      injectGoogleFontsLink();
+    }
+  }
+
+  /** Shadow DOM 内のフォント CSS Variable を更新（auto-font 時のみ設定） */
+  #updateFontStyle(variablePrefix: string): void {
+    if (this.hasAttribute('auto-font')) {
+      this.#fontStyle.textContent = buildFontStyle(variablePrefix);
+    } else {
+      this.#fontStyle.textContent = '';
+    }
   }
 
   #getAttributeValues(): AttributeValues {

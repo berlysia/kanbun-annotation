@@ -47,6 +47,7 @@ describe('SkamRendererElement', () => {
   describe('Shadow DOM structure', () => {
     it('creates shadow DOM with required elements', () => {
       expect(el.shadowRoot).not.toBeNull();
+      expect(el.shadowRoot!.getElementById('font-css')).not.toBeNull();
       expect(el.shadowRoot!.getElementById('main-css')).not.toBeNull();
       expect(el.shadowRoot!.getElementById('error-css')).not.toBeNull();
       expect(el.shadowRoot!.getElementById('content')).not.toBeNull();
@@ -165,6 +166,66 @@ describe('SkamRendererElement', () => {
       await new Promise((resolve) => setTimeout(resolve, 50));
       const content = el.shadowRoot!.getElementById('content')!;
       expect(content.innerHTML).toBe('');
+    });
+  });
+
+  describe('auto font loading', () => {
+    afterEach(() => {
+      // Clean up injected Google Fonts link
+      document
+        .querySelectorAll('link[href*="fonts.googleapis.com"][href*="Noto+Serif+JP"]')
+        .forEach((el) => el.remove());
+    });
+
+    it('does not inject Google Fonts link by default', () => {
+      document.body.appendChild(el);
+      const link = document.querySelector(
+        'link[href*="fonts.googleapis.com"][href*="Noto+Serif+JP"]'
+      );
+      expect(link).toBeNull();
+    });
+
+    it('injects Google Fonts link when auto-font is set', () => {
+      el.setAttribute('auto-font', '');
+      document.body.appendChild(el);
+      const link = document.querySelector(
+        'link[href*="fonts.googleapis.com"][href*="Noto+Serif+JP"]'
+      );
+      expect(link).not.toBeNull();
+    });
+
+    it('sets font CSS variables in shadow DOM after render when auto-font is set', async () => {
+      el.setAttribute('auto-font', '');
+      el.xmlContent = SAMPLE_XML;
+      document.body.appendChild(el);
+      await vi.waitFor(() => {
+        const fontStyle = el.shadowRoot!.getElementById('font-css')!;
+        expect(fontStyle.textContent).toContain('--skam-font-family');
+        expect(fontStyle.textContent).toContain('Noto Serif JP');
+      });
+    });
+
+    it('does not set font CSS variables without auto-font', async () => {
+      el.xmlContent = SAMPLE_XML;
+      document.body.appendChild(el);
+      await vi.waitFor(() => {
+        const content = el.shadowRoot!.getElementById('content')!;
+        expect(content.innerHTML).not.toBe('');
+      });
+      const fontStyle = el.shadowRoot!.getElementById('font-css')!;
+      expect(fontStyle.textContent).toBe('');
+    });
+
+    it('uses custom class-prefix for font CSS variables', async () => {
+      el.setAttribute('auto-font', '');
+      el.setAttribute('class-prefix', 'kb');
+      el.xmlContent = SAMPLE_XML;
+      document.body.appendChild(el);
+      await vi.waitFor(() => {
+        const fontStyle = el.shadowRoot!.getElementById('font-css')!;
+        expect(fontStyle.textContent).toContain('--kb-font-family');
+        expect(fontStyle.textContent).toContain('--kb-font-family-ruby');
+      });
     });
   });
 });

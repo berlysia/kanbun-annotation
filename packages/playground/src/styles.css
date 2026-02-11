@@ -573,7 +573,7 @@
     padding: 2rem;
     overflow: auto;
     display: flex;
-    justify-content: center;
+    justify-content: safe center;
     align-items: flex-start;
     background-color: var(--editor-bg);
     /* Disable default text selection to enable custom range selection */

@@ -294,6 +294,39 @@ export const SAMPLES: Sample[] = [
 </skam:doc>`,
   },
   {
+    name: '傍点＋傍線（配置順確認）',
+    description: '傍点と傍線の共存パターン全12種。配置順序（外→内: 傍点→傍線→ルビ→本文）の確認用',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <!-- 1. solid + bare -->
+    <skam:block><skam:span type="highlight" style="solid"><skam:span type="emphasis" style="sesame">天</skam:span></skam:span></skam:block>
+    <!-- 2. solid + ruby -->
+    <skam:block><skam:span type="highlight" style="solid"><skam:span type="emphasis" style="sesame"><skam:kun yomi="まな">學</skam:kun></skam:span></skam:span></skam:block>
+    <!-- 3. solid + okuri -->
+    <skam:block><skam:span type="highlight" style="solid"><skam:span type="emphasis" style="sesame"><skam:kun okuri="ビテ">學</skam:kun></skam:span></skam:span></skam:block>
+    <!-- 4. solid + ruby + okuri -->
+    <skam:block><skam:span type="highlight" style="solid"><skam:span type="emphasis" style="sesame"><skam:kun yomi="まな" okuri="ビテ">學</skam:kun></skam:span></skam:span>而</skam:block>
+    <!-- 5. wavy + bare -->
+    <skam:block><skam:span type="highlight" style="wavy"><skam:span type="emphasis" style="sesame">地</skam:span></skam:span></skam:block>
+    <!-- 6. wavy + ruby -->
+    <skam:block><skam:span type="highlight" style="wavy"><skam:span type="emphasis" style="sesame"><skam:kun yomi="まな">學</skam:kun></skam:span></skam:span></skam:block>
+    <!-- 7. dotted + bare -->
+    <skam:block><skam:span type="highlight" style="dotted"><skam:span type="emphasis" style="sesame">人</skam:span></skam:span></skam:block>
+    <!-- 8. dotted + ruby -->
+    <skam:block><skam:span type="highlight" style="dotted"><skam:span type="emphasis" style="sesame"><skam:kun yomi="まな">學</skam:kun></skam:span></skam:span></skam:block>
+    <!-- 9. dashed + bare -->
+    <skam:block><skam:span type="highlight" style="dashed"><skam:span type="emphasis" style="sesame">山</skam:span></skam:span></skam:block>
+    <!-- 10. dashed + ruby -->
+    <skam:block><skam:span type="highlight" style="dashed"><skam:span type="emphasis" style="sesame"><skam:kun yomi="まな">學</skam:kun></skam:span></skam:span></skam:block>
+    <!-- 11. solid + multi-token (ruby + okuri) -->
+    <skam:block><skam:span type="highlight" style="solid"><skam:span type="emphasis" style="sesame"><skam:kun yomi="まな" okuri="ビテ">學</skam:kun>而</skam:span></skam:span></skam:block>
+    <!-- 12. solid + multi-token tateten (ruby) -->
+    <skam:block><skam:span type="highlight" style="solid"><skam:span type="emphasis" style="sesame"><skam:tateten><skam:kun yomi="まな">學</skam:kun>而</skam:tateten></skam:span></skam:span></skam:block>
+  </skam:body>
+</skam:doc>`,
+  },
+  {
     name: '全要素総合（ヲコト点除く）',
     description:
       '再読文字・返り点・送り仮名・読み仮名・添え仮名・置字・助字・句読点・たて点・傍点・傍線・注釈の全要素を含むレイアウト確認用総合例',

@@ -584,7 +584,6 @@
 
   /* Selection Panel (Right sidebar) */
   .selection-panel {
-    writing-mode: horizontal-tb;
     width: 200px;
     flex-shrink: 0;
     border-left: 1px solid var(--editor-border);

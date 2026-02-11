@@ -1837,12 +1837,9 @@ function renderDocument(doc: SKAMDocument): void {
   const rubyMethod = getRubyMethod();
   const result = render(doc, { writingMode, inline, profile, interactive: true, rubyMethod });
 
-  // Sync writing-mode on the scroll container so the scroll origin
-  // matches the content direction (right edge for vertical-rl).
-  const scrollContainer = renderOutput.parentElement;
-  if (scrollContainer) {
-    scrollContainer.style.writingMode = writingMode === 'vertical' ? 'vertical-rl' : '';
-  }
+  // Sync writing-mode on the scroll container (.preview-content itself)
+  // so the scroll origin matches the content direction (right edge for vertical-rl).
+  renderOutput.style.writingMode = writingMode === 'vertical' ? 'vertical-rl' : '';
 
   // Apply CSS and HTML
   const styleId = 'skam-playground-styles';

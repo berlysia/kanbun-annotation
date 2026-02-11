@@ -1,0 +1,42 @@
+{
+  "has": {
+    "status": "safe",
+    "fallback": "@supports selector(:has(a)) で非対応時はスキップ（視覚的影響なし）"
+  },
+  "text-spacing-trim": {
+    "status": "degraded",
+    "fallback": "フォールバックなし（約物間隔の微調整のみ）"
+  },
+  "user-select": {
+    "status": "safe",
+    "fallback": "-webkit-user-select ベンダープレフィックス提供済み"
+  },
+  "resize": {
+    "status": "safe",
+    "fallback": "playground UIの利便性のみ（レンダラー出力に影響なし）"
+  },
+  "word-break: break-word": {
+    "status": "safe",
+    "fallback": "playground UIのみ（レンダラー出力に影響なし）"
+  },
+  "selection": {
+    "status": "safe",
+    "fallback": "playground UIのみ（レンダラー出力に影響なし）"
+  },
+  "clip": {
+    "status": "safe",
+    "fallback": "playground UIのみ（レンダラー出力に影響なし）"
+  },
+  "outline": {
+    "status": "safe",
+    "fallback": "選択ハイライトの装飾のみ（機能に影響なし）"
+  },
+  "ruby-align": {
+    "status": "degraded",
+    "fallback": "フォールバックなし（ルビの中央揃えが効かない）"
+  },
+  "ruby-position": {
+    "status": "degraded",
+    "fallback": "フォールバックなし（ルビの上下配置が効かない）"
+  }
+}

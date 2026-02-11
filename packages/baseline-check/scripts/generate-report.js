@@ -1,12 +1,12 @@
 /**
- * Generate a Baseline compatibility report from Stylelint and ESLint JS results.
+ * Generate a Baseline compatibility report with yearly analysis and fallback info.
  *
- * Runs both tools in JSON mode, aggregates findings,
- * and outputs a markdown report to stdout (and optionally to a file).
+ * Runs stylelint/eslint with year-based configs (Baseline 2022–current),
+ * merges with manual overrides, and outputs a markdown report.
  */
 
 import { execSync, spawnSync } from 'node:child_process';
-import { writeFileSync } from 'node:fs';
+import { writeFileSync, readFileSync, unlinkSync } from 'node:fs';
 import { join, dirname, basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -14,27 +14,23 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkgDir = join(__dirname, '..');
 const bin = join(pkgDir, 'node_modules', '.bin');
 
+const BASELINE_START_YEAR = 2022;
+const CURRENT_YEAR = new Date().getFullYear();
+
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
 
-/**
- * Run a command, return output containing JSON.
- * Handles different tools' output behavior:
- * - ESLint: JSON to stdout, exits 1 on warnings
- * - Stylelint: JSON to stderr, exits 0 on warnings
- */
+/** Run a command, return output containing JSON. */
 function run(cmd) {
   try {
-    const stdout = execSync(cmd, {
+    return execSync(cmd, {
       cwd: pkgDir,
       encoding: 'utf-8',
       maxBuffer: 10 * 1024 * 1024,
       stdio: ['pipe', 'pipe', 'pipe'],
     });
-    return stdout;
   } catch (e) {
-    // Non-zero exit: check both streams for JSON
     return e.stdout || e.stderr || '';
   }
 }
@@ -49,7 +45,7 @@ function runCaptureBoth(cmd) {
   return { stdout: result.stdout || '', stderr: result.stderr || '' };
 }
 
-/** Extract the JSON array portion from tool output (strips non-JSON prefix/suffix). */
+/** Extract the JSON array portion from tool output. */
 function extractJsonArray(raw) {
   const start = raw.indexOf('[');
   const end = raw.lastIndexOf(']');
@@ -103,10 +99,8 @@ function parseStylelintJson(json) {
   return results;
 }
 
-/** Extract the CSS feature name from a warning message */
+/** Extract the CSS/JS feature name from a warning message */
 function extractFeature(msg) {
-  // "Property 'user-select' is not..." or "Selector 'has' is not..."
-  // or "Value 'break-word' of property 'word-break' is not..."
   const valueMatch = msg.match(/Value ['"](.+?)['"] of property ['"](.+?)['"]/);
   if (valueMatch) return `${valueMatch[2]}: ${valueMatch[1]}`;
 
@@ -124,28 +118,60 @@ function extractCategory(msg) {
   return 'other';
 }
 
-/** Deduplicate by feature name, count occurrences */
-function summarize(results) {
-  const map = new Map();
-  for (const r of results) {
-    const key = r.feature;
-    if (!map.has(key)) {
-      map.set(key, { feature: key, category: r.category, count: 0, files: new Set() });
-    }
-    const entry = map.get(key);
-    entry.count++;
-    entry.files.add(r.file);
-  }
-  return [...map.values()].sort((a, b) => b.count - a.count);
+// ---------------------------------------------------------------------------
+// Yearly config generation
+// ---------------------------------------------------------------------------
+
+function writeYearlyStylelintConfig(year) {
+  const config = `export default {
+  plugins: ['stylelint-plugin-use-baseline'],
+  rules: { 'plugin/use-baseline': [true, { available: ${year}, severity: 'warning' }] },
+};
+`;
+  const path = join(pkgDir, `.stylelint-${year}.config.js`);
+  writeFileSync(path, config, 'utf-8');
+  return path;
 }
 
-/** Classify features into renderer vs playground origin */
-function classifyOrigin(files) {
-  const isRenderer = [...files].some((f) => f.startsWith('renderer-'));
-  const isPlayground = [...files].some((f) => f.startsWith('playground-'));
-  if (isRenderer && isPlayground) return 'both';
-  if (isRenderer) return 'renderer';
-  return 'playground';
+function writeYearlyEslintConfig(year) {
+  const config = `import baselineJs from 'eslint-plugin-baseline-js';
+export default [
+  { plugins: { 'baseline-js': baselineJs } },
+  baselineJs.configs.recommended({ available: ${year}, level: 'warn' }),
+  { files: ['**/*.js'], rules: { 'baseline-js/use-baseline': ['warn', { available: ${year} }] } },
+];
+`;
+  const path = join(pkgDir, `.eslint-${year}.config.js`);
+  writeFileSync(path, config, 'utf-8');
+  return path;
+}
+
+// ---------------------------------------------------------------------------
+// Year detection & classification
+// ---------------------------------------------------------------------------
+
+function getBaselineYears() {
+  const years = [];
+  for (let y = BASELINE_START_YEAR; y <= CURRENT_YEAR; y++) years.push(y);
+  return years;
+}
+
+/** Collect all unique features from a set of results. */
+function collectFeatures(results) {
+  return new Set(results.map((r) => r.feature));
+}
+
+/** Classify features into sections based on file name patterns. */
+function classifySection(files) {
+  const sections = new Set();
+  for (const f of files) {
+    if (f.startsWith('renderer-')) sections.add('html');
+    else if (f.startsWith('skam-canvas-')) sections.add('canvas');
+    else if (f.startsWith('playground-')) sections.add('playground');
+    else if (f.startsWith('skam-html-')) sections.add('html');
+    else if (f.startsWith('skam-xml-') || f === 'skam.js') sections.add('html');
+  }
+  return [...sections];
 }
 
 // ---------------------------------------------------------------------------
@@ -155,108 +181,207 @@ function classifyOrigin(files) {
 function main() {
   const now = new Date().toISOString().slice(0, 10);
 
+  // Load overrides
+  const overrides = JSON.parse(readFileSync(join(pkgDir, 'baseline-overrides.json'), 'utf-8'));
+
   // 1. Extract files
   console.error('Extracting CSS/JS...');
   run('node scripts/extract-css.js');
 
-  // 2. Run tools
-  console.error('Running Stylelint (widely)...');
-  const stylelintWidelyOut = runCaptureBoth(
-    `${bin}/stylelint -f json --config stylelint.config.js 'extracted/css/**/*.css'`
-  );
-  const stylelintWidelyJson = stylelintWidelyOut.stderr || stylelintWidelyOut.stdout;
+  // 2. Run yearly checks
+  const years = getBaselineYears();
+  /** @type {Map<number, { css: any[], js: any[] }>} */
+  const yearlyResults = new Map();
 
-  console.error('Running Stylelint (newly)...');
-  const stylelintNewlyOut = runCaptureBoth(
-    `${bin}/stylelint -f json --config stylelint-newly.config.js 'extracted/css/**/*.css'`
-  );
-  const stylelintNewlyJson = stylelintNewlyOut.stderr || stylelintNewlyOut.stdout;
-
-  console.error('Running ESLint JS...');
-  const eslintJsJson = run(`${bin}/eslint -c eslint-js.config.js -f json 'extracted/js/**/*.js'`);
-
-  // 3. Parse results
-  const stylelintWidelyResults = parseStylelintJson(stylelintWidelyJson);
-  const stylelintNewlyResults = parseStylelintJson(stylelintNewlyJson);
-  const eslintJsResults = parseEslintJson(eslintJsJson, 'eslint-js');
-
-  // 3.5. Determine baseline status per feature
-  // Features warned by "newly" check = limited (not supported in all browsers)
-  // Features warned only by "widely" check = newly available (supported but < 30 months)
-  const limitedFeatures = new Set(stylelintNewlyResults.map((r) => r.feature));
-  /** @param {string} feature */
-  function getBaselineStatus(feature) {
-    return limitedFeatures.has(feature) ? 'limited' : 'newly';
+  for (const year of years) {
+    console.error(`Running checks for Baseline ${year}...`);
+    const stylelintConfig = writeYearlyStylelintConfig(year);
+    const eslintConfig = writeYearlyEslintConfig(year);
+    try {
+      const cssOut = runCaptureBoth(
+        `${bin}/stylelint -f json --config ${stylelintConfig} 'extracted/css/**/*.css'`
+      );
+      const jsOut = run(`${bin}/eslint -c ${eslintConfig} -f json 'extracted/js/**/*.js'`);
+      yearlyResults.set(year, {
+        css: parseStylelintJson(cssOut.stderr || cssOut.stdout),
+        js: parseEslintJson(jsOut, 'eslint-js'),
+      });
+    } finally {
+      try {
+        unlinkSync(stylelintConfig);
+      } catch {}
+      try {
+        unlinkSync(eslintConfig);
+      } catch {}
+    }
   }
 
-  // 4. Summarize
-  const cssSummary = summarize(stylelintWidelyResults);
-  const jsSummary = summarize(eslintJsResults);
+  // 3. Collect all detected features across all years
+  // Use the earliest year (most strict) to get the full feature set
+  const allResults = yearlyResults.get(years[0]);
+  if (!allResults) {
+    console.error('No results for the earliest year. Aborting.');
+    process.exit(1);
+  }
+  const allWarnings = [...allResults.css, ...allResults.js];
 
-  // 6. Generate report
+  // Build feature map: feature → { files, category }
+  /** @type {Map<string, { files: Set<string>, category: string }>} */
+  const featureMap = new Map();
+  for (const r of allWarnings) {
+    if (!featureMap.has(r.feature)) {
+      featureMap.set(r.feature, { files: new Set(), category: r.category });
+    }
+    featureMap.get(r.feature).files.add(r.file);
+  }
+
+  // 4. Detect baseline year per feature
+  // The baseline year is the first year where the feature is no longer warned
+  /** @type {Map<string, { feature: string, baselineYear: number | null, sections: string[], category: string, status: string, fallback: string }>} */
+  const features = new Map();
+
+  for (const [feature, { files, category }] of featureMap) {
+    let baselineYear = null;
+    for (const year of years) {
+      const results = yearlyResults.get(year);
+      const allFeatures = collectFeatures([...results.css, ...results.js]);
+      if (!allFeatures.has(feature)) {
+        baselineYear = year;
+        break;
+      }
+    }
+
+    const ov = overrides[feature];
+    features.set(feature, {
+      feature,
+      baselineYear,
+      sections: classifySection(files),
+      category,
+      status: ov?.status ?? 'unknown',
+      fallback: ov?.fallback ?? '-',
+    });
+  }
+
+  // 5. Generate report
   const lines = [];
-  lines.push(`# Web Platform Baseline Report`);
+  lines.push(`# Baseline Compatibility Report`);
   lines.push(``);
   lines.push(`Generated: ${now}`);
-  lines.push(`Baseline level: **widely** (supported in all core browsers for 30+ months)`);
   lines.push(``);
+
+  // Summary
+  const all = [...features.values()];
+  const broken = all.filter((f) => f.status === 'broken');
+  const unknown = all.filter((f) => f.status === 'unknown');
+  const withYear = all.filter((f) => f.baselineYear != null && f.status !== 'broken');
+  const maxYear = withYear.length > 0 ? Math.max(...withYear.map((f) => f.baselineYear)) : null;
+  const notYetBaseline = all.filter((f) => f.baselineYear == null);
+
   lines.push(`## Summary`);
   lines.push(``);
-  lines.push(`| Category | Unique Features | Total Occurrences |`);
-  lines.push(`|----------|----------------|-------------------|`);
-  lines.push(`| CSS (Stylelint) | ${cssSummary.length} | ${stylelintWidelyResults.length} |`);
-  lines.push(`| JS (ESLint) | ${jsSummary.length} | ${eslintJsResults.length} |`);
-  lines.push(``);
 
-  // CSS details
-  lines.push(`## CSS Baseline Violations`);
-  lines.push(``);
-  lines.push(`| Feature | Category | Status | Occurrences | Origin |`);
-  lines.push(`|---------|----------|--------|-------------|--------|`);
-  for (const entry of cssSummary) {
-    const origin = classifyOrigin(entry.files);
-    const status = getBaselineStatus(entry.feature);
+  if (all.length === 0) {
+    lines.push(`All features are Baseline compatible.`);
+  } else if (broken.length > 0) {
+    lines.push(`> **Warning**: 一部機能は非対応ブラウザで動作しません`);
+  } else if (maxYear != null) {
+    lines.push(`> **Baseline ${maxYear}** 以降のブラウザで完全動作（フォールバック込み）`);
+  }
+
+  if (notYetBaseline.some((f) => f.status === 'degraded')) {
+    lines.push(`>`);
+    lines.push(`> 一部未 Baseline 機能は体験が低下する場合があります`);
+  }
+
+  if (unknown.length > 0) {
+    lines.push(`>`);
     lines.push(
-      `| \`${entry.feature}\` | ${entry.category} | ${status} | ${entry.count} | ${origin} |`
+      `> ${unknown.length} 件のフォールバック未定義機能があります（\`baseline-overrides.json\` に追加してください）`
     );
   }
+
   lines.push(``);
 
-  // JS details
-  lines.push(`## JS Baseline Violations`);
-  lines.push(``);
-  if (jsSummary.length === 0) {
-    lines.push(`No violations detected.`);
-  } else {
-    lines.push(`| Feature | Category | Occurrences |`);
-    lines.push(`|---------|----------|-------------|`);
-    for (const entry of jsSummary) {
-      lines.push(`| \`${entry.feature}\` | ${entry.category} | ${entry.count} |`);
-    }
-  }
-  lines.push(``);
+  // Section renderers
+  const statusIcon = {
+    safe: '✅ safe',
+    degraded: '⚠️ degraded',
+    broken: '❌ broken',
+    unknown: '❓ unknown',
+  };
 
-  // Per-file breakdown
-  lines.push(`## Per-File Breakdown (CSS)`);
-  lines.push(``);
-  const byFile = new Map();
-  for (const r of stylelintWidelyResults) {
-    if (!byFile.has(r.file)) byFile.set(r.file, []);
-    byFile.get(r.file).push(r);
-  }
-  for (const [file, results] of [...byFile.entries()].sort()) {
-    const unique = new Set(results.map((r) => r.feature));
-    lines.push(`### ${file}`);
+  function renderSection(title, sectionKey, isReference) {
+    lines.push(`## ${title}`);
     lines.push(``);
-    lines.push(`Warnings: ${results.length} (${unique.size} unique features)`);
-    lines.push(``);
-    for (const feature of [...unique].sort()) {
-      const count = results.filter((r) => r.feature === feature).length;
-      const status = getBaselineStatus(feature);
-      lines.push(`- \`${feature}\` (${count}x) [${status}]`);
+
+    if (isReference) {
+      lines.push(`> 参考情報: Playground 固有の機能はライブラリ利用者に影響しません`);
+      lines.push(``);
     }
-    lines.push(``);
+
+    const sectionFeatures = all.filter((f) => f.sections.includes(sectionKey));
+
+    if (sectionFeatures.length === 0) {
+      lines.push(`全機能 Baseline 対応済み — 非 Baseline 機能は検出されませんでした。`);
+      lines.push(``);
+      return;
+    }
+
+    // Group by baseline year
+    const byYear = new Map();
+    const notBaseline = [];
+    for (const f of sectionFeatures) {
+      if (f.baselineYear == null) {
+        notBaseline.push(f);
+      } else {
+        if (!byYear.has(f.baselineYear)) byYear.set(f.baselineYear, []);
+        byYear.get(f.baselineYear).push(f);
+      }
+    }
+
+    // Render year groups (ascending)
+    const sortedYears = [...byYear.keys()].sort((a, b) => a - b);
+    for (const year of sortedYears) {
+      const feats = byYear.get(year);
+      lines.push(`### Baseline ${year}`);
+      lines.push(``);
+      lines.push(`| Feature | Status | Fallback |`);
+      lines.push(`|---------|--------|----------|`);
+      for (const f of feats) {
+        lines.push(`| \`${f.feature}\` | ${statusIcon[f.status] || f.status} | ${f.fallback} |`);
+      }
+      lines.push(``);
+    }
+
+    // Not yet baseline
+    if (notBaseline.length > 0) {
+      lines.push(`### Not yet Baseline`);
+      lines.push(``);
+      lines.push(`| Feature | Status | Fallback |`);
+      lines.push(`|---------|--------|----------|`);
+      for (const f of notBaseline) {
+        lines.push(`| \`${f.feature}\` | ${statusIcon[f.status] || f.status} | ${f.fallback} |`);
+      }
+      lines.push(``);
+    }
   }
+
+  renderSection('HTML Renderer', 'html', false);
+  renderSection('Canvas Renderer', 'canvas', false);
+  renderSection('Playground', 'playground', true);
+
+  // Yearly check summary (debug info)
+  lines.push(`## Yearly Check Summary`);
+  lines.push(``);
+  lines.push(`| Year | CSS Warnings | JS Warnings | Total |`);
+  lines.push(`|------|-------------|-------------|-------|`);
+  for (const year of years) {
+    const results = yearlyResults.get(year);
+    const cssCount = results.css.length;
+    const jsCount = results.js.length;
+    lines.push(`| ${year} | ${cssCount} | ${jsCount} | ${cssCount + jsCount} |`);
+  }
+  lines.push(``);
 
   const report = lines.join('\n');
 

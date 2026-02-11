@@ -64,6 +64,10 @@ async function main() {
       name: 'skam-html-renderer.js',
     },
     {
+      src: join(packagesDir, 'skam-canvas-renderer', 'dist', 'index.js'),
+      name: 'skam-canvas-renderer.js',
+    },
+    {
       src: join(packagesDir, 'skam-xml-parser', 'dist', 'index.js'),
       name: 'skam-xml-parser.js',
     },

@@ -76,8 +76,8 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
 
   if (writingMode === 'both') {
     // 縦書き・横書き両方のスタイルを data-writing-mode セレクタでラップして出力
-    const verticalStyles = generateWritingModeStyles(prefix, true);
-    const horizontalStyles = generateWritingModeStyles(prefix, false);
+    const verticalStyles = generateWritingModeStyles(prefix, true, rubyMethod);
+    const horizontalStyles = generateWritingModeStyles(prefix, false, rubyMethod);
 
     result = `${commonStyles}
 
@@ -95,7 +95,7 @@ ${inlineStyles}`.trim();
   } else {
     // 単一の書字方向のみ出力（data-writing-mode セレクタ不要）
     const isVertical = writingMode === 'vertical';
-    const writingModeStyles = generateWritingModeStyles(prefix, isVertical);
+    const writingModeStyles = generateWritingModeStyles(prefix, isVertical, rubyMethod);
     const documentWritingMode = isVertical
       ? `
 :where(.${prefix}-document) {
@@ -162,6 +162,7 @@ function generateCommonStyles(
         :where(.${prefix}-ruby-grid)::before {
           content: '';
           grid-row: 1;
+          grid-column: 1;
         }
 
         /* ruby に内容がある場合はプレースホルダー不要（:not(:empty) で空 ruby を除外）
@@ -179,6 +180,7 @@ function generateCommonStyles(
 
         :where(.${prefix}-ruby-grid) > :where(.${prefix}-ruby) {
           grid-row: 1;
+          grid-column: 1;
           align-self: end;
           text-align: center;
         }
@@ -186,6 +188,23 @@ function generateCommonStyles(
         :where(.${prefix}-ruby-grid) > :where(.${prefix}-base),
         :where(.${prefix}-ruby-grid) > :where(.${prefix}-tateten-group) {
           grid-row: 2;
+          grid-column: 1;
+        }
+
+        /* 熟語訓: suffix-row を ruby-grid 内に配置して改行機会を排除する。
+         * column 2 に配置し、ruby annotation (column 1) の下に被らないようにする。 */
+        :where(.${prefix}-ruby-grid) > :where(.${prefix}-suffix-row) {
+          grid-row: 2;
+          grid-column: 2;
+        }
+
+        /* 熟語訓 + highlight: highlight を ruby-grid 内に grid item として配置。
+         * highlight の傍線装飾が suffix（句読点等）に延びるのを防ぐため、
+         * suffix-row (column 2) と分離して column 1 の base 行に配置する。
+         * padding リセットは書字方向スタイルの後に配置（source order で確実にオーバーライド）。 */
+        :where(.${prefix}-ruby-grid) > :where(.${prefix}-highlight) {
+          grid-row: 2;
+          grid-column: 1;
         }
 
         /*
@@ -250,6 +269,7 @@ function generateCommonStyles(
  */
         :where(.${prefix}-emphasis-row) {
           grid-row: 1;
+          grid-column: 1;
           color: var(--${vp}-color-emphasis);
           font-size: calc(var(--${vp}-ruby-ratio) * 1em);
           -webkit-user-select: none;
@@ -288,6 +308,7 @@ function generateCommonStyles(
 
         :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-ruby) {
           grid-row: 2;
+          grid-column: 1;
           align-self: end;
           text-align: center;
         }
@@ -295,6 +316,17 @@ function generateCommonStyles(
         :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-base),
         :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-tateten-group) {
           grid-row: 3;
+          grid-column: 1;
+        }
+
+        :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-suffix-row) {
+          grid-row: 3;
+          grid-column: 2;
+        }
+
+        :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-highlight) {
+          grid-row: 3;
+          grid-column: 1;
         }
 
         /*
@@ -792,7 +824,13 @@ ${
 /**
  * 書字方向依存スタイル
  */
-function generateWritingModeStyles(prefix: string, isVertical: boolean): string {
+function generateWritingModeStyles(
+  prefix: string,
+  isVertical: boolean,
+  rubyMethod: RubyMethod | 'both' = 'grid'
+): string {
+  const includeGrid = rubyMethod === 'grid' || rubyMethod === 'both';
+
   if (isVertical) {
     return css`
       /* Tateten (たて点) - 縦書き: U+3190 グリフがそのまま縦線として機能 */
@@ -895,6 +933,18 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
       :where(.${prefix}-note-marker--half-width) {
         text-combine-upright: all;
       }
+      ${includeGrid
+        ? css`
+            /* highlight が ruby-grid のグリッドアイテムの場合、padding-right をリセット。
+             * 書字方向スタイルの後に配置して source order でオーバーライドする。
+             * padding-right は通常、傍線と隣列の間隔確保に使われるが、
+             * ruby-grid 内では column 幅を不必要に広げ ruby の中央揃えに影響する。 */
+            :where(.${prefix}-ruby-grid) > :where(.${prefix}-highlight),
+            :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-highlight) {
+              padding-right: 0;
+            }
+          `
+        : ''}
     `;
   } else {
     return css`
@@ -970,6 +1020,15 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
       :where(.${prefix}-ref--half-width) {
         /* No text-combine-upright needed for horizontal */
       }
+      ${includeGrid
+        ? css`
+            /* highlight が ruby-grid のグリッドアイテムの場合、padding-bottom をリセット */
+            :where(.${prefix}-ruby-grid) > :where(.${prefix}-highlight),
+            :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-highlight) {
+              padding-bottom: 0;
+            }
+          `
+        : ''}
     `;
   }
 }

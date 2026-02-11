@@ -152,11 +152,10 @@ describe('line break control in HTML output', () => {
       expect(contentMatch![1]).toContain('<wbr>');
     });
 
-    it('熟語訓（tateten+yomigana）直後の kutoten: ruby-grid と suffix-row の間に Word Joiner', () => {
-      // Word Joiner (U+2060) は改行禁止文字（UAX#14 WJ クラス）。
-      // ruby-grid（inline-grid）と suffix-row の間の暗黙的改行機会を抑制する。
-      // ラッパー要素を使わないため、highlight の描画範囲に影響しない。
-      const WJ = '\u2060';
+    it('熟語訓（tateten+yomigana）直後の kutoten: suffix-row が ruby-grid/ruby 内に配置される', () => {
+      // 改行機会の排除: suffix-row を ruby-grid の内部に grid item として配置する。
+      // CSS で grid-column: 2 に配置し、ruby annotation (column 1) と分離。
+      // ruby モードでは </rt> 後 </ruby> 前に配置（anonymous ruby base として表示）。
 
       // grid モード（デフォルト）でテスト
       const resultGrid = render(tatetenYomiganaKutotenDoc());
@@ -165,15 +164,21 @@ describe('line break control in HTML output', () => {
       // kutoten が出力されている
       expect(blockContentGrid).toContain('。');
 
-      // ruby-grid 閉じタグと suffix-row の間に Word Joiner がある
-      expect(blockContentGrid).toContain(`</span>${WJ}<span class="skam-suffix-row"`);
+      // suffix-row が ruby-grid 閉じタグの *前* にある（内部に配置されている）
+      expect(blockContentGrid).toMatch(/skam-suffix-row.*?<\/span><\/span>/s);
+      // ruby-grid 閉じタグの *後* には suffix-row がない
+      expect(blockContentGrid).not.toMatch(
+        /skam-ruby-grid[^>]*>(?:<[^>]*>[^<]*<\/[^>]*>)*<\/span>\s*<span class="skam-suffix-row"/
+      );
 
       // ruby モードでもテスト
       const resultRuby = render(tatetenYomiganaKutotenDoc(), { rubyMethod: 'ruby' });
       const blockContentRuby = extractBlockContent(resultRuby.html);
 
-      // ruby 閉じタグと suffix-row の間に Word Joiner がある
-      expect(blockContentRuby).toContain(`</ruby>${WJ}<span class="skam-suffix-row"`);
+      // suffix-row が </ruby> の *前* にある（ruby 内に配置されている）
+      expect(blockContentRuby).toMatch(/skam-suffix-row.*?<\/span><\/ruby>/s);
+      // </ruby> の *後* には suffix-row がない
+      expect(blockContentRuby).not.toMatch(/<\/ruby>\s*<span class="skam-suffix-row"/);
     });
 
     it('blockStartHtml（kutoten）がある場合、最初のトークン前に <wbr> なし', () => {

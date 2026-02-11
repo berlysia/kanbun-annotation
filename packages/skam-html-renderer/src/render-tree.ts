@@ -61,10 +61,26 @@ function callRenderToken(
 }
 
 // ---------------------------------------------------------------------------
-// Tateten group rendering
+// Tateten group: inner computation (shared by standalone and highlight)
 // ---------------------------------------------------------------------------
 
-function renderTatetenGroup(node: TatetenGroupNode, ctx: RenderTreeContext): string {
+/** @internal Result of computing a tateten group's inner parts */
+interface TatetenGroupInner {
+  /** Token + separator HTML (inner content, without tateten-group wrapper) */
+  innerHtml: string;
+  /** Extracted suffix HTML (empty if no suffix) */
+  collectedSuffix: string;
+  /** Escaped yomigana text (empty if no yomigana) */
+  yomigana: string;
+  /** Interactive data attributes string */
+  dataAttrs: string;
+  /** Emphasis row HTML for grid mode (empty if no emphasis) */
+  emphasisRowHtml: string;
+  /** Emphasis style string for ruby mode (undefined if no emphasis) */
+  groupEmphasisStyle?: string;
+}
+
+function buildTatetenGroupInner(node: TatetenGroupNode, ctx: RenderTreeContext): TatetenGroupInner {
   const { prefix } = ctx;
 
   // グループレベルで yomigana が処理される場合、個別トークンの yomigana ruby を抑制
@@ -123,7 +139,7 @@ function renderTatetenGroup(node: TatetenGroupNode, ctx: RenderTreeContext): str
     }
   }
 
-  // 読み範囲が重複する場合: tateten-group 全体を <ruby> で囲む
+  // 読み範囲が重複する場合の yomigana テキスト取得
   const rangeCtx = node.rangeCtx;
   const yomigana = rangeCtx?.yomiganaBaseText
     ? escapeHtml(
@@ -146,49 +162,96 @@ function renderTatetenGroup(node: TatetenGroupNode, ctx: RenderTreeContext): str
     ? tokenResults.find((r) => r.emphasisStyle)?.emphasisStyle
     : undefined;
 
-  let groupContent = parts.join('');
-  if (yomigana) {
-    // interactive 用 data 属性
-    let dataAttrs = '';
-    if (ctx.interactive && rangeCtx?.rangeTokenInfo) {
-      dataAttrs = ` data-token-from="${escapeHtml(rangeCtx.rangeTokenInfo.from)}" data-token-to="${escapeHtml(rangeCtx.rangeTokenInfo.to)}"`;
-    }
-
-    // suffix がある場合、ruby-grid/ruby 閉じタグと suffix-row の間に
-    // Word Joiner (U+2060) を挿入して改行機会を抑制する。
-    // ラッパー要素を使わないため highlight の描画範囲に影響しない。
-    const suffixWithJoiner = collectedSuffix ? `\u2060${collectedSuffix}` : '';
-
-    let rubyContent: string;
-    if (ctx.rubyMethod === 'grid') {
-      // grid モード: emphasis がある場合、emphasis-row をグリッド内に配置
-      if (groupEmphasisStyle) {
-        // tateten-group の構造をミラーリング: token 傍点マーク間に tateten-sep 相当のスペーサーを配置
-        const emphasisChar = resolveEmphasisCharacter(groupEmphasisStyle);
-        const emphasisSpacer = `<span class="${prefix}-emphasis-spacer"></span>`;
-        const emphasisContent = node.items
-          .map((item) => generateEmphasisMarks(item.token.text, emphasisChar))
-          .join(emphasisSpacer);
-        const emphasisRowHtml = `<span class="${prefix}-emphasis-row" aria-hidden="true">${emphasisContent}</span>`;
-        rubyContent = `<span class="${prefix}-ruby-grid--emphasis"${dataAttrs}>${emphasisRowHtml}<span class="${prefix}-ruby">${yomigana}</span><span class="${prefix}-tateten-group">${groupContent}</span></span>${suffixWithJoiner}`;
-      } else {
-        rubyContent = `<span class="${prefix}-ruby-grid"${dataAttrs}><span class="${prefix}-ruby">${yomigana}</span><span class="${prefix}-tateten-group">${groupContent}</span></span>${suffixWithJoiner}`;
-      }
-    } else {
-      // ruby モード（既存）
-      rubyContent = `<ruby${dataAttrs}><rb class="${prefix}-tateten-group">${groupContent}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>${suffixWithJoiner}`;
-      // ruby モード: emphasis がある場合、ruby の外側で emphasis ラッパーを適用
-      // （text-emphasis が ruby のベーステキストに正しく表示されるよう、ruby より上位に配置）
-      if (groupEmphasisStyle) {
-        rubyContent = `<span class="${prefix}-emphasis" style="text-emphasis-style: ${escapeHtml(groupEmphasisStyle)};">${rubyContent}</span>`;
-      }
-    }
-    groupContent = rubyContent;
-  } else {
-    groupContent = `<span class="${prefix}-tateten-group">${groupContent}</span>`;
+  // emphasis-row HTML (grid モード用)
+  let emphasisRowHtml = '';
+  if (groupEmphasisStyle) {
+    const emphasisChar = resolveEmphasisCharacter(groupEmphasisStyle);
+    const emphasisSpacer = `<span class="${prefix}-emphasis-spacer"></span>`;
+    const emphasisContent = node.items
+      .map((item) => generateEmphasisMarks(item.token.text, emphasisChar))
+      .join(emphasisSpacer);
+    emphasisRowHtml = `<span class="${prefix}-emphasis-row" aria-hidden="true">${emphasisContent}</span>`;
   }
 
-  return groupContent;
+  // interactive 用 data 属性
+  let dataAttrs = '';
+  if (ctx.interactive && rangeCtx?.rangeTokenInfo) {
+    dataAttrs = ` data-token-from="${escapeHtml(rangeCtx.rangeTokenInfo.from)}" data-token-to="${escapeHtml(rangeCtx.rangeTokenInfo.to)}"`;
+  }
+
+  const result: TatetenGroupInner = {
+    innerHtml: parts.join(''),
+    collectedSuffix,
+    yomigana,
+    dataAttrs,
+    emphasisRowHtml,
+  };
+  if (groupEmphasisStyle) {
+    result.groupEmphasisStyle = groupEmphasisStyle;
+  }
+  return result;
+}
+
+// ---------------------------------------------------------------------------
+// Tateten group: ruby-grid / ruby assembly
+// ---------------------------------------------------------------------------
+
+/**
+ * Wrap a base content element in ruby-grid/ruby.
+ *
+ * @param inner - Computed parts from buildTatetenGroupInner
+ * @param baseHtml - The HTML to place in the base text position (row 2 in grid)
+ * @param suffixHtml - Suffix HTML to place as a sibling grid item (column 2)
+ * @param ctx - Render context
+ * @param useRbClass - Whether to use <rb class="tateten-group"> in ruby mode
+ *                     (true for standalone, false when baseHtml is already wrapped)
+ */
+function wrapInTatetenRuby(
+  inner: TatetenGroupInner,
+  baseHtml: string,
+  suffixHtml: string,
+  ctx: RenderTreeContext,
+  useRbClass: boolean
+): string {
+  const { prefix } = ctx;
+
+  if (ctx.rubyMethod === 'grid') {
+    if (inner.groupEmphasisStyle && inner.emphasisRowHtml) {
+      return `<span class="${prefix}-ruby-grid--emphasis"${inner.dataAttrs}>${inner.emphasisRowHtml}<span class="${prefix}-ruby">${inner.yomigana}</span>${baseHtml}${suffixHtml}</span>`;
+    }
+    return `<span class="${prefix}-ruby-grid"${inner.dataAttrs}><span class="${prefix}-ruby">${inner.yomigana}</span>${baseHtml}${suffixHtml}</span>`;
+  } else {
+    // ruby モード
+    let result: string;
+    if (useRbClass) {
+      // standalone: <rb class="tateten-group"> を使用
+      result = `<ruby${inner.dataAttrs}><rb class="${prefix}-tateten-group">${inner.innerHtml}</rb><rt class="${prefix}-ruby">${inner.yomigana}</rt>${suffixHtml}</ruby>`;
+    } else {
+      // highlight: baseHtml をそのまま <rb> 内に配置
+      result = `<ruby${inner.dataAttrs}><rb>${baseHtml}</rb><rt class="${prefix}-ruby">${inner.yomigana}</rt>${suffixHtml}</ruby>`;
+    }
+    if (inner.groupEmphasisStyle) {
+      result = `<span class="${prefix}-emphasis" style="text-emphasis-style: ${escapeHtml(inner.groupEmphasisStyle)};">${result}</span>`;
+    }
+    return result;
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Tateten group rendering
+// ---------------------------------------------------------------------------
+
+function renderTatetenGroup(node: TatetenGroupNode, ctx: RenderTreeContext): string {
+  const { prefix } = ctx;
+  const inner = buildTatetenGroupInner(node, ctx);
+
+  if (!inner.yomigana) {
+    return `<span class="${prefix}-tateten-group">${inner.innerHtml}</span>`;
+  }
+
+  // Has yomigana: wrap in ruby-grid/ruby with suffix inside
+  const tatetenGroupHtml = `<span class="${prefix}-tateten-group">${inner.innerHtml}</span>`;
+  return wrapInTatetenRuby(inner, tatetenGroupHtml, inner.collectedSuffix, ctx, true);
 }
 
 // ---------------------------------------------------------------------------
@@ -200,6 +263,54 @@ function renderHighlightGroupNode(node: HighlightGroupNode, ctx: RenderTreeConte
   const style = node.highlight.style ?? 'solid';
   const styleClass = ` ${prefix}-highlight--${style}`;
 
+  // 末尾の子ノードが jukugo-kun（tateten+yomigana）で suffix を持つ場合:
+  // ruby-grid を highlight の外側に配置し、suffix を highlight の外に出す。
+  // これにより highlight の傍線が suffix（句読点等）に延びるのを防ぐ。
+  //
+  // 構造:
+  //   ruby-grid > [ruby, highlight > highlight-content > tateten-group, suffix]
+  const lastChild = node.items[node.items.length - 1];
+  let lastTatetenInner: TatetenGroupInner | null = null;
+  if (lastChild?.type === 'tateten-group') {
+    const inner = buildTatetenGroupInner(lastChild, ctx);
+    if (inner.yomigana && inner.collectedSuffix) {
+      lastTatetenInner = inner;
+    }
+  }
+
+  if (lastTatetenInner) {
+    // highlight 内のコンテンツを構築（suffix を除外）
+    const contentParts: string[] = [];
+    for (let i = 0; i < node.items.length; i++) {
+      const child = node.items[i]!;
+      if (i > 0) contentParts.push('<wbr>');
+
+      if (i === node.items.length - 1) {
+        // 末尾の tateten group: ruby-grid ラッパーなしの tateten-group のみ
+        contentParts.push(
+          `<span class="${prefix}-tateten-group">${lastTatetenInner.innerHtml}</span>`
+        );
+      } else if (child.type === 'token') {
+        contentParts.push(callRenderToken(child, ctx).html);
+      } else {
+        contentParts.push(renderTatetenGroup(child, ctx));
+      }
+    }
+
+    const highlightHtml = `<span class="${prefix}-highlight${styleClass}" data-style="${style}"><span class="${prefix}-highlight-content">${node.refHtml}${contentParts.join('')}</span></span>`;
+
+    // ruby-grid で highlight と suffix をラップ
+    // highlight は base row / column 1、suffix は base row / column 2
+    return wrapInTatetenRuby(
+      lastTatetenInner,
+      highlightHtml,
+      lastTatetenInner.collectedSuffix,
+      ctx,
+      false
+    );
+  }
+
+  // デフォルトパス: suffix の抽出不要（yomigana なし、または suffix なし）
   const contentParts: string[] = [];
 
   for (let i = 0; i < node.items.length; i++) {

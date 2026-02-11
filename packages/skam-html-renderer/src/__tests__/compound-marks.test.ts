@@ -563,8 +563,8 @@ describe('Range kana + tateten + kaeri: kaeri must not disappear', () => {
 // Tateten + yomigana: 末尾トークンの suffix-row を ruby の外に分離
 // ============================================================================
 
-describe('Tateten + yomigana: last token suffix-row extracted outside ruby', () => {
-  it('yomigana + tateten + kutoten: suffix-row is outside ruby', () => {
+describe('Tateten + yomigana: last token suffix-row inside ruby/ruby-grid', () => {
+  it('yomigana + tateten + kutoten: suffix-row is inside ruby (after rt)', () => {
     const doc = createTwoTokenDoc('春', '風', [
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しゅんぷう' },
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
@@ -573,13 +573,13 @@ describe('Tateten + yomigana: last token suffix-row extracted outside ruby', () 
     const { html } = render(doc, { rubyMethod: 'ruby' });
     // kutoten が出力に存在する
     expect(html).toContain('skam-suffix-kutoten');
-    // suffix-row は </ruby> の後に配置される
-    expect(html).toMatch(/<\/ruby>.*skam-suffix-row/s);
+    // suffix-row は </rt> の後、</ruby> の前に配置（改行機会を排除）
+    expect(html).toMatch(/<\/rt>.*skam-suffix-row.*<\/ruby>/s);
     // <rb> 内に suffix-row がない
     expect(html).not.toMatch(/<rb.*skam-suffix-row.*<\/rb>/s);
   });
 
-  it('yomigana + tateten + kaeri + kutoten: kaeri in sep, suffix outside ruby', () => {
+  it('yomigana + tateten + kaeri + kutoten: kaeri in sep, suffix inside ruby', () => {
     const doc = createTwoTokenDoc('春', '風', [
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しゅんぷう' },
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
@@ -589,8 +589,8 @@ describe('Tateten + yomigana: last token suffix-row extracted outside ruby', () 
     const { html } = render(doc, { rubyMethod: 'ruby' });
     // 非レ kaeri は tateten-sep に配置
     expect(html).toMatch(/skam-tateten-sep.*skam-kaeriten/s);
-    // suffix-row（kutoten含む）は ruby の外に配置
-    expect(html).toMatch(/<\/ruby>.*skam-suffix-kutoten/s);
+    // suffix-row（kutoten含む）は ruby 内（</rt> 後、</ruby> 前）に配置
+    expect(html).toMatch(/<\/rt>.*skam-suffix-kutoten.*<\/ruby>/s);
     // yomigana も存在
     expect(html).toContain('しゅんぷう');
   });
@@ -609,7 +609,7 @@ describe('Tateten + yomigana: last token suffix-row extracted outside ruby', () 
     expect(html).toMatch(/skam-suffix-row.*skam-suffix-kutoten/s);
   });
 
-  it('yomigana + tateten + soegana + kutoten: entire suffix-row extracted', () => {
+  it('yomigana + tateten + soegana + kutoten: entire suffix-row inside ruby', () => {
     const doc = createTwoTokenDoc('大', '事', [
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'だいじ' },
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
@@ -617,12 +617,12 @@ describe('Tateten + yomigana: last token suffix-row extracted outside ruby', () 
       { type: 'kutoten', position: { blockId: 'b1', after: 't2' }, value: '。' },
     ]);
     const { html } = render(doc, { rubyMethod: 'ruby' });
-    // soegana と kutoten を含む suffix-row が ruby の外に配置
+    // soegana と kutoten を含む suffix-row が ruby 内（</rt> 後、</ruby> 前）に配置
     expect(html).toContain('skam-soegana');
     expect(html).toContain('skam-suffix-kutoten');
-    expect(html).toMatch(/<\/ruby>.*skam-suffix-row/s);
-    expect(html).toMatch(/<\/ruby>.*skam-soegana/s);
-    expect(html).toMatch(/<\/ruby>.*skam-suffix-kutoten/s);
+    expect(html).toMatch(/<\/rt>.*skam-suffix-row.*<\/ruby>/s);
+    expect(html).toMatch(/<\/rt>.*skam-soegana.*<\/ruby>/s);
+    expect(html).toMatch(/<\/rt>.*skam-suffix-kutoten.*<\/ruby>/s);
     // <rb> 内に suffix-row がない
     expect(html).not.toMatch(/<rb.*skam-suffix-row.*<\/rb>/s);
   });

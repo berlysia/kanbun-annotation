@@ -802,13 +802,33 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
         text-emphasis-position: right;
       }
 
-      /* Highlight (傍線部) - 縦書き: 右側に表示 */
+      /* Highlight (傍線部) - 縦書き: 右側に表示
+       *
+       * inline-block にすることで padding-right がレイアウトに反映され、
+       * 隣の列に侵入しない。
+       * highlight-content の padding-right でルビ・傍点より外側に線を描画。
+       * highlight の padding-right で線と次の列の間に余白を確保。
+       */
       :where(.${prefix}-highlight) {
-        padding-right: 1em;
+        display: inline-block;
+        padding-right: 0.75em;
       }
 
       :where(.${prefix}-highlight-content) {
         display: inline;
+        padding-right: 0.5em;
+      }
+
+      /* 傍点がある場合: text-emphasis ドットの描画領域を避けるため padding を増加
+       * ruby モード: .emphasis (text-emphasis-style)
+       * grid モード: .emphasis-row (傍点文字を直接出力)
+       */
+      :where(.${prefix}-highlight-content:has(.${prefix}-emphasis, .${prefix}-emphasis-row)) {
+        padding-right: 1em;
+      }
+
+      :where(.${prefix}-highlight:has(.${prefix}-emphasis, .${prefix}-emphasis-row)) {
+        padding-right: 1.25em;
       }
 
       :where(.${prefix}-highlight[data-style="solid"]) > :where(.${prefix}-highlight-content) {
@@ -857,10 +877,13 @@ function generateWritingModeStyles(prefix: string, isVertical: boolean): string 
         background-position: right;
       }
 
-      /* Label - 縦書き: 傍線の開始位置（上）に配置 */
+      /* Label - 縦書き: 傍線の開始位置（上）に配置
+       * inset-block-start: 0 = right: 0 in vertical-rl → highlight 境界内に収める
+       * inset-inline-start: -1em = top: -1em → highlight 先頭の少し上に配置
+       */
       :where(.${prefix}-highlight-content > .${prefix}-ref) {
-        inset-inline-start: 0;
-        inset-block-start: -1em;
+        inset-inline-start: -1em;
+        inset-block-start: 0;
       }
 
       /* Ref (参照ラベル) - 縦中横 */

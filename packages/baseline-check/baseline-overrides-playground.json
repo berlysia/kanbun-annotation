@@ -1,0 +1,26 @@
+{
+  "has": {
+    "status": "safe",
+    "fallback": "label のレイアウト微調整のみ。非対応時もレイアウト崩れなし"
+  },
+  "user-select": {
+    "status": "safe",
+    "fallback": "-webkit-user-select を併記済み。全ブラウザで動作する"
+  },
+  "outline": {
+    "status": "safe",
+    "fallback": "選択色のカスタマイズ。非対応時はブラウザデフォルト"
+  },
+  "resize": {
+    "status": "safe",
+    "fallback": "iOS Safari 未対応（全バージョン）。Playground のテキストエリアに resize:none で使用しており、リサイズ無効化が効かなくても機能に影響なし"
+  },
+  "word-break: break-word": {
+    "status": "safe",
+    "fallback": "Playground UI のみ。非対応時はデフォルトの word-break で折り返し"
+  },
+  "selection": {
+    "status": "safe",
+    "fallback": "iOS Safari 未対応（全バージョン）。Playground のテキストエリア選択色のカスタマイズのみで、非対応時はブラウザデフォルトの選択色が使われる"
+  }
+}

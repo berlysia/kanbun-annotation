@@ -181,8 +181,18 @@ function classifySection(files) {
 function main() {
   const now = new Date().toISOString().slice(0, 10);
 
-  // Load overrides
-  const overrides = JSON.parse(readFileSync(join(pkgDir, 'baseline-overrides.json'), 'utf-8'));
+  // Load section-specific overrides
+  const rendererOverrides = JSON.parse(
+    readFileSync(join(pkgDir, 'baseline-overrides-renderer.json'), 'utf-8')
+  );
+  const playgroundOverrides = JSON.parse(
+    readFileSync(join(pkgDir, 'baseline-overrides-playground.json'), 'utf-8')
+  );
+  const sectionOverrides = {
+    html: rendererOverrides,
+    canvas: rendererOverrides,
+    playground: playgroundOverrides,
+  };
 
   // 1. Extract files
   console.error('Extracting CSS/JS...');
@@ -237,7 +247,7 @@ function main() {
 
   // 4. Detect baseline year per feature
   // The baseline year is the first year where the feature is no longer warned
-  /** @type {Map<string, { feature: string, baselineYear: number | null, sections: string[], category: string, status: string, fallback: string }>} */
+  /** @type {Map<string, { feature: string, baselineYear: number | null, sections: string[], category: string }>} */
   const features = new Map();
 
   for (const [feature, { files, category }] of featureMap) {
@@ -251,14 +261,11 @@ function main() {
       }
     }
 
-    const ov = overrides[feature];
     features.set(feature, {
       feature,
       baselineYear,
       sections: classifySection(files),
       category,
-      status: ov?.status ?? 'unknown',
-      fallback: ov?.fallback ?? '-',
     });
   }
 
@@ -269,18 +276,52 @@ function main() {
   lines.push(`Generated: ${now}`);
   lines.push(``);
 
-  // Summary
+  // Summary (renderer-based: html + canvas sections only)
   const all = [...features.values()];
-  const broken = all.filter((f) => f.status === 'broken');
-  const unknown = all.filter((f) => f.status === 'unknown');
-  const withYear = all.filter((f) => f.baselineYear != null && f.status !== 'broken');
+  const rendererFeatures = all.filter(
+    (f) => f.sections.includes('html') || f.sections.includes('canvas')
+  );
+
+  /** Resolve status for a feature in a given section */
+  function resolveStatus(feature, sectionKey) {
+    const ov = sectionOverrides[sectionKey]?.[feature];
+    return ov?.status ?? 'unknown';
+  }
+
+  /** Resolve fallback for a feature in a given section */
+  function resolveFallback(feature, sectionKey) {
+    const ov = sectionOverrides[sectionKey]?.[feature];
+    return ov?.fallback ?? '-';
+  }
+
+  /** Get the effective renderer status for a feature (worst of html/canvas) */
+  function getRendererStatus(f) {
+    const statuses = f.sections
+      .filter((s) => s === 'html' || s === 'canvas')
+      .map((s) => resolveStatus(f.feature, s));
+    if (statuses.length === 0) return 'unknown';
+    // Return worst status: broken > degraded > unknown > safe
+    const priority = ['broken', 'degraded', 'unknown', 'safe'];
+    return priority.find((p) => statuses.includes(p)) || 'unknown';
+  }
+
+  const broken = rendererFeatures.filter((f) => getRendererStatus(f) === 'broken');
+  const unknown = rendererFeatures.filter((f) => getRendererStatus(f) === 'unknown');
+  const withYear = rendererFeatures.filter(
+    (f) => f.baselineYear != null && getRendererStatus(f) !== 'broken'
+  );
   const maxYear = withYear.length > 0 ? Math.max(...withYear.map((f) => f.baselineYear)) : null;
-  const notYetBaseline = all.filter((f) => f.baselineYear == null);
+  const notYetBaseline = rendererFeatures.filter((f) => f.baselineYear == null);
+
+  const playgroundFeatures = all.filter((f) => f.sections.includes('playground'));
+  const playgroundUnknown = playgroundFeatures.filter(
+    (f) => resolveStatus(f.feature, 'playground') === 'unknown'
+  );
 
   lines.push(`## Summary`);
   lines.push(``);
 
-  if (all.length === 0) {
+  if (rendererFeatures.length === 0) {
     lines.push(`All features are Baseline compatible.`);
   } else if (broken.length > 0) {
     lines.push(`> **Warning**: 一部機能は非対応ブラウザで動作しません`);
@@ -288,7 +329,7 @@ function main() {
     lines.push(`> **Baseline ${maxYear}** 以降のブラウザで完全動作（フォールバック込み）`);
   }
 
-  if (notYetBaseline.some((f) => f.status === 'degraded')) {
+  if (notYetBaseline.some((f) => getRendererStatus(f) === 'degraded')) {
     lines.push(`>`);
     lines.push(`> 一部未 Baseline 機能は体験が低下する場合があります`);
   }
@@ -296,7 +337,14 @@ function main() {
   if (unknown.length > 0) {
     lines.push(`>`);
     lines.push(
-      `> ${unknown.length} 件のフォールバック未定義機能があります（\`baseline-overrides.json\` に追加してください）`
+      `> Renderer: ${unknown.length} 件のフォールバック未定義機能があります（\`baseline-overrides-renderer.json\` に追加してください）`
+    );
+  }
+
+  if (playgroundUnknown.length > 0) {
+    lines.push(`>`);
+    lines.push(
+      `> Playground: ${playgroundUnknown.length} 件のフォールバック未定義機能があります（\`baseline-overrides-playground.json\` に追加してください）`
     );
   }
 
@@ -348,7 +396,9 @@ function main() {
       lines.push(`| Feature | Status | Fallback |`);
       lines.push(`|---------|--------|----------|`);
       for (const f of feats) {
-        lines.push(`| \`${f.feature}\` | ${statusIcon[f.status] || f.status} | ${f.fallback} |`);
+        const status = resolveStatus(f.feature, sectionKey);
+        const fallback = resolveFallback(f.feature, sectionKey);
+        lines.push(`| \`${f.feature}\` | ${statusIcon[status] || status} | ${fallback} |`);
       }
       lines.push(``);
     }
@@ -360,7 +410,9 @@ function main() {
       lines.push(`| Feature | Status | Fallback |`);
       lines.push(`|---------|--------|----------|`);
       for (const f of notBaseline) {
-        lines.push(`| \`${f.feature}\` | ${statusIcon[f.status] || f.status} | ${f.fallback} |`);
+        const status = resolveStatus(f.feature, sectionKey);
+        const fallback = resolveFallback(f.feature, sectionKey);
+        lines.push(`| \`${f.feature}\` | ${statusIcon[status] || status} | ${fallback} |`);
       }
       lines.push(``);
     }

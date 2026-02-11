@@ -1,7 +1,7 @@
 {
   "has": {
     "status": "safe",
-    "fallback": "Renderer: @supports ガード済み。非対応時は ::before プレースホルダーが残るが auto sizing で幅 0 に解決（非 Chromium にはバグなし）。Playground: label のレイアウト微調整のみ"
+    "fallback": "@supports ガード済み。非対応時は ::before プレースホルダーが残るが auto sizing で幅 0 に解決（非 Chromium にはバグなし）"
   },
   "text-spacing-trim": {
     "status": "degraded",
@@ -11,21 +11,9 @@
     "status": "safe",
     "fallback": "Safari が未だ unprefixed 未対応のため -webkit-user-select を併記済み。全使用箇所でプレフィックス付きプロパティを提供しており、全ブラウザで動作する"
   },
-  "resize": {
-    "status": "safe",
-    "fallback": "iOS Safari 未対応（全バージョン）。Playground のテキストエリアに resize:none で使用しており、リサイズ無効化が効かなくても機能に影響なし"
-  },
-  "word-break: break-word": {
-    "status": "safe",
-    "fallback": "Playground UI のみ。非対応時はデフォルトの word-break で折り返し"
-  },
-  "selection": {
-    "status": "safe",
-    "fallback": "iOS Safari 未対応（全バージョン）。Playground のテキストエリア選択色のカスタマイズのみで、非対応時はブラウザデフォルトの選択色が使われる"
-  },
   "outline": {
     "status": "safe",
-    "fallback": "Baseline Widely available (2023)。基本機能は全ブラウザで長期サポート済み（Chrome 94+ で border-radius 追従が追加された点が 2023 判定の理由）。Renderer の選択ハイライト装飾で使用"
+    "fallback": "Baseline Widely available (2023)。基本機能は全ブラウザで長期サポート済み。選択ハイライト装飾で使用"
   },
   "ruby-align": {
     "status": "degraded",

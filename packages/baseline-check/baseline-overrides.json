@@ -5,38 +5,38 @@
   },
   "text-spacing-trim": {
     "status": "degraded",
-    "fallback": "フォールバックなし（約物間隔の微調整のみ）"
+    "fallback": "Chromium 123+ のみ対応（Firefox・Safari 未実装）。非対応時は約物がデフォルト全角幅で表示される（フォントの halt/chws feature 未適用）"
   },
   "user-select": {
     "status": "safe",
-    "fallback": "-webkit-user-select ベンダープレフィックス提供済み"
+    "fallback": "Safari が未だ unprefixed 未対応のため -webkit-user-select を併記済み。全使用箇所でプレフィックス付きプロパティを提供しており、全ブラウザで動作する"
   },
   "resize": {
     "status": "safe",
-    "fallback": "playground UIの利便性のみ（レンダラー出力に影響なし）"
+    "fallback": "iOS Safari 未対応（全バージョン）。Playground のテキストエリアに resize:none で使用しており、リサイズ無効化が効かなくても機能に影響なし"
   },
   "word-break: break-word": {
     "status": "safe",
-    "fallback": "playground UIのみ（レンダラー出力に影響なし）"
+    "fallback": "Playground UI のみ。非対応時はデフォルトの word-break で折り返し"
   },
   "selection": {
     "status": "safe",
-    "fallback": "playground UIのみ（レンダラー出力に影響なし）"
+    "fallback": "iOS Safari 未対応（全バージョン）。Playground のテキストエリア選択色のカスタマイズのみで、非対応時はブラウザデフォルトの選択色が使われる"
   },
   "clip": {
     "status": "safe",
-    "fallback": "playground UIのみ（レンダラー出力に影響なし）"
+    "fallback": "非推奨プロパティだが全ブラウザで実質的にサポート済み（IE 4+, Chrome 1+, Firefox 1+, Safari 3.1+, iOS Safari 1+）。Playground のアクセシビリティ用 visually-hidden パターンで使用"
   },
   "outline": {
     "status": "safe",
-    "fallback": "選択ハイライトの装飾のみ（機能に影響なし）"
+    "fallback": "Baseline Widely available (2023)。基本機能は全ブラウザで長期サポート済み（Chrome 94+ で border-radius 追従が追加された点が 2023 判定の理由）。Renderer の選択ハイライト装飾で使用"
   },
   "ruby-align": {
     "status": "degraded",
-    "fallback": "フォールバックなし（ルビの中央揃えが効かない）"
+    "fallback": "Baseline Newly available (2024-12)。使用値 center は Safari 18.2+/Chrome 128+/Firefox 38+ で対応。Safari 18.1 以前で center が効かずルビがデフォルト配置になる"
   },
   "ruby-position": {
-    "status": "degraded",
-    "fallback": "フォールバックなし（ルビの上下配置が効かない）"
+    "status": "safe",
+    "fallback": "Baseline Newly available (2024-12)。使用値 over/under は Safari 18.2+/Chrome 84+/Firefox 38+ で対応。Chromium は -webkit-ruby-position (before/after) を Chrome 1+ からサポートしており実質的に広く動作する。Safari 18.1 以前ではデフォルト位置(over)にフォールバック"
   }
 }

@@ -590,6 +590,12 @@ ${
   outline-offset: -1px;
 }
 
+/* Nowrap utility: 抽出されたサフィックスとルビグリッド間の改行を防止 */
+:where(.${prefix}-nowrap) {
+  display: inline;
+  white-space: nowrap;
+}
+
 /* Tateten (たて点) - 共通部分 */
 :where(.${prefix}-tateten-group) {
   display: inline;

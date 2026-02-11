@@ -179,6 +179,13 @@ function renderTatetenGroup(node: TatetenGroupNode, ctx: RenderTreeContext): str
       }
     }
     groupContent = rubyContent;
+    // 抽出されたサフィックス（kutoten, kaeriten 等）がルビグリッド外にある場合、
+    // ruby-grid と suffix-row の間での改行を防止する。
+    // word-break: keep-all は inline-grid ボックス間の暗黙的改行機会を除去しないため、
+    // white-space: nowrap ラッパーで囲む。
+    if (collectedSuffix) {
+      groupContent = `<span class="${prefix}-nowrap">${groupContent}</span>`;
+    }
   } else {
     groupContent = `<span class="${prefix}-tateten-group">${groupContent}</span>`;
   }

@@ -61,6 +61,24 @@ function highlightGroupDoc(): SKAMDocument {
   };
 }
 
+function tatetenYomiganaKutotenDoc(): SKAMDocument {
+  return {
+    format: 'skam@0.1',
+    tokens: [
+      { id: 't1', text: '天' },
+      { id: 't2', text: '地' },
+      { id: 't3', text: '不' },
+    ],
+    blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
+    marks: [
+      { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'てんち' },
+      { type: 'kutoten', position: { blockId: 'b1', after: 't2' }, value: '。' },
+    ],
+    readings: [],
+  };
+}
+
 function blockStartKutotenDoc(): SKAMDocument {
   return {
     format: 'skam@0.1',
@@ -132,6 +150,29 @@ describe('line break control in HTML output', () => {
       const contentMatch = blockContent.match(/skam-highlight-content">(.*)<\/span><\/span>/s);
       expect(contentMatch).not.toBeNull();
       expect(contentMatch![1]).toContain('<wbr>');
+    });
+
+    it('熟語訓（tateten+yomigana）直後の kutoten が tateten-group 内に保持される', () => {
+      // grid モード（デフォルト）でテスト
+      const resultGrid = render(tatetenYomiganaKutotenDoc());
+      const blockContentGrid = extractBlockContent(resultGrid.html);
+
+      // kutoten が出力されている
+      expect(blockContentGrid).toContain('。');
+
+      // 構造: <span class="tateten-group"><span class="ruby-grid">...</span><span class="suffix-row">...</span></span><wbr>...
+      // suffix-kutoten が <wbr> の前にあり、外側 tateten-group の中にあることを確認
+      // tateten-group は white-space: nowrap なので、ruby-grid と suffix-row の間で改行されない
+      expect(blockContentGrid).toMatch(/^<span class="skam-nowrap"><span class="skam-ruby-grid"/);
+      // kutoten は <wbr> の前（= nowrap ラッパー内）に出力される
+      expect(blockContentGrid).toMatch(/skam-suffix-kutoten[^>]*>。<\/span><\/span><\/span><wbr>/);
+
+      // ruby モードでもテスト
+      const resultRuby = render(tatetenYomiganaKutotenDoc(), { rubyMethod: 'ruby' });
+      const blockContentRuby = extractBlockContent(resultRuby.html);
+
+      expect(blockContentRuby).toMatch(/^<span class="skam-nowrap"><ruby/);
+      expect(blockContentRuby).toMatch(/skam-suffix-kutoten[^>]*>。<\/span><\/span><\/span><wbr>/);
     });
 
     it('blockStartHtml（kutoten）がある場合、最初のトークン前に <wbr> なし', () => {

@@ -164,9 +164,17 @@ function generateCommonStyles(
           grid-row: 1;
         }
 
-        /* ruby に内容がある場合はプレースホルダー不要（:not(:empty) で空 ruby を除外） */
-        :where(.${prefix}-ruby-grid:has(> .${prefix}-ruby:not(:empty)))::before {
-          display: none;
+        /* ruby に内容がある場合はプレースホルダー不要（:not(:empty) で空 ruby を除外）
+         *
+         * フォールバック不要の根拠:
+         * - ::before(content:'') と .ruby が同一 grid-row に共存しても、
+         *   空コンテンツの暗黙列は auto sizing で幅 0 に解決され、column-gap も未設定のため視覚的影響なし
+         * - ::before の本来の目的は Chromium baseline バグ補正だが、
+         *   :has() 未対応ブラウザ (Firefox <121, Safari <15.4) は非 Chromium でありバグが存在しない */
+        @supports selector(:has(a)) {
+          :where(.${prefix}-ruby-grid:has(> .${prefix}-ruby:not(:empty)))::before {
+            display: none;
+          }
         }
 
         :where(.${prefix}-ruby-grid) > :where(.${prefix}-ruby) {
@@ -203,9 +211,17 @@ function generateCommonStyles(
           grid-row: 1;
         }
 
-        /* ruby-over に内容がある場合はプレースホルダー不要（:not(:empty) で空 ruby を除外） */
-        :where(.${prefix}-saidoku-grid:has(> .${prefix}-ruby:first-child:not(:empty)))::before {
-          display: none;
+        /* ruby-over に内容がある場合はプレースホルダー不要（:not(:empty) で空 ruby を除外）
+         *
+         * フォールバック不要の根拠:
+         * - ::before(content:'') と .ruby が同一 grid-row に共存しても、
+         *   空コンテンツの暗黙列は auto sizing で幅 0 に解決され、column-gap も未設定のため視覚的影響なし
+         * - ::before の本来の目的は Chromium baseline バグ補正だが、
+         *   :has() 未対応ブラウザ (Firefox <121, Safari <15.4) は非 Chromium でありバグが存在しない */
+        @supports selector(:has(a)) {
+          :where(.${prefix}-saidoku-grid:has(> .${prefix}-ruby:first-child:not(:empty)))::before {
+            display: none;
+          }
         }
 
         :where(.${prefix}-saidoku-grid) > :where(.${prefix}-ruby:not(.${prefix}-saidoku-under)) {
@@ -453,9 +469,17 @@ ${gridStyles}
   grid-row: 1;
 }
 
-/* suffix-okuri がある場合はプレースホルダー不要 */
-:where(.${prefix}-suffix-row:has(.${prefix}-suffix-okuri))::before {
-  display: none;
+/* suffix-okuri がある場合はプレースホルダー不要
+ *
+ * フォールバック不要の根拠:
+ * - ::before(content:'') と .suffix-okuri が同一 grid-row に共存しても、
+ *   空コンテンツの暗黙列は auto sizing で幅 0 に解決され、column-gap も未設定のため視覚的影響なし
+ * - ::before の本来の目的は Chromium baseline バグ補正だが、
+ *   :has() 未対応ブラウザ (Firefox <121, Safari <15.4) は非 Chromium でありバグが存在しない */
+@supports selector(:has(a)) {
+  :where(.${prefix}-suffix-row:has(.${prefix}-suffix-okuri))::before {
+    display: none;
+  }
 }
 
 /* Suffix Right (送り仮名・添え仮名) */

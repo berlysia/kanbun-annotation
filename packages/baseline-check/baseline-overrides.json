@@ -1,7 +1,7 @@
 {
   "has": {
     "status": "safe",
-    "fallback": "@supports selector(:has(a)) で非対応時はスキップ（視覚的影響なし）"
+    "fallback": "Renderer: @supports ガード済み。非対応時は ::before プレースホルダーが残るが auto sizing で幅 0 に解決（非 Chromium にはバグなし）。Playground: label のレイアウト微調整のみ"
   },
   "text-spacing-trim": {
     "status": "degraded",

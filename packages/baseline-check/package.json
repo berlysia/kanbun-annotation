@@ -11,7 +11,8 @@
     "check": "pnpm extract && pnpm check:stylelint; pnpm check:eslint-js",
     "check:css": "pnpm extract && pnpm check:stylelint",
     "check:js": "pnpm extract && pnpm check:eslint-js",
-    "report": "node scripts/generate-report.js ../../docs/baseline-compatibility.md"
+    "report": "node scripts/generate-report.js ../../docs/baseline-compatibility.md",
+    "check:overrides": "node scripts/check-overrides.js"
   },
   "devDependencies": {
     "eslint": "9.39.2",

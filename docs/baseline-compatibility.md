@@ -18,10 +18,10 @@ Generated: 2026-02-11
 
 ### Baseline 2024
 
-| Feature         | Status      | Fallback                                                                                                                                                                                                                                                              |
-| --------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ruby-align`    | ⚠️ degraded | Baseline Newly available (2024-12)。使用値 center は Safari 18.2+/Chrome 128+/Firefox 38+ で対応。Safari 18.1 以前で center が効かずルビがデフォルト配置になる                                                                                                        |
-| `ruby-position` | ✅ safe     | Baseline Newly available (2024-12)。使用値 over/under は Safari 18.2+/Chrome 84+/Firefox 38+ で対応。Chromium は -webkit-ruby-position (before/after) を Chrome 1+ からサポートしており実質的に広く動作する。Safari 18.1 以前ではデフォルト位置(over)にフォールバック |
+| Feature         | Status      | Fallback                                                                                                                                                                                                                                                                     |
+| --------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ruby-align`    | ⚠️ degraded | Baseline Newly available (2024-12)。使用値 center は Safari 18.2+/Chrome 128+/Firefox 38+ で対応。Safari 18.1 以前で center が効かずルビがデフォルト配置になる                                                                                                               |
+| `ruby-position` | ⚠️ degraded | Baseline Newly available (2024-12)。使用値 over/under は Safari 18.2+/Chrome 84+/Firefox 38+ で対応。rubyMethod=ruby で再読文字（saidoku）を描画する場合、Safari 18.1 以前では under が効かず上下ルビが同一位置に重なる。rubyMethod=grid は ruby-position に依存せず影響なし |
 
 ### Not yet Baseline
 

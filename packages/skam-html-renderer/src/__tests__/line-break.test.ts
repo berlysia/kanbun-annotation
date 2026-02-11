@@ -152,7 +152,12 @@ describe('line break control in HTML output', () => {
       expect(contentMatch![1]).toContain('<wbr>');
     });
 
-    it('熟語訓（tateten+yomigana）直後の kutoten が tateten-group 内に保持される', () => {
+    it('熟語訓（tateten+yomigana）直後の kutoten: ruby-grid と suffix-row の間に Word Joiner', () => {
+      // Word Joiner (U+2060) は改行禁止文字（UAX#14 WJ クラス）。
+      // ruby-grid（inline-grid）と suffix-row の間の暗黙的改行機会を抑制する。
+      // ラッパー要素を使わないため、highlight の描画範囲に影響しない。
+      const WJ = '\u2060';
+
       // grid モード（デフォルト）でテスト
       const resultGrid = render(tatetenYomiganaKutotenDoc());
       const blockContentGrid = extractBlockContent(resultGrid.html);
@@ -160,19 +165,15 @@ describe('line break control in HTML output', () => {
       // kutoten が出力されている
       expect(blockContentGrid).toContain('。');
 
-      // 構造: <span class="tateten-group"><span class="ruby-grid">...</span><span class="suffix-row">...</span></span><wbr>...
-      // suffix-kutoten が <wbr> の前にあり、外側 tateten-group の中にあることを確認
-      // tateten-group は white-space: nowrap なので、ruby-grid と suffix-row の間で改行されない
-      expect(blockContentGrid).toMatch(/^<span class="skam-nowrap"><span class="skam-ruby-grid"/);
-      // kutoten は <wbr> の前（= nowrap ラッパー内）に出力される
-      expect(blockContentGrid).toMatch(/skam-suffix-kutoten[^>]*>。<\/span><\/span><\/span><wbr>/);
+      // ruby-grid 閉じタグと suffix-row の間に Word Joiner がある
+      expect(blockContentGrid).toContain(`</span>${WJ}<span class="skam-suffix-row"`);
 
       // ruby モードでもテスト
       const resultRuby = render(tatetenYomiganaKutotenDoc(), { rubyMethod: 'ruby' });
       const blockContentRuby = extractBlockContent(resultRuby.html);
 
-      expect(blockContentRuby).toMatch(/^<span class="skam-nowrap"><ruby/);
-      expect(blockContentRuby).toMatch(/skam-suffix-kutoten[^>]*>。<\/span><\/span><\/span><wbr>/);
+      // ruby 閉じタグと suffix-row の間に Word Joiner がある
+      expect(blockContentRuby).toContain(`</ruby>${WJ}<span class="skam-suffix-row"`);
     });
 
     it('blockStartHtml（kutoten）がある場合、最初のトークン前に <wbr> なし', () => {

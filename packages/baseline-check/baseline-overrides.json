@@ -23,10 +23,6 @@
     "status": "safe",
     "fallback": "iOS Safari 未対応（全バージョン）。Playground のテキストエリア選択色のカスタマイズのみで、非対応時はブラウザデフォルトの選択色が使われる"
   },
-  "clip": {
-    "status": "safe",
-    "fallback": "非推奨プロパティだが全ブラウザで実質的にサポート済み（IE 4+, Chrome 1+, Firefox 1+, Safari 3.1+, iOS Safari 1+）。Playground のアクセシビリティ用 visually-hidden パターンで使用"
-  },
   "outline": {
     "status": "safe",
     "fallback": "Baseline Widely available (2023)。基本機能は全ブラウザで長期サポート済み（Chrome 94+ で border-radius 追従が追加された点が 2023 判定の理由）。Renderer の選択ハイライト装飾で使用"

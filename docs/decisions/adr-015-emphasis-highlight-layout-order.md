@@ -2,7 +2,7 @@
 
 ## ステータス
 
-Proposed
+Accepted
 
 ## コンテキスト
 
@@ -35,7 +35,27 @@ Proposed
 
 ## 決定
 
-未決定。以下の「失敗した試行」を踏まえて再設計が必要。
+縦書きモードの配置順を「本文 → ルビ → 傍線 → 傍点」に変更する。横書きモードは変更しない。
+
+### Canvas レンダラー
+
+- emphasis 位置を highlight 線基準に変更する
+- `emphasisBaseX`（ruby なし）: highlight 線と詰めて配置し、全体の列幅を圧縮する
+- `emphasisWithRubyX`（ruby あり）: `highlightLineX + gap` に配置
+- `emphasisBaseX` / `emphasisWithRubyX` の区別は維持する
+- ref ラベルは highlight 線の上端の上に維持（現行位置）
+
+### HTML レンダラー
+
+- **Grid row 順は変更しない** — emphasis を Row 1（最外行）に維持
+  - `writing-mode: vertical-rl` では Row 1 = 右端 = 最外側（block-start）
+  - 現行構造を維持: row 1=emphasis / row 2=ruby / row 3=base+highlight / row 4=suffix
+- `:has(.emphasis)` による padding 増加ルールを削除する
+  - 現行: emphasis 共存時に `.highlight-content` の padding-right を 0.5em → 1em に増加し、傍線を emphasis の外側まで延伸
+  - 変更後: 常に基本の padding-right: 0.5em を使用。highlight 線は Row 2 (ruby) の境界まで到達し、Row 1 (emphasis) の内側に位置する
+  - これにより視覚的配置が「本文→ルビ→傍線→傍点」になる
+- 基本の highlight padding 値（0.75em / 0.5em）は維持する
+- vertical-align 補正値の変更は不要（grid 構造が不変のため）
 
 ## 失敗した試行（2025-02-11）
 
@@ -80,14 +100,95 @@ Canvas の ref ラベルを `x: highlightLineX + 2` に配置したが、線か�
 - emphasis/highlight の配置順変更は Canvas（座標計算）と HTML（CSS grid + padding）で異なるメカニズムに依存しており、**片方の変更を他方に機械的に移植できない**
 - ruby 有無で grid 行が空になるケースは必ず個別検証が必要
 
-## 再設計に向けて
+## 失敗した試行 2（2026-02-12）
 
-次の試行では以下を検討する:
+### アプローチ
 
-1. **playground で現状の描画を実機確認** してから設計に入る
-2. CSS grid の row 構成自体を変更する案（例: emphasis と highlight の row を入れ替える）
-3. Canvas は `emphasisBaseX` / `emphasisWithRubyX` の区別を維持しつつ、highlight 線との相対位置を調整する案
-4. HTML 側は padding 値の調整ではなく、grid row の並び順変更で配置を制御する案
+「再設計に向けて」項目 2・4 に基づき、CSS grid の row 並び順を変更するアプローチを実施。
+
+1. HTML: `ruby-grid--emphasis` の grid-template-rows を再構成
+   - 変更前: row 1=emphasis / row 2=ruby / row 3=base+highlight / row 4=suffix
+   - 変更後: row 1=ruby / row 2=base+highlight / row 3=suffix / row 4=emphasis
+2. HTML: `.emphasis-row` の `grid-row` を 1 → 4 に変更
+3. HTML: `:has(.emphasis)` padding 増加ルールを削除
+4. Canvas: emphasis 位置を `highlightLineX` 基準に変更
+
+### 発覚した問題
+
+#### 傍点が左側（内側）に移動してしまった
+
+`writing-mode: vertical-rl` における `grid-template-rows` の行方向を誤解していた。
+
+**正しい挙動**: `vertical-rl` では grid の block direction が右→左。`grid-template-rows` の Row 1 = block-start = **右端（最外側）**、Row N = block-end = **左端（最内側）**。
+
+emphasis を Row 1 → Row 4 に移動した結果、emphasis が右端（最外側）から左端（最内側）に移動し、目標と正反対の配置になった。
+
+### 根本原因
+
+`writing-mode: vertical-rl` における CSS Grid の `grid-template-rows` の物理方向を誤認。横書きの感覚で「Row 番号が大きい = 外側」と思い込んでいたが、vertical-rl では逆。
+
+### 教訓
+
+- **vertical-rl では Row 1 = 右端（block-start）= 最外側**。Row 番号の増加は物理的に左方向（内側）へ向かう
+- emphasis が Row 1 に配置されている現行設計は、既に「最外側」の正しい位置にある
+- 配置順の変更は grid row の入れ替えではなく、**highlight 線の到達位置を制御する padding の調整**で実現すべき
+
+## 失敗した試行 3（2026-02-12）
+
+### アプローチ
+
+「失敗した試行 2」の教訓に基づき、grid row 順はそのまま（Row 1=emphasis が最外側）維持し、highlight 線の描画位置と emphasis の配置を CSS で制御するアプローチを実施。
+
+1. HTML: `highlight-content:has(ruby-grid--emphasis)` に `display: inline-block; padding-right: 0` を適用
+   - inline-block にすることで、ボックスがグリッド子要素の block 方向全幅に拡張される
+   - box-shadow（傍線）がグリッド外縁（emphasis 行の外側）に描画される
+2. HTML: `.emphasis-row` に `position: relative; inset-block-start: -1.5em` を適用
+   - emphasis ドットをグリッド外縁よりさらに外側にシフト
+   - emphasis-row の font-size は親の半分（32px base → 16px）なので `-1.5em = -24px`
+3. HTML: `.highlight:has(ruby-grid--emphasis)` に `padding-right: 1em` で外側余白確保
+
+### 結果
+
+grid ブロック（ruby あり）では Chromium・Firefox 共に:
+
+- 傍線がルビの外側 +16px ✓
+- 傍点が傍線の外側 +8px ✓
+- 12 パターン全てで正常表示
+
+### 発覚した問題
+
+#### 1. bare ブロック（ruby なし）で傍点が傍線の内側に入る
+
+bare ブロック（ruby/送り仮名なし）は grid 構造を持たず、`text-emphasis-style: sesame` で傍点を描画する。CSS の `text-emphasis` はテキストのインライン方向に沿ってドットを配置するため、`highlight-content` の `box-shadow`（傍線）よりも内側（本文寄り）に描画される。
+
+つまり bare ブロックでは「本文 → 傍点 → 傍線」の順、grid ブロックでは「本文 → ルビ → 傍線 → 傍点」の順となり、読み/送り仮名の有無で傍点の内外が入れ替わる不整合が生じた。
+
+#### 2. grid ブロックで傍線がルビから離れすぎる
+
+`display: inline-block` にすると box-shadow はグリッド外縁（emphasis 行 0.5em を含む全体の右端）に描画される。emphasis 行の 0.5em 分だけ傍線がルビから余計に離れ、「ルビに寄せて配置」という目標に反する。
+
+### 根本原因
+
+**2 つの独立した傍点レンダリングパス** が、一貫した「傍点は常に傍線の外側」配置を不可能にしている:
+
+1. **bare パス**: `text-emphasis-style: sesame` — CSS プロパティによるインライン描画。位置制御は `text-emphasis-position` のみで、box-shadow との相対位置は制御不能
+2. **grid パス**: `ruby-grid--emphasis` + `.emphasis-row` — 専用グリッド行に明示的なドット文字を配置。`position: relative` で自由に位置調整可能
+
+bare パスで `text-emphasis-style` を使う限り、傍線との相対位置を CSS で制御できない。
+
+また、grid パスでは `display: inline-block` で box-shadow がグリッド全体の外縁に描画されるため、emphasis 行の存在が傍線位置をルビから押し出してしまう。highlight 線の描画を box-shadow（要素のボックス端に固定）に依存している限り、「ルビの直外に傍線を描画」は実現できない。
+
+### 教訓
+
+- `text-emphasis-style` は CSS プロパティなので box-shadow/background-image による傍線との相対位置制御が不可能。bare ブロックでも grid 構造が必要、あるいは emphasis ドットを明示的な要素として描画する必要がある
+- `display: inline-block` の box-shadow はグリッド全体外縁に描画される。傍線を「ルビと emphasis の間」に描画するには、box-shadow ではなく別の描画手法（border、pseudo-element、専用グリッド行）が必要
+- **2 つの問題は連動**: 傍線描画方法と傍点描画方法の両方を見直す必要がある
+
+### 次のアプローチ候補
+
+1. **render-tree 変更**: emphasis+highlight 共存時は bare ブロックでも常に grid 構造を使用し、emphasis-row にドット文字を配置する（text-emphasis-style を廃止）
+2. **傍線描画を box-shadow から分離**: emphasis-row の `border-block-end` や pseudo-element で傍線を描画し、ルビ行の直外に配置する
+3. **専用グリッド行の追加**: grid-template-rows に「傍線」専用行を追加（emphasis | **line** | ruby | base | suffix）
 
 ## 参考
 

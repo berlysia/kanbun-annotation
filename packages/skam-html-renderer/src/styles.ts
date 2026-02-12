@@ -396,7 +396,7 @@ function generateCommonStyles(
             calc(var(--${vp}-ruby-ratio) * 1em) 4px
             auto calc(var(--${vp}-ruby-ratio) * 1em);
           line-height: 1;
-          vertical-align: calc(4px + var(--${vp}-grid-baseline-fix, 0) * 1em);
+          vertical-align: calc(-4px + var(--${vp}-grid-baseline-fix, 0) * 1em);
         }
 
         :where(.${prefix}-ruby-grid--emphasis-hl-no-ruby) > :where(.${prefix}-highlight-line) {

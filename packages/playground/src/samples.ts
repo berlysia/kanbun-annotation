@@ -321,7 +321,11 @@ export const SAMPLES: Sample[] = [
     <skam:block><skam:span type="highlight" style="dashed"><skam:span type="emphasis" style="sesame"><skam:kun yomi="まな">學</skam:kun></skam:span></skam:span></skam:block>
     <!-- 11. solid + multi-token (ruby + okuri) -->
     <skam:block><skam:span type="highlight" style="solid"><skam:span type="emphasis" style="sesame"><skam:kun yomi="まな" okuri="ビテ">學</skam:kun>而</skam:span></skam:span></skam:block>
-    <!-- 12. solid + multi-token tateten (ruby) -->
+    <!-- 12. multi-token emphasis > (highlight + highlight) -->
+    <skam:block><skam:span type="emphasis" style="sesame"><skam:span type="highlight" style="solid"><skam:kun yomi="まな" okuri="ビテ">學</skam:kun></skam:span><skam:span type="highlight" style="solid">而</skam:span></skam:span></skam:block>
+    <!-- 13. multi-token emphasis > (highlight + bare) -->
+    <skam:block><skam:span type="emphasis" style="sesame"><skam:span type="highlight" style="solid"><skam:kun yomi="まな" okuri="ビテ">學</skam:kun></skam:span>而</skam:span></skam:block>
+    <!-- 14. solid + multi-token tateten (ruby) -->
     <skam:block><skam:span type="highlight" style="solid"><skam:span type="emphasis" style="sesame"><skam:tateten><skam:kun yomi="まな">學</skam:kun>而</skam:tateten></skam:span></skam:span></skam:block>
   </skam:body>
 </skam:doc>`,

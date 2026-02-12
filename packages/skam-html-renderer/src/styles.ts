@@ -380,6 +380,47 @@ function generateCommonStyles(
         }
 
         /*
+ * Ruby Grid - Emphasis + Highlight (No Ruby) Variant (4行グリッド, ADR-015)
+ *
+ * row1: emphasis (0.5em)
+ * row2: highlight-line (4px) ← 傍線描画用
+ * row3: base/tateten-group (auto)
+ * row4: suffix (0.5em)
+ *
+ * ruby-grid--emphasis-hl から ruby 行を除いたバリアント。
+ * 読み仮名がない token で emphasis + highlight が共存する場合に使用。
+ */
+        :where(.${prefix}-ruby-grid--emphasis-hl-no-ruby) {
+          display: inline-grid;
+          grid-template-rows:
+            calc(var(--${vp}-ruby-ratio) * 1em) 4px
+            auto calc(var(--${vp}-ruby-ratio) * 1em);
+          line-height: 1;
+          vertical-align: calc(4px + var(--${vp}-grid-baseline-fix, 0) * 1em);
+        }
+
+        :where(.${prefix}-ruby-grid--emphasis-hl-no-ruby) > :where(.${prefix}-highlight-line) {
+          grid-row: 2;
+          grid-column: 1 / -1;
+        }
+
+        :where(.${prefix}-ruby-grid--emphasis-hl-no-ruby) > :where(.${prefix}-base),
+        :where(.${prefix}-ruby-grid--emphasis-hl-no-ruby) > :where(.${prefix}-tateten-group) {
+          grid-row: 3;
+          grid-column: 1;
+        }
+
+        :where(.${prefix}-ruby-grid--emphasis-hl-no-ruby) > :where(.${prefix}-suffix-row) {
+          grid-row: 3;
+          grid-column: 2;
+        }
+
+        :where(.${prefix}-ruby-grid--emphasis-hl-no-ruby) > :where(.${prefix}-highlight) {
+          grid-row: 3;
+          grid-column: 1;
+        }
+
+        /*
  * Saidoku Grid - Emphasis Variant (4行グリッド)
  *
  * row1: emphasis, row2: ruby-over, row3: base, row4: ruby-under
@@ -979,7 +1020,8 @@ function generateWritingModeStyles(
              * ruby-grid 内では column 幅を不必要に広げ ruby の中央揃えに影響する。 */
             :where(.${prefix}-ruby-grid) > :where(.${prefix}-highlight),
             :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-highlight),
-            :where(.${prefix}-ruby-grid--emphasis-hl) > :where(.${prefix}-highlight) {
+            :where(.${prefix}-ruby-grid--emphasis-hl) > :where(.${prefix}-highlight),
+            :where(.${prefix}-ruby-grid--emphasis-hl-no-ruby) > :where(.${prefix}-highlight) {
               padding-right: 0;
             }
 
@@ -990,7 +1032,8 @@ function generateWritingModeStyles(
              * ruby-grid--emphasis-hl 内の highlight-line 要素で描画する。
              * highlight-content の既存描画を無効化し、padding-right もリセット。
              */
-            :where(.${prefix}-highlight-content:has(.${prefix}-ruby-grid--emphasis-hl)) {
+            :where(.${prefix}-highlight-content:has(.${prefix}-ruby-grid--emphasis-hl)),
+            :where(.${prefix}-highlight-content:has(.${prefix}-ruby-grid--emphasis-hl-no-ruby)) {
               box-shadow: none;
               background-image: none;
               padding-right: 0;

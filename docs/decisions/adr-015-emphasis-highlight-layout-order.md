@@ -266,9 +266,9 @@ ruby-ratio * 0.5em + 4px + grid-baseline-fix
 
 根本原因は共通: **highlight-line をトークン単位の ruby-grid 行に配置したため、トークン間で傍線が連続しない**。highlight の傍線は `highlight-content` 全体（複数トークンにまたがる）で連続した 1 本の線であるべきだが、各トークンの `ruby-grid--emphasis-hl` 内の `highlight-line` は独立した要素であり、トークン間に隙間が生じる。
 
-#### 1. emphasis > (highlight + highlight) と emphasis > (highlight + bare) が同じ見た目になる
+#### 1. multi-token highlight + emphasis (#11) と emphasis > (highlight + highlight) (#12) が同じ見た目になる
 
-サンプル #12（`emphasis > (highlight + highlight)`）と #13（`emphasis > (highlight + bare)`）が視覚的に区別できない。原因は未調査。`inHighlightGroup` は `build-render-tree.ts` で highlight グループ構築時にのみ設定されるため、emphasis 内の highlight 範囲外 bare トークンには設定されないはず。実際の HTML 出力の確認が必要。
+サンプル #11（`highlight > emphasis` で multi-token ruby+okuri）と #12（`emphasis > (highlight + highlight)` で highlight が2つに分かれる）が視覚的に区別できない。#12 では 2 つの独立した highlight 範囲があるはずだが、傍線が途切れず 1 本に見えている可能性、あるいは逆に #11 でも傍線が途切れている可能性がある。実際の HTML 出力の確認が必要。
 
 #### 2. highlight 範囲内の傍線が途切れる（#13, #14）
 

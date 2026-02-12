@@ -398,12 +398,15 @@ export function layoutVertical(
     const highlightLineX = blockColumnX + columnWidth + highlightGap;
 
     /** tateten グループの children をレイアウト */
-    function layoutTatetenChildren(children: (CanvasTokenNode | CanvasTatetenSeparator)[]): void {
+    function layoutTatetenChildren(
+      children: (CanvasTokenNode | CanvasTatetenSeparator)[],
+      lctx: LayoutContext = blockLctx
+    ): void {
       for (const groupChild of children) {
         if (groupChild.type === 'token') {
           const tokenX = blockColumnX + baseCenterX;
           const tokenY = columnY + yOffset + fontSize / 2;
-          columnChildren.push(layoutSingleToken(groupChild, tokenX, tokenY, blockLctx));
+          columnChildren.push(layoutSingleToken(groupChild, tokenX, tokenY, lctx));
           // tateten 内はトップギャップ不要（密着配置）。contentHeight からギャップ分を除いて比較
           const tatetenContentExtent =
             computeTokenContentHeight(groupChild.slots, fontSize, rubyFontSize) - fontSize / 2;
@@ -445,12 +448,20 @@ export function layoutVertical(
         layoutTatetenChildren(child.children);
       } else {
         // highlight-group: track y range and layout children
+        // ADR-015: emphasis+highlight 共存時、emphasis を highlight line の外側（右）に配置
+        const hlEmphasisX = highlightLineX + highlightGap;
+        const hlGrid: GridColumns = {
+          ...grid,
+          emphasisBaseX: hlEmphasisX,
+          emphasisWithRubyX: hlEmphasisX,
+        };
+        const hlLctx: LayoutContext = { ...blockLctx, grid: hlGrid };
         const yStart = columnY + yOffset;
         for (const highlightChild of child.children) {
           if (highlightChild.type === 'token') {
             const tokenX = blockColumnX + baseCenterX;
             const tokenY = columnY + yOffset + fontSize / 2;
-            columnChildren.push(layoutSingleToken(highlightChild, tokenX, tokenY, blockLctx));
+            columnChildren.push(layoutSingleToken(highlightChild, tokenX, tokenY, hlLctx));
             const hlContentHeight = computeTokenContentHeight(
               highlightChild.slots,
               fontSize,
@@ -459,7 +470,7 @@ export function layoutVertical(
             yOffset += Math.max(cellAdvance, hlContentHeight);
           } else {
             // tateten-group inside highlight-group
-            layoutTatetenChildren(highlightChild.children);
+            layoutTatetenChildren(highlightChild.children, hlLctx);
           }
         }
         const yEnd = columnY + yOffset;

@@ -459,6 +459,17 @@ function groupIntoTree(entries: FlatTokenEntry[], ctx: BuildTreeContext): Render
           break;
         }
       }
+      // ADR-015: highlight グループ内の全 token に inHighlightGroup フラグを設定
+      // emphasis+highlight 共存時に bare token でも grid 構造を強制するために使用
+      for (const item of items) {
+        if (item.type === 'token') {
+          item.rangeCtx = { ...item.rangeCtx, inHighlightGroup: true };
+        } else {
+          for (const tatetenItem of item.items) {
+            tatetenItem.rangeCtx = { ...tatetenItem.rangeCtx, inHighlightGroup: true };
+          }
+        }
+      }
       const refHtml = computeHighlightRefHtml(groupHighlight, marks, prefix, profile, refValueMap);
       result.push({
         type: 'highlight-group',

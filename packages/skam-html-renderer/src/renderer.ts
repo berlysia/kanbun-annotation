@@ -363,7 +363,8 @@ function renderTokenWithRuby(
   baseText?: string,
   rangeInfo?: RangeTokenInfo,
   suppressYomigana?: boolean,
-  gridEmphasisStyle?: string
+  gridEmphasisStyle?: string,
+  inHighlight?: boolean
 ): string {
   const { prefix, profile, tokenMarks, interactive, rubyMethod } = ctx;
 
@@ -397,13 +398,29 @@ function renderTokenWithRuby(
           ? ` data-token-from="${escapeHtml(rangeInfo.from)}" data-token-to="${escapeHtml(rangeInfo.to)}"`
           : '';
       const baseDataAttrs = !rangeInfo ? dataAttrs : '';
-      const gridClass = gridEmphasisStyle ? `${prefix}-ruby-grid--emphasis` : `${prefix}-ruby-grid`;
+      // ADR-015: emphasis + highlight 共存時は ruby-grid--emphasis-hl (5行) を使用
+      const gridClass = gridEmphasisStyle
+        ? inHighlight
+          ? `${prefix}-ruby-grid--emphasis-hl`
+          : `${prefix}-ruby-grid--emphasis`
+        : `${prefix}-ruby-grid`;
       const emphasisRowHtml = gridEmphasisStyle
         ? `<span class="${prefix}-emphasis-row" aria-hidden="true">${generateEmphasisMarks(displayText, resolveEmphasisCharacter(gridEmphasisStyle))}</span>`
         : '';
-      return `<span class="${gridClass}"${gridDataAttrs}>${emphasisRowHtml}<span class="${prefix}-ruby">${yomigana}</span><span class="${prefix}-base"${baseDataAttrs}>${baseContent}</span></span>`;
+      const highlightLineHtml =
+        gridEmphasisStyle && inHighlight ? `<span class="${prefix}-highlight-line"></span>` : '';
+      return `<span class="${gridClass}"${gridDataAttrs}>${emphasisRowHtml}${highlightLineHtml}<span class="${prefix}-ruby">${yomigana}</span><span class="${prefix}-base"${baseDataAttrs}>${baseContent}</span></span>`;
     }
     return `<ruby><rb class="${prefix}-base"${dataAttrs}>${baseContent}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>`;
+  } else if (gridEmphasisStyle) {
+    // ADR-015: bare + emphasis + highlight 共存時
+    // ruby-grid--emphasis(-hl) で emphasis-row を生成（ruby 行は空）
+    const gridClass = inHighlight
+      ? `${prefix}-ruby-grid--emphasis-hl`
+      : `${prefix}-ruby-grid--emphasis`;
+    const emphasisRowHtml = `<span class="${prefix}-emphasis-row" aria-hidden="true">${generateEmphasisMarks(displayText, resolveEmphasisCharacter(gridEmphasisStyle))}</span>`;
+    const highlightLineHtml = inHighlight ? `<span class="${prefix}-highlight-line"></span>` : '';
+    return `<span class="${gridClass}">${emphasisRowHtml}${highlightLineHtml}<span class="${prefix}-ruby"></span><span class="${prefix}-base"${dataAttrs}>${baseContent}</span></span>`;
   } else {
     return `<span class="${prefix}-base"${dataAttrs}>${baseContent}</span>`;
   }
@@ -541,10 +558,12 @@ export function renderToken(
     : undefined;
   // suppressEmphasis: tateten+yomigana 時にグループレベルで emphasis を適用するため、個別トークンでは抑制
   // grid モードで yomigana/saidoku と emphasis が共存する場合、emphasis-row で処理
+  // ADR-015: highlight グループ内の bare token でも grid 構造を強制して emphasis-row を使用
   const yomiganaMarks = (tokenMarks.get('yomigana') ?? []) as YomiganaMark[];
   const hasYomigana = !suppressYomigana && profile.yomigana && yomiganaMarks.length > 0;
+  const inHighlight = !!rangeCtx?.inHighlightGroup;
   const emphasisHandledByGrid =
-    hasEmphasis && ctx.rubyMethod === 'grid' && (hasYomigana || !!saidokuMark);
+    hasEmphasis && ctx.rubyMethod === 'grid' && (hasYomigana || !!saidokuMark || inHighlight);
   const gridEmphasisStyle = emphasisHandledByGrid ? resolvedEmphasisStyle : undefined;
   const applyEmphasis = hasEmphasis && !suppressEmphasis && !emphasisHandledByGrid;
 
@@ -698,7 +717,8 @@ export function renderToken(
       rangeBaseText,
       rangeCtx?.rangeTokenInfo,
       suppressYomigana,
-      gridEmphasisStyle
+      gridEmphasisStyle,
+      inHighlight
     );
   }
 

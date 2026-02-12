@@ -263,6 +263,8 @@ function renderHighlightGroupNode(node: HighlightGroupNode, ctx: RenderTreeConte
   const style = node.highlight.style ?? 'solid';
   const styleClass = ` ${prefix}-highlight--${style}`;
 
+  const contentClass = `${prefix}-highlight-content`;
+
   // 末尾の子ノードが jukugo-kun（tateten+yomigana）で suffix を持つ場合:
   // ruby-grid を highlight の外側に配置し、suffix を highlight の外に出す。
   // これにより highlight の傍線が suffix（句読点等）に延びるのを防ぐ。
@@ -297,7 +299,7 @@ function renderHighlightGroupNode(node: HighlightGroupNode, ctx: RenderTreeConte
       }
     }
 
-    const highlightHtml = `<span class="${prefix}-highlight${styleClass}" data-style="${style}"><span class="${prefix}-highlight-content">${node.refHtml}${contentParts.join('')}</span></span>`;
+    const highlightHtml = `<span class="${prefix}-highlight${styleClass}" data-style="${style}"><span class="${contentClass}">${node.refHtml}${contentParts.join('')}</span></span>`;
 
     // ruby-grid で highlight と suffix をラップ
     // highlight は base row / column 1、suffix は base row / column 2
@@ -327,7 +329,7 @@ function renderHighlightGroupNode(node: HighlightGroupNode, ctx: RenderTreeConte
     }
   }
 
-  return `<span class="${prefix}-highlight${styleClass}" data-style="${style}"><span class="${prefix}-highlight-content">${node.refHtml}${contentParts.join('')}</span></span>`;
+  return `<span class="${prefix}-highlight${styleClass}" data-style="${style}"><span class="${contentClass}">${node.refHtml}${contentParts.join('')}</span></span>`;
 }
 
 // ---------------------------------------------------------------------------

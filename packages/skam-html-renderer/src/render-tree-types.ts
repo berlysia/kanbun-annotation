@@ -61,6 +61,8 @@ export interface RangeMarkContext {
   trailingEmphasisMarks?: EmphasisMark[];
   /** 範囲のトークンID情報（熟語ルビ等でdata-token-from/to出力用） */
   rangeTokenInfo?: RangeTokenInfo;
+  /** highlight グループ内のトークンであることを示すフラグ（ADR-015: bare+emphasis の grid 化用） */
+  inHighlightGroup?: boolean;
 }
 
 // ---------------------------------------------------------------------------

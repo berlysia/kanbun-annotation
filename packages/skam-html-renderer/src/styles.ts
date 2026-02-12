@@ -330,6 +330,56 @@ function generateCommonStyles(
         }
 
         /*
+ * Ruby Grid - Emphasis + Highlight Variant (5行グリッド, ADR-015)
+ *
+ * row1: emphasis (0.5em)
+ * row2: highlight-line (4px) ← 傍線描画用
+ * row3: ruby (0.5em)
+ * row4: base/tateten-group (auto)
+ * row5: suffix (0.5em)
+ *
+ * 配置順（右→左 = 外→内）: 傍点 → 傍線 → ルビ → 本文
+ */
+        :where(.${prefix}-ruby-grid--emphasis-hl) {
+          display: inline-grid;
+          grid-template-rows:
+            calc(var(--${vp}-ruby-ratio) * 1em) 4px calc(var(--${vp}-ruby-ratio) * 1em)
+            auto calc(var(--${vp}-ruby-ratio) * 1em);
+          line-height: 1;
+          vertical-align: calc(
+            var(--${vp}-ruby-ratio) * 0.5em + var(--${vp}-grid-baseline-fix, 0) * 1em
+          );
+        }
+
+        :where(.${prefix}-ruby-grid--emphasis-hl) > :where(.${prefix}-highlight-line) {
+          grid-row: 2;
+          grid-column: 1 / -1;
+        }
+
+        :where(.${prefix}-ruby-grid--emphasis-hl) > :where(.${prefix}-ruby) {
+          grid-row: 3;
+          grid-column: 1;
+          align-self: end;
+          text-align: center;
+        }
+
+        :where(.${prefix}-ruby-grid--emphasis-hl) > :where(.${prefix}-base),
+        :where(.${prefix}-ruby-grid--emphasis-hl) > :where(.${prefix}-tateten-group) {
+          grid-row: 4;
+          grid-column: 1;
+        }
+
+        :where(.${prefix}-ruby-grid--emphasis-hl) > :where(.${prefix}-suffix-row) {
+          grid-row: 4;
+          grid-column: 2;
+        }
+
+        :where(.${prefix}-ruby-grid--emphasis-hl) > :where(.${prefix}-highlight) {
+          grid-row: 4;
+          grid-column: 1;
+        }
+
+        /*
  * Saidoku Grid - Emphasis Variant (4行グリッド)
  *
  * row1: emphasis, row2: ruby-over, row3: base, row4: ruby-under
@@ -857,18 +907,6 @@ function generateWritingModeStyles(
         padding-right: 0.5em;
       }
 
-      /* 傍点がある場合: text-emphasis ドットの描画領域を避けるため padding を増加
-       * ruby モード: .emphasis (text-emphasis-style)
-       * grid モード: .emphasis-row (傍点文字を直接出力)
-       */
-      :where(.${prefix}-highlight-content:has(.${prefix}-emphasis, .${prefix}-emphasis-row)) {
-        padding-right: 1em;
-      }
-
-      :where(.${prefix}-highlight:has(.${prefix}-emphasis, .${prefix}-emphasis-row)) {
-        padding-right: 1.25em;
-      }
-
       :where(.${prefix}-highlight[data-style="solid"]) > :where(.${prefix}-highlight-content) {
         box-shadow: inset -1px 0 0 0 currentColor;
       }
@@ -940,8 +978,65 @@ function generateWritingModeStyles(
              * padding-right は通常、傍線と隣列の間隔確保に使われるが、
              * ruby-grid 内では column 幅を不必要に広げ ruby の中央揃えに影響する。 */
             :where(.${prefix}-ruby-grid) > :where(.${prefix}-highlight),
-            :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-highlight) {
+            :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-highlight),
+            :where(.${prefix}-ruby-grid--emphasis-hl) > :where(.${prefix}-highlight) {
               padding-right: 0;
+            }
+
+            /*
+             * Highlight + Emphasis 共存 (ADR-015)
+             *
+             * emphasis+highlight 共存時、傍線は highlight-content の box-shadow/background ではなく
+             * ruby-grid--emphasis-hl 内の highlight-line 要素で描画する。
+             * highlight-content の既存描画を無効化し、padding-right もリセット。
+             */
+            :where(.${prefix}-highlight-content:has(.${prefix}-ruby-grid--emphasis-hl)) {
+              box-shadow: none;
+              background-image: none;
+              padding-right: 0;
+            }
+
+            /* highlight-line の描画スタイル (5種)
+             * highlight-line は ruby-grid--emphasis-hl の Row 2 に配置。
+             * セレクタは祖先の .highlight[data-style] で分岐。 */
+            :where(.${prefix}-highlight[data-style="solid"]) :where(.${prefix}-highlight-line) {
+              background-image: linear-gradient(to left, currentColor 1px, transparent 1px);
+              background-size: 1px 100%;
+              background-repeat: repeat-y;
+              background-position: right;
+            }
+
+            :where(.${prefix}-highlight[data-style="dotted"]) :where(.${prefix}-highlight-line) {
+              background-image: linear-gradient(to bottom, currentColor 2px, transparent 2px);
+              background-size: 1px 4px;
+              background-repeat: repeat-y;
+              background-position: right;
+            }
+
+            :where(.${prefix}-highlight[data-style="dashed"]) :where(.${prefix}-highlight-line) {
+              background-image: linear-gradient(to bottom, currentColor 4px, transparent 4px);
+              background-size: 1px 8px;
+              background-repeat: repeat-y;
+              background-position: right;
+            }
+
+            :where(.${prefix}-highlight[data-style="wavy"]) :where(.${prefix}-highlight-line) {
+              background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='8' viewBox='0 0 4 8'%3E%3Cpath d='M3 0 Q0 4 3 8' stroke='%23333' fill='none' stroke-width='1'/%3E%3C/svg%3E");
+              background-size: 4px 8px;
+              background-repeat: repeat-y;
+              background-position: right;
+            }
+
+            :where(.${prefix}-highlight[data-style="double"]) :where(.${prefix}-highlight-line) {
+              background-image: linear-gradient(
+                to left,
+                currentColor 1px,
+                transparent 1px 2px,
+                currentColor 2px 3px,
+                transparent 3px
+              );
+              background-repeat: repeat;
+              background-position: right;
             }
           `
         : ''}

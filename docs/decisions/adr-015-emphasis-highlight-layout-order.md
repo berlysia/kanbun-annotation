@@ -2,7 +2,7 @@
 
 ## ステータス
 
-Accepted
+Implemented
 
 ## コンテキスト
 
@@ -190,8 +190,89 @@ bare パスで `text-emphasis-style` を使う限り、傍線との相対位置�
 2. **傍線描画を box-shadow から分離**: emphasis-row の `border-block-end` や pseudo-element で傍線を描画し、ルビ行の直外に配置する
 3. **専用グリッド行の追加**: grid-template-rows に「傍線」専用行を追加（emphasis | **line** | ruby | base | suffix）
 
+## 成功した実装（2026-02-12）
+
+### アプローチ
+
+「失敗した試行 3」の「次のアプローチ候補」1 + 3 を組み合わせ。
+
+1. **bare ブロックでも grid 構造を強制**: emphasis+highlight 共存時は `text-emphasis-style` を使わず、常に `ruby-grid` + `emphasis-row` で傍点ドットを明示的な要素として描画
+2. **5 行グリッド `ruby-grid--emphasis-hl` を新設**: highlight-line 専用行を追加
+
+```
+ruby-grid--emphasis-hl (5行):
+  Row 1: emphasis (0.5em)    ← block-start = 最外側（vertical-rl で右端）
+  Row 2: highlight-line (4px)
+  Row 3: ruby (0.5em)
+  Row 4: base (auto)
+  Row 5: suffix (0.5em)
+```
+
+3. **`:has()` セレクタで highlight-content の描画を無効化**: `ruby-grid--emphasis-hl` が内部にある場合、`highlight-content` の `box-shadow` / `background-image` を `none` に設定。傍線は highlight-line 要素の `background-image` で描画
+
+### 核心: なぜこれが機能するか
+
+失敗した試行 3 では highlight 線を `highlight-content` の `box-shadow` で描画していたため、emphasis 行の存在が box-shadow 位置を押し出す問題があった。
+
+本アプローチでは highlight 線を **同一グリッド内の専用行** (`highlight-line`) に移動した。emphasis-row (Row 1) と highlight-line (Row 2) が同じグリッドコンテキストに属するため、`grid-row` 指定だけで相対位置が確定し、padding や box-shadow の間接的な位置制御に依存しない。
+
+### 変更ファイル
+
+#### HTML レンダラー
+
+- **`render-tree-types.ts`**: `RangeMarkContext` に `inHighlightGroup?: boolean` を追加
+- **`build-render-tree.ts`**: highlight グループ内の全 token に `inHighlightGroup: true` を設定
+- **`renderer.ts`**:
+  - `emphasisHandledByGrid` 条件を拡張: highlight 内の bare token でも grid 構造を強制
+  - `renderTokenWithRuby` に `inHighlight` パラメータを追加
+  - emphasis+highlight 共存時は `ruby-grid--emphasis-hl` クラスと `highlight-line` 要素を出力
+- **`render-tree.ts`**: 前回試行の残骸（`highlight-content--emphasis` ロジック）を除去
+- **`styles.ts`**:
+  - `ruby-grid--emphasis-hl` (5行グリッド) の CSS を追加
+  - `ruby-grid--emphasis-hl-no-ruby` (ruby なし variant) の CSS を追加
+  - `:has(.ruby-grid--emphasis-hl)` で highlight-content の box-shadow/background-image を無効化
+  - 5 種の highlight-line background-image スタイル (solid/dotted/dashed/wavy/double) を追加
+  - vertical-align 補正: emphasis-hl は `+4px`、emphasis-hl-no-ruby は `-4px`
+
+#### Canvas レンダラー
+
+- **`layout-vertical.ts`**: highlight グループ内の token の emphasis X 座標を `highlightLineX + highlightGap` に移動
+
+### vertical-align 補正値の導出
+
+`ruby-grid--emphasis` (4行) の vertical-align:
+
+```
+ruby-ratio * 0.5em + grid-baseline-fix
+```
+
+`ruby-grid--emphasis-hl` (5行) は Row 2 に 4px の highlight-line 行が追加。base 行がその分だけ下がるため:
+
+```
+ruby-ratio * 0.5em + 4px + grid-baseline-fix
+```
+
+`ruby-grid--emphasis-hl-no-ruby` は ruby 行と highlight-line 行のみ base より上にあるが、ruby 行 (0.5em) は `ruby-grid--emphasis-no-ruby` と同じ扱い。highlight-line (4px) の分だけ逆方向にずれるため:
+
+```
+-4px + grid-baseline-fix
+```
+
+### 検証結果
+
+- テスト: 423/423 パス、typecheck パス
+- Chromium: 14 パターン全てで `emIsRightOfHL: true`, `hlIsRightOfBase: true`
+- Firefox: 同結果
+- Regression なし（emphasis-only は 4 行グリッド、highlight-only は box-shadow/background のまま）
+
+### 既知の制約
+
+- **saidoku/tateten 内の emphasis+highlight**: 現時点で `ruby-grid--emphasis-hl` を使用しない。該当パターンが追加された場合に対応が必要
+- **`:has()` セレクタ**: Chrome 105+, Firefox 121+, Safari 15.4+ が必要。非対応ブラウザでは傍線が二重描画される
+
 ## 参考
 
 - `packages/skam-canvas-renderer/src/layout-vertical.ts` — Canvas レイアウト計算
 - `packages/skam-html-renderer/src/styles.ts` — CSS スタイル生成
 - `ruby-grid--emphasis` の grid-template-rows: `0.5em 0.5em auto 0.5em`（emphasis / ruby / base / suffix）
+- `ruby-grid--emphasis-hl` の grid-template-rows: `0.5em 4px 0.5em auto 0.5em`（emphasis / highlight-line / ruby / base / suffix）

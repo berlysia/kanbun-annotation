@@ -274,6 +274,15 @@ ruby-ratio * 0.5em + 4px + grid-baseline-fix
 
 サンプル #13（multi-token highlight）および #14（tateten + highlight + emphasis）で傍線がトークン間で途切れる。highlight 範囲は複数トークンにわたるが、各トークンの `ruby-grid--emphasis-hl` 内の `highlight-line` は独立した要素で、隣接トークンの `highlight-line` と連結しない。tateten では竪点グループ内部に `highlight-line` が閉じ込められ、さらに深刻。
 
+### 次のステップの候補
+
+上記の問題はすべて「highlight-line をトークン単位の grid 行に入れた」ことに起因する。解決には傍線の描画を `highlight-content` レベル（複数トークンをまたぐ単一要素）に戻す必要がある可能性が高い。
+
+考えられる方向:
+
+1. **highlight-content レベルの傍線描画を維持しつつ、emphasis を外側に出す**: highlight-content の box-shadow/background-image による傍線描画はトークン間の連続性を自然に保証する。問題は emphasis がその内側に閉じ込められること。emphasis-row を highlight-content の外側に配置する構造的な方法が必要
+2. **ruby-grid--emphasis-hl の highlight-line を廃止し、別の手法で傍線位置を制御**: たとえば highlight-content 自体を emphasis 行の内側に position で配置する、または highlight-content の box-shadow offset を調整して emphasis 行分だけ内側にずらす
+
 ### 既知の制約
 
 - **saidoku/tateten 内の emphasis+highlight**: 現時点で `ruby-grid--emphasis-hl` を使用しない。該当パターンが追加された場合に対応が必要

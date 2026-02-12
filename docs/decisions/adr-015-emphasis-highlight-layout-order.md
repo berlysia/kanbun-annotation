@@ -270,9 +270,9 @@ ruby-ratio * 0.5em + 4px + grid-baseline-fix
 
 サンプル #11（`highlight > emphasis` で multi-token ruby+okuri）と #12（`emphasis > (highlight + highlight)` で highlight が2つに分かれる）が視覚的に区別できない。#12 では 2 つの独立した highlight 範囲があるはずだが、傍線が途切れず 1 本に見えている可能性、あるいは逆に #11 でも傍線が途切れている可能性がある。実際の HTML 出力の確認が必要。
 
-#### 2. highlight 範囲内の傍線が途切れる（#13, #14）
+#### 2. tateten + highlight で傍線が表示されない・途切れる（#14）
 
-サンプル #13（multi-token highlight）および #14（tateten + highlight + emphasis）で傍線がトークン間で途切れる。highlight 範囲は複数トークンにわたるが、各トークンの `ruby-grid--emphasis-hl` 内の `highlight-line` は独立した要素で、隣接トークンの `highlight-line` と連結しない。tateten では竪点グループ内部に `highlight-line` が閉じ込められ、さらに深刻。
+サンプル #14（tateten + highlight + emphasis）で竪点の横に傍線が出ない、かつ竪点の前後で傍線が途切れる。本来は highlight 範囲全体で連続した 1 本の傍線が描画されるべき。竪点は `tateten-group` としてラップされるため、`ruby-grid--emphasis-hl` の highlight-line が竪点グループ内部に閉じ込められ、隣接トークンの highlight-line と連結しない。
 
 ### 次のステップの候補
 

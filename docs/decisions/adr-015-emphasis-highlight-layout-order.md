@@ -2,7 +2,7 @@
 
 ## ステータス
 
-Implemented
+In Progress
 
 ## コンテキスト
 
@@ -190,7 +190,7 @@ bare パスで `text-emphasis-style` を使う限り、傍線との相対位置�
 2. **傍線描画を box-shadow から分離**: emphasis-row の `border-block-end` や pseudo-element で傍線を描画し、ルビ行の直外に配置する
 3. **専用グリッド行の追加**: grid-template-rows に「傍線」専用行を追加（emphasis | **line** | ruby | base | suffix）
 
-## 成功した実装（2026-02-12）
+## 実装中のアプローチ 4（2026-02-12）
 
 ### アプローチ
 
@@ -258,12 +258,24 @@ ruby-ratio * 0.5em + 4px + grid-baseline-fix
 -4px + grid-baseline-fix
 ```
 
-### 検証結果
+### 現状
 
-- テスト: 423/423 パス、typecheck パス
-- Chromium: 14 パターン全てで `emIsRightOfHL: true`, `hlIsRightOfBase: true`
-- Firefox: 同結果
-- Regression なし（emphasis-only は 4 行グリッド、highlight-only は box-shadow/background のまま）
+配置順序の変更（emphasis が highlight の外側）は単一トークンのパターンで機能しているが、以下の深刻な問題が残っている。
+
+### 未解決の問題
+
+#### 1. emphasis > (highlight + highlight) と emphasis > (highlight + bare) が同じ見た目になる
+
+サンプル #12（emphasis が highlight を包み、highlight が複数に分かれる）と #13（emphasis が highlight + bare を包む）で、傍線の有無が視覚的に区別できない。bare トークンにも highlight-line が出力されている、または highlight-content の描画が正しく制御されていない可能性がある。
+
+#### 2. tateten + highlight で傍線が表示されない・途切れる
+
+サンプル #14（tateten + highlight + emphasis）で:
+
+- 竪点の横に傍線が出ていない
+- 竪点の前後で傍線が切れている（本来は highlight 範囲全体で連続した傍線が描画されるべき）
+
+竪点は `tateten-group` としてラップされるため、`ruby-grid--emphasis-hl` の highlight-line が竪点グループの内部に閉じてしまい、隣接トークンの highlight-line と連結しない可能性がある。
 
 ### 既知の制約
 

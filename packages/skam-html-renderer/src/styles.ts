@@ -347,7 +347,7 @@ function generateCommonStyles(
             auto calc(var(--${vp}-ruby-ratio) * 1em);
           line-height: 1;
           vertical-align: calc(
-            var(--${vp}-ruby-ratio) * 0.5em + var(--${vp}-grid-baseline-fix, 0) * 1em
+            var(--${vp}-ruby-ratio) * 0.5em + 4px + var(--${vp}-grid-baseline-fix, 0) * 1em
           );
         }
 

@@ -264,18 +264,15 @@ ruby-ratio * 0.5em + 4px + grid-baseline-fix
 
 ### 未解決の問題
 
-#### 1. emphasis > (highlight + highlight) と emphasis > (highlight + bare) が同じ見た目になる
+根本原因は共通: **highlight-line をトークン単位の ruby-grid 行に配置したため、トークン間で傍線が連続しない**。highlight の傍線は `highlight-content` 全体（複数トークンにまたがる）で連続した 1 本の線であるべきだが、各トークンの `ruby-grid--emphasis-hl` 内の `highlight-line` は独立した要素であり、トークン間に隙間が生じる。
 
-サンプル #12（emphasis が highlight を包み、highlight が複数に分かれる）と #13（emphasis が highlight + bare を包む）で、傍線の有無が視覚的に区別できない。bare トークンにも highlight-line が出力されている、または highlight-content の描画が正しく制御されていない可能性がある。
+#### 1. emphasis > (highlight + bare) で bare トークンにも傍線が出る（#12 と #13 が同じ見た目）
 
-#### 2. tateten + highlight で傍線が表示されない・途切れる
+サンプル #12（`emphasis > (highlight + highlight)`）と #13（`emphasis > (highlight + bare)`）が視覚的に区別できない。`inHighlightGroup` フラグが emphasis グループ内の全トークンに設定されるため、highlight 範囲外の bare トークンにも `highlight-line` が出力されてしまう。
 
-サンプル #14（tateten + highlight + emphasis）で:
+#### 2. highlight 範囲内の傍線が途切れる（#13, #14）
 
-- 竪点の横に傍線が出ていない
-- 竪点の前後で傍線が切れている（本来は highlight 範囲全体で連続した傍線が描画されるべき）
-
-竪点は `tateten-group` としてラップされるため、`ruby-grid--emphasis-hl` の highlight-line が竪点グループの内部に閉じてしまい、隣接トークンの highlight-line と連結しない可能性がある。
+サンプル #13（multi-token highlight）および #14（tateten + highlight + emphasis）で傍線がトークン間で途切れる。highlight 範囲は複数トークンにわたるが、各トークンの `ruby-grid--emphasis-hl` 内の `highlight-line` は独立した要素で、隣接トークンの `highlight-line` と連結しない。tateten では竪点グループ内部に `highlight-line` が閉じ込められ、さらに深刻。
 
 ### 既知の制約
 

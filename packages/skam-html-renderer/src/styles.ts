@@ -865,6 +865,7 @@ function generateWritingModeStyles(
 ): string {
   const vp = variablePrefix ?? prefix;
   const includeGrid = rubyMethod === 'grid' || rubyMethod === 'both';
+  const highlightOffset = '1em';
 
   if (isVertical) {
     return css`
@@ -884,7 +885,7 @@ function generateWritingModeStyles(
        */
       :where(.${prefix}-highlight) {
         display: inline-block;
-        padding-right: 0.75em;
+        padding-right: ${highlightOffset};
       }
 
       :where(.${prefix}-highlight-content) {
@@ -943,10 +944,10 @@ function generateWritingModeStyles(
 
       /* Label - 縦書き: 傍線の開始位置（上）に配置
        * inset-block-start: 0 = right: 0 in vertical-rl → highlight 境界内に収める
-       * inset-inline-start: -1em = top: -1em → highlight 先頭の少し上に配置
+       * inset-inline-start: 0 = top
        */
       :where(.${prefix}-highlight-content > .${prefix}-ref) {
-        inset-inline-start: -1em;
+        inset-inline-start: 0;
         inset-block-start: 0;
       }
 
@@ -984,7 +985,7 @@ function generateWritingModeStyles(
              * position: absolute の ::after で正確な位置指定が可能。
              *
              * ::after の right offset:
-             *   highlight の padding-right (0.75em) + emphasis-row 幅 (ruby-ratio * 1em = 0.5em)
+             *   highlight の padding-right (${highlightOffset}) + emphasis-row 幅 (ruby-ratio * 1em = 0.5em)
              *   = 1.25em で、emphasis-row の内側辺（= ruby の外側辺）に傍線を配置。
              *
              * emphasis+highlight 共存時は highlight-content の傍線描画を無効化し、
@@ -1000,7 +1001,7 @@ function generateWritingModeStyles(
               }
 
               /* emphasis 共存時: ::after で傍線を描画（共通）
-               * right offset = emphasis-row 幅 (ruby-ratio * 1em) + highlight padding (0.75em)
+               * right offset = emphasis-row 幅 (ruby-ratio * 1em) + highlight padding (${highlightOffset})
                * ruby 行有無で同じ値（emphasis-row は常に grid 最右列） */
               :where(
                 .${prefix}-highlight:has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby))
@@ -1009,7 +1010,7 @@ function generateWritingModeStyles(
                 position: absolute;
                 top: 0;
                 bottom: 0;
-                right: calc(var(--${vp}-ruby-ratio) * 1em + 0.75em);
+                right: calc(var(--${vp}-ruby-ratio) * 1em + ${highlightOffset});
                 width: 0;
               }
 
@@ -1040,7 +1041,7 @@ function generateWritingModeStyles(
               :where(.${prefix}-highlight[data-style="wavy"]:has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby)))::after {
                 border-right: none;
                 width: 4px;
-                right: calc(var(--${vp}-ruby-ratio) * 1em + 0.75em - 1.5px);
+                right: calc(var(--${vp}-ruby-ratio) * 1em + ${highlightOffset} - 1.5px);
                 background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='8' viewBox='0 0 4 8'%3E%3Cpath d='M3 0 Q0 4 3 8' stroke='%23333' fill='none' stroke-width='1'/%3E%3C/svg%3E");
                 background-size: 4px 8px;
                 background-repeat: repeat-y;
@@ -1050,7 +1051,7 @@ function generateWritingModeStyles(
               :where(.${prefix}-highlight[data-style="double"]:has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby)))::after {
                 border-right: none;
                 width: 3px;
-                right: calc(var(--${vp}-ruby-ratio) * 1em + 0.75em - 1px);
+                right: calc(var(--${vp}-ruby-ratio) * 1em + ${highlightOffset} - 1px);
                 background-image: linear-gradient(
                   to left,
                   currentColor 1px,

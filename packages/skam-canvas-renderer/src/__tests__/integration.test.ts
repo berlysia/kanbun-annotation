@@ -308,6 +308,101 @@ describe('integration: render()', () => {
   });
 });
 
+describe('integration: layout refactor regression', () => {
+  it('multi-block + adaptive + highlight', () => {
+    const canvas = new RecordingCanvas();
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '子' },
+        { id: 't2', text: '曰' },
+        { id: 't3', text: '學' },
+        { id: 't4', text: '而' },
+      ],
+      blocks: [
+        { id: 'b1', tokenIds: ['t1', 't2'] },
+        { id: 'b2', tokenIds: ['t3', 't4'] },
+      ],
+      marks: [
+        { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'し' },
+        { type: 'highlight', anchor: { from: 't3', to: 't4' }, style: 'solid' },
+      ],
+      readings: [],
+    };
+    render(doc, canvas, { columnSizing: 'adaptive' });
+
+    const ctx = canvas.getContext('2d');
+    const chars = ctx.getCalls('fillText').map((c) => c.args[0]);
+    expect(chars).toContain('子');
+    expect(chars).toContain('曰');
+    expect(chars).toContain('學');
+    expect(chars).toContain('而');
+    expect(chars).toContain('し');
+    // Highlight line should be drawn
+    expect(ctx.getCalls('stroke').length).toBeGreaterThan(0);
+  });
+
+  it('tateten in highlight-group', () => {
+    const canvas = new RecordingCanvas();
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '而' },
+        { id: 't2', text: '已' },
+        { id: 't3', text: '矣' },
+      ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
+      marks: [
+        { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+        { type: 'highlight', anchor: { from: 't1', to: 't3' }, style: 'dashed' },
+      ],
+      readings: [],
+    };
+    render(doc, canvas);
+
+    const ctx = canvas.getContext('2d');
+    const chars = ctx.getCalls('fillText').map((c) => c.args[0]);
+    expect(chars).toContain('而');
+    expect(chars).toContain('已');
+    expect(chars).toContain('矣');
+    // Tateten separator
+    expect(chars).toContain('\u3190');
+    // Highlight line should be drawn
+    expect(ctx.getCalls('stroke').length).toBeGreaterThan(0);
+  });
+
+  it('range ruby + emphasis coexistence', () => {
+    const canvas = new RecordingCanvas();
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '如' },
+        { id: 't2', text: '何' },
+        { id: 't3', text: '也' },
+      ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
+      marks: [
+        { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'いかん' },
+        { type: 'emphasis', anchor: { from: 't1', to: 't2' }, style: 'sesame' },
+      ],
+      readings: [],
+    };
+    render(doc, canvas);
+
+    const ctx = canvas.getContext('2d');
+    const chars = ctx.getCalls('fillText').map((c) => c.args[0]);
+    expect(chars).toContain('如');
+    expect(chars).toContain('何');
+    expect(chars).toContain('也');
+    // Range ruby characters
+    expect(chars).toContain('い');
+    expect(chars).toContain('か');
+    expect(chars).toContain('ん');
+    // Sesame emphasis character
+    expect(chars).toContain('\uFE45');
+  });
+});
+
 describe('integration: measure()', () => {
   it('returns positive dimensions for plain document', () => {
     const ctx = new RecordingContext();

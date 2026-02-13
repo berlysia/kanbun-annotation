@@ -480,13 +480,17 @@ export function buildRenderTree(doc: SKAMDocument, profile: RenderProfile): Canv
     let blockHasRightColumn = false;
     let blockHasEmphasis = false;
     let blockHasHighlight = false;
+    let blockHasRefLabel = false;
     for (const child of children) {
       const flags = checkLayoutFlags(child);
       if (flags.hasSuffix) blockHasSuffix = true;
       if (flags.hasSaidoku) blockHasSaidoku = true;
       if (flags.hasRightColumn) blockHasRightColumn = true;
       if (flags.hasEmphasis) blockHasEmphasis = true;
-      if (child.type === 'highlight-group') blockHasHighlight = true;
+      if (child.type === 'highlight-group') {
+        blockHasHighlight = true;
+        if (child.refLabel) blockHasRefLabel = true;
+      }
     }
 
     return {
@@ -499,6 +503,7 @@ export function buildRenderTree(doc: SKAMDocument, profile: RenderProfile): Canv
         hasRightColumn: blockHasRightColumn,
         hasEmphasis: blockHasEmphasis,
         hasHighlight: blockHasHighlight,
+        hasRefLabel: blockHasRefLabel,
       },
     };
   });
@@ -509,15 +514,25 @@ export function buildRenderTree(doc: SKAMDocument, profile: RenderProfile): Canv
   let hasRightColumn = false;
   let hasEmphasis = false;
   let hasHighlight = false;
+  let hasRefLabel = false;
   for (const block of blockNodes) {
     if (block.flags.hasSuffix) hasSuffix = true;
     if (block.flags.hasSaidoku) hasSaidoku = true;
     if (block.flags.hasRightColumn) hasRightColumn = true;
     if (block.flags.hasEmphasis) hasEmphasis = true;
     if (block.flags.hasHighlight) hasHighlight = true;
+    if (block.flags.hasRefLabel) hasRefLabel = true;
   }
 
-  return { blocks: blockNodes, hasSuffix, hasSaidoku, hasRightColumn, hasEmphasis, hasHighlight };
+  return {
+    blocks: blockNodes,
+    hasSuffix,
+    hasSaidoku,
+    hasRightColumn,
+    hasEmphasis,
+    hasHighlight,
+    hasRefLabel,
+  };
 }
 
 interface LayoutFlags {

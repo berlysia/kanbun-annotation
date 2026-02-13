@@ -105,6 +105,8 @@ export interface BlockLayoutFlags {
   hasRightColumn: boolean;
   hasEmphasis: boolean;
   hasHighlight: boolean;
+  /** highlight-group に refLabel を持つものが存在 → 列右側に追加幅が必要 */
+  hasRefLabel: boolean;
 }
 
 export interface CanvasBlockNode {
@@ -127,6 +129,8 @@ export interface CanvasRenderTree {
   hasEmphasis: boolean;
   /** highlight マークが存在 → 列右側に追加幅が必要 */
   hasHighlight: boolean;
+  /** highlight-group に refLabel を持つものが存在 → 列右側に追加幅が必要 */
+  hasRefLabel: boolean;
 }
 
 // ============================================================================

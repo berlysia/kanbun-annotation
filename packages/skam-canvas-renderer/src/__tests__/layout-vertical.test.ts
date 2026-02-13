@@ -865,6 +865,53 @@ describe('layoutVertical', () => {
       expect(result.width).toBe(DEFAULT_PADDING + DEFAULT_FONT_SIZE + DEFAULT_PADDING);
     });
 
+    it('includes extraRightWidth for highlight with refLabel', () => {
+      const ctx = new RecordingContext();
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [
+          { type: 'highlight', anchor: { from: 't1', to: 't1' }, style: 'solid', ref: 'r1' },
+          { type: 'ref', id: 'r1', position: { blockId: 'b1', after: 't1' }, label: '注' },
+        ],
+        readings: [],
+      };
+      const tree = buildRenderTree(doc, PROFILES.full);
+      const result = layout(tree, ctx);
+
+      // label right edge = highlightGap + ceil((11/8) * rubyFontSize)
+      const expectedExtra = highlightGap + Math.ceil((rubyFontSize * 11) / 8);
+      expect(result.width).toBe(
+        DEFAULT_PADDING + DEFAULT_FONT_SIZE + expectedExtra + DEFAULT_PADDING
+      );
+    });
+
+    it('includes extraRightWidth for highlight+emphasis with refLabel', () => {
+      const ctx = new RecordingContext();
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [
+          { type: 'highlight', anchor: { from: 't1', to: 't1' }, style: 'solid', ref: 'r1' },
+          { type: 'emphasis', anchor: { from: 't1', to: 't1' }, style: 'sesame' },
+          { type: 'ref', id: 'r1', position: { blockId: 'b1', after: 't1' }, label: '注' },
+        ],
+        readings: [],
+      };
+      const tree = buildRenderTree(doc, PROFILES.full);
+      const result = layout(tree, ctx);
+
+      // label right edge > emphasis right edge, so label controls extraRightWidth
+      const labelExtra = highlightGap + Math.ceil((rubyFontSize * 11) / 8);
+      const emphasisExtra = 2 * highlightGap + Math.ceil(rubyFontSize / 2);
+      const expectedExtra = Math.max(labelExtra, emphasisExtra);
+      expect(result.width).toBe(
+        DEFAULT_PADDING + DEFAULT_FONT_SIZE + expectedExtra + DEFAULT_PADDING
+      );
+    });
+
     it('emphasis in highlight-group uses hlEmphasisX (outside highlight line)', () => {
       const ctx = new RecordingContext();
       const doc = singleTokenDoc([
@@ -877,7 +924,7 @@ describe('layoutVertical', () => {
       const token = asToken(result.columns[0]!.children[0]!);
       const column = result.columns[0]!;
       const highlightLineX = column.x + column.width + highlightGap;
-      const expectedEmphasisX = highlightLineX + highlightGap;
+      const expectedEmphasisX = highlightLineX + highlightGap / 2 + rubyFontSize / 2;
       expect(token.slots.emphasis).toBeDefined();
       expect(token.slots.emphasis!.x).toBe(expectedEmphasisX);
     });

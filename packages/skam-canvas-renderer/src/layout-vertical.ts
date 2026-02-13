@@ -164,6 +164,16 @@ function computeColumnDimensions(
     extraRightWidth = 0;
   }
 
+  // highlight-ref label: ラベル右端が extraRightWidth 内に収まるよう保証
+  // label x = highlightLineX + (rubyFontSize * 7) / 8  (center of label text)
+  // textAlign: 'center' なので右端 = highlightLineX + (7/8 + 1/2) * rubyFontSize
+  // highlightLineX = columnWidth + highlightGap なので、
+  // 必要な extraRightWidth = highlightGap + ceil((11/8) * rubyFontSize)
+  if (flags.hasHighlight && flags.hasRefLabel) {
+    const labelRightEdge = highlightGap + Math.ceil((rubyFontSize * 11) / 8);
+    extraRightWidth = Math.max(extraRightWidth, labelRightEdge);
+  }
+
   return {
     columnWidth,
     baseCenterX,
@@ -428,6 +438,7 @@ export function layoutVertical(
     hasRightColumn: tree.hasRightColumn,
     hasEmphasis: tree.hasEmphasis,
     hasHighlight: tree.hasHighlight,
+    hasRefLabel: tree.hasRefLabel,
   };
 
   const columnY = padding.top;

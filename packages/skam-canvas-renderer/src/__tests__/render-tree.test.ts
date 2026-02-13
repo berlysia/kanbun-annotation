@@ -731,6 +731,7 @@ const ALL_FALSE_FLAGS: BlockLayoutFlags = {
   hasRightColumn: false,
   hasEmphasis: false,
   hasHighlight: false,
+  hasRefLabel: false,
 };
 
 describe('BlockLayoutFlags', () => {

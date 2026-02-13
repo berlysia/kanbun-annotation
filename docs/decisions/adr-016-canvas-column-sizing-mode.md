@@ -4,6 +4,8 @@
 
 Accepted
 
+実装計画: [Plan](../plans/plan-canvas-3level-layout.md)
+
 ## コンテキスト
 
 Canvas レンダラーの Pass 2（layout-vertical.ts）では、レイアウトフラグ（`hasSuffix`, `hasSaidoku`, `hasRightColumn`, `hasEmphasis`, `hasHighlight`）がドキュメント全体で OR 集約されている。これにより、いずれか 1 ブロックに yomigana や okurigana を持つトークンがあるだけで `hasRightColumn = true` となり、全ブロックの列幅が拡張される。

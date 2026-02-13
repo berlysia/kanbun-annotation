@@ -672,6 +672,52 @@ describe('layoutVertical', () => {
     expect(column.highlightLines![0]!.refLayout).toBeUndefined();
   });
 
+  // highlight line X: グループ単位の hasRightColumn 判定
+  it('moves highlight line closer when group tokens have no kana', () => {
+    const ctx = new RecordingContext();
+    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+    const highlightGap = 2;
+
+    // t1-t2: highlight（仮名なし）, t3: yomigana + kaeri（hasRightColumn + hasSuffix を発火）
+    const doc = threeTokenDoc([
+      { type: 'highlight', anchor: { from: 't1', to: 't2' }, style: 'solid' },
+      { type: 'yomigana', anchor: { from: 't3', to: 't3' }, value: 'まな' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: 'レ' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    const result = layout(tree, ctx);
+
+    const column = result.columns[0]!;
+    expect(column.highlightLines).toBeDefined();
+    const hl = column.highlightLines![0]!;
+
+    // グループ内に仮名がないので、rightColumnWidth 分だけ内側に寄る
+    // column.width = saidokuWidth(0) + fontSize + rightColumnWidth(rubyFontSize)
+    // groupHighlightLineX = column.x + column.width - rubyFontSize + highlightGap
+    expect(hl.x).toBe(column.x + column.width - rubyFontSize + highlightGap);
+  });
+
+  it('keeps highlight line at normal position when group tokens have kana', () => {
+    const ctx = new RecordingContext();
+    const highlightGap = 2;
+
+    // t1-t2: highlight + yomigana, t3: kaeri（hasSuffix を発火）
+    const doc = threeTokenDoc([
+      { type: 'highlight', anchor: { from: 't1', to: 't2' }, style: 'solid' },
+      { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'し' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: 'レ' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    const result = layout(tree, ctx);
+
+    const column = result.columns[0]!;
+    expect(column.highlightLines).toBeDefined();
+    const hl = column.highlightLines![0]!;
+
+    // グループ内に仮名があるので、通常の位置
+    expect(hl.x).toBe(column.x + column.width + highlightGap);
+  });
+
   // multi-block (multi-column) layout
   describe('multi-block layout', () => {
     const DEFAULT_COLUMN_GAP = 16;

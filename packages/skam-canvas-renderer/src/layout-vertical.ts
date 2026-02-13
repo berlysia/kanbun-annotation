@@ -461,8 +461,36 @@ export function layoutVertical(
         layoutTatetenChildren(child.children);
       } else {
         // highlight-group: track y range and layout children
+
+        // グループ単位で仮名類（ruby/okuri/soegana）の有無を判定
+        // ブロック全体の hasRightColumn が true でも、グループ内に仮名がなければ
+        // highlight line をベース文字に近づける
+        let groupHasRightColumn = false;
+        for (const hlChild of child.children) {
+          if (hlChild.type === 'token') {
+            if (hlChild.slots.ruby || hlChild.slots.okuri || hlChild.slots.soegana) {
+              groupHasRightColumn = true;
+              break;
+            }
+          } else {
+            for (const tc of hlChild.children) {
+              if (tc.type === 'token' && (tc.slots.ruby || tc.slots.okuri || tc.slots.soegana)) {
+                groupHasRightColumn = true;
+              }
+            }
+            if (groupHasRightColumn) break;
+          }
+        }
+        let rightAdjust = 0;
+        if (hasSuffix && hasRightColumn && !groupHasRightColumn) {
+          rightAdjust = rubyFontSize;
+        } else if (!hasSuffix && maxRubyWidth > 0 && !groupHasRightColumn) {
+          rightAdjust = maxRubyWidth;
+        }
+        const groupHighlightLineX = highlightLineX - rightAdjust;
+
         // ADR-015: emphasis+highlight 共存時、emphasis を highlight line の外側（右）に配置
-        const hlEmphasisX = highlightLineX + highlightGap;
+        const hlEmphasisX = groupHighlightLineX + highlightGap;
         const hlGrid: GridColumns = {
           ...grid,
           emphasisBaseX: hlEmphasisX,
@@ -494,7 +522,7 @@ export function layoutVertical(
           const refChars = [...child.refLabel].length;
           refLayout = {
             text: child.refLabel,
-            x: highlightLineX,
+            x: groupHighlightLineX,
             y: yStart - refChars * rubyFontSize,
             fontSize: rubyFontSize,
           };
@@ -502,7 +530,7 @@ export function layoutVertical(
 
         highlightLines.push({
           style: child.highlightStyle as HighlightStyle,
-          x: highlightLineX,
+          x: groupHighlightLineX,
           yStart,
           yEnd,
           ...(refLayout ? { refLayout } : {}),

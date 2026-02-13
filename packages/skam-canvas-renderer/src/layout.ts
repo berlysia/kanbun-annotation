@@ -39,6 +39,7 @@ export function resolveOptions(options?: CanvasRenderOptions): ResolvedOptions {
     pixelRatio: options?.pixelRatio ?? 1,
     autoSize: options?.autoSize ?? true,
     maxExtent: options?.maxExtent,
+    columnSizing: options?.columnSizing ?? 'uniform',
   };
 }
 

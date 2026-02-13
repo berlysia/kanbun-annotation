@@ -8,6 +8,7 @@ import type {
   CanvasTatetenGroupNode,
   CanvasHighlightGroupNode,
   CanvasTatetenSeparator,
+  BlockLayoutFlags,
 } from '../types.js';
 
 /** Narrow CanvasBlockChild to CanvasTokenNode for test assertions */
@@ -696,5 +697,179 @@ describe('buildRenderTree', () => {
     const hlGroup = tree.blocks[0]!.children[0]! as CanvasHighlightGroupNode;
     expect(hlGroup.highlightRef).toBe('r1');
     expect(hlGroup.refLabel).toBeUndefined();
+  });
+});
+
+// ============================================================================
+// BlockLayoutFlags テスト
+// ============================================================================
+
+/** 2ブロックドキュメント: Block A (t1,t2,t3), Block B (t4,t5,t6) */
+function twoBlockDoc(marks: Mark[] = []): SKAMDocument {
+  return {
+    format: 'skam@0.1',
+    tokens: [
+      { id: 't1', text: '子' },
+      { id: 't2', text: '曰' },
+      { id: 't3', text: '學' },
+      { id: 't4', text: '而' },
+      { id: 't5', text: '時' },
+      { id: 't6', text: '習' },
+    ],
+    blocks: [
+      { id: 'b1', tokenIds: ['t1', 't2', 't3'] },
+      { id: 'b2', tokenIds: ['t4', 't5', 't6'] },
+    ],
+    marks,
+    readings: [],
+  };
+}
+
+const ALL_FALSE_FLAGS: BlockLayoutFlags = {
+  hasSuffix: false,
+  hasSaidoku: false,
+  hasRightColumn: false,
+  hasEmphasis: false,
+  hasHighlight: false,
+};
+
+describe('BlockLayoutFlags', () => {
+  it('plain text: all flags false', () => {
+    const tree = buildRenderTree(threeTokenDoc(), PROFILES.full);
+    expect(tree.blocks[0]!.flags).toEqual(ALL_FALSE_FLAGS);
+  });
+
+  it('yomigana sets hasRightColumn (not hasSuffix)', () => {
+    const doc = threeTokenDoc([
+      { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'し' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    expect(tree.blocks[0]!.flags).toEqual({
+      ...ALL_FALSE_FLAGS,
+      hasRightColumn: true,
+    });
+  });
+
+  it('okurigana sets hasSuffix + hasRightColumn', () => {
+    const doc = threeTokenDoc([
+      { type: 'okurigana', anchor: { from: 't3', to: 't3' }, value: 'ぶ' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    expect(tree.blocks[0]!.flags).toEqual({
+      ...ALL_FALSE_FLAGS,
+      hasSuffix: true,
+      hasRightColumn: true,
+    });
+  });
+
+  it('kaeri sets hasSuffix only', () => {
+    const doc = threeTokenDoc([
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    expect(tree.blocks[0]!.flags).toEqual({
+      ...ALL_FALSE_FLAGS,
+      hasSuffix: true,
+    });
+  });
+
+  it('emphasis sets hasEmphasis', () => {
+    const doc = threeTokenDoc([{ type: 'emphasis', anchor: { from: 't1', to: 't1' } }]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    expect(tree.blocks[0]!.flags).toEqual({
+      ...ALL_FALSE_FLAGS,
+      hasEmphasis: true,
+    });
+  });
+
+  it('highlight sets hasHighlight', () => {
+    const doc = threeTokenDoc([
+      { type: 'highlight', anchor: { from: 't1', to: 't2' }, style: 'solid' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    expect(tree.blocks[0]!.flags).toEqual({
+      ...ALL_FALSE_FLAGS,
+      hasHighlight: true,
+    });
+  });
+
+  it('saidoku sets hasSuffix + hasSaidoku', () => {
+    const doc = threeTokenDoc([
+      {
+        type: 'saidoku',
+        anchor: { from: 't1', to: 't1' },
+        forms: [
+          { n: 1, yomi: 'まさ' },
+          { n: 2, yomi: 'はた' },
+        ],
+      },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+    expect(tree.blocks[0]!.flags.hasSuffix).toBe(true);
+    expect(tree.blocks[0]!.flags.hasSaidoku).toBe(true);
+  });
+
+  describe('multi-block: per-block flag independence', () => {
+    it('Block A has marks, Block B is plain', () => {
+      const doc = twoBlockDoc([
+        { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'し' },
+        { type: 'okurigana', anchor: { from: 't3', to: 't3' }, value: 'ぶ' },
+        { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
+      ]);
+      const tree = buildRenderTree(doc, PROFILES.full);
+
+      // Block A: suffix + rightColumn
+      expect(tree.blocks[0]!.flags).toEqual({
+        ...ALL_FALSE_FLAGS,
+        hasSuffix: true,
+        hasRightColumn: true,
+      });
+      // Block B: all false
+      expect(tree.blocks[1]!.flags).toEqual(ALL_FALSE_FLAGS);
+    });
+
+    it('each block has independent flags', () => {
+      const doc = twoBlockDoc([
+        // Block A: emphasis only
+        { type: 'emphasis', anchor: { from: 't1', to: 't1' } },
+        // Block B: okurigana + kaeri
+        { type: 'okurigana', anchor: { from: 't6', to: 't6' }, value: 'ふ' },
+        { type: 'kaeri', position: { blockId: 'b2', after: 't5' }, value: 'レ' },
+      ]);
+      const tree = buildRenderTree(doc, PROFILES.full);
+
+      expect(tree.blocks[0]!.flags).toEqual({
+        ...ALL_FALSE_FLAGS,
+        hasEmphasis: true,
+      });
+      expect(tree.blocks[1]!.flags).toEqual({
+        ...ALL_FALSE_FLAGS,
+        hasSuffix: true,
+        hasRightColumn: true,
+      });
+    });
+
+    it('document-level flags are OR-aggregation of block flags', () => {
+      const doc = twoBlockDoc([
+        { type: 'emphasis', anchor: { from: 't1', to: 't1' } },
+        { type: 'okurigana', anchor: { from: 't6', to: 't6' }, value: 'ふ' },
+        { type: 'highlight', anchor: { from: 't4', to: 't5' }, style: 'solid' },
+      ]);
+      const tree = buildRenderTree(doc, PROFILES.full);
+
+      // Document-level = OR of both blocks
+      expect(tree.hasSuffix).toBe(true);
+      expect(tree.hasRightColumn).toBe(true);
+      expect(tree.hasEmphasis).toBe(true);
+      expect(tree.hasHighlight).toBe(true);
+      expect(tree.hasSaidoku).toBe(false);
+
+      // Verify block A doesn't have Block B's flags
+      expect(tree.blocks[0]!.flags.hasSuffix).toBe(false);
+      expect(tree.blocks[0]!.flags.hasHighlight).toBe(false);
+
+      // Verify block B doesn't have Block A's flags
+      expect(tree.blocks[1]!.flags.hasEmphasis).toBe(false);
+    });
   });
 });

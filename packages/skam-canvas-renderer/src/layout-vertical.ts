@@ -40,6 +40,8 @@ import type {
   CanvasTokenNode,
   CanvasTatetenSeparator,
   CanvasBlockChild,
+  CanvasBlockNode,
+  BlockLayoutFlags,
   DocumentLayout,
   ColumnLayout,
   ColumnChild,
@@ -101,14 +103,77 @@ function collectTokensFromChild(child: CanvasBlockChild, tokens: CanvasTokenNode
   }
 }
 
+/** 単一ブロックからトークンを収集 */
+function collectBlockTokens(block: CanvasBlockNode): CanvasTokenNode[] {
+  const tokens: CanvasTokenNode[] = [];
+  for (const child of block.children) {
+    collectTokensFromChild(child, tokens);
+  }
+  return tokens;
+}
+
+/** 列幅・ベース中心位置・右側追加幅を算出 */
+interface ColumnDimensions {
+  columnWidth: number;
+  baseCenterX: number;
+  extraRightWidth: number;
+  fullColumnWidth: number; // columnWidth + extraRightWidth
+}
+
+/**
+ * BlockLayoutFlags と ruby 情報から列の幅・配置を計算。
+ * uniform モードではドキュメント全体の OR フラグ、
+ * adaptive モードではブロック単位のフラグを渡す。
+ */
+function computeColumnDimensions(
+  flags: BlockLayoutFlags,
+  fontSize: number,
+  rubyFontSize: number,
+  maxRubyWidth: number,
+  highlightGap: number
+): ColumnDimensions {
+  let columnWidth: number;
+  let baseCenterX: number;
+
+  if (flags.hasSuffix) {
+    const saidokuWidth = flags.hasSaidoku ? rubyFontSize : 0;
+    const rightColumnWidth = flags.hasRightColumn ? rubyFontSize : 0;
+    columnWidth = saidokuWidth + fontSize + rightColumnWidth;
+    baseCenterX = saidokuWidth + fontSize / 2;
+  } else if (maxRubyWidth > 0) {
+    columnWidth = fontSize + maxRubyWidth;
+    baseCenterX = fontSize / 2;
+  } else {
+    columnWidth = fontSize;
+    baseCenterX = fontSize / 2;
+  }
+
+  // emphasis/highlight による列右側の追加幅
+  let extraRightWidth: number;
+  if (flags.hasHighlight && flags.hasEmphasis) {
+    extraRightWidth = 2 * highlightGap + Math.ceil(rubyFontSize / 2);
+  } else if (flags.hasHighlight) {
+    extraRightWidth = highlightGap;
+  } else if (flags.hasEmphasis) {
+    extraRightWidth = Math.ceil(rubyFontSize / 2);
+  } else {
+    extraRightWidth = 0;
+  }
+
+  return {
+    columnWidth,
+    baseCenterX,
+    extraRightWidth,
+    fullColumnWidth: columnWidth + extraRightWidth,
+  };
+}
+
 /** 事前計算済みグリッド列位置（絶対 X 座標） */
 interface GridColumns {
   suffixX: number; // ruby, okuri, soegana
   kaeriX: number; // 返り点
   saidoku2X: number; // 再読2回目
   kutotenX: number; // 句読点
-  emphasisBaseX: number; // 傍点（ruby なし時）
-  emphasisWithRubyX: number; // 傍点（ruby あり時）
 }
 
 /** hasSuffix に応じた列位置を事前計算 */
@@ -131,14 +196,7 @@ function computeGridColumns(
     const saidoku2X = columnX + saidokuWidth / 2;
     const suffixX = baseLeft + fontSize + rubyFontSize / 2;
 
-    return {
-      suffixX,
-      kaeriX,
-      saidoku2X,
-      kutotenX,
-      emphasisBaseX: suffixX,
-      emphasisWithRubyX: suffixX + rubyFontSize,
-    };
+    return { suffixX, kaeriX, saidoku2X, kutotenX };
   }
   // hasSuffix=false: kaeri/kutoten/saidoku スロットは存在しないため
   // kaeriX/saidoku2X/kutotenX は参照されない
@@ -148,8 +206,6 @@ function computeGridColumns(
     kaeriX: 0,
     saidoku2X: 0,
     kutotenX: 0,
-    emphasisBaseX: suffixBaseX,
-    emphasisWithRubyX: suffixBaseX + rubyFontSize,
   };
 }
 
@@ -158,6 +214,8 @@ interface LayoutContext {
   rubyFontSize: number;
   cellAdvance: number;
   grid: GridColumns;
+  /** highlight-group 内でのみ設定: emphasis を highlight 線の外側に配置 */
+  emphasisOverrideX?: number;
 }
 
 /**
@@ -222,7 +280,18 @@ function layoutSingleToken(
   }
 
   if (slots.emphasis) {
-    const emphasisX = slots.ruby ? grid.emphasisWithRubyX : grid.emphasisBaseX;
+    // per-token emphasis 位置計算:
+    // highlight-group 内: emphasisOverrideX（highlight 線の外側）
+    // ruby あり: suffixX + rubyFontSize/2（ruby の右側）
+    // ruby なし: tokenX + fontSize/2（ベース文字右端）
+    let emphasisX: number;
+    if (lctx.emphasisOverrideX !== undefined) {
+      emphasisX = lctx.emphasisOverrideX;
+    } else if (slots.ruby) {
+      emphasisX = grid.suffixX + rubyFontSize / 2;
+    } else {
+      emphasisX = tokenX + fontSize / 2;
+    }
     slotLayouts.emphasis = {
       text: slots.emphasis,
       x: emphasisX,
@@ -340,77 +409,124 @@ export function layoutVertical(
     };
   }
 
-  // hasSuffix / hasSaidoku / hasRightColumn / hasEmphasis / hasHighlight は Pass 1 で事前計算済み
-  const { hasSuffix, hasSaidoku, hasRightColumn, hasEmphasis, hasHighlight } = tree;
-
-  // ruby の最大幅計測
-  let maxRubyWidth = 0;
-  for (const tokenNode of allTokens) {
-    const rubyW = measureTextWidth(tokenNode.slots.ruby, rFont, measurer);
-    if (rubyW > maxRubyWidth) maxRubyWidth = rubyW;
-  }
-
-  let columnWidth: number;
-  let baseCenterX: number;
-
-  if (hasSuffix) {
-    // 2行×n列グリッド: 必要な列のみ割り当て
-    const saidokuWidth = hasSaidoku ? rubyFontSize : 0;
-    const rightColumnWidth = hasRightColumn ? rubyFontSize : 0;
-    columnWidth = saidokuWidth + fontSize + rightColumnWidth;
-    baseCenterX = saidokuWidth + fontSize / 2;
-  } else if (maxRubyWidth > 0) {
-    columnWidth = fontSize + maxRubyWidth;
-    baseCenterX = fontSize / 2;
-  } else {
-    columnWidth = fontSize;
-    baseCenterX = fontSize / 2;
-  }
+  // ドキュメント全体のフラグ（uniform モード用、Pass 1 で事前計算済み）
+  const documentFlags: BlockLayoutFlags = {
+    hasSuffix: tree.hasSuffix,
+    hasSaidoku: tree.hasSaidoku,
+    hasRightColumn: tree.hasRightColumn,
+    hasEmphasis: tree.hasEmphasis,
+    hasHighlight: tree.hasHighlight,
+  };
 
   const columnY = padding.top;
   const highlightGap = 2;
+  const isAdaptive = options.columnSizing === 'adaptive';
+  const numBlocks = tree.blocks.length;
 
-  // emphasis/highlight による列右側の追加幅
-  // emphasis ドットは textAlign: center で描画されるため、中心から rubyFontSize/2 はみ出す
-  let extraRightWidth: number;
-  if (hasHighlight && hasEmphasis) {
-    // hlEmphasisX = columnX + columnWidth + 2 * highlightGap; 右端 = + rubyFontSize/2
-    extraRightWidth = 2 * highlightGap + Math.ceil(rubyFontSize / 2);
-  } else if (hasHighlight) {
-    // highlightLineX = columnX + columnWidth + highlightGap
-    extraRightWidth = highlightGap;
-  } else if (hasEmphasis) {
-    extraRightWidth = Math.ceil(rubyFontSize / 2);
+  // --- Dimensions 計算: uniform vs adaptive ---
+  let blockDimsArray: ColumnDimensions[];
+
+  if (isAdaptive) {
+    // adaptive: ブロックごとにフラグと maxRubyWidth から dims を計算
+    blockDimsArray = tree.blocks.map((block) => {
+      const blockTokens = collectBlockTokens(block);
+      let blockMaxRubyWidth = 0;
+      for (const t of blockTokens) {
+        const w = measureTextWidth(t.slots.ruby, rFont, measurer);
+        if (w > blockMaxRubyWidth) blockMaxRubyWidth = w;
+      }
+      return computeColumnDimensions(
+        block.flags,
+        fontSize,
+        rubyFontSize,
+        blockMaxRubyWidth,
+        highlightGap
+      );
+    });
   } else {
-    extraRightWidth = 0;
+    // uniform: ドキュメント全体フラグで統一 dims
+    let maxRubyWidth = 0;
+    for (const tokenNode of allTokens) {
+      const rubyW = measureTextWidth(tokenNode.slots.ruby, rFont, measurer);
+      if (rubyW > maxRubyWidth) maxRubyWidth = rubyW;
+    }
+    const uniformDims = computeColumnDimensions(
+      documentFlags,
+      fontSize,
+      rubyFontSize,
+      maxRubyWidth,
+      highlightGap
+    );
+    blockDimsArray = tree.blocks.map(() => uniformDims);
   }
 
-  const fullColumnWidth = columnWidth + extraRightWidth;
+  // --- ブロック X 座標計算: 右→左配置 (block[0] が右端) ---
+  const blockColumnXs: number[] = Array.from({ length: numBlocks });
+  if (isAdaptive) {
+    // adaptive: ブロックごとの fullColumnWidth を右から左へ累積
+    let curX = padding.left;
+    for (let i = numBlocks - 1; i >= 0; i--) {
+      blockColumnXs[i] = curX;
+      if (i > 0) curX += blockDimsArray[i]!.fullColumnWidth + options.columnGap;
+    }
+  } else {
+    // uniform: 等間隔
+    const uniformFullWidth = blockDimsArray[0]!.fullColumnWidth;
+    for (let i = 0; i < numBlocks; i++) {
+      blockColumnXs[i] =
+        padding.left + (numBlocks - 1 - i) * (uniformFullWidth + options.columnGap);
+    }
+  }
 
-  // ブロックごとにカラムを作成（右→左配置: block[0] が右端）
-  const numBlocks = tree.blocks.length;
+  // uniform 用: ドキュメント全体の maxRubyWidth を事前計算（highlight rightAdjust で使用）
+  let docMaxRubyWidth = 0;
+  if (!isAdaptive) {
+    for (const tokenNode of allTokens) {
+      const rubyW = measureTextWidth(tokenNode.slots.ruby, rFont, measurer);
+      if (rubyW > docMaxRubyWidth) docMaxRubyWidth = rubyW;
+    }
+  }
+
+  // --- ブロックごとにカラムを作成 ---
   const columns: ColumnLayout[] = [];
 
   for (let blockIdx = 0; blockIdx < numBlocks; blockIdx++) {
     const block = tree.blocks[blockIdx]!;
-    const blockColumnX =
-      padding.left + (numBlocks - 1 - blockIdx) * (fullColumnWidth + options.columnGap);
+    const blockDims = blockDimsArray[blockIdx]!;
+    const blockColumnX = blockColumnXs[blockIdx]!;
+    const { columnWidth: blockColumnWidth, baseCenterX: blockBaseCenterX } = blockDims;
+
+    // adaptive: ブロック単位フラグ、uniform: ドキュメント全体フラグ
+    const effectiveFlags = isAdaptive ? block.flags : documentFlags;
 
     const grid = computeGridColumns(
       blockColumnX,
-      columnWidth,
+      blockColumnWidth,
       fontSize,
       rubyFontSize,
-      hasSuffix,
-      hasSaidoku,
-      baseCenterX
+      effectiveFlags.hasSuffix,
+      effectiveFlags.hasSaidoku,
+      blockBaseCenterX
     );
     const blockLctx: LayoutContext = { fontSize, rubyFontSize, cellAdvance, grid };
 
     const columnChildren: ColumnChild[] = [];
     const highlightLines: HighlightLineLayout[] = [];
     let yOffset = 0;
-    const highlightLineX = blockColumnX + columnWidth + highlightGap;
+    const highlightLineX = blockColumnX + blockColumnWidth + highlightGap;
+
+    // highlight rightAdjust 用の maxRubyWidth（モードで使い分け）
+    let effectiveMaxRubyWidth: number;
+    if (isAdaptive) {
+      effectiveMaxRubyWidth = 0;
+      const blockTokens = collectBlockTokens(block);
+      for (const t of blockTokens) {
+        const w = measureTextWidth(t.slots.ruby, rFont, measurer);
+        if (w > effectiveMaxRubyWidth) effectiveMaxRubyWidth = w;
+      }
+    } else {
+      effectiveMaxRubyWidth = docMaxRubyWidth;
+    }
 
     /** tateten グループの children をレイアウト */
     function layoutTatetenChildren(
@@ -419,14 +535,14 @@ export function layoutVertical(
     ): void {
       for (const groupChild of children) {
         if (groupChild.type === 'token') {
-          const tokenX = blockColumnX + baseCenterX;
+          const tokenX = blockColumnX + blockBaseCenterX;
           const tokenY = columnY + yOffset;
           columnChildren.push(layoutSingleToken(groupChild, tokenX, tokenY, lctx));
           const contentHeight = computeTokenContentHeight(groupChild.slots, fontSize, rubyFontSize);
           yOffset += Math.max(fontSize, contentHeight);
         } else {
           // tateten-separator
-          const sepX = blockColumnX + baseCenterX;
+          const sepX = blockColumnX + blockBaseCenterX;
           const sepY = columnY + yOffset;
           const sepLayout: TatetenSeparatorLayout = {
             type: 'tateten-separator',
@@ -452,7 +568,7 @@ export function layoutVertical(
     /** CanvasBlockChild を展開してレイアウトに追加 */
     function layoutBlockChild(child: CanvasBlockChild): void {
       if (child.type === 'token') {
-        const tokenX = blockColumnX + baseCenterX;
+        const tokenX = blockColumnX + blockBaseCenterX;
         const tokenY = columnY + yOffset;
         columnChildren.push(layoutSingleToken(child, tokenX, tokenY, blockLctx));
         const contentHeight = computeTokenContentHeight(child.slots, fontSize, rubyFontSize);
@@ -482,25 +598,22 @@ export function layoutVertical(
           }
         }
         let rightAdjust = 0;
-        if (hasSuffix && hasRightColumn && !groupHasRightColumn) {
+        if (effectiveFlags.hasSuffix && effectiveFlags.hasRightColumn && !groupHasRightColumn) {
           rightAdjust = rubyFontSize;
-        } else if (!hasSuffix && maxRubyWidth > 0 && !groupHasRightColumn) {
-          rightAdjust = maxRubyWidth;
+        } else if (!effectiveFlags.hasSuffix && effectiveMaxRubyWidth > 0 && !groupHasRightColumn) {
+          rightAdjust = effectiveMaxRubyWidth;
         }
         const groupHighlightLineX = highlightLineX - rightAdjust;
 
         // ADR-015: emphasis+highlight 共存時、emphasis を highlight line の外側（右）に配置
-        const hlEmphasisX = groupHighlightLineX + highlightGap;
-        const hlGrid: GridColumns = {
-          ...grid,
-          emphasisBaseX: hlEmphasisX,
-          emphasisWithRubyX: hlEmphasisX,
+        const hlLctx: LayoutContext = {
+          ...blockLctx,
+          emphasisOverrideX: groupHighlightLineX + highlightGap,
         };
-        const hlLctx: LayoutContext = { ...blockLctx, grid: hlGrid };
         const yStart = columnY + yOffset;
         for (const highlightChild of child.children) {
           if (highlightChild.type === 'token') {
-            const tokenX = blockColumnX + baseCenterX;
+            const tokenX = blockColumnX + blockBaseCenterX;
             const tokenY = columnY + yOffset;
             columnChildren.push(layoutSingleToken(highlightChild, tokenX, tokenY, hlLctx));
             const hlContentHeight = computeTokenContentHeight(
@@ -545,14 +658,26 @@ export function layoutVertical(
     columns.push({
       x: blockColumnX,
       y: columnY,
-      width: columnWidth,
+      width: blockColumnWidth,
       height: yOffset,
       children: columnChildren,
       ...(highlightLines.length > 0 ? { highlightLines } : {}),
     });
   }
 
-  const totalWidth = numBlocks * fullColumnWidth + Math.max(0, numBlocks - 1) * options.columnGap;
+  // totalWidth: adaptive ではブロックごとの fullColumnWidth を合計
+  let totalWidth: number;
+  if (isAdaptive) {
+    totalWidth = 0;
+    for (let i = 0; i < numBlocks; i++) {
+      totalWidth += blockDimsArray[i]!.fullColumnWidth;
+    }
+    totalWidth += Math.max(0, numBlocks - 1) * options.columnGap;
+  } else {
+    totalWidth =
+      numBlocks * blockDimsArray[0]!.fullColumnWidth +
+      Math.max(0, numBlocks - 1) * options.columnGap;
+  }
   const maxColumnHeight = Math.max(...columns.map((c) => c.height));
 
   return {

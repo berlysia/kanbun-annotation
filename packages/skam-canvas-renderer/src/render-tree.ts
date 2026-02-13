@@ -474,28 +474,47 @@ export function buildRenderTree(doc: SKAMDocument, profile: RenderProfile): Canv
       children = grouped;
     }
 
+    // ブロック単位のレイアウトフラグを計算
+    let blockHasSuffix = false;
+    let blockHasSaidoku = false;
+    let blockHasRightColumn = false;
+    let blockHasEmphasis = false;
+    let blockHasHighlight = false;
+    for (const child of children) {
+      const flags = checkLayoutFlags(child);
+      if (flags.hasSuffix) blockHasSuffix = true;
+      if (flags.hasSaidoku) blockHasSaidoku = true;
+      if (flags.hasRightColumn) blockHasRightColumn = true;
+      if (flags.hasEmphasis) blockHasEmphasis = true;
+      if (child.type === 'highlight-group') blockHasHighlight = true;
+    }
+
     return {
       type: 'block' as const,
       blockId: group.blockId,
       children,
+      flags: {
+        hasSuffix: blockHasSuffix,
+        hasSaidoku: blockHasSaidoku,
+        hasRightColumn: blockHasRightColumn,
+        hasEmphasis: blockHasEmphasis,
+        hasHighlight: blockHasHighlight,
+      },
     };
   });
 
-  // hasSuffix / hasSaidoku / hasRightColumn / hasEmphasis / hasHighlight: レイアウトフラグの事前計算
+  // ドキュメント全体のフラグ = 全ブロックの flags を OR 集約
   let hasSuffix = false;
   let hasSaidoku = false;
   let hasRightColumn = false;
   let hasEmphasis = false;
   let hasHighlight = false;
   for (const block of blockNodes) {
-    for (const child of block.children) {
-      const flags = checkLayoutFlags(child);
-      if (flags.hasSuffix) hasSuffix = true;
-      if (flags.hasSaidoku) hasSaidoku = true;
-      if (flags.hasRightColumn) hasRightColumn = true;
-      if (flags.hasEmphasis) hasEmphasis = true;
-      if (child.type === 'highlight-group') hasHighlight = true;
-    }
+    if (block.flags.hasSuffix) hasSuffix = true;
+    if (block.flags.hasSaidoku) hasSaidoku = true;
+    if (block.flags.hasRightColumn) hasRightColumn = true;
+    if (block.flags.hasEmphasis) hasEmphasis = true;
+    if (block.flags.hasHighlight) hasHighlight = true;
   }
 
   return { blocks: blockNodes, hasSuffix, hasSaidoku, hasRightColumn, hasEmphasis, hasHighlight };

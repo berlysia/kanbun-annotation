@@ -30,6 +30,8 @@ export interface CanvasRenderOptions {
   pixelRatio?: number;
   autoSize?: boolean;
   maxExtent?: number;
+  /** 列幅モード: 'uniform'=全ブロック統一（デフォルト）, 'adaptive'=ブロック別最適化 */
+  columnSizing?: 'uniform' | 'adaptive';
 }
 
 export interface MeasureOptions {
@@ -41,6 +43,8 @@ export interface MeasureOptions {
   lineHeight?: number;
   columnGap?: number;
   padding?: number | PaddingConfig;
+  /** 列幅モード: 'uniform'=全ブロック統一（デフォルト）, 'adaptive'=ブロック別最適化 */
+  columnSizing?: 'uniform' | 'adaptive';
 }
 
 export interface DocumentDimensions {
@@ -94,10 +98,21 @@ export interface CanvasHighlightGroupNode {
 
 export type CanvasBlockChild = CanvasTokenNode | CanvasTatetenGroupNode | CanvasHighlightGroupNode;
 
+/** ブロック単位のレイアウトフラグ（各ブロックの children から集約） */
+export interface BlockLayoutFlags {
+  hasSuffix: boolean;
+  hasSaidoku: boolean;
+  hasRightColumn: boolean;
+  hasEmphasis: boolean;
+  hasHighlight: boolean;
+}
+
 export interface CanvasBlockNode {
   type: 'block';
   blockId: string;
   children: CanvasBlockChild[];
+  /** ブロック内トークンから集約したレイアウトフラグ */
+  flags: BlockLayoutFlags;
 }
 
 export interface CanvasRenderTree {
@@ -197,4 +212,5 @@ export interface ResolvedOptions {
   pixelRatio: number;
   autoSize: boolean;
   maxExtent: number | undefined;
+  columnSizing: 'uniform' | 'adaptive';
 }

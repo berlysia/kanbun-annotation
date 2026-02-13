@@ -378,9 +378,9 @@ describe('layoutVertical', () => {
     const token = asToken(result.columns[0]!.children[0]!);
     expect(token.slots.ruby).toBeDefined();
     expect(token.slots.emphasis).toBeDefined();
-    // emphasis x = ruby x + rubyFontSize
+    // per-token emphasis: ruby の右側 = suffixX + rubyFontSize/2
     const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
-    expect(token.slots.emphasis!.x).toBe(token.slots.ruby!.x + rubyFontSize);
+    expect(token.slots.emphasis!.x).toBe(token.slots.ruby!.x + rubyFontSize / 2);
     // emphasis Y is vertically centered on the base character
     expect(token.slots.emphasis!.y).toBe(token.y + (DEFAULT_FONT_SIZE - rubyFontSize) / 2);
   });
@@ -410,8 +410,9 @@ describe('layoutVertical', () => {
     const token = asToken(result.columns[0]!.children[0]!);
     expect(token.slots.ruby).toBeDefined();
     expect(token.slots.emphasis).toBeDefined();
+    // per-token emphasis: ruby の右側 = suffixX + rubyFontSize/2
     const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
-    expect(token.slots.emphasis!.x).toBe(token.slots.ruby!.x + rubyFontSize);
+    expect(token.slots.emphasis!.x).toBe(token.slots.ruby!.x + rubyFontSize / 2);
     expect(token.slots.emphasis!.y).toBe(token.y + (DEFAULT_FONT_SIZE - rubyFontSize) / 2);
   });
 
@@ -932,5 +933,120 @@ describe('layoutVertical', () => {
       // Uses cellAdvance (= fontSize)
       expect(t2.y - t1.y).toBe(cellAdvance);
     });
+  });
+});
+
+// ============================================================================
+// adaptive モードテスト
+// ============================================================================
+
+function twoBlockDoc(marks: Mark[] = []): SKAMDocument {
+  return {
+    format: 'skam@0.1',
+    tokens: [
+      { id: 't1', text: '子' },
+      { id: 't2', text: '曰' },
+      { id: 't3', text: '學' },
+      { id: 't4', text: '而' },
+      { id: 't5', text: '時' },
+      { id: 't6', text: '習' },
+    ],
+    blocks: [
+      { id: 'b1', tokenIds: ['t1', 't2', 't3'] },
+      { id: 'b2', tokenIds: ['t4', 't5', 't6'] },
+    ],
+    marks,
+    readings: [],
+  };
+}
+
+describe('adaptive columnSizing', () => {
+  it('single block: adaptive and uniform produce identical results', () => {
+    const ctx = new RecordingContext();
+    const doc = singleTokenDoc([
+      { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const uniformResult = layout(tree, ctx, { columnSizing: 'uniform' });
+    const adaptiveResult = layout(tree, ctx, { columnSizing: 'adaptive' });
+
+    expect(adaptiveResult.width).toBe(uniformResult.width);
+    expect(adaptiveResult.height).toBe(uniformResult.height);
+    expect(adaptiveResult.columns).toHaveLength(1);
+
+    const uToken = asToken(uniformResult.columns[0]!.children[0]!);
+    const aToken = asToken(adaptiveResult.columns[0]!.children[0]!);
+    expect(aToken.x).toBe(uToken.x);
+    expect(aToken.y).toBe(uToken.y);
+  });
+
+  it('Block A (no marks) is narrower than Block B (ruby+kaeri) in adaptive', () => {
+    const ctx = new RecordingContext();
+    const doc = twoBlockDoc([
+      { type: 'yomigana', anchor: { from: 't4', to: 't4' }, value: 'しか' },
+      { type: 'kaeri', position: { blockId: 'b2', after: 't5' }, value: 'レ' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const adaptiveResult = layout(tree, ctx, { columnSizing: 'adaptive' });
+    expect(adaptiveResult.columns).toHaveLength(2);
+
+    // Block A (plain, col[0]=右端) の width < Block B (ruby+kaeri, col[1]=左端) の width
+    const colA = adaptiveResult.columns[0]!;
+    const colB = adaptiveResult.columns[1]!;
+    expect(colA.width).toBeLessThan(colB.width);
+    // Block A の width = fontSize のみ
+    expect(colA.width).toBe(DEFAULT_FONT_SIZE);
+  });
+
+  it('uniform mode: both blocks have same width even with different marks', () => {
+    const ctx = new RecordingContext();
+    const doc = twoBlockDoc([
+      { type: 'yomigana', anchor: { from: 't4', to: 't4' }, value: 'しか' },
+      { type: 'kaeri', position: { blockId: 'b2', after: 't5' }, value: 'レ' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const uniformResult = layout(tree, ctx, { columnSizing: 'uniform' });
+    expect(uniformResult.columns).toHaveLength(2);
+
+    const colA = uniformResult.columns[0]!;
+    const colB = uniformResult.columns[1]!;
+    // uniform: both blocks have same width
+    expect(colA.width).toBe(colB.width);
+  });
+
+  it('adaptive: emphasis extraRightWidth differs per block', () => {
+    const ctx = new RecordingContext();
+    const doc = twoBlockDoc([
+      // Block A: emphasis only
+      { type: 'emphasis', anchor: { from: 't1', to: 't1' } },
+      // Block B: plain
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const adaptiveResult = layout(tree, ctx, { columnSizing: 'adaptive' });
+    const uniformResult = layout(tree, ctx, { columnSizing: 'uniform' });
+
+    // adaptive: Block A has extraRightWidth, Block B does not
+    // so adaptive total width < uniform total width
+    expect(adaptiveResult.width).toBeLessThan(uniformResult.width);
+  });
+
+  it('adaptive: total width is sum of per-block fullColumnWidths + gaps', () => {
+    const ctx = new RecordingContext();
+    const doc = twoBlockDoc([
+      { type: 'yomigana', anchor: { from: 't4', to: 't4' }, value: 'しか' },
+      { type: 'kaeri', position: { blockId: 'b2', after: 't5' }, value: 'レ' },
+    ]);
+    const tree = buildRenderTree(doc, PROFILES.full);
+
+    const adaptiveResult = layout(tree, ctx, { columnSizing: 'adaptive' });
+    const uniformResult = layout(tree, ctx, { columnSizing: 'uniform' });
+
+    // adaptive: Block A is narrower → total width is smaller than uniform
+    expect(adaptiveResult.width).toBeLessThan(uniformResult.width);
   });
 });

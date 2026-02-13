@@ -80,18 +80,94 @@ Proposed
 
 これらは公開APIではなく Pass 2 内部型とする。
 
-### 3. 互換性方針
+### 3. Analysis レイヤの責務境界
+
+Analysis レイヤは **Pass 2 で新たに必要な計算のみ** を担う:
+
+- token 収集（`collectAllTokens` / `collectBlockTokens` 相当）
+- `maxRubyWidth` の計測（ドキュメント全体・ブロック単位）
+
+`BlockLayoutFlags`（`hasSuffix`, `hasSaidoku`, `hasRightColumn`, `hasEmphasis`, `hasHighlight`, `hasRefLabel`）は **Pass 1 で計算済み**（`render-tree.ts` の `CanvasBlockNode.flags` および `CanvasRenderTree` トップレベルフラグ）であり、Analysis レイヤでは **参照保持のみ、再計算・再導出しない**。
+
+```typescript
+// DocumentAnalysis は Pass 1 の flags を参照保持する（再計算しない）
+interface DocumentAnalysis {
+  documentFlags: BlockLayoutFlags; // tree.{hasSuffix, ...} から構成（OR 集約済み）
+  blocks: BlockAnalysis[];
+}
+interface BlockAnalysis {
+  tokens: CanvasTokenNode[];
+  maxRubyWidth: number;
+  flags: BlockLayoutFlags; // block.flags をそのまま参照（再計算しない）
+}
+```
+
+### 4. `emphasisOverrideX` の優先順位仕様
+
+`emphasisOverrideX` は ADR-017 で導入された per-token/per-group emphasis 位置制御である。Placement レイヤでは以下の優先順位で設定される（上位が優先）:
+
+1. **highlight-group 内**: `groupHighlightLineX + highlightGap / 2 + rubyFontSize / 2`（highlight 線の外側）
+2. **tateten-group 内（ruby 有）**: `grid.suffixX + rubyFontSize`（ruby 列の右側に統一）
+3. **range ruby の2文字目以降**: `grid.suffixX + rubyFontSize`（ruby 列分の空きを確保）
+4. **上記いずれにも該当しない**: per-token 計算（`layoutSingleToken` 内、ruby 有無で分岐）
+
+highlight-group 内の tateten-group では 1 が適用される（2 は `emphasisOverrideX === undefined` のときのみ設定されるため、highlight の設定が優先）。この優先順位はリファクタリングで変更しない。
+
+### 5. `effectiveMaxRubyWidth` の層割り当て
+
+`effectiveMaxRubyWidth` は highlight の `rightAdjust` 計算で使用され、`uniform` / `adaptive` でデータソースが異なる:
+
+- **uniform モード**: ドキュメント全体の `maxRubyWidth`
+- **adaptive モード**: ブロック単位の `maxRubyWidth`
+
+この値は Column Planning レイヤの `ColumnPlan` に含める:
+
+```typescript
+interface ColumnPlan {
+  blockIndex: number;
+  x: number;
+  dimensions: ColumnDimensions;
+  flags: BlockLayoutFlags; // effective flags（uniform: doc flags, adaptive: block flags）
+  grid: GridColumns;
+  effectiveMaxRubyWidth: number; // highlight rightAdjust 用
+}
+```
+
+これにより Placement レイヤは `ColumnPlan` から直接取得でき、`uniform` / `adaptive` 分岐を意識しない。
+
+### 6. 関数マッピング
+
+現在の関数群と移行先レイヤの対応:
+
+| 現在の関数                    | 移行先             | 備考                                 |
+| ----------------------------- | ------------------ | ------------------------------------ |
+| `collectAllTokens()`          | Analysis           | `analyzeDocument()` 内部             |
+| `collectBlockTokens()`        | Analysis           | `analyzeDocument()` 内部             |
+| `collectTokensFromChild()`    | Analysis           | 内部ヘルパー                         |
+| `computeColumnDimensions()`   | Column Planning    | `planColumns()` 内部                 |
+| `computeGridColumns()`        | Column Planning    | `ColumnPlan.grid` として結果を格納   |
+| `layoutSingleToken()`         | Placement          | `placeToken()` として統合            |
+| `computeTokenContentHeight()` | Placement          | `placeToken()` 内部で使用            |
+| `layoutTatetenChildren()`     | Placement          | `placeTatetenGroup()` として統合     |
+| `layoutBlockChild()`          | Placement          | `placeBlock()` 内部のディスパッチ    |
+| `rubyFont()`                  | 共有ユーティリティ | 各レイヤから import 可能な位置に配置 |
+| `measureTextWidth()`          | 共有ユーティリティ | 各レイヤから import 可能な位置に配置 |
+
+共有ユーティリティは `layout-vertical.ts`（オーケストレーション）に残すか、必要に応じて `layout-helpers.ts` として分離する。
+
+### 7. 互換性方針
 
 - レイアウト仕様（既存の座標計算式）は変更しない
 - 既存テストの期待値は原則据え置き
 - 変更は「同等出力を維持する内部再構成」を目的とする
 
-### 4. 設計上の不変条件
+### 8. 設計上の不変条件
 
 - `buildRenderTree()`（Pass 1）と `draw()`（Pass 3）の責務境界は変更しない
 - 公開 API と公開型（`index.ts` 経由）は変更しない
 - `columnSizing` の仕様（ADR-016）と `emphasis/highlight` の仕様（ADR-017）を維持する
 - `rangeRubyAlignment` の仕様・算式・期待値を維持する
+- `emphasisOverrideX` の優先順位（上記4.）を維持する
 
 ## 影響
 

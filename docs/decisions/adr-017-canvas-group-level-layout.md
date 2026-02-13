@@ -63,9 +63,9 @@ ADR-015 で emphasis+highlight 共存時の配置順（本文→ルビ→傍線�
 if (lctx.emphasisOverrideX !== undefined) {
   emphasisX = lctx.emphasisOverrideX; // highlight-group 内
 } else if (slots.ruby) {
-  emphasisX = grid.suffixX + rubyFontSize / 2; // ruby の右側
+  emphasisX = grid.suffixX + rubyFontSize; // ruby の右側（rubyFontSize 分のオフセット）
 } else {
-  emphasisX = tokenX + fontSize / 2; // ベース文字右端
+  emphasisX = tokenX + fontSize / 2 + rubyFontSize / 2; // ベース文字右端の外側
 }
 ```
 

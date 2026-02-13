@@ -62,16 +62,17 @@
 
 - `analyzeDocument(tree, measurer, options): DocumentAnalysis`
 - 返却値:
-  - `blocks[i].tokens`
-  - `blocks[i].maxRubyWidth`
-  - `blocks[i].flags`（既存利用）
-  - `document.maxRubyWidth`
-  - `document.flags`
+  - `blocks[i].tokens` — token 収集（新規計算）
+  - `blocks[i].maxRubyWidth` — ruby 幅計測（新規計算）
+  - `blocks[i].flags` — Pass 1 の `block.flags` を**参照保持**（再計算しない）
+  - `document.maxRubyWidth` — 全ブロック中の最大値（新規計算）
+  - `document.flags` — Pass 1 の `tree.{hasSuffix, ...}` を**参照保持**（再計算しない）
 
 ポイント:
 
 - token 収集と ruby 幅計測を1回で完了。
 - `collectAllTokens()` / `collectBlockTokens()` の責務を置換。
+- `BlockLayoutFlags` は Pass 1 で計算済み。Analysis レイヤでは再導出しない。
 
 ### 2. Column Planning レイヤ
 
@@ -82,12 +83,15 @@
   - `blockIndex`
   - `x`
   - `dimensions` (`columnWidth`, `baseCenterX`, `extraRightWidth`, `fullColumnWidth`)
-  - `flags`（effective flags）
+  - `flags`（effective flags: uniform では doc flags、adaptive では block flags）
   - `grid`（`computeGridColumns` の結果）
+  - `effectiveMaxRubyWidth`（highlight `rightAdjust` 用: uniform では doc 値、adaptive では block 値）
 
 ポイント:
 
 - `uniform` / `adaptive` 分岐をここだけで吸収。
+- `computeColumnDimensions()` と `computeGridColumns()` をこの層に移動。
+- `effectiveMaxRubyWidth` も `ColumnPlan` に含め、Placement 層が `uniform/adaptive` を意識しないようにする。
 - `layoutVertical()` は `ColumnPlan` を順に処理するだけにする。
 
 ### 3. Placement レイヤ
@@ -117,12 +121,18 @@
   - `uniform/adaptive` 分岐の位置を変更しない
   - `rangeRubyAlignment` の仕様・算式・期待値を変更しない
 - 完了ゲート:
-  - 既存スナップショット/期待値に変更がない
-  - 分析処理が `layoutVertical()` 本体から分離されている
+  - 自動検証:
+    - `pnpm --filter @kanbun/skam-canvas-renderer test` 全パス（既存期待値に変更なし）
+    - `pnpm typecheck` 成功
+    - `DocumentAnalysis` 型が `layout-vertical.analysis.ts` に定義されている（`grep -c 'interface DocumentAnalysis' layout-vertical.analysis.ts`）
+  - レビュー項目:
+    - `layoutVertical()` 冒頭で `analyzeDocument()` を呼び出し、以降は `DocumentAnalysis` を参照している
+    - Analysis 内で `BlockLayoutFlags` を再計算していない（Pass 1 の値を参照保持のみ）
 
 ### Step 2: Column Planning を抽出
 
-- `blockDimsArray`, `blockColumnXs`, `totalWidth` 計算を `planColumns()` に移動。
+- `blockDimsArray`, `blockColumnXs`, `totalWidth`, `effectiveMaxRubyWidth` 計算を `planColumns()` に移動。
+- `computeColumnDimensions()` と `computeGridColumns()` を `layout-vertical.columns.ts` に移動。
 - `layoutVertical()` から `uniform/adaptive` の分岐を除去。
 - テスト: `layout-vertical.test.ts` の寸法系ケース（column width / document width）を重点確認。
 - 禁止事項:
@@ -130,45 +140,61 @@
   - `layoutSingleToken()` と `computeTokenContentHeight()` の算式を変更しない
   - `rangeRubyAlignment` の分岐ロジックを変更しない
 - 完了ゲート:
-  - `columnSizing` 分岐が列計画側に集約されている
-  - `uniform` と `adaptive` の既存テストが全パス
+  - 自動検証:
+    - `pnpm --filter @kanbun/skam-canvas-renderer test` 全パス
+    - `pnpm typecheck` 成功
+    - `layout-vertical.ts` に `uniform` / `adaptive` / `columnSizing` キーワードが出現しない（`grep -c 'uniform\|adaptive\|columnSizing' layout-vertical.ts` → 0）
+    - `layout-vertical.columns.ts` に `computeColumnDimensions` が定義されている
+  - レビュー項目:
+    - `ColumnPlan` に `effectiveMaxRubyWidth` が含まれ、Placement 側で `uniform/adaptive` 分岐が不要になっている
 
 ### Step 3: Placement の共通化
 
 - `layoutTatetenChildren()` と `layoutBlockChild()` の token 配置重複を `placeToken()` に統合。
 - `highlight-group` 内 token 処理も同じ `placeToken()` を利用。
+- `emphasisOverrideX` の優先順位（ADR-018 §4）を維持する。
 - テスト: `tateten`, `highlight`, `range ruby`, `emphasis` の座標系ケースを重点確認。
 - 禁止事項:
   - grid座標算式（`computeGridColumns`）を変更しない
   - `columnSizing` のモード判定に変更を加えない
   - `range ruby overflow` の仕様ロジックを変更しない
+  - `emphasisOverrideX` の優先順位を変更しない
 - 完了ゲート:
-  - token 配置ロジックが単一経路で維持される
-  - `yOffset` 更新規則が child 種別横断で一貫している
+  - 自動検証:
+    - `pnpm --filter @kanbun/skam-canvas-renderer test` 全パス
+    - `pnpm typecheck` 成功
+    - `layoutSingleToken` の呼び出しが `layout-vertical.placement.ts` 内のみに存在（`grep -rl 'layoutSingleToken' src/layout-vertical*.ts` で確認）
+  - レビュー項目:
+    - token 配置の Y 進行ロジックが `placeToken()` に集約され、child 種別ごとの重複が解消されている
+    - `emphasisOverrideX` の設定箇所が ADR-018 §4 の優先順位と一致している
 
-### Step 4: 追加ガードテスト
+### Step 4: 回帰テスト追加（必須）
 
-- リファクタ専用の回帰テストを追加:
+- リファクタ専用の回帰テストを**必須で**追加:
   - multi-block + adaptive + highlight
   - tateten in highlight-group
   - range ruby と emphasis 共存
 - 目的: 内部再構成後も座標互換を固定。
-- 追加/確認対象テスト（具体）:
+- 確認対象（既存テスト）:
   - `packages/skam-canvas-renderer/src/__tests__/layout-vertical.test.ts`
-    - `uses adaptive grid width based on hasSaidoku/hasRightColumn`（既存）
-    - `creates separate columns for each block`（既存）
-    - `computes document width for multi-block`（既存）
-    - `moves highlight line closer when group tokens have no kana`（既存）
-    - `emphasis in highlight-group uses hlEmphasisX (outside highlight line)`（既存）
-    - `distributes excess evenly when range ruby overflows span (2 tokens)`（既存）
-    - `centers block-level range ruby when rangeRubyAlignment is center`（既存）
+    - `uses adaptive grid width based on hasSaidoku/hasRightColumn`
+    - `creates separate columns for each block`
+    - `computes document width for multi-block`
+    - `moves highlight line closer when group tokens have no kana`
+    - `emphasis in highlight-group uses hlEmphasisX (outside highlight line)`
+    - `distributes excess evenly when range ruby overflows span (2 tokens)`
+    - `centers block-level range ruby when rangeRubyAlignment is center`
+- 追加対象（**必須**）:
   - `packages/skam-canvas-renderer/src/__tests__/integration.test.ts`
-    - `multi-block + adaptive + highlight` を同時に通す統合ケースを**追加候補**として作成
-    - `tateten in highlight-group` の統合ケースを**追加候補**として作成
-    - `range ruby + emphasis` 共存ケースを**追加候補**として作成
+    - `multi-block + adaptive + highlight` を同時に通す統合ケース
+    - `tateten in highlight-group` の統合ケース
+    - `range ruby + emphasis` 共存ケース
 - 完了ゲート:
-  - 新規ケースが意図した退行を捕捉できる
-  - 既存ケースとの重複が少なく、目的が明確
+  - 自動検証:
+    - `pnpm --filter @kanbun/skam-canvas-renderer test` 全パス
+    - 上記3つの統合テストケースが存在する（`grep -c` で確認）
+  - レビュー項目:
+    - 新規ケースが既存ケースと異なる複合シナリオをカバーしている
 
 ## 実施単位（推奨コミット）
 
@@ -198,11 +224,37 @@
 - `pnpm --filter @kanbun/skam-canvas-renderer test`
 - `pnpm typecheck`
 
+## 関数マッピング
+
+ADR-018 §6 の関数マッピングに従う:
+
+| 現在の関数                    | 移行先             |
+| ----------------------------- | ------------------ |
+| `collectAllTokens()`          | Analysis           |
+| `collectBlockTokens()`        | Analysis           |
+| `collectTokensFromChild()`    | Analysis           |
+| `computeColumnDimensions()`   | Column Planning    |
+| `computeGridColumns()`        | Column Planning    |
+| `layoutSingleToken()`         | Placement          |
+| `computeTokenContentHeight()` | Placement          |
+| `layoutTatetenChildren()`     | Placement          |
+| `layoutBlockChild()`          | Placement          |
+| `rubyFont()`                  | 共有ユーティリティ |
+| `measureTextWidth()`          | 共有ユーティリティ |
+
 ## 完了条件
+
+自動検証:
+
+- `pnpm --filter @kanbun/skam-canvas-renderer test` 全パス
+- `pnpm typecheck` 全パス
+- `layout-vertical.ts` に `uniform` / `adaptive` / `columnSizing` キーワードが出現しない
+- 統合テスト（multi-block+adaptive+highlight, tateten in highlight-group, range ruby+emphasis）が追加・パスしている
+
+レビュー項目:
 
 - `layoutVertical()` が「分析呼び出し -> 列計画呼び出し -> ブロック配置反復 -> 最終集約」の流れに限定されている
 - `uniform/adaptive` 分岐が `planColumns()` 内に閉じる
 - token 配置ロジックが単一経路化され、同等処理の重複が解消
-- `rangeRubyAlignment` の既存ケース（`distribute` / `center`）が回帰しない
-- `pnpm --filter @kanbun/skam-canvas-renderer test` 全パス
-- `pnpm typecheck` 全パス
+- `emphasisOverrideX` の優先順位が ADR-018 §4 と一致している
+- Analysis レイヤで `BlockLayoutFlags` を再計算していない

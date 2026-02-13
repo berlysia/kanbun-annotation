@@ -643,7 +643,7 @@ export function layoutVertical(
         // ADR-015: emphasis+highlight 共存時、emphasis を highlight line の外側（右）に配置
         const hlLctx: LayoutContext = {
           ...blockLctx,
-          emphasisOverrideX: groupHighlightLineX + highlightGap,
+          emphasisOverrideX: groupHighlightLineX + highlightGap / 2 + rubyFontSize / 2,
         };
         const yStart = columnY + yOffset;
         for (const highlightChild of child.children) {

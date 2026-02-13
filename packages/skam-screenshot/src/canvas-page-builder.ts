@@ -108,6 +108,9 @@ body { padding: ${PADDING}px; }
     canvas.height = dims.height;
     canvas.style.width = dims.width + 'px';
     canvas.style.height = dims.height + 'px';
+    // Some browsers let CSS writing-mode affect Canvas 2D fillText() direction.
+    // Force horizontal-tb so the renderer's own coordinate-based layout is not disrupted.
+    canvas.style.writingMode = 'horizontal-tb';
     CR.render(doc, canvas, options);
     window.__skamCanvasReady = true;
     window.__skamCanvasDims = dims;

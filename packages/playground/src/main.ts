@@ -1771,9 +1771,8 @@ function renderCanvasDocument(doc: SKAMDocument): void {
   if (!canvas) {
     renderOutput.innerHTML = '';
     canvas = document.createElement('canvas');
-    // Prevent parent's CSS writing-mode from rotating the canvas element itself.
-    // Canvas 2D API handles vertical layout internally via coordinate calculations,
-    // so the element must stay in horizontal-tb to avoid double rotation.
+    // Some browsers let CSS writing-mode affect Canvas 2D fillText() direction.
+    // Force horizontal-tb so the renderer's own coordinate-based layout is not disrupted.
     canvas.style.writingMode = 'horizontal-tb';
     renderOutput.appendChild(canvas);
   }

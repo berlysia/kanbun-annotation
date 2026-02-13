@@ -1747,6 +1747,7 @@ function renderCanvasDocument(doc: SKAMDocument): void {
   jsonOutput.textContent = JSON.stringify(doc, null, 2);
 
   // Build Canvas render options from customize panel
+  const writingMode = getWritingMode();
   const state = getCustomizeState();
   const fontSize = parseFloat(state.glyphSize) * 16; // em → px
   const fontFamily = state.fontFamily.replace(/'/g, '');
@@ -1762,11 +1763,18 @@ function renderCanvasDocument(doc: SKAMDocument): void {
 
   const dpr = window.devicePixelRatio || 1;
 
+  // Sync container writing-mode for correct scroll direction
+  renderOutput.style.writingMode = writingMode === 'vertical' ? 'vertical-rl' : '';
+
   // Get or create canvas element
   let canvas = renderOutput.querySelector('canvas');
   if (!canvas) {
     renderOutput.innerHTML = '';
     canvas = document.createElement('canvas');
+    // Prevent parent's CSS writing-mode from rotating the canvas element itself.
+    // Canvas 2D API handles vertical layout internally via coordinate calculations,
+    // so the element must stay in horizontal-tb to avoid double rotation.
+    canvas.style.writingMode = 'horizontal-tb';
     renderOutput.appendChild(canvas);
   }
 
@@ -1778,7 +1786,7 @@ function renderCanvasDocument(doc: SKAMDocument): void {
 
   // Measure dimensions
   const dims = canvasMeasure(doc, ctxLike, {
-    writingMode: 'vertical',
+    writingMode,
     profile: canvasProfile,
     fontSize,
     fontFamily,
@@ -1794,7 +1802,7 @@ function renderCanvasDocument(doc: SKAMDocument): void {
 
   // Render (cast to CanvasLike for type compatibility)
   canvasRender(doc, canvas as unknown as CanvasLike, {
-    writingMode: 'vertical',
+    writingMode,
     profile: canvasProfile,
     fontSize,
     fontFamily,

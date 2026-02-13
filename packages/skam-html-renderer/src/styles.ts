@@ -1134,6 +1134,15 @@ function generateWritingModeStyles(
         inset-block-end: 0;
       }
 
+      /* Ref ラベルのレイアウト参加:
+       * inline 要素の padding-bottom は行ボックスの高さに寄与しないため、
+       * ref を持つ highlight を inline-block にして padding を寸法に反映させる。 */
+      @supports selector(:has(a)) {
+        :where(.${prefix}-highlight:has(> .${prefix}-highlight-content > .${prefix}-ref)) {
+          display: inline-block;
+        }
+      }
+
       /* 横書きでは縦中横不要 */
       :where(.${prefix}-ref--half-width) {
         /* No text-combine-upright needed for horizontal */

@@ -73,6 +73,41 @@ export function drawVerticalText(
 }
 
 /**
+ * 句読点文字を縦書き位置に補正して描画する。
+ *
+ * Canvas API は横書きグリフのみ描画する。CJK 句読点（。、）の横書きグリフは
+ * em box の左下に字形があるが、縦書きでは右上に移動する（OpenType vert feature）。
+ * ブラウザの writing-mode: vertical-rl はこのグリフ切り替えを自動で行うが、
+ * Canvas では手動でオフセット補正する必要がある。
+ *
+ * 横書きグリフの字形は em box 中心から左下に約半 em 偏っているため、
+ * em box を (+fontSize/2, -fontSize/2) シフトして右上に移す。
+ */
+export function drawKutotenText(
+  ctx: CanvasRenderingContext2DLike,
+  text: string,
+  x: number,
+  y: number,
+  fontSize: number,
+  color: string,
+  fontFamily: string
+): void {
+  ctx.save();
+  ctx.font = `${fontSize}px ${fontFamily}`;
+  ctx.fillStyle = color;
+  ctx.textBaseline = 'top';
+  ctx.textAlign = 'center';
+
+  const offset = fontSize / 2;
+  let currentY = y;
+  for (const char of text) {
+    ctx.fillText(char, x + offset, currentY - offset);
+    currentY += fontSize;
+  }
+  ctx.restore();
+}
+
+/**
  * 縦中横テキストを描画する。
  * テキスト全体を横書きで1行に描画する（ref括弧等）。
  * y 座標はテキストブロックの上端。

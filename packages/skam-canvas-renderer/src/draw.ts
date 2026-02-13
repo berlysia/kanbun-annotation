@@ -6,7 +6,7 @@
 
 import type { CanvasRenderingContext2DLike } from './canvas-context.js';
 import type { DocumentLayout, SlotLayout, ResolvedOptions } from './types.js';
-import { drawChar, drawVerticalText, drawTateChuYokoText } from './draw-text.js';
+import { drawChar, drawVerticalText, drawTateChuYokoText, drawKutotenText } from './draw-text.js';
 import { drawHighlightLine } from './draw-marks.js';
 
 /**
@@ -60,7 +60,7 @@ export function draw(
       drawSlotIfPresent(ctx, child.slots.okuri, options);
       drawSlotIfPresent(ctx, child.slots.soegana, options);
       drawSlotIfPresent(ctx, child.slots.kaeri, options);
-      drawSlotIfPresent(ctx, child.slots.kutoten, options);
+      drawKutotenSlotIfPresent(ctx, child.slots.kutoten, options);
       drawSlotIfPresent(ctx, child.slots.emphasis, options);
       drawSlotIfPresent(ctx, child.slots.saidokuUnder, options);
       drawSlotIfPresent(ctx, child.slots.saidokuOkuri2, options);
@@ -75,6 +75,23 @@ export function draw(
       }
     }
   }
+}
+
+function drawKutotenSlotIfPresent(
+  ctx: CanvasRenderingContext2DLike,
+  slot: SlotLayout | undefined,
+  options: ResolvedOptions
+): void {
+  if (!slot) return;
+  drawKutotenText(
+    ctx,
+    slot.text,
+    slot.x,
+    slot.y,
+    slot.fontSize,
+    options.textColor,
+    options.fontFamily
+  );
 }
 
 function drawSlotIfPresent(

@@ -938,7 +938,7 @@ function generateWritingModeStyles(
           currentColor 2px 3px,
           transparent 3px
         );
-        background-repeat: repeat;
+        background-repeat: repeat-y;
         background-position: right;
       }
 
@@ -1059,7 +1059,7 @@ function generateWritingModeStyles(
                   currentColor 2px 3px,
                   transparent 3px
                 );
-                background-repeat: repeat;
+                background-repeat: repeat-y;
               }
             }
           `
@@ -1125,7 +1125,7 @@ function generateWritingModeStyles(
           currentColor 2px 3px,
           transparent 3px
         );
-        background-repeat: repeat;
+        background-repeat: repeat-y;
         background-position: bottom;
       }
 

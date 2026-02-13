@@ -190,7 +190,7 @@ bare パスで `text-emphasis-style` を使う限り、傍線との相対位置�
 2. **傍線描画を box-shadow から分離**: emphasis-row の `border-block-end` や pseudo-element で傍線を描画し、ルビ行の直外に配置する
 3. **専用グリッド行の追加**: grid-template-rows に「傍線」専用行を追加（emphasis | **line** | ruby | base | suffix）
 
-## 実装中のアプローチ 4（2026-02-12）
+## 失敗した試行 4（2026-02-12）
 
 ### アプローチ
 
@@ -283,14 +283,86 @@ ruby-ratio * 0.5em + 4px + grid-baseline-fix
 1. **highlight-content レベルの傍線描画を維持しつつ、emphasis を外側に出す**: highlight-content の box-shadow/background-image による傍線描画はトークン間の連続性を自然に保証する。問題は emphasis がその内側に閉じ込められること。emphasis-row を highlight-content の外側に配置する構造的な方法が必要
 2. **ruby-grid--emphasis-hl の highlight-line を廃止し、別の手法で傍線位置を制御**: たとえば highlight-content 自体を emphasis 行の内側に position で配置する、または highlight-content の box-shadow offset を調整して emphasis 行分だけ内側にずらす
 
+### 教訓
+
+- トークン単位の grid 行に配置した要素は、トークン間で連続した描画ができない
+- highlight-content レベルの box-shadow/background-image は multi-token 連続性を自然に保証する。これを活かすべき
+
+## アプローチ 5: highlight-content レベル傍線描画の復活（2026-02-12）
+
+### アプローチ
+
+失敗した試行 4 の教訓に基づき、highlight-content の box-shadow/background-image による傍線描画を復活。アプローチ 4 で追加した highlight-line 関連コードを撤去。
+
+1. **highlight-line 専用行を撤去**: `ruby-grid--emphasis-hl`、`ruby-grid--emphasis-hl-no-ruby`、highlight-line 要素、5種描画スタイルをすべて削除
+2. **`ruby-grid--emphasis` に統一**: emphasis+highlight 共存時も通常の `ruby-grid--emphasis` を使用。bare+emphasis+highlight でも grid 構造を強制（アプローチ 4 から継続）
+3. **`:has(.ruby-grid--emphasis)` で padding-right を増加**: emphasis 共存時に `highlight-content` の `padding-right` を 0.5em → 1em に増加。box-shadow が emphasis 行の手前に描画される
+
+### 核心: なぜこれが機能するか
+
+DOM 構造:
+
+```
+highlight (inline-block)
+  └── highlight-content (display: inline)   ← padding-right + box-shadow で傍線描画
+        ├── token > ruby-grid--emphasis (inline-grid)
+        │         ├── emphasis-row (Row 1, 最外側 = 右端)
+        │         ├── ruby (Row 2)
+        │         ├── base (Row 3)
+        │         └── suffix-row (Row 3, col 2)
+        ├── wbr
+        └── token > ruby-grid--emphasis (inline-grid)
+```
+
+`highlight-content` は `ruby-grid` の**親**であり Grid Item にはならない。`display: inline` が有効で、`padding-right` で box-shadow の描画位置を制御できる。
+
+`padding-right: 1em` により box-shadow は emphasis-row (0.5em) の内側に位置し、「本文 → ルビ → 傍線 → 傍点」の配置順が実現される。
+
+### 変更ファイル
+
+#### HTML レンダラー
+
+- **`styles.ts`**:
+  - `ruby-grid--emphasis-hl` / `ruby-grid--emphasis-hl-no-ruby` グリッド定義を撤去
+  - `:has(.ruby-grid--emphasis-hl)` の box-shadow/background-image 無効化ルールを撤去
+  - highlight-line 5 種描画スタイルを撤去
+  - `@supports selector(:has(a))` 内に `:has(.ruby-grid--emphasis)` で `padding-right: 1em` を追加
+- **`renderer.ts`**:
+  - `renderTokenWithRuby` から `inHighlight` パラメータを削除
+  - `ruby-grid--emphasis-hl` / `ruby-grid--emphasis-hl-no-ruby` 分岐を削除、常に `ruby-grid--emphasis` を使用
+  - `highlight-line` 要素の出力を削除
+
+#### Canvas レンダラー
+
+変更なし（アプローチ 4 の emphasis 位置変更を維持）。
+
+### 結果
+
+Chromium で確認。全 14 パターンで正常動作:
+
+- **配置順**: すべてのブロックで「本文 → ルビ → 傍線 → 傍点」
+- **multi-token 連続性**: highlight-content レベルの box-shadow/background-image がトークン間の傍線を自然に連結
+- **emphasis なし highlight**: `padding-right: 16px (0.5em)` で従来通り動作（`:has()` がマッチしない）
+- **emphasis+highlight 共存**: `padding-right: 32px (1em)` で傍線が emphasis 行の手前に描画
+- **ブロック 11 (multi-token)**: 傍線が連続した 1 本線。アプローチ 4 の致命的問題が解決
+- **ブロック 12 (emphasis > highlight+highlight)**: 2 つの独立した highlight が分離して表示
+- **ブロック 14 (tateten+highlight)**: 竪点を挟んで傍線が連続
+
 ### 既知の制約
 
-- **saidoku/tateten 内の emphasis+highlight**: 現時点で `ruby-grid--emphasis-hl` を使用しない。該当パターンが追加された場合に対応が必要
-- **`:has()` セレクタ**: Chrome 105+, Firefox 121+, Safari 15.4+ が必要。非対応ブラウザでは傍線が二重描画される
+- **bare+emphasis+highlight**: `ruby-grid--emphasis` を使用するため空 ruby 行 (0.5em) が挿入される。視覚的に軽微な余白が生じるが、`text-emphasis-style` では box-shadow との位置制御が不可能なため妥協
+- **`:has()` セレクタ**: Chrome 105+, Firefox 121+, Safari 15.4+ が必要。非対応ブラウザでは emphasis 共存時の padding-right が 0.5em のままとなり、傍線と傍点が近接する
+
+### 残作業
+
+- Firefox でのクロスブラウザ確認
+
+## ステータス更新
+
+In Progress → **アプローチ 5 で配置順変更を実装完了。Firefox 確認待ち。**
 
 ## 参考
 
 - `packages/skam-canvas-renderer/src/layout-vertical.ts` — Canvas レイアウト計算
 - `packages/skam-html-renderer/src/styles.ts` — CSS スタイル生成
 - `ruby-grid--emphasis` の grid-template-rows: `0.5em 0.5em auto 0.5em`（emphasis / ruby / base / suffix）
-- `ruby-grid--emphasis-hl` の grid-template-rows: `0.5em 4px 0.5em auto 0.5em`（emphasis / highlight-line / ruby / base / suffix）

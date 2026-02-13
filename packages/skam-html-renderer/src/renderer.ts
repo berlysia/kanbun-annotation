@@ -364,7 +364,7 @@ function renderTokenWithRuby(
   rangeInfo?: RangeTokenInfo,
   suppressYomigana?: boolean,
   gridEmphasisStyle?: string,
-  inHighlight?: boolean
+  blockHasRuby?: boolean
 ): string {
   const { prefix, profile, tokenMarks, interactive, rubyMethod } = ctx;
 
@@ -398,32 +398,22 @@ function renderTokenWithRuby(
           ? ` data-token-from="${escapeHtml(rangeInfo.from)}" data-token-to="${escapeHtml(rangeInfo.to)}"`
           : '';
       const baseDataAttrs = !rangeInfo ? dataAttrs : '';
-      // ADR-015: emphasis + highlight 共存時は ruby-grid--emphasis-hl (5行) を使用
-      const gridClass = gridEmphasisStyle
-        ? inHighlight
-          ? `${prefix}-ruby-grid--emphasis-hl`
-          : `${prefix}-ruby-grid--emphasis`
-        : `${prefix}-ruby-grid`;
+      const gridClass = gridEmphasisStyle ? `${prefix}-ruby-grid--emphasis` : `${prefix}-ruby-grid`;
       const emphasisRowHtml = gridEmphasisStyle
         ? `<span class="${prefix}-emphasis-row" aria-hidden="true">${generateEmphasisMarks(displayText, resolveEmphasisCharacter(gridEmphasisStyle))}</span>`
         : '';
-      const highlightLineHtml =
-        gridEmphasisStyle && inHighlight ? `<span class="${prefix}-highlight-line"></span>` : '';
-      return `<span class="${gridClass}"${gridDataAttrs}>${emphasisRowHtml}${highlightLineHtml}<span class="${prefix}-ruby">${yomigana}</span><span class="${prefix}-base"${baseDataAttrs}>${baseContent}</span></span>`;
+      return `<span class="${gridClass}"${gridDataAttrs}>${emphasisRowHtml}<span class="${prefix}-ruby">${yomigana}</span><span class="${prefix}-base"${baseDataAttrs}>${baseContent}</span></span>`;
     }
     return `<ruby><rb class="${prefix}-base"${dataAttrs}>${baseContent}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>`;
   } else if (gridEmphasisStyle) {
-    // ADR-015: bare + emphasis (+ highlight) 時
-    // highlight 内では ruby 行なしの emphasis-hl-no-ruby を使用（空き回避）
-    // highlight 外では emphasis grid（ruby 行は空だが既存動作を維持）
-    const gridClass = inHighlight
-      ? `${prefix}-ruby-grid--emphasis-hl-no-ruby`
-      : `${prefix}-ruby-grid--emphasis`;
+    // emphasis grid: bare token でも grid 構造で傍点を配置
+    // blockHasRuby: ブロック内にルビ付きトークンがある場合は ruby 行付き 4行グリッドで
+    // 文字の縦位置を揃える。なければ no-ruby 3行で節約。
     const emphasisRowHtml = `<span class="${prefix}-emphasis-row" aria-hidden="true">${generateEmphasisMarks(displayText, resolveEmphasisCharacter(gridEmphasisStyle))}</span>`;
-    const highlightLineHtml = inHighlight ? `<span class="${prefix}-highlight-line"></span>` : '';
-    // no-ruby バリアントでは空の ruby 要素を出力しない
-    const rubyHtml = inHighlight ? '' : `<span class="${prefix}-ruby"></span>`;
-    return `<span class="${gridClass}">${emphasisRowHtml}${highlightLineHtml}${rubyHtml}<span class="${prefix}-base"${dataAttrs}>${baseContent}</span></span>`;
+    if (blockHasRuby) {
+      return `<span class="${prefix}-ruby-grid--emphasis">${emphasisRowHtml}<span class="${prefix}-ruby"></span><span class="${prefix}-base"${dataAttrs}>${baseContent}</span></span>`;
+    }
+    return `<span class="${prefix}-ruby-grid--emphasis-no-ruby">${emphasisRowHtml}<span class="${prefix}-base"${dataAttrs}>${baseContent}</span></span>`;
   } else {
     return `<span class="${prefix}-base"${dataAttrs}>${baseContent}</span>`;
   }
@@ -721,7 +711,7 @@ export function renderToken(
       rangeCtx?.rangeTokenInfo,
       suppressYomigana,
       gridEmphasisStyle,
-      inHighlight
+      rangeCtx?.blockHasRuby
     );
   }
 

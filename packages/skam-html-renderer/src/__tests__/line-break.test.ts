@@ -221,11 +221,14 @@ describe('line break control in HTML output', () => {
 
     it('highlight double が background-image で描画される（縦書き）', () => {
       const css = getDefaultStyles({ writingMode: 'vertical' });
-      // double スタイルに background-image がある
-      expect(css).toMatch(/data-style="double"[\s\S]*?background-image:\s*linear-gradient/);
-      // ::before/::after が double に使われていない
-      expect(css).not.toMatch(/data-style="double"[\s\S]*?::before/);
-      expect(css).not.toMatch(/data-style="double"[\s\S]*?::after/);
+      // double スタイルの highlight-content に background-image がある
+      expect(css).toMatch(
+        /data-style="double"[\s\S]*?highlight-content\)[\s\S]*?background-image:\s*linear-gradient/
+      );
+      // highlight-content に直接 ::before/::after を適用していない
+      // Note: emphasis+highlight 共存時に .highlight（ラッパー）に ::after を使うのは許容
+      expect(css).not.toMatch(/highlight-content\)::before/);
+      expect(css).not.toMatch(/highlight-content\)::after/);
     });
 
     it('highlight double が background-image で描画される（横書き）', () => {

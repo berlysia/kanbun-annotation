@@ -76,8 +76,8 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
 
   if (writingMode === 'both') {
     // 縦書き・横書き両方のスタイルを data-writing-mode セレクタでラップして出力
-    const verticalStyles = generateWritingModeStyles(prefix, true, rubyMethod);
-    const horizontalStyles = generateWritingModeStyles(prefix, false, rubyMethod);
+    const verticalStyles = generateWritingModeStyles(prefix, true, rubyMethod, vp);
+    const horizontalStyles = generateWritingModeStyles(prefix, false, rubyMethod, vp);
 
     result = `${commonStyles}
 
@@ -95,7 +95,7 @@ ${inlineStyles}`.trim();
   } else {
     // 単一の書字方向のみ出力（data-writing-mode セレクタ不要）
     const isVertical = writingMode === 'vertical';
-    const writingModeStyles = generateWritingModeStyles(prefix, isVertical, rubyMethod);
+    const writingModeStyles = generateWritingModeStyles(prefix, isVertical, rubyMethod, vp);
     const documentWritingMode = isVertical
       ? `
 :where(.${prefix}-document) {
@@ -330,93 +330,35 @@ function generateCommonStyles(
         }
 
         /*
- * Ruby Grid - Emphasis + Highlight Variant (5行グリッド, ADR-015)
+ * Ruby Grid - Emphasis No-Ruby Variant (3行グリッド)
  *
- * row1: emphasis (0.5em)
- * row2: highlight-line (4px) ← 傍線描画用
- * row3: ruby (0.5em)
- * row4: base/tateten-group (auto)
- * row5: suffix (0.5em)
- *
- * 配置順（右→左 = 外→内）: 傍点 → 傍線 → ルビ → 本文
+ * row1: emphasis, row2: base/tateten-group
+ * ルビなしの bare+emphasis トークン用。ruby 行を省略して 0.5em を節約。
  */
-        :where(.${prefix}-ruby-grid--emphasis-hl) {
+        :where(.${prefix}-ruby-grid--emphasis-no-ruby) {
           display: inline-grid;
           grid-template-rows:
-            calc(var(--${vp}-ruby-ratio) * 1em) 4px calc(var(--${vp}-ruby-ratio) * 1em)
+            calc(var(--${vp}-ruby-ratio) * 1em)
             auto calc(var(--${vp}-ruby-ratio) * 1em);
           line-height: 1;
           vertical-align: calc(
-            var(--${vp}-ruby-ratio) * 0.5em + 4px + var(--${vp}-grid-baseline-fix, 0) * 1em
+            var(--${vp}-ruby-ratio) * 0.5em + var(--${vp}-grid-baseline-fix, 0) * 1em
           );
         }
 
-        :where(.${prefix}-ruby-grid--emphasis-hl) > :where(.${prefix}-highlight-line) {
+        :where(.${prefix}-ruby-grid--emphasis-no-ruby) > :where(.${prefix}-base),
+        :where(.${prefix}-ruby-grid--emphasis-no-ruby) > :where(.${prefix}-tateten-group) {
           grid-row: 2;
-          grid-column: 1 / -1;
-        }
-
-        :where(.${prefix}-ruby-grid--emphasis-hl) > :where(.${prefix}-ruby) {
-          grid-row: 3;
-          grid-column: 1;
-          align-self: end;
-          text-align: center;
-        }
-
-        :where(.${prefix}-ruby-grid--emphasis-hl) > :where(.${prefix}-base),
-        :where(.${prefix}-ruby-grid--emphasis-hl) > :where(.${prefix}-tateten-group) {
-          grid-row: 4;
           grid-column: 1;
         }
 
-        :where(.${prefix}-ruby-grid--emphasis-hl) > :where(.${prefix}-suffix-row) {
-          grid-row: 4;
+        :where(.${prefix}-ruby-grid--emphasis-no-ruby) > :where(.${prefix}-suffix-row) {
+          grid-row: 2;
           grid-column: 2;
         }
 
-        :where(.${prefix}-ruby-grid--emphasis-hl) > :where(.${prefix}-highlight) {
-          grid-row: 4;
-          grid-column: 1;
-        }
-
-        /*
- * Ruby Grid - Emphasis + Highlight (No Ruby) Variant (4行グリッド, ADR-015)
- *
- * row1: emphasis (0.5em)
- * row2: highlight-line (4px) ← 傍線描画用
- * row3: base/tateten-group (auto)
- * row4: suffix (0.5em)
- *
- * ruby-grid--emphasis-hl から ruby 行を除いたバリアント。
- * 読み仮名がない token で emphasis + highlight が共存する場合に使用。
- */
-        :where(.${prefix}-ruby-grid--emphasis-hl-no-ruby) {
-          display: inline-grid;
-          grid-template-rows:
-            calc(var(--${vp}-ruby-ratio) * 1em) 4px
-            auto calc(var(--${vp}-ruby-ratio) * 1em);
-          line-height: 1;
-          vertical-align: calc(-4px + var(--${vp}-grid-baseline-fix, 0) * 1em);
-        }
-
-        :where(.${prefix}-ruby-grid--emphasis-hl-no-ruby) > :where(.${prefix}-highlight-line) {
+        :where(.${prefix}-ruby-grid--emphasis-no-ruby) > :where(.${prefix}-highlight) {
           grid-row: 2;
-          grid-column: 1 / -1;
-        }
-
-        :where(.${prefix}-ruby-grid--emphasis-hl-no-ruby) > :where(.${prefix}-base),
-        :where(.${prefix}-ruby-grid--emphasis-hl-no-ruby) > :where(.${prefix}-tateten-group) {
-          grid-row: 3;
-          grid-column: 1;
-        }
-
-        :where(.${prefix}-ruby-grid--emphasis-hl-no-ruby) > :where(.${prefix}-suffix-row) {
-          grid-row: 3;
-          grid-column: 2;
-        }
-
-        :where(.${prefix}-ruby-grid--emphasis-hl-no-ruby) > :where(.${prefix}-highlight) {
-          grid-row: 3;
           grid-column: 1;
         }
 
@@ -918,8 +860,10 @@ ${
 function generateWritingModeStyles(
   prefix: string,
   isVertical: boolean,
-  rubyMethod: RubyMethod | 'both' = 'grid'
+  rubyMethod: RubyMethod | 'both' = 'grid',
+  variablePrefix?: string
 ): string {
+  const vp = variablePrefix ?? prefix;
   const includeGrid = rubyMethod === 'grid' || rubyMethod === 'both';
 
   if (isVertical) {
@@ -948,12 +892,18 @@ function generateWritingModeStyles(
         padding-right: 0.5em;
       }
 
+      /* 傍線スタイル共通: background-image + background-position で描画。
+       * box-shadow ではなく background-image に統一することで、
+       * emphasis+highlight 共存時に background-position のみで傍線位置を調整可能。
+       * 既定は右端 (background-position: right) に描画。 */
       :where(.${prefix}-highlight[data-style="solid"]) > :where(.${prefix}-highlight-content) {
-        box-shadow: inset -1px 0 0 0 currentColor;
+        background-image: linear-gradient(to bottom, currentColor, currentColor);
+        background-size: 1px 100%;
+        background-repeat: no-repeat;
+        background-position: right;
       }
 
       :where(.${prefix}-highlight[data-style="dotted"]) > :where(.${prefix}-highlight-content) {
-        box-shadow: none;
         background-image: linear-gradient(to bottom, currentColor 2px, transparent 2px);
         background-size: 1px 4px;
         background-repeat: repeat-y;
@@ -961,7 +911,6 @@ function generateWritingModeStyles(
       }
 
       :where(.${prefix}-highlight[data-style="dashed"]) > :where(.${prefix}-highlight-content) {
-        box-shadow: none;
         background-image: linear-gradient(to bottom, currentColor 4px, transparent 4px);
         background-size: 1px 8px;
         background-repeat: repeat-y;
@@ -974,7 +923,6 @@ function generateWritingModeStyles(
    * SVG内でcurrentColorは効かないため、黒色を直接指定。
    * 縦書き: 右側に縦方向の波線（幅4px、周期8px）
    */
-        box-shadow: none;
         background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='8' viewBox='0 0 4 8'%3E%3Cpath d='M3 0 Q0 4 3 8' stroke='%23333' fill='none' stroke-width='1'/%3E%3C/svg%3E");
         background-size: 4px 8px;
         background-repeat: repeat-y;
@@ -982,7 +930,6 @@ function generateWritingModeStyles(
       }
 
       :where(.${prefix}-highlight[data-style="double"]) > :where(.${prefix}-highlight-content) {
-        box-shadow: none;
         background-image: linear-gradient(
           to left,
           currentColor 1px,
@@ -1020,66 +967,99 @@ function generateWritingModeStyles(
              * ruby-grid 内では column 幅を不必要に広げ ruby の中央揃えに影響する。 */
             :where(.${prefix}-ruby-grid) > :where(.${prefix}-highlight),
             :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-highlight),
-            :where(.${prefix}-ruby-grid--emphasis-hl) > :where(.${prefix}-highlight),
-            :where(.${prefix}-ruby-grid--emphasis-hl-no-ruby) > :where(.${prefix}-highlight) {
+            :where(.${prefix}-ruby-grid--emphasis-no-ruby) > :where(.${prefix}-highlight) {
               padding-right: 0;
             }
 
             /*
-             * Highlight + Emphasis 共存 (ADR-015)
+             * Highlight + Emphasis 共存 (ADR-015: Approach 5)
              *
-             * emphasis+highlight 共存時、傍線は highlight-content の box-shadow/background ではなく
-             * ruby-grid--emphasis-hl 内の highlight-line 要素で描画する。
-             * highlight-content の既存描画を無効化し、padding-right もリセット。
+             * 配置順を「本文 → ルビ → 傍線 → 傍点」にするため、
+             * emphasis+highlight 共存時は highlight ラッパー (.highlight) の ::after 疑似要素で
+             * 傍線を emphasis-row の手前（本文寄り）に描画する。
+             *
+             * highlight-content は inline 要素のため子の inline-grid の emphasis-row を
+             * 包含しない。background/box-shadow では正確な位置制御ができない。
+             * 一方 highlight ラッパーは子を完全に包含するため、
+             * position: absolute の ::after で正確な位置指定が可能。
+             *
+             * ::after の right offset:
+             *   highlight の padding-right (0.75em) + emphasis-row 幅 (ruby-ratio * 1em = 0.5em)
+             *   = 1.25em で、emphasis-row の内側辺（= ruby の外側辺）に傍線を配置。
+             *
+             * emphasis+highlight 共存時は highlight-content の傍線描画を無効化し、
+             * 代わりに highlight::after で全スタイルを再現する。
              */
-            :where(.${prefix}-highlight-content:has(.${prefix}-ruby-grid--emphasis-hl)),
-            :where(.${prefix}-highlight-content:has(.${prefix}-ruby-grid--emphasis-hl-no-ruby)) {
-              box-shadow: none;
-              background-image: none;
-              padding-right: 0;
-            }
+            @supports selector(:has(a)) {
+              /* emphasis 共存時: highlight-content の傍線を無効化 */
+              :where(
+                  .${prefix}-highlight:has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby))
+                )
+                > :where(.${prefix}-highlight-content) {
+                background-image: none !important;
+              }
 
-            /* highlight-line の描画スタイル (5種)
-             * highlight-line は ruby-grid--emphasis-hl の Row 2 に配置。
-             * セレクタは祖先の .highlight[data-style] で分岐。 */
-            :where(.${prefix}-highlight[data-style="solid"]) :where(.${prefix}-highlight-line) {
-              background-image: linear-gradient(to left, currentColor 1px, transparent 1px);
-              background-size: 1px 100%;
-              background-repeat: repeat-y;
-              background-position: right;
-            }
+              /* emphasis 共存時: ::after で傍線を描画（共通）
+               * right offset = emphasis-row 幅 (ruby-ratio * 1em) + highlight padding (0.75em)
+               * ruby 行有無で同じ値（emphasis-row は常に grid 最右列） */
+              :where(
+                .${prefix}-highlight:has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby))
+              )::after {
+                content: '';
+                position: absolute;
+                top: 0;
+                bottom: 0;
+                right: calc(var(--${vp}-ruby-ratio) * 1em + 0.75em);
+                width: 0;
+              }
 
-            :where(.${prefix}-highlight[data-style="dotted"]) :where(.${prefix}-highlight-line) {
-              background-image: linear-gradient(to bottom, currentColor 2px, transparent 2px);
-              background-size: 1px 4px;
-              background-repeat: repeat-y;
-              background-position: right;
-            }
+              /* solid */
+              :where(.${prefix}-highlight[data-style="solid"]:has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby)))::after {
+                border-right: 1px solid currentColor;
+              }
 
-            :where(.${prefix}-highlight[data-style="dashed"]) :where(.${prefix}-highlight-line) {
-              background-image: linear-gradient(to bottom, currentColor 4px, transparent 4px);
-              background-size: 1px 8px;
-              background-repeat: repeat-y;
-              background-position: right;
-            }
+              /* dotted */
+              :where(.${prefix}-highlight[data-style="dotted"]:has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby)))::after {
+                border-right: none;
+                width: 1px;
+                background-image: linear-gradient(to bottom, currentColor 2px, transparent 2px);
+                background-size: 1px 4px;
+                background-repeat: repeat-y;
+              }
 
-            :where(.${prefix}-highlight[data-style="wavy"]) :where(.${prefix}-highlight-line) {
-              background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='8' viewBox='0 0 4 8'%3E%3Cpath d='M3 0 Q0 4 3 8' stroke='%23333' fill='none' stroke-width='1'/%3E%3C/svg%3E");
-              background-size: 4px 8px;
-              background-repeat: repeat-y;
-              background-position: right;
-            }
+              /* dashed */
+              :where(.${prefix}-highlight[data-style="dashed"]:has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby)))::after {
+                border-right: none;
+                width: 1px;
+                background-image: linear-gradient(to bottom, currentColor 4px, transparent 4px);
+                background-size: 1px 8px;
+                background-repeat: repeat-y;
+              }
 
-            :where(.${prefix}-highlight[data-style="double"]) :where(.${prefix}-highlight-line) {
-              background-image: linear-gradient(
-                to left,
-                currentColor 1px,
-                transparent 1px 2px,
-                currentColor 2px 3px,
-                transparent 3px
-              );
-              background-repeat: repeat;
-              background-position: right;
+              /* wavy */
+              :where(.${prefix}-highlight[data-style="wavy"]:has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby)))::after {
+                border-right: none;
+                width: 4px;
+                right: calc(var(--${vp}-ruby-ratio) * 1em + 0.75em - 1.5px);
+                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='8' viewBox='0 0 4 8'%3E%3Cpath d='M3 0 Q0 4 3 8' stroke='%23333' fill='none' stroke-width='1'/%3E%3C/svg%3E");
+                background-size: 4px 8px;
+                background-repeat: repeat-y;
+              }
+
+              /* double */
+              :where(.${prefix}-highlight[data-style="double"]:has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby)))::after {
+                border-right: none;
+                width: 3px;
+                right: calc(var(--${vp}-ruby-ratio) * 1em + 0.75em - 1px);
+                background-image: linear-gradient(
+                  to left,
+                  currentColor 1px,
+                  transparent 1px 2px,
+                  currentColor 2px 3px,
+                  transparent 3px
+                );
+                background-repeat: repeat;
+              }
             }
           `
         : ''}
@@ -1162,7 +1142,8 @@ function generateWritingModeStyles(
         ? css`
             /* highlight が ruby-grid のグリッドアイテムの場合、padding-bottom をリセット */
             :where(.${prefix}-ruby-grid) > :where(.${prefix}-highlight),
-            :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-highlight) {
+            :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-highlight),
+            :where(.${prefix}-ruby-grid--emphasis-no-ruby) > :where(.${prefix}-highlight) {
               padding-bottom: 0;
             }
           `

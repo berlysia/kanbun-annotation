@@ -63,6 +63,13 @@ export interface RangeMarkContext {
   rangeTokenInfo?: RangeTokenInfo;
   /** highlight グループ内のトークンであることを示すフラグ（ADR-015: bare+emphasis の grid 化用） */
   inHighlightGroup?: boolean;
+  /** highlight グループ内にルビ付きトークンが存在するかを示すフラグ。
+   * true の場合、ルビなしトークンでも ruby 行のスペースを確保して本文位置を揃える。 */
+  highlightGroupHasRuby?: boolean;
+  /** ブロック内にルビ付きトークンが存在するかを示すフラグ。
+   * グリッドクラス選択（文字縦位置揃え）に使用。highlightGroupHasRuby と異なり
+   * 別 highlight 間でも文字位置を揃えるためブロック全体スコープで判定。 */
+  blockHasRuby?: boolean;
 }
 
 // ---------------------------------------------------------------------------

@@ -394,7 +394,22 @@ function buildTatetenGroupRangeCtx(
 function groupIntoTree(entries: FlatTokenEntry[], ctx: BuildTreeContext): RenderNode[] {
   if (entries.length === 0) return [];
 
-  const { marks, prefix, profile, refValueMap } = ctx;
+  const { marks, prefix, profile, refValueMap, tokens } = ctx;
+
+  // ブロック内にルビ付きトークンが存在するか判定（ブロック全体スコープ）。
+  // グリッドクラス選択に使用: 同一ブロック内の複数 highlight 間で文字の縦位置を揃える。
+  // highlightGroupHasRuby（グループ単位）とは別に管理し、傍線位置とは独立して判定する。
+  const blockHasRuby = entries.some((entry) => {
+    const tokenMarks = getMarksForToken(entry.item.token.id, marks, tokens);
+    return (
+      (tokenMarks.get('yomigana')?.length ?? 0) > 0 ||
+      (tokenMarks.get('okurigana')?.length ?? 0) > 0 ||
+      (tokenMarks.get('soegana')?.length ?? 0) > 0 ||
+      !!entry.item.rangeCtx?.yomiganaBaseText ||
+      !!entry.item.rangeCtx?.okuriganaBaseText ||
+      !!entry.item.rangeCtx?.soeganaBaseText
+    );
+  });
 
   // Step 1: Group consecutive entries with same tatetenMark into TatetenGroupNodes
   const tatetenGrouped: Array<{
@@ -461,12 +476,39 @@ function groupIntoTree(entries: FlatTokenEntry[], ctx: BuildTreeContext): Render
       }
       // ADR-015: highlight グループ内の全 token に inHighlightGroup フラグを設定
       // emphasis+highlight 共存時に bare token でも grid 構造を強制するために使用
+      //
+      // highlightGroupHasRuby: グループ内にルビ付きトークンが存在するか判定。
+      // multi-token highlight でルビあり/なしが混在する場合、ルビなしトークンでも
+      // ruby 行のスペースを確保して本文位置を揃えるために使用。
+      const collectTokenItems = (node: TokenItem | TatetenGroupNode): TokenItem[] =>
+        node.type === 'token' ? [node] : node.items;
+      const groupHasRuby = items.flatMap(collectTokenItems).some((ti) => {
+        const tokenMarks = getMarksForToken(ti.token.id, marks, tokens);
+        return (
+          (tokenMarks.get('yomigana')?.length ?? 0) > 0 ||
+          (tokenMarks.get('okurigana')?.length ?? 0) > 0 ||
+          (tokenMarks.get('soegana')?.length ?? 0) > 0 ||
+          !!ti.rangeCtx?.yomiganaBaseText ||
+          !!ti.rangeCtx?.okuriganaBaseText ||
+          !!ti.rangeCtx?.soeganaBaseText
+        );
+      });
       for (const item of items) {
         if (item.type === 'token') {
-          item.rangeCtx = { ...item.rangeCtx, inHighlightGroup: true };
+          item.rangeCtx = {
+            ...item.rangeCtx,
+            inHighlightGroup: true,
+            highlightGroupHasRuby: groupHasRuby,
+            blockHasRuby,
+          };
         } else {
           for (const tatetenItem of item.items) {
-            tatetenItem.rangeCtx = { ...tatetenItem.rangeCtx, inHighlightGroup: true };
+            tatetenItem.rangeCtx = {
+              ...tatetenItem.rangeCtx,
+              inHighlightGroup: true,
+              highlightGroupHasRuby: groupHasRuby,
+              blockHasRuby,
+            };
           }
         }
       }

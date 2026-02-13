@@ -425,6 +425,20 @@
     color: var(--editor-warning);
   }
 
+  /* Renderer output border: visible boundary around rendered content */
+  .preview-content > .skam-document,
+  .preview-content canvas {
+    border: 2px dashed var(--editor-border);
+    border-radius: 4px;
+  }
+
+  /* Inline mode: subtle border */
+  .preview-content .inline-demo {
+    border: 1px solid color-mix(in srgb, var(--editor-border) 50%, transparent);
+    border-radius: 4px;
+    padding: 1rem;
+  }
+
   /* Canvas mode: allow canvas to display at natural size with scrolling */
   .preview-content canvas {
     flex-shrink: 0;

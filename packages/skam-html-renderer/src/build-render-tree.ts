@@ -518,6 +518,7 @@ function groupIntoTree(entries: FlatTokenEntry[], ctx: BuildTreeContext): Render
         highlight: groupHighlight,
         refHtml,
         items,
+        hasKana: groupHasRuby,
       });
     } else {
       result.push(current.node);

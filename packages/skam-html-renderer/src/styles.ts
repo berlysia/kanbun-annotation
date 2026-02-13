@@ -893,6 +893,15 @@ function generateWritingModeStyles(
         padding-right: 0.5em;
       }
 
+      /* 仮名なし: 傍線をbase文字に近接配置し、ラベルとの距離も縮小 */
+      :where(.${prefix}-highlight:not([data-has-kana])) {
+        padding-right: calc(${highlightOffset} - 0.4em);
+      }
+
+      :where(.${prefix}-highlight:not([data-has-kana])) > :where(.${prefix}-highlight-content) {
+        padding-right: 0.1em;
+      }
+
       /* 傍線スタイル共通: background-image + background-position で描画。
        * box-shadow ではなく background-image に統一することで、
        * emphasis+highlight 共存時に background-position のみで傍線位置を調整可能。

@@ -98,6 +98,8 @@ export interface HighlightGroupNode {
   highlight: HighlightMark;
   refHtml: string;
   items: (TokenItem | TatetenGroupNode)[];
+  /** グループ内にルビ付きトークンが存在するか（傍線位置の調整に使用） */
+  hasKana: boolean;
 }
 
 /** Union of all render tree node types. */

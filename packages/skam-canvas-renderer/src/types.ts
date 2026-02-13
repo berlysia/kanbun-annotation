@@ -205,6 +205,87 @@ export interface DocumentLayout {
 }
 
 // ============================================================================
+// Pass 2 Internal Types (layout-vertical layers)
+// ============================================================================
+
+/** @internal 列幅・ベース中心位置・右側追加幅 */
+export interface ColumnDimensions {
+  columnWidth: number;
+  baseCenterX: number;
+  extraRightWidth: number;
+  /** columnWidth + extraRightWidth */
+  fullColumnWidth: number;
+}
+
+/** @internal 事前計算済みグリッド列位置（絶対 X 座標） */
+export interface GridColumns {
+  /** ruby, okuri, soegana */
+  suffixX: number;
+  /** 返り点 */
+  kaeriX: number;
+  /** 再読2回目 */
+  saidoku2X: number;
+  /** 句読点 */
+  kutotenX: number;
+}
+
+/** @internal Analysis レイヤ出力: ドキュメント全体の分析結果 */
+export interface DocumentAnalysis {
+  documentFlags: BlockLayoutFlags;
+  documentMaxRubyWidth: number;
+  blocks: BlockAnalysis[];
+}
+
+/** @internal Analysis レイヤ出力: ブロック単位の分析結果 */
+export interface BlockAnalysis {
+  block: CanvasBlockNode;
+  tokens: CanvasTokenNode[];
+  maxRubyWidth: number;
+  /** block.flags の参照保持（再計算しない） */
+  flags: BlockLayoutFlags;
+}
+
+/** @internal Column Planning レイヤ出力: ブロック単位の列計画 */
+export interface ColumnPlan {
+  blockIndex: number;
+  x: number;
+  dimensions: ColumnDimensions;
+  /** effective flags（uniform: doc flags, adaptive: block flags） */
+  flags: BlockLayoutFlags;
+  grid: GridColumns;
+  /** highlight rightAdjust 用（uniform: doc 値, adaptive: block 値） */
+  effectiveMaxRubyWidth: number;
+}
+
+/** @internal Placement レイヤ: ブロック単位の不変文脈（派生定数を格納） */
+export interface PlacementContext {
+  fontSize: number;
+  rubyFontSize: number;
+  cellAdvance: number;
+  separatorAdvance: number;
+  highlightGap: number;
+  columnY: number;
+  plan: ColumnPlan;
+  options: ResolvedOptions;
+}
+
+/** @internal Placement レイヤ: per-token/per-group のレイアウト文脈 */
+export interface TokenLayoutContext {
+  fontSize: number;
+  rubyFontSize: number;
+  cellAdvance: number;
+  grid: GridColumns;
+  /** highlight-group 内でのみ設定: emphasis を highlight 線の外側に配置 */
+  emphasisOverrideX?: number;
+  /** range ruby overflow: 実際のスパン高さ（均等割り付け後、centering 用） */
+  rangeRubySpanHeight?: number;
+  /** range ruby overflow: center モードでの ruby Y オフセット */
+  rangeRubyYOffset?: number;
+  /** range ruby overflow: ルビ下端の絶対 Y 座標（okuri/soegana の押し下げに使用） */
+  rangeRubyEndY?: number;
+}
+
+// ============================================================================
 // Resolved Options (internal)
 // ============================================================================
 

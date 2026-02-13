@@ -1033,6 +1033,15 @@ function generateWritingModeStyles(
                 width: 0;
               }
 
+              /* 仮名なし: padding-right が noKanaReduction 分小さいため right offset も同量削減 */
+              :where(
+                .${prefix}-highlight:not([data-has-kana]):has(
+                    :is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby)
+                  )
+              )::after {
+                right: calc(${annotationRowH} + ${highlightColumnGap} - ${noKanaReduction});
+              }
+
               /* solid */
               :where(.${prefix}-highlight[data-style="solid"]:has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby)))::after {
                 border-right: 1px solid currentColor;
@@ -1066,6 +1075,10 @@ function generateWritingModeStyles(
                 background-repeat: repeat-y;
               }
 
+              :where(.${prefix}-highlight[data-style="wavy"]:not([data-has-kana]):has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby)))::after {
+                right: calc(${annotationRowH} + ${highlightColumnGap} - ${noKanaReduction} - 1.5px);
+              }
+
               /* double */
               :where(.${prefix}-highlight[data-style="double"]:has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby)))::after {
                 border-right: none;
@@ -1079,6 +1092,10 @@ function generateWritingModeStyles(
                   transparent 3px
                 );
                 background-repeat: repeat-y;
+              }
+
+              :where(.${prefix}-highlight[data-style="double"]:not([data-has-kana]):has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby)))::after {
+                right: calc(${annotationRowH} + ${highlightColumnGap} - ${noKanaReduction} - 1px);
               }
             }
           `

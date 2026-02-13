@@ -34,11 +34,17 @@ export function render(doc: SKAMDocument, canvas: CanvasLike, options?: CanvasRe
   // Pass 1
   const tree = buildRenderTree(doc, profile);
 
-  // Pass 2
+  // Pass 2 (論理ピクセル座標で計算)
   const documentLayout = layout(tree, ctx, options);
+
+  // HiDPI: コンテキストをスケーリングして論理座標→デバイスピクセルに変換
+  ctx.save();
+  ctx.scale(resolved.pixelRatio, resolved.pixelRatio);
 
   // Pass 3
   draw(ctx, documentLayout, resolved);
+
+  ctx.restore();
 }
 
 /**

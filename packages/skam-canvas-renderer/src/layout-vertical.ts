@@ -54,6 +54,7 @@ import type {
   SlotLayout,
 } from './types.js';
 import type { TextMeasurer } from './measure.js';
+import { shouldApplyTateChuYoko } from './draw-text.js';
 
 /** ルビフォント文字列を生成 */
 function rubyFont(options: ResolvedOptions): string {
@@ -155,7 +156,10 @@ function computeColumnDimensions(
   } else if (flags.hasHighlight) {
     extraRightWidth = highlightGap;
   } else if (flags.hasEmphasis) {
-    extraRightWidth = Math.ceil(rubyFontSize / 2);
+    // emphasis 右端 = baseCenterX + fontSize/2 + rubyFontSize
+    // columnWidth 端 = baseCenterX + fontSize/2 (+rightColumnWidth)
+    // hasRightColumn 時は columnWidth に含まれるが、!hasRightColumn 時は rubyFontSize 分が必要
+    extraRightWidth = rubyFontSize;
   } else {
     extraRightWidth = 0;
   }
@@ -281,16 +285,19 @@ function layoutSingleToken(
 
   if (slots.emphasis) {
     // per-token emphasis 位置計算:
-    // highlight-group 内: emphasisOverrideX（highlight 線の外側）
-    // ruby あり: suffixX + rubyFontSize/2（ruby の右側）
-    // ruby なし: tokenX + fontSize/2（ベース文字右端）
+    // highlight-group, tateten-group 内: emphasisOverrideX（highlight 線の外側）
+    // ruby あり: suffixX + rubyFontSize/2 * 2（ruby の右側）
+    // ruby なし: tokenX + fontSize/2 + rubyFontSize/2（ベース文字右端の外側）
+    //
+    // HTML版では text-emphasis-position: right でブラウザが文字セル外側に配置する。
+    // Canvas版では rubyFontSize/2 のオフセットで傍点がbaseに食い込むのを防止。
     let emphasisX: number;
     if (lctx.emphasisOverrideX !== undefined) {
       emphasisX = lctx.emphasisOverrideX;
     } else if (slots.ruby) {
-      emphasisX = grid.suffixX + rubyFontSize / 2;
+      emphasisX = grid.suffixX + rubyFontSize;
     } else {
-      emphasisX = tokenX + fontSize / 2;
+      emphasisX = tokenX + fontSize / 2 + rubyFontSize / 2;
     }
     slotLayouts.emphasis = {
       text: slots.emphasis,
@@ -321,12 +328,15 @@ function layoutSingleToken(
   }
 
   if (slots.ref) {
-    const refChars = [...slots.ref].length;
+    const isTCY = shouldApplyTateChuYoko(slots.ref);
+    // 縦中横: 1行分の高さ。通常: 文字数分の高さ。
+    const refHeight = isTCY ? rubyFontSize : [...slots.ref].length * rubyFontSize;
     slotLayouts.ref = {
       text: slots.ref,
       x: tokenX,
-      y: tokenY - refChars * rubyFontSize,
+      y: tokenY - refHeight,
       fontSize: rubyFontSize,
+      ...(isTCY ? { tateChuYoko: true } : {}),
     };
   }
 
@@ -394,7 +404,9 @@ export function layoutVertical(
   // CSS 縦書きでは line-height は列間（block方向=横方向）に影響し、
   // 文字間（inline方向=縦方向）には影響しない。cellAdvance は fontSize そのもの。
   const cellAdvance = fontSize;
-  const separatorAdvance = 2 * options.rubyRatio * fontSize;
+  // HTML版の tateten-sep は inline-grid で ruby-ratio * 1em 相当の高さ。
+  // rubyFontSize (= rubyRatio * fontSize) に合わせてコンパクトにする。
+  const separatorAdvance = rubyFontSize;
 
   // (slotGap は廃止: HTML の ruby-grid に対応する gap はない)
 
@@ -533,6 +545,19 @@ export function layoutVertical(
       children: (CanvasTokenNode | CanvasTatetenSeparator)[],
       lctx: LayoutContext = blockLctx
     ): void {
+      // tateten グループ内の range ruby は先頭トークンにのみ slots.ruby が設定される。
+      // 2文字目以降も ruby 列分の空きを確保するため、グループ内に ruby があれば
+      // 全トークンの emphasis を ruby-aware 位置に統一する。
+      if (lctx.emphasisOverrideX === undefined) {
+        const groupHasRuby = children.some((c) => c.type === 'token' && c.slots.ruby);
+        if (groupHasRuby) {
+          lctx = {
+            ...lctx,
+            emphasisOverrideX: grid.suffixX + rubyFontSize,
+          };
+        }
+      }
+
       for (const groupChild of children) {
         if (groupChild.type === 'token') {
           const tokenX = blockColumnX + blockBaseCenterX;
@@ -565,12 +590,22 @@ export function layoutVertical(
       }
     }
 
+    // range ruby（rubySpan > 1）の2文字目以降を追跡。
+    // 先頭トークンにのみ slots.ruby が設定されるため、後続トークンの emphasis 位置を
+    // ruby 列分右にずらして被りを防止する。
+    let rubySpanRemaining = 0;
+
     /** CanvasBlockChild を展開してレイアウトに追加 */
     function layoutBlockChild(child: CanvasBlockChild): void {
       if (child.type === 'token') {
         const tokenX = blockColumnX + blockBaseCenterX;
         const tokenY = columnY + yOffset;
-        columnChildren.push(layoutSingleToken(child, tokenX, tokenY, blockLctx));
+        // range ruby の2文字目以降: ruby 列分の空きを確保するため emphasis を右にずらす
+        const lctx =
+          rubySpanRemaining > 0 && !child.slots.ruby && blockLctx.emphasisOverrideX === undefined
+            ? { ...blockLctx, emphasisOverrideX: grid.suffixX + rubyFontSize }
+            : blockLctx;
+        columnChildren.push(layoutSingleToken(child, tokenX, tokenY, lctx));
         const contentHeight = computeTokenContentHeight(child.slots, fontSize, rubyFontSize);
         yOffset += Math.max(cellAdvance, contentHeight);
       } else if (child.type === 'tateten-group') {
@@ -629,15 +664,18 @@ export function layoutVertical(
         }
         const yEnd = columnY + yOffset;
 
-        // highlight-ref: ラベルを highlight 線の上端に配置
+        // highlight-ref: ラベルを highlight 線の開始位置（上端）に配置
+        // HTML版: inset-inline-start: 0 (top: 0), inset-block-start: 0 (right: 0)
+        // → X = 線と同じ位置、Y = グループ先頭（線の引き始め）
         let refLayout: SlotLayout | undefined;
         if (child.refLabel) {
-          const refChars = [...child.refLabel].length;
+          const isTCY = shouldApplyTateChuYoko(child.refLabel);
           refLayout = {
             text: child.refLabel,
-            x: groupHighlightLineX,
-            y: yStart - refChars * rubyFontSize,
+            x: groupHighlightLineX + (rubyFontSize * 7) / 8,
+            y: yStart,
             fontSize: rubyFontSize,
+            ...(isTCY ? { tateChuYoko: true } : {}),
           };
         }
 
@@ -652,7 +690,22 @@ export function layoutVertical(
     }
 
     for (const child of block.children) {
+      if (child.type === 'token') {
+        // range ruby の開始を検出
+        if (child.slots.rubySpan && child.slots.rubySpan > 1) {
+          rubySpanRemaining = child.slots.rubySpan - 1;
+        }
+      } else {
+        // tateten-group/highlight-group は内部で独自に処理するためリセット
+        rubySpanRemaining = 0;
+      }
+
       layoutBlockChild(child);
+
+      // range ruby の2文字目以降を消費
+      if (child.type === 'token' && !child.slots.ruby && rubySpanRemaining > 0) {
+        rubySpanRemaining--;
+      }
     }
 
     columns.push({

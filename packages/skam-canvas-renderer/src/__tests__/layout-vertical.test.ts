@@ -380,7 +380,7 @@ describe('layoutVertical', () => {
     expect(token.slots.emphasis).toBeDefined();
     // per-token emphasis: ruby の右側 = suffixX + rubyFontSize/2
     const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
-    expect(token.slots.emphasis!.x).toBe(token.slots.ruby!.x + rubyFontSize / 2);
+    expect(token.slots.emphasis!.x).toBe(token.slots.ruby!.x + rubyFontSize);
     // emphasis Y is vertically centered on the base character
     expect(token.slots.emphasis!.y).toBe(token.y + (DEFAULT_FONT_SIZE - rubyFontSize) / 2);
   });
@@ -412,7 +412,7 @@ describe('layoutVertical', () => {
     expect(token.slots.emphasis).toBeDefined();
     // per-token emphasis: ruby の右側 = suffixX + rubyFontSize/2
     const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
-    expect(token.slots.emphasis!.x).toBe(token.slots.ruby!.x + rubyFontSize / 2);
+    expect(token.slots.emphasis!.x).toBe(token.slots.ruby!.x + rubyFontSize);
     expect(token.slots.emphasis!.y).toBe(token.y + (DEFAULT_FONT_SIZE - rubyFontSize) / 2);
   });
 
@@ -461,7 +461,7 @@ describe('layoutVertical', () => {
     const t3 = asToken(children[3]!);
 
     const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
-    const separatorAdvance = 2 * DEFAULT_RUBY_RATIO * DEFAULT_FONT_SIZE;
+    const separatorAdvance = rubyFontSize;
 
     expect(t1.baseChar).toBe('子');
     // separator after t1
@@ -488,7 +488,8 @@ describe('layoutVertical', () => {
     const treeTateten = buildRenderTree(docTateten, PROFILES.full);
     const resultTateten = layout(treeTateten, ctxTateten);
 
-    const separatorAdvance = 2 * DEFAULT_RUBY_RATIO * DEFAULT_FONT_SIZE;
+    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+    const separatorAdvance = rubyFontSize;
 
     // cellAdvance = fontSize (lineHeight は列間に影響、文字間には影響しない)
     const cellAdvance = DEFAULT_FONT_SIZE;
@@ -655,9 +656,9 @@ describe('layoutVertical', () => {
     expect(hl.refLayout!.text).toBe('注');
     const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
     expect(hl.refLayout!.fontSize).toBe(rubyFontSize);
-    // refLayout y is above the highlight start: yStart - 1 char * rubyFontSize
-    expect(hl.refLayout!.y).toBe(hl.yStart - rubyFontSize);
-    expect(hl.refLayout!.x).toBe(hl.x);
+    // refLayout y is at the highlight start (line start = first character top)
+    expect(hl.refLayout!.y).toBe(hl.yStart);
+    expect(hl.refLayout!.x).toBe(hl.x + (rubyFontSize * 7) / 8);
   });
 
   it('highlight line has no refLayout when no refLabel', () => {
@@ -820,7 +821,7 @@ describe('layoutVertical', () => {
       const tree = buildRenderTree(doc, PROFILES.full);
       const result = layout(tree, ctx);
 
-      const expectedExtra = Math.ceil(rubyFontSize / 2);
+      const expectedExtra = rubyFontSize;
       // columnWidth = fontSize (bare), total = padding + (fontSize + extra) + padding
       expect(result.width).toBe(
         DEFAULT_PADDING + DEFAULT_FONT_SIZE + expectedExtra + DEFAULT_PADDING

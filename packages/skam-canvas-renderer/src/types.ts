@@ -138,6 +138,8 @@ export interface SlotLayout {
   x: number;
   y: number;
   fontSize: number;
+  /** 縦中横: テキストを横書きで1行に描画する（ref括弧等） */
+  tateChuYoko?: boolean;
 }
 
 export interface ResolvedSlotLayouts {

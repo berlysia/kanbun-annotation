@@ -6,7 +6,7 @@
 
 import type { CanvasRenderingContext2DLike } from './canvas-context.js';
 import type { DocumentLayout, SlotLayout, ResolvedOptions } from './types.js';
-import { drawChar, drawVerticalText } from './draw-text.js';
+import { drawChar, drawVerticalText, drawTateChuYokoText } from './draw-text.js';
 import { drawHighlightLine } from './draw-marks.js';
 
 /**
@@ -83,13 +83,25 @@ function drawSlotIfPresent(
   options: ResolvedOptions
 ): void {
   if (!slot) return;
-  drawVerticalText(
-    ctx,
-    slot.text,
-    slot.x,
-    slot.y,
-    slot.fontSize,
-    options.textColor,
-    options.fontFamily
-  );
+  if (slot.tateChuYoko) {
+    drawTateChuYokoText(
+      ctx,
+      slot.text,
+      slot.x,
+      slot.y,
+      slot.fontSize,
+      options.textColor,
+      options.fontFamily
+    );
+  } else {
+    drawVerticalText(
+      ctx,
+      slot.text,
+      slot.x,
+      slot.y,
+      slot.fontSize,
+      options.textColor,
+      options.fontFamily
+    );
+  }
 }

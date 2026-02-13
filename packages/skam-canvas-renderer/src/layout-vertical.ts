@@ -117,7 +117,6 @@ function computeGridColumns(
   columnWidth: number,
   fontSize: number,
   rubyFontSize: number,
-  slotGap: number,
   hasSuffix: boolean,
   hasSaidoku: boolean,
   baseCenterX: number
@@ -143,7 +142,7 @@ function computeGridColumns(
   }
   // hasSuffix=false: kaeri/kutoten/saidoku スロットは存在しないため
   // kaeriX/saidoku2X/kutotenX は参照されない
-  const suffixBaseX = columnX + baseCenterX + fontSize / 2 + slotGap;
+  const suffixBaseX = columnX + baseCenterX + fontSize / 2;
   return {
     suffixX: suffixBaseX,
     kaeriX: 0,
@@ -274,7 +273,7 @@ function layoutSingleToken(
 
 /**
  * トークンの垂直コンテンツ高さを計算。
- * セル開始位置（tokenY - fontSize/2）からコンテンツ最下端までの距離。
+ * tokenY からコンテンツ最下端までの距離。
  *
  * Suffix row（kaeri/kutoten）は除外:
  * - kaeri は cellAdvance にちょうど収まる
@@ -309,8 +308,7 @@ function computeTokenContentHeight(
     maxExtent = Math.max(maxExtent, leftExtent);
   }
 
-  // セル開始位置からの全高 = top gap (fontSize/2) + tokenY からの延伸量
-  return fontSize / 2 + maxExtent;
+  return maxExtent;
 }
 
 /**
@@ -324,11 +322,12 @@ export function layoutVertical(
   const { fontSize, padding, lineHeight } = options;
   const rFont = rubyFont(options);
   const rubyFontSize = Math.round(fontSize * options.rubyRatio);
-  const cellAdvance = fontSize * lineHeight;
+  // CSS 縦書きでは line-height は列間（block方向=横方向）に影響し、
+  // 文字間（inline方向=縦方向）には影響しない。cellAdvance は fontSize そのもの。
+  const cellAdvance = fontSize;
   const separatorAdvance = 2 * options.rubyRatio * fontSize;
 
-  // base-ruby 間のギャップ（suffix なしの場合のみ使用）
-  const slotGap = 2;
+  // (slotGap は廃止: HTML の ruby-grid に対応する gap はない)
 
   // 全トークンをフラットに収集（統計用）
   const allTokens = collectAllTokens(tree);
@@ -361,7 +360,7 @@ export function layoutVertical(
     columnWidth = saidokuWidth + fontSize + rightColumnWidth;
     baseCenterX = saidokuWidth + fontSize / 2;
   } else if (maxRubyWidth > 0) {
-    columnWidth = fontSize + slotGap + maxRubyWidth;
+    columnWidth = fontSize + maxRubyWidth;
     baseCenterX = fontSize / 2;
   } else {
     columnWidth = fontSize;
@@ -381,8 +380,7 @@ export function layoutVertical(
     // highlightLineX = columnX + columnWidth + highlightGap
     extraRightWidth = highlightGap;
   } else if (hasEmphasis) {
-    // emphasisBaseX = columnX + columnWidth + slotGap (Case C); 右端 = + rubyFontSize/2
-    extraRightWidth = slotGap + Math.ceil(rubyFontSize / 2);
+    extraRightWidth = Math.ceil(rubyFontSize / 2);
   } else {
     extraRightWidth = 0;
   }
@@ -403,7 +401,6 @@ export function layoutVertical(
       columnWidth,
       fontSize,
       rubyFontSize,
-      slotGap,
       hasSuffix,
       hasSaidoku,
       baseCenterX
@@ -423,16 +420,14 @@ export function layoutVertical(
       for (const groupChild of children) {
         if (groupChild.type === 'token') {
           const tokenX = blockColumnX + baseCenterX;
-          const tokenY = columnY + yOffset + fontSize / 2;
+          const tokenY = columnY + yOffset;
           columnChildren.push(layoutSingleToken(groupChild, tokenX, tokenY, lctx));
-          // tateten 内はトップギャップ不要（密着配置）。contentHeight からギャップ分を除いて比較
-          const tatetenContentExtent =
-            computeTokenContentHeight(groupChild.slots, fontSize, rubyFontSize) - fontSize / 2;
-          yOffset += Math.max(fontSize, tatetenContentExtent);
+          const contentHeight = computeTokenContentHeight(groupChild.slots, fontSize, rubyFontSize);
+          yOffset += Math.max(fontSize, contentHeight);
         } else {
           // tateten-separator
           const sepX = blockColumnX + baseCenterX;
-          const sepY = columnY + yOffset + separatorAdvance / 2;
+          const sepY = columnY + yOffset;
           const sepLayout: TatetenSeparatorLayout = {
             type: 'tateten-separator',
             x: sepX,
@@ -458,7 +453,7 @@ export function layoutVertical(
     function layoutBlockChild(child: CanvasBlockChild): void {
       if (child.type === 'token') {
         const tokenX = blockColumnX + baseCenterX;
-        const tokenY = columnY + yOffset + fontSize / 2;
+        const tokenY = columnY + yOffset;
         columnChildren.push(layoutSingleToken(child, tokenX, tokenY, blockLctx));
         const contentHeight = computeTokenContentHeight(child.slots, fontSize, rubyFontSize);
         yOffset += Math.max(cellAdvance, contentHeight);
@@ -478,7 +473,7 @@ export function layoutVertical(
         for (const highlightChild of child.children) {
           if (highlightChild.type === 'token') {
             const tokenX = blockColumnX + baseCenterX;
-            const tokenY = columnY + yOffset + fontSize / 2;
+            const tokenY = columnY + yOffset;
             columnChildren.push(layoutSingleToken(highlightChild, tokenX, tokenY, hlLctx));
             const hlContentHeight = computeTokenContentHeight(
               highlightChild.slots,

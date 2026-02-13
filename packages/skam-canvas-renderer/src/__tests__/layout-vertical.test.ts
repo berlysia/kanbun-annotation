@@ -61,8 +61,8 @@ describe('layoutVertical', () => {
     // baseCenterX = 0 (no ruby) + fontSize/2 = 12
     // tokenX = padding + baseCenterX = 16 + 12 = 28
     expect(token.x).toBe(DEFAULT_PADDING + DEFAULT_FONT_SIZE / 2);
-    // tokenY = padding + 0 * cellAdvance + fontSize/2 = 16 + 12 = 28
-    expect(token.y).toBe(DEFAULT_PADDING + DEFAULT_FONT_SIZE / 2);
+    // tokenY = padding + 0 = 16 (トップギャップなし)
+    expect(token.y).toBe(DEFAULT_PADDING);
     expect(token.baseChar).toBe('學');
   });
 
@@ -73,14 +73,15 @@ describe('layoutVertical', () => {
 
     expect(result.columns[0]!.children).toHaveLength(3);
 
-    const cellAdvance = DEFAULT_FONT_SIZE * DEFAULT_LINE_HEIGHT;
+    // cellAdvance = fontSize (lineHeight は列間に影響、文字間には影響しない)
+    const cellAdvance = DEFAULT_FONT_SIZE;
     const tokens = result.columns[0]!.children;
 
     // All tokens share same x
     expect(tokens[0]!.x).toBe(tokens[1]!.x);
     expect(tokens[1]!.x).toBe(tokens[2]!.x);
 
-    // y positions increment by cellAdvance
+    // y positions increment by cellAdvance (= fontSize)
     expect(tokens[1]!.y - tokens[0]!.y).toBe(cellAdvance);
     expect(tokens[2]!.y - tokens[1]!.y).toBe(cellAdvance);
   });
@@ -295,8 +296,8 @@ describe('layoutVertical', () => {
     const token = asToken(result.columns[0]!.children[0]!);
     // x offset includes left padding
     expect(token.x).toBe(30 + DEFAULT_FONT_SIZE / 2);
-    // y offset includes top padding
-    expect(token.y).toBe(20 + DEFAULT_FONT_SIZE / 2);
+    // y offset includes top padding (トップギャップなし)
+    expect(token.y).toBe(20);
 
     // Document dimensions include both paddings
     const column = result.columns[0]!;
@@ -319,7 +320,8 @@ describe('layoutVertical', () => {
     const tree = buildRenderTree(threeTokenDoc(), PROFILES.full);
     const result = layout(tree, ctx);
 
-    const cellAdvance = DEFAULT_FONT_SIZE * DEFAULT_LINE_HEIGHT;
+    // cellAdvance = fontSize (lineHeight は列間に影響、文字間には影響しない)
+    const cellAdvance = DEFAULT_FONT_SIZE;
     const expectedHeight = DEFAULT_PADDING * 2 + 3 * cellAdvance;
 
     expect(result.height).toBe(expectedHeight);
@@ -457,11 +459,9 @@ describe('layoutVertical', () => {
     const t2 = asToken(children[2]!);
     const t3 = asToken(children[3]!);
 
-    const cellAdvance = DEFAULT_FONT_SIZE * DEFAULT_LINE_HEIGHT;
     const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
     const separatorAdvance = 2 * DEFAULT_RUBY_RATIO * DEFAULT_FONT_SIZE;
 
-    // t1 at y = padding + fontSize/2
     expect(t1.baseChar).toBe('子');
     // separator after t1
     expect(sep.type).toBe('tateten-separator');
@@ -469,9 +469,9 @@ describe('layoutVertical', () => {
     // t2 after separator
     expect(t2.baseChar).toBe('曰');
     // y increments: t1 → sep (fontSize), sep → t2 (separatorAdvance)
-    // sep.y = columnY + fontSize + separatorAdvance/2, t1.y = columnY + fontSize/2
-    // sep.y - t1.y = fontSize - fontSize/2 + separatorAdvance/2 = fontSize/2 + separatorAdvance/2
-    expect(sep.y - t1.y).toBeCloseTo(DEFAULT_FONT_SIZE / 2 + separatorAdvance / 2, 5);
+    // sep.y = columnY + fontSize, t1.y = columnY
+    // sep.y - t1.y = fontSize
+    expect(sep.y - t1.y).toBeCloseTo(DEFAULT_FONT_SIZE, 5);
     // t3 is standalone, after the group
     expect(t3.baseChar).toBe('學');
   });
@@ -489,10 +489,10 @@ describe('layoutVertical', () => {
 
     const separatorAdvance = 2 * DEFAULT_RUBY_RATIO * DEFAULT_FONT_SIZE;
 
-    // Tateten version: 2 tokens * fontSize(24) + separator(24) + 1 standalone token * cellAdvance(48) = 120
-    // Plain version: 3 tokens * cellAdvance(48) = 144
-    // Difference: 120 - 144 = -24 (tateten is shorter due to tight packing)
-    const cellAdvance = DEFAULT_FONT_SIZE * DEFAULT_LINE_HEIGHT;
+    // cellAdvance = fontSize (lineHeight は列間に影響、文字間には影響しない)
+    const cellAdvance = DEFAULT_FONT_SIZE;
+    // Tateten version: 2 tokens * fontSize + separator(24) + 1 standalone token * cellAdvance
+    // Plain version: 3 tokens * cellAdvance
     expect(resultTateten.height - resultPlain.height).toBe(
       2 * DEFAULT_FONT_SIZE + separatorAdvance + cellAdvance - 3 * cellAdvance
     );
@@ -512,13 +512,14 @@ describe('layoutVertical', () => {
 
     const t1 = asToken(result.columns[0]!.children[0]!);
     const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
-    const cellAdvance = DEFAULT_FONT_SIZE * DEFAULT_LINE_HEIGHT;
+    // cellAdvance = fontSize (lineHeight は列間に影響、文字間には影響しない)
+    const cellAdvance = DEFAULT_FONT_SIZE;
 
     expect(t1.slots.ruby).toBeDefined();
     // rubySpan=2, so centered over 2 cells
-    // spanHeight = 2 * cellAdvance = 96
+    // spanHeight = 2 * cellAdvance = 48
     // rubyTextHeight = 3 chars * rubyFontSize = 36
-    // rubyY = tokenY + (96 - 36) / 2 = tokenY + 30
+    // rubyY = tokenY + (48 - 36) / 2 = tokenY + 6
     const spanHeight = 2 * cellAdvance;
     const rubyTextHeight = 3 * rubyFontSize;
     const expectedRubyY = t1.y + (spanHeight - rubyTextHeight) / 2;
@@ -535,7 +536,8 @@ describe('layoutVertical', () => {
 
     const t1 = asToken(result.columns[0]!.children[0]!);
     const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
-    const cellAdvance = DEFAULT_FONT_SIZE * DEFAULT_LINE_HEIGHT;
+    // cellAdvance = fontSize (lineHeight は列間に影響、文字間には影響しない)
+    const cellAdvance = DEFAULT_FONT_SIZE;
 
     expect(t1.slots.ruby).toBeDefined();
     const spanHeight = 3 * cellAdvance;
@@ -577,7 +579,8 @@ describe('layoutVertical', () => {
     // yStart = columnY = padding
     expect(hl.yStart).toBe(DEFAULT_PADDING);
     // yEnd = columnY + 2 * cellAdvance (2 tokens)
-    const cellAdvance = DEFAULT_FONT_SIZE * DEFAULT_LINE_HEIGHT;
+    // cellAdvance = fontSize (lineHeight は列間に影響、文字間には影響しない)
+    const cellAdvance = DEFAULT_FONT_SIZE;
     expect(hl.yEnd).toBe(DEFAULT_PADDING + 2 * cellAdvance);
   });
 
@@ -735,7 +738,8 @@ describe('layoutVertical', () => {
       const tree = buildRenderTree(twoBlockDoc(), PROFILES.full);
       const result = layout(tree, ctx);
 
-      const cellAdvance = DEFAULT_FONT_SIZE * DEFAULT_LINE_HEIGHT;
+      // cellAdvance = fontSize (lineHeight は列間に影響、文字間には影響しない)
+      const cellAdvance = DEFAULT_FONT_SIZE;
       expect(result.columns[0]!.height).toBe(2 * cellAdvance);
       expect(result.columns[1]!.height).toBe(2 * cellAdvance);
     });
@@ -759,7 +763,6 @@ describe('layoutVertical', () => {
   // extraRightWidth: emphasis/highlight の追加幅テスト
   describe('extraRightWidth for emphasis/highlight', () => {
     const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
-    const slotGap = 2;
     const highlightGap = 2;
 
     it('includes extraRightWidth for emphasis-only document', () => {
@@ -770,7 +773,7 @@ describe('layoutVertical', () => {
       const tree = buildRenderTree(doc, PROFILES.full);
       const result = layout(tree, ctx);
 
-      const expectedExtra = slotGap + Math.ceil(rubyFontSize / 2);
+      const expectedExtra = Math.ceil(rubyFontSize / 2);
       // columnWidth = fontSize (bare), total = padding + (fontSize + extra) + padding
       expect(result.width).toBe(
         DEFAULT_PADDING + DEFAULT_FONT_SIZE + expectedExtra + DEFAULT_PADDING
@@ -847,15 +850,15 @@ describe('layoutVertical', () => {
       const result = layout(tree, ctx);
 
       const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
-      const cellAdvance = DEFAULT_FONT_SIZE * DEFAULT_LINE_HEIGHT;
+      // cellAdvance = fontSize (lineHeight は列間に影響、文字間には影響しない)
+      const cellAdvance = DEFAULT_FONT_SIZE;
 
       const t1 = asToken(result.columns[0]!.children[0]!);
       const t2 = asToken(result.columns[0]!.children[1]!);
 
-      // contentHeight = fontSize/2 + max(fontSize, 4*R) + 1*R
-      //               = 12 + max(24, 48) + 12 = 72 > 48 = cellAdvance
-      const contentHeight =
-        DEFAULT_FONT_SIZE / 2 + Math.max(DEFAULT_FONT_SIZE, 4 * rubyFontSize) + rubyFontSize;
+      // contentHeight = max(fontSize, 4*R) + 1*R
+      //               = max(24, 48) + 12 = 60 > 24 = cellAdvance
+      const contentHeight = Math.max(DEFAULT_FONT_SIZE, 4 * rubyFontSize) + rubyFontSize;
       expect(contentHeight).toBeGreaterThan(cellAdvance);
 
       // t2.y - t1.y should be contentHeight (not cellAdvance)
@@ -873,13 +876,14 @@ describe('layoutVertical', () => {
       const tree = buildRenderTree(doc, PROFILES.full);
       const result = layout(tree, ctx);
 
-      const cellAdvance = DEFAULT_FONT_SIZE * DEFAULT_LINE_HEIGHT;
+      // cellAdvance = fontSize (lineHeight は列間に影響、文字間には影響しない)
+      const cellAdvance = DEFAULT_FONT_SIZE;
 
       const t1 = asToken(result.columns[0]!.children[0]!);
       const t2 = asToken(result.columns[0]!.children[1]!);
 
-      // contentHeight = 12 + max(24, 24) = 36 < 48 = cellAdvance
-      // Uses cellAdvance
+      // contentHeight = max(24, 24) = 24 = cellAdvance
+      // Uses cellAdvance (= fontSize)
       expect(t2.y - t1.y).toBe(cellAdvance);
     });
   });

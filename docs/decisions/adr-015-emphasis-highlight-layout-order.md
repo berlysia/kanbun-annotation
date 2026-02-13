@@ -2,7 +2,8 @@
 
 ## ステータス
 
-In Progress
+HTML レンダラー: **Done** (アプローチ 5 + no-ruby バリアント)
+Canvas レンダラー: In Progress
 
 ## コンテキスト
 
@@ -324,42 +325,78 @@ highlight (inline-block)
 
 - **`styles.ts`**:
   - `ruby-grid--emphasis-hl` / `ruby-grid--emphasis-hl-no-ruby` グリッド定義を撤去
+  - `ruby-grid--emphasis-no-ruby`（3行グリッド）を追加
   - `:has(.ruby-grid--emphasis-hl)` の box-shadow/background-image 無効化ルールを撤去
   - highlight-line 5 種描画スタイルを撤去
-  - `@supports selector(:has(a))` 内に `:has(.ruby-grid--emphasis)` で `padding-right: 1em` を追加
+  - highlight-content の全スタイルを box-shadow → background-image に統一
+  - `@supports selector(:has(a))` 内に `.highlight::after` による傍線描画（5種: solid/dotted/dashed/wavy/double）
+  - `::after` セレクタに `:is(.ruby-grid--emphasis, .ruby-grid--emphasis-no-ruby)` で両バリアント対応
 - **`renderer.ts`**:
-  - `renderTokenWithRuby` から `inHighlight` パラメータを削除
-  - `ruby-grid--emphasis-hl` / `ruby-grid--emphasis-hl-no-ruby` 分岐を削除、常に `ruby-grid--emphasis` を使用
+  - `renderTokenWithRuby` の `inHighlight` パラメータを `blockHasRuby` に変更
+  - bare+emphasis パスで `blockHasRuby` に応じて `ruby-grid--emphasis` / `ruby-grid--emphasis-no-ruby` を選択
   - `highlight-line` 要素の出力を削除
+- **`render-tree-types.ts`**: `RangeMarkContext` に `highlightGroupHasRuby` と `blockHasRuby` を追加
+- **`build-render-tree.ts`**: ブロックレベルとグループレベルのルビ検出を実装、両フラグをトークンに伝播
 
 #### Canvas レンダラー
 
-変更なし（アプローチ 4 の emphasis 位置変更を維持）。
+変更なし（アプローチ 4 の emphasis 位置変更を維持）。Canvas の配置順変更は別途対応が必要。
 
-### 結果
+### 結果（初期実装）
 
 Chromium で確認。全 14 パターンで正常動作:
 
 - **配置順**: すべてのブロックで「本文 → ルビ → 傍線 → 傍点」
-- **multi-token 連続性**: highlight-content レベルの box-shadow/background-image がトークン間の傍線を自然に連結
+- **multi-token 連続性**: highlight-content レベルの background-image がトークン間の傍線を自然に連結
 - **emphasis なし highlight**: `padding-right: 16px (0.5em)` で従来通り動作（`:has()` がマッチしない）
-- **emphasis+highlight 共存**: `padding-right: 32px (1em)` で傍線が emphasis 行の手前に描画
+- **emphasis+highlight 共存**: `::after` で傍線が emphasis 行の手前に描画
 - **ブロック 11 (multi-token)**: 傍線が連続した 1 本線。アプローチ 4 の致命的問題が解決
 - **ブロック 12 (emphasis > highlight+highlight)**: 2 つの独立した highlight が分離して表示
 - **ブロック 14 (tateten+highlight)**: 竪点を挟んで傍線が連続
 
 ### 既知の制約
 
-- **bare+emphasis+highlight**: `ruby-grid--emphasis` を使用するため空 ruby 行 (0.5em) が挿入される。視覚的に軽微な余白が生じるが、`text-emphasis-style` では box-shadow との位置制御が不可能なため妥協
-- **`:has()` セレクタ**: Chrome 105+, Firefox 121+, Safari 15.4+ が必要。非対応ブラウザでは emphasis 共存時の padding-right が 0.5em のままとなり、傍線と傍点が近接する
+- **`:has()` セレクタ**: Chrome 105+, Firefox 121+, Safari 15.4+ が必要。非対応ブラウザでは emphasis 共存時の ::after 傍線が描画されない
+- **`:has()` + `::after` の組み合わせ**: highlight ラッパーの ::after で傍線を描画するため、`position: relative` が必要（既存の `.highlight` に設定済み）
 
-### 残作業
+### 追加改善: no-ruby バリアントとデュアルフラグ
 
-- Firefox でのクロスブラウザ確認
+アプローチ 5 の初期実装ではすべての bare+emphasis トークンに `ruby-grid--emphasis`（4行: emphasis/ruby/base/suffix）を適用していたが、ルビなしトークンで空 ruby 行 (0.5em) が余白を生む問題があった。
 
-## ステータス更新
+#### ruby-grid--emphasis-no-ruby (3行グリッド)
 
-In Progress → **アプローチ 5 で配置順変更を実装完了。Firefox 確認待ち。**
+ルビなし bare+emphasis トークン用に、ruby 行を省略した 3行グリッドを追加:
+
+```
+ruby-grid--emphasis-no-ruby (3行):
+  Row 1: emphasis (0.5em)
+  Row 2: base (auto)
+  Row 3: suffix (0.5em)
+```
+
+4行グリッド比で 0.5em（16px@32px base）のブロック方向幅を節約。
+
+#### デュアルフラグによるグリッドクラス選択
+
+multi-token highlight 内でルビあり/なしトークンが混在する場合、文字の縦位置を揃える必要がある。2つのスコープのフラグで制御:
+
+- **`blockHasRuby`（ブロック全体スコープ）**: グリッドクラス選択に使用。同一ブロック内の複数 highlight 間でも文字の縦位置を揃える
+- **`highlightGroupHasRuby`（グループスコープ）**: per-highlight-group のルビ検出。将来の ::after オフセット微調整用に保持
+
+判定ロジック: ブロック内のいずれかのトークンが yomigana/okurigana/soegana を持つか、rangeCtx にルビ由来の baseText があれば `blockHasRuby = true`。
+
+#### ::after 傍線の位置
+
+`::after` の right offset = `ruby-ratio * 1em + 0.75em`。ruby 行の有無で同じ値（emphasis-row は常に grid の最右列）。no-ruby グリッドでは emphasis-row の直内側に描画される。
+
+#### 結果
+
+Chromium + Firefox で全 14 パターン確認:
+
+- **Block 0,4,6,8（ルビなし）**: no-ruby グリッド (64px) でコンパクト
+- **Block 10,13（multi-token highlight、ルビあり）**: emphasis グリッド (80px) で文字位置揃え
+- **Block 11（別 highlight、ルビあり）**: emphasis グリッド (80px) で文字位置揃え（傍線は各 highlight で独立）
+- **::after diff**: solid=0, wavy=2 (サブピクセル許容範囲)
 
 ## 参考
 

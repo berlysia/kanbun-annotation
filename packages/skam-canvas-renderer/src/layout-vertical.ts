@@ -341,8 +341,8 @@ export function layoutVertical(
     };
   }
 
-  // hasSuffix / hasSaidoku / hasRightColumn は Pass 1 で事前計算済み
-  const { hasSuffix, hasSaidoku, hasRightColumn } = tree;
+  // hasSuffix / hasSaidoku / hasRightColumn / hasEmphasis / hasHighlight は Pass 1 で事前計算済み
+  const { hasSuffix, hasSaidoku, hasRightColumn, hasEmphasis, hasHighlight } = tree;
 
   // ruby の最大幅計測
   let maxRubyWidth = 0;
@@ -371,6 +371,24 @@ export function layoutVertical(
   const columnY = padding.top;
   const highlightGap = 2;
 
+  // emphasis/highlight による列右側の追加幅
+  // emphasis ドットは textAlign: center で描画されるため、中心から rubyFontSize/2 はみ出す
+  let extraRightWidth: number;
+  if (hasHighlight && hasEmphasis) {
+    // hlEmphasisX = columnX + columnWidth + 2 * highlightGap; 右端 = + rubyFontSize/2
+    extraRightWidth = 2 * highlightGap + Math.ceil(rubyFontSize / 2);
+  } else if (hasHighlight) {
+    // highlightLineX = columnX + columnWidth + highlightGap
+    extraRightWidth = highlightGap;
+  } else if (hasEmphasis) {
+    // emphasisBaseX = columnX + columnWidth + slotGap (Case C); 右端 = + rubyFontSize/2
+    extraRightWidth = slotGap + Math.ceil(rubyFontSize / 2);
+  } else {
+    extraRightWidth = 0;
+  }
+
+  const fullColumnWidth = columnWidth + extraRightWidth;
+
   // ブロックごとにカラムを作成（右→左配置: block[0] が右端）
   const numBlocks = tree.blocks.length;
   const columns: ColumnLayout[] = [];
@@ -378,7 +396,7 @@ export function layoutVertical(
   for (let blockIdx = 0; blockIdx < numBlocks; blockIdx++) {
     const block = tree.blocks[blockIdx]!;
     const blockColumnX =
-      padding.left + (numBlocks - 1 - blockIdx) * (columnWidth + options.columnGap);
+      padding.left + (numBlocks - 1 - blockIdx) * (fullColumnWidth + options.columnGap);
 
     const grid = computeGridColumns(
       blockColumnX,
@@ -511,7 +529,7 @@ export function layoutVertical(
     });
   }
 
-  const totalWidth = numBlocks * columnWidth + Math.max(0, numBlocks - 1) * options.columnGap;
+  const totalWidth = numBlocks * fullColumnWidth + Math.max(0, numBlocks - 1) * options.columnGap;
   const maxColumnHeight = Math.max(...columns.map((c) => c.height));
 
   return {

@@ -108,6 +108,10 @@ export interface CanvasRenderTree {
   hasSaidoku: boolean;
   /** ruby, okuri, soegana が存在 → 右列(R)を割り当て */
   hasRightColumn: boolean;
+  /** emphasis マークが存在 → 列右側に追加幅が必要 */
+  hasEmphasis: boolean;
+  /** highlight マークが存在 → 列右側に追加幅が必要 */
+  hasHighlight: boolean;
 }
 
 // ============================================================================

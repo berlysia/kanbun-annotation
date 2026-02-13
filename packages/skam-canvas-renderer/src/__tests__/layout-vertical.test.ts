@@ -756,6 +756,82 @@ describe('layoutVertical', () => {
     });
   });
 
+  // extraRightWidth: emphasis/highlight の追加幅テスト
+  describe('extraRightWidth for emphasis/highlight', () => {
+    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+    const slotGap = 2;
+    const highlightGap = 2;
+
+    it('includes extraRightWidth for emphasis-only document', () => {
+      const ctx = new RecordingContext();
+      const doc = singleTokenDoc([
+        { type: 'emphasis', anchor: { from: 't1', to: 't1' }, style: 'sesame' },
+      ]);
+      const tree = buildRenderTree(doc, PROFILES.full);
+      const result = layout(tree, ctx);
+
+      const expectedExtra = slotGap + Math.ceil(rubyFontSize / 2);
+      // columnWidth = fontSize (bare), total = padding + (fontSize + extra) + padding
+      expect(result.width).toBe(
+        DEFAULT_PADDING + DEFAULT_FONT_SIZE + expectedExtra + DEFAULT_PADDING
+      );
+    });
+
+    it('includes extraRightWidth for highlight-only document', () => {
+      const ctx = new RecordingContext();
+      const doc = singleTokenDoc([
+        { type: 'highlight', anchor: { from: 't1', to: 't1' }, style: 'solid' },
+      ]);
+      const tree = buildRenderTree(doc, PROFILES.full);
+      const result = layout(tree, ctx);
+
+      const expectedExtra = highlightGap;
+      expect(result.width).toBe(
+        DEFAULT_PADDING + DEFAULT_FONT_SIZE + expectedExtra + DEFAULT_PADDING
+      );
+    });
+
+    it('includes extraRightWidth for emphasis+highlight document', () => {
+      const ctx = new RecordingContext();
+      const doc = singleTokenDoc([
+        { type: 'highlight', anchor: { from: 't1', to: 't1' }, style: 'solid' },
+        { type: 'emphasis', anchor: { from: 't1', to: 't1' }, style: 'sesame' },
+      ]);
+      const tree = buildRenderTree(doc, PROFILES.full);
+      const result = layout(tree, ctx);
+
+      const expectedExtra = 2 * highlightGap + Math.ceil(rubyFontSize / 2);
+      expect(result.width).toBe(
+        DEFAULT_PADDING + DEFAULT_FONT_SIZE + expectedExtra + DEFAULT_PADDING
+      );
+    });
+
+    it('no extraRightWidth for plain document', () => {
+      const ctx = new RecordingContext();
+      const tree = buildRenderTree(singleTokenDoc(), PROFILES.full);
+      const result = layout(tree, ctx);
+
+      expect(result.width).toBe(DEFAULT_PADDING + DEFAULT_FONT_SIZE + DEFAULT_PADDING);
+    });
+
+    it('emphasis in highlight-group uses hlEmphasisX (outside highlight line)', () => {
+      const ctx = new RecordingContext();
+      const doc = singleTokenDoc([
+        { type: 'highlight', anchor: { from: 't1', to: 't1' }, style: 'solid' },
+        { type: 'emphasis', anchor: { from: 't1', to: 't1' }, style: 'sesame' },
+      ]);
+      const tree = buildRenderTree(doc, PROFILES.full);
+      const result = layout(tree, ctx);
+
+      const token = asToken(result.columns[0]!.children[0]!);
+      const column = result.columns[0]!;
+      const highlightLineX = column.x + column.width + highlightGap;
+      const expectedEmphasisX = highlightLineX + highlightGap;
+      expect(token.slots.emphasis).toBeDefined();
+      expect(token.slots.emphasis!.x).toBe(expectedEmphasisX);
+    });
+  });
+
   // ruby overflow tests
   describe('ruby overflow', () => {
     it('expands cell when ruby+okuri overflow cellAdvance', () => {

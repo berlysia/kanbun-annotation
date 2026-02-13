@@ -481,33 +481,41 @@ export function buildRenderTree(doc: SKAMDocument, profile: RenderProfile): Canv
     };
   });
 
-  // hasSuffix / hasSaidoku / hasRightColumn: レイアウトフラグの事前計算
+  // hasSuffix / hasSaidoku / hasRightColumn / hasEmphasis / hasHighlight: レイアウトフラグの事前計算
   let hasSuffix = false;
   let hasSaidoku = false;
   let hasRightColumn = false;
+  let hasEmphasis = false;
+  let hasHighlight = false;
   for (const block of blockNodes) {
     for (const child of block.children) {
       const flags = checkLayoutFlags(child);
       if (flags.hasSuffix) hasSuffix = true;
       if (flags.hasSaidoku) hasSaidoku = true;
       if (flags.hasRightColumn) hasRightColumn = true;
-      if (hasSuffix && hasSaidoku && hasRightColumn) break;
+      if (flags.hasEmphasis) hasEmphasis = true;
+      if (child.type === 'highlight-group') hasHighlight = true;
     }
-    if (hasSuffix && hasSaidoku && hasRightColumn) break;
   }
 
-  return { blocks: blockNodes, hasSuffix, hasSaidoku, hasRightColumn };
+  return { blocks: blockNodes, hasSuffix, hasSaidoku, hasRightColumn, hasEmphasis, hasHighlight };
 }
 
 interface LayoutFlags {
   hasSuffix: boolean;
   hasSaidoku: boolean;
   hasRightColumn: boolean;
+  hasEmphasis: boolean;
 }
 
 /** CanvasBlockChild 内のトークンからレイアウトフラグを収集 */
 function checkLayoutFlags(child: CanvasBlockChild): LayoutFlags {
-  const flags: LayoutFlags = { hasSuffix: false, hasSaidoku: false, hasRightColumn: false };
+  const flags: LayoutFlags = {
+    hasSuffix: false,
+    hasSaidoku: false,
+    hasRightColumn: false,
+    hasEmphasis: false,
+  };
   if (child.type === 'token') {
     mergeTokenFlags(child, flags);
   } else if (child.type === 'tateten-group') {
@@ -547,5 +555,8 @@ function mergeTokenFlags(node: CanvasTokenNode, flags: LayoutFlags): void {
   }
   if (slots.ruby || slots.okuri || slots.soegana) {
     flags.hasRightColumn = true;
+  }
+  if (slots.emphasis) {
+    flags.hasEmphasis = true;
   }
 }

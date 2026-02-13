@@ -981,6 +981,262 @@ describe('layoutVertical', () => {
       // Uses cellAdvance (= fontSize)
       expect(t2.y - t1.y).toBe(cellAdvance);
     });
+
+    it('distributes excess evenly when range ruby overflows span (2 tokens)', () => {
+      const ctx = new RecordingContext();
+      const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+      const cellAdvance = DEFAULT_FONT_SIZE;
+
+      // range yomigana 5 chars across 2 tokens: rubyHeight=60 > spanProvided=48
+      const doc = threeTokenDoc([
+        { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しろしめす' },
+      ]);
+      const tree = buildRenderTree(doc, PROFILES.full);
+      const result = layout(tree, ctx);
+
+      const t1 = asToken(result.columns[0]!.children[0]!);
+      const t2 = asToken(result.columns[0]!.children[1]!);
+      const t3 = asToken(result.columns[0]!.children[2]!);
+
+      const rubyTextHeight = 5 * rubyFontSize; // 60
+      const spanProvided = 2 * cellAdvance; // 48
+      const excess = rubyTextHeight - spanProvided; // 12
+      // N+1 ギャップモデル: leading + 2 tokens = 3 gaps
+      const extraPerToken = excess / 3; // 4
+
+      // leading 分だけ t1 が下にシフト
+      expect(t1.y).toBe(DEFAULT_PADDING + extraPerToken);
+      // 均等割り付け: 各トークンが同じ追加幅を受け取る
+      expect(t2.y - t1.y).toBe(cellAdvance + extraPerToken);
+      // t2 の advance にも extra が含まれる（trailing として機能）
+      expect(t3.y - t2.y).toBe(cellAdvance + extraPerToken);
+    });
+
+    it('does not expand when range ruby fits within span', () => {
+      const ctx = new RecordingContext();
+      const cellAdvance = DEFAULT_FONT_SIZE;
+
+      // range yomigana 3 chars across 2 tokens: rubyHeight=36 < spanProvided=48
+      const doc = threeTokenDoc([
+        { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しいわ' },
+      ]);
+      const tree = buildRenderTree(doc, PROFILES.full);
+      const result = layout(tree, ctx);
+
+      const t1 = asToken(result.columns[0]!.children[0]!);
+      const t2 = asToken(result.columns[0]!.children[1]!);
+
+      // No excess: each token advances by cellAdvance
+      expect(t2.y - t1.y).toBe(cellAdvance);
+    });
+
+    it('distributes excess evenly across all elements in tateten group when range ruby overflows', () => {
+      const ctx = new RecordingContext();
+      const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+      const cellAdvance = DEFAULT_FONT_SIZE;
+      const separatorAdvance = rubyFontSize;
+
+      // tateten group t1-t2 with long range ruby
+      const doc = threeTokenDoc([
+        { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+        { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しろしめすなり' },
+      ]);
+      const tree = buildRenderTree(doc, PROFILES.full);
+      const result = layout(tree, ctx);
+
+      // column children: [t1, separator, t2, t3]
+      const t1 = asToken(result.columns[0]!.children[0]!);
+      const sep = asSep(result.columns[0]!.children[1]!);
+      const t2 = asToken(result.columns[0]!.children[2]!);
+      const t3 = asToken(result.columns[0]!.children[3]!);
+
+      // naturalHeight = 2 * fontSize + 1 * separatorAdvance = 48 + 12 = 60
+      // rubyTextHeight = 7 * 12 = 84, excess = 84 - 60 = 24
+      // N+1 ギャップモデル: leading + 3 elements = 4 gaps
+      const rubyTextHeight = 7 * rubyFontSize;
+      const naturalHeight = 2 * cellAdvance + separatorAdvance;
+      const excess = rubyTextHeight - naturalHeight;
+      const extraPerElement = excess / 4; // 4 gaps: leading + t1 + sep + t2
+
+      // leading 分だけ t1 が下にシフト
+      expect(t1.y).toBe(DEFAULT_PADDING + extraPerElement);
+      // 均等割り付け: 全要素（トークン+セパレータ）が均等に拡大
+      expect(sep.y - t1.y).toBe(cellAdvance + extraPerElement);
+      expect(t2.y - sep.y).toBe(separatorAdvance + extraPerElement);
+      expect(t3.y - t2.y).toBe(cellAdvance + extraPerElement);
+    });
+
+    it('centers tateten group when rangeRubyAlignment is center', () => {
+      const ctx = new RecordingContext();
+      const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+      const cellAdvance = DEFAULT_FONT_SIZE;
+      const separatorAdvance = rubyFontSize;
+
+      const doc = threeTokenDoc([
+        { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+        { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しろしめすなり' },
+      ]);
+      const tree = buildRenderTree(doc, PROFILES.full);
+      const result = layout(tree, ctx, { rangeRubyAlignment: 'center' });
+
+      const t1 = asToken(result.columns[0]!.children[0]!);
+      const sep = asSep(result.columns[0]!.children[1]!);
+      const t2 = asToken(result.columns[0]!.children[2]!);
+      const t3 = asToken(result.columns[0]!.children[3]!);
+
+      const rubyTextHeight = 7 * rubyFontSize; // 84
+      const naturalHeight = 2 * cellAdvance + separatorAdvance; // 60
+      const excess = rubyTextHeight - naturalHeight; // 24
+      const topPad = excess / 2; // 12
+
+      // center: グループ内は通常間隔、前後にパディング
+      // t1.y は topPad 分だけ下にシフト
+      expect(t1.y).toBe(DEFAULT_PADDING + topPad);
+      expect(sep.y - t1.y).toBe(cellAdvance);
+      expect(t2.y - sep.y).toBe(separatorAdvance);
+      // t3 は tateten グループの後: bottomPad が加算される
+      expect(t3.y - t2.y).toBe(cellAdvance + excess / 2);
+    });
+
+    it('centers block-level range ruby when rangeRubyAlignment is center', () => {
+      const ctx = new RecordingContext();
+      const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+      const cellAdvance = DEFAULT_FONT_SIZE;
+
+      // range yomigana 5 chars across 2 tokens: rubyHeight=60 > spanProvided=48
+      const doc = threeTokenDoc([
+        { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しろしめす' },
+      ]);
+      const tree = buildRenderTree(doc, PROFILES.full);
+      const result = layout(tree, ctx, { rangeRubyAlignment: 'center' });
+
+      const t1 = asToken(result.columns[0]!.children[0]!);
+      const t2 = asToken(result.columns[0]!.children[1]!);
+      const t3 = asToken(result.columns[0]!.children[2]!);
+
+      const rubyTextHeight = 5 * rubyFontSize; // 60
+      const spanProvided = 2 * cellAdvance; // 48
+      const excess = rubyTextHeight - spanProvided; // 12
+      const topPad = excess / 2; // 6
+
+      // center: t1 は topPad 分だけ下にシフト、トークン間は通常間隔
+      expect(t1.y).toBe(DEFAULT_PADDING + topPad);
+      expect(t2.y - t1.y).toBe(cellAdvance);
+      // t3 は span 終了後: bottomPad が加算される
+      expect(t3.y - t2.y).toBe(cellAdvance + excess / 2);
+    });
+
+    it('ruby y is above token y in center mode (covers top padding area)', () => {
+      const ctx = new RecordingContext();
+      const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+      const cellAdvance = DEFAULT_FONT_SIZE;
+
+      const doc = threeTokenDoc([
+        { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しろしめす' },
+      ]);
+      const tree = buildRenderTree(doc, PROFILES.full);
+      const result = layout(tree, ctx, { rangeRubyAlignment: 'center' });
+
+      const t1 = asToken(result.columns[0]!.children[0]!);
+      const rubyTextHeight = 5 * rubyFontSize;
+      const excess = rubyTextHeight - 2 * cellAdvance;
+
+      // center モード: ruby は top padding 領域をカバーするため tokenY より上
+      expect(t1.slots.ruby!.y).toBe(t1.y - excess / 2);
+    });
+
+    it('ruby y starts at leading edge in distribute mode (above token)', () => {
+      const ctx = new RecordingContext();
+      const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+      const cellAdvance = DEFAULT_FONT_SIZE;
+
+      // range yomigana that overflows: 5 chars across 2 tokens
+      const doc = threeTokenDoc([
+        { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しろしめす' },
+      ]);
+      const tree = buildRenderTree(doc, PROFILES.full);
+      const result = layout(tree, ctx);
+
+      const t1 = asToken(result.columns[0]!.children[0]!);
+
+      const rubyTextHeight = 5 * rubyFontSize;
+      const excess = rubyTextHeight - 2 * cellAdvance;
+      const leading = excess / 3; // N+1 gaps: 3
+
+      // Ruby y = tokenY - leading（leading 領域の先頭から開始）
+      expect(t1.slots.ruby!.y).toBe(t1.y - leading);
+    });
+
+    it('pushes okuri below range ruby end in block-level overflow', () => {
+      const ctx = new RecordingContext();
+      const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+      const cellAdvance = DEFAULT_FONT_SIZE;
+
+      // range yomigana 5 chars across t1-t2, t2 has okuri
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [
+          { id: 't1', text: '子' },
+          { id: 't2', text: '曰' },
+          { id: 't3', text: '學' },
+        ],
+        blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
+        marks: [
+          { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しろしめす' },
+          { type: 'okurigana', anchor: { from: 't2', to: 't2' }, value: 'く' },
+        ],
+        readings: [],
+      };
+      const tree = buildRenderTree(doc, PROFILES.full);
+      const result = layout(tree, ctx);
+
+      const t1 = asToken(result.columns[0]!.children[0]!);
+      const t2 = asToken(result.columns[0]!.children[1]!);
+
+      const rubyTextHeight = 5 * rubyFontSize; // 60
+      // ルビ下端 = t1.y の leading 分上 + rubyTextHeight
+      const rubyEndY = t1.y - (rubyTextHeight - 2 * cellAdvance) / 3 + rubyTextHeight;
+
+      // okuri は必ずルビ下端より下に配置される
+      expect(t2.slots.okuri).toBeDefined();
+      expect(t2.slots.okuri!.y).toBeGreaterThanOrEqual(rubyEndY);
+    });
+
+    it('pushes okuri below range ruby end in tateten overflow', () => {
+      const ctx = new RecordingContext();
+      const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+      const cellAdvance = DEFAULT_FONT_SIZE;
+
+      // tateten group t1-t2 with long range ruby, t2 has okuri
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [
+          { id: 't1', text: '子' },
+          { id: 't2', text: '曰' },
+          { id: 't3', text: '學' },
+        ],
+        blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
+        marks: [
+          { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+          { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しろしめすなり' },
+          { type: 'okurigana', anchor: { from: 't2', to: 't2' }, value: 'く' },
+        ],
+        readings: [],
+      };
+      const tree = buildRenderTree(doc, PROFILES.full);
+      const result = layout(tree, ctx);
+
+      // column children: [t1, separator, t2, t3]
+      const t2 = asToken(result.columns[0]!.children[2]!);
+
+      // okuri は必ずルビ下端より下に配置される
+      expect(t2.slots.okuri).toBeDefined();
+      // 7 chars * 12 = 84 = rubyTextHeight
+      const rubyTextHeight = 7 * rubyFontSize;
+      // ルビ開始 Y = t1.y - leading = columnY（padding）
+      const rubyEndY = DEFAULT_PADDING + rubyTextHeight;
+      expect(t2.slots.okuri!.y).toBeGreaterThanOrEqual(rubyEndY);
+    });
   });
 });
 

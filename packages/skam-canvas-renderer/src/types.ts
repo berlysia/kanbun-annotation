@@ -32,6 +32,8 @@ export interface CanvasRenderOptions {
   maxExtent?: number;
   /** 列幅モード: 'uniform'=全ブロック統一（デフォルト）, 'adaptive'=ブロック別最適化 */
   columnSizing?: 'uniform' | 'adaptive';
+  /** range ruby overflow 時の配置: 'distribute'=均等配分（デフォルト）, 'center'=中央寄せ */
+  rangeRubyAlignment?: 'distribute' | 'center';
 }
 
 export interface MeasureOptions {
@@ -45,6 +47,8 @@ export interface MeasureOptions {
   padding?: number | PaddingConfig;
   /** 列幅モード: 'uniform'=全ブロック統一（デフォルト）, 'adaptive'=ブロック別最適化 */
   columnSizing?: 'uniform' | 'adaptive';
+  /** range ruby overflow 時の配置: 'distribute'=均等配分（デフォルト）, 'center'=中央寄せ */
+  rangeRubyAlignment?: 'distribute' | 'center';
 }
 
 export interface DocumentDimensions {
@@ -219,4 +223,5 @@ export interface ResolvedOptions {
   autoSize: boolean;
   maxExtent: number | undefined;
   columnSizing: 'uniform' | 'adaptive';
+  rangeRubyAlignment: 'distribute' | 'center';
 }

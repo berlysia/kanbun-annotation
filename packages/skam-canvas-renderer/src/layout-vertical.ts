@@ -230,6 +230,12 @@ interface LayoutContext {
   grid: GridColumns;
   /** highlight-group 内でのみ設定: emphasis を highlight 線の外側に配置 */
   emphasisOverrideX?: number;
+  /** range ruby overflow: 実際のスパン高さ（均等割り付け後、centering 用） */
+  rangeRubySpanHeight?: number;
+  /** range ruby overflow: center モードでの ruby Y オフセット */
+  rangeRubyYOffset?: number;
+  /** range ruby overflow: ルビ下端の絶対 Y 座標（okuri/soegana の押し下げに使用） */
+  rangeRubyEndY?: number;
 }
 
 /**
@@ -249,33 +255,41 @@ function layoutSingleToken(
   if (slots.ruby) {
     let rubyY = tokenY;
     if (slots.rubySpan && slots.rubySpan > 1) {
-      const spanHeight = slots.rubySpan * cellAdvance;
+      // rangeRubySpanHeight: 均等割り付け後の実スパン高さ（overflow 時に設定）
+      const spanHeight = lctx.rangeRubySpanHeight ?? slots.rubySpan * cellAdvance;
       const rubyTextHeight = [...slots.ruby].length * rubyFontSize;
-      rubyY = tokenY + (spanHeight - rubyTextHeight) / 2;
+      // ルビがスパンより長い場合、負のオフセットで上方にはみ出すのを防止
+      // center モードでは rangeRubyYOffset で top padding 分を補正
+      rubyY =
+        tokenY + Math.max(0, (spanHeight - rubyTextHeight) / 2) + (lctx.rangeRubyYOffset ?? 0);
     }
     slotLayouts.ruby = { text: slots.ruby, x: grid.suffixX, y: rubyY, fontSize: rubyFontSize };
   }
 
+  // okuri/soegana の基準 Y: 通常はベース文字+ルビの下端。
+  // range ruby overflow 時は rangeRubyEndY（ルビ下端の絶対座標）で押し下げ。
+  const rubyCharsForSuffix = slots.ruby ? [...slots.ruby].length : 0;
+  const normalSuffixBaseY = tokenY + Math.max(fontSize, rubyCharsForSuffix * rubyFontSize);
+  const suffixBaseY =
+    lctx.rangeRubyEndY !== undefined
+      ? Math.max(normalSuffixBaseY, lctx.rangeRubyEndY)
+      : normalSuffixBaseY;
+
   if (slots.okuri) {
-    const rubyChars = slots.ruby ? [...slots.ruby].length : 0;
-    const okuriStartY = tokenY + Math.max(fontSize, rubyChars * rubyFontSize);
     slotLayouts.okuri = {
       text: slots.okuri,
       x: grid.suffixX,
-      y: okuriStartY,
+      y: suffixBaseY,
       fontSize: rubyFontSize,
     };
   }
 
   if (slots.soegana) {
-    const rubyChars = slots.ruby ? [...slots.ruby].length : 0;
     const okuriChars = slots.okuri ? [...slots.okuri].length : 0;
-    const soeganaStartY =
-      tokenY + Math.max(fontSize, rubyChars * rubyFontSize) + okuriChars * rubyFontSize;
     slotLayouts.soegana = {
       text: slots.soegana,
       x: grid.suffixX,
-      y: soeganaStartY,
+      y: suffixBaseY + okuriChars * rubyFontSize,
       fontSize: rubyFontSize,
     };
   }
@@ -377,6 +391,8 @@ function computeTokenContentHeight(
   const R = rubyFontSize;
 
   // rubySpan > 1 の場合、ruby は複数セルに分散 → 単一セルの高さに含めない
+  // range ruby がスパンを超える場合の超過分は、レイアウトループ側で
+  // 均等割り付け（extraAdvancePerToken）として処理する
   const rubyChars =
     slots.rubySpan && slots.rubySpan > 1 ? 0 : slots.ruby ? [...slots.ruby].length : 0;
   const okuriChars = slots.okuri ? [...slots.okuri].length : 0;
@@ -569,13 +585,60 @@ export function layoutVertical(
         }
       }
 
+      // range ruby overflow: ルビがグループ自然高さを超える場合、
+      // distribute: 超過分を全要素（トークン+セパレータ）で均等割り付け
+      // center: グループを中央寄せ（前後にパディング）
+      let extraAdvancePerElement = 0;
+      let rangeRubySpanHeight: number | undefined;
+      let rangeRubyYOffset = 0;
+      let centerBottomPad = 0;
+      const firstRubyToken = children.find(
+        (c): c is CanvasTokenNode =>
+          c.type === 'token' && !!(c.slots.rubySpan && c.slots.rubySpan > 1 && c.slots.ruby)
+      );
+      // rangeRubyEndY: ルビ下端の絶対 Y（okuri/soegana の押し下げ用）
+      let rangeRubyEndY: number | undefined;
+      if (firstRubyToken) {
+        const numTokens = children.filter((c) => c.type === 'token').length;
+        const numSeparators = children.length - numTokens;
+        const naturalHeight = numTokens * fontSize + numSeparators * separatorAdvance;
+        const rubyTextHeight = [...firstRubyToken.slots.ruby!].length * rubyFontSize;
+        if (rubyTextHeight > naturalHeight) {
+          const excess = rubyTextHeight - naturalHeight;
+          rangeRubySpanHeight = rubyTextHeight;
+          // ルビ下端 = グループ開始位置（leading/padding 適用前）+ rubyTextHeight
+          rangeRubyEndY = columnY + yOffset + rubyTextHeight;
+          if (options.rangeRubyAlignment === 'center') {
+            yOffset += excess / 2;
+            rangeRubyYOffset = -(excess / 2);
+            centerBottomPad = excess / 2;
+          } else {
+            // N+1 ギャップモデル: leading + N elements で均等配分
+            extraAdvancePerElement = excess / (children.length + 1);
+            yOffset += extraAdvancePerElement; // leading
+            rangeRubyYOffset = -extraAdvancePerElement;
+          }
+        }
+      }
+
+      // range ruby overflow 時はルビ centering 用のスパン高さと Y オフセット、ルビ下端を渡す
+      const tokenLctx: LayoutContext =
+        rangeRubySpanHeight !== undefined
+          ? {
+              ...lctx,
+              rangeRubySpanHeight,
+              rangeRubyYOffset,
+              ...(rangeRubyEndY !== undefined ? { rangeRubyEndY } : {}),
+            }
+          : lctx;
+
       for (const groupChild of children) {
         if (groupChild.type === 'token') {
           const tokenX = blockColumnX + blockBaseCenterX;
           const tokenY = columnY + yOffset;
-          columnChildren.push(layoutSingleToken(groupChild, tokenX, tokenY, lctx));
+          columnChildren.push(layoutSingleToken(groupChild, tokenX, tokenY, tokenLctx));
           const contentHeight = computeTokenContentHeight(groupChild.slots, fontSize, rubyFontSize);
-          yOffset += Math.max(fontSize, contentHeight);
+          yOffset += Math.max(fontSize, contentHeight) + extraAdvancePerElement;
         } else {
           // tateten-separator
           const sepX = blockColumnX + blockBaseCenterX;
@@ -596,9 +659,11 @@ export function layoutVertical(
             sepLayout.kaeri = kaeriLayout;
           }
           columnChildren.push(sepLayout);
-          yOffset += separatorAdvance;
+          yOffset += separatorAdvance + extraAdvancePerElement;
         }
       }
+      // center モード: 末尾パディング
+      yOffset += centerBottomPad;
     }
 
     // range ruby（rubySpan > 1）の2文字目以降を追跡。
@@ -606,19 +671,35 @@ export function layoutVertical(
     // ruby 列分右にずらして被りを防止する。
     let rubySpanRemaining = 0;
 
+    // range ruby overflow: ルビがスパンの自然高さを超える場合の均等割り付け/中央寄せ
+    let blockRangeExtraPerToken = 0;
+    let blockRangeSpanHeight: number | undefined;
+    let blockRangeRubyYOffset = 0;
+    let blockRangeCenterBottomPad = 0;
+    let blockRangeRubyEndY: number | undefined;
+
     /** CanvasBlockChild を展開してレイアウトに追加 */
     function layoutBlockChild(child: CanvasBlockChild): void {
       if (child.type === 'token') {
         const tokenX = blockColumnX + blockBaseCenterX;
         const tokenY = columnY + yOffset;
         // range ruby の2文字目以降: ruby 列分の空きを確保するため emphasis を右にずらす
-        const lctx =
+        let lctx: LayoutContext =
           rubySpanRemaining > 0 && !child.slots.ruby && blockLctx.emphasisOverrideX === undefined
             ? { ...blockLctx, emphasisOverrideX: grid.suffixX + rubyFontSize }
             : blockLctx;
+        // range ruby overflow 時はルビ centering 用のスパン高さ、Y オフセット、ルビ下端を渡す
+        if (blockRangeSpanHeight !== undefined) {
+          lctx = {
+            ...lctx,
+            rangeRubySpanHeight: blockRangeSpanHeight,
+            rangeRubyYOffset: blockRangeRubyYOffset,
+            ...(blockRangeRubyEndY !== undefined ? { rangeRubyEndY: blockRangeRubyEndY } : {}),
+          };
+        }
         columnChildren.push(layoutSingleToken(child, tokenX, tokenY, lctx));
         const contentHeight = computeTokenContentHeight(child.slots, fontSize, rubyFontSize);
-        yOffset += Math.max(cellAdvance, contentHeight);
+        yOffset += Math.max(cellAdvance, contentHeight) + blockRangeExtraPerToken;
       } else if (child.type === 'tateten-group') {
         layoutTatetenChildren(child.children);
       } else {
@@ -705,10 +786,34 @@ export function layoutVertical(
         // range ruby の開始を検出
         if (child.slots.rubySpan && child.slots.rubySpan > 1) {
           rubySpanRemaining = child.slots.rubySpan - 1;
+          // range ruby overflow: ルビがスパンを超える場合の均等割り付け/中央寄せを計算
+          if (child.slots.ruby) {
+            const rubyTextHeight = [...child.slots.ruby].length * rubyFontSize;
+            const spanProvided = child.slots.rubySpan * cellAdvance;
+            if (rubyTextHeight > spanProvided) {
+              const excess = rubyTextHeight - spanProvided;
+              blockRangeSpanHeight = rubyTextHeight;
+              // ルビ下端 = スパン開始位置（leading/padding 適用前）+ rubyTextHeight
+              blockRangeRubyEndY = columnY + yOffset + rubyTextHeight;
+              if (options.rangeRubyAlignment === 'center') {
+                yOffset += excess / 2;
+                blockRangeRubyYOffset = -(excess / 2);
+                blockRangeCenterBottomPad = excess / 2;
+              } else {
+                // N+1 ギャップモデル: leading + N tokens で均等配分
+                blockRangeExtraPerToken = excess / (child.slots.rubySpan + 1);
+                yOffset += blockRangeExtraPerToken; // leading
+                blockRangeRubyYOffset = -blockRangeExtraPerToken;
+              }
+            }
+          }
         }
       } else {
         // tateten-group/highlight-group は内部で独自に処理するためリセット
         rubySpanRemaining = 0;
+        blockRangeExtraPerToken = 0;
+        blockRangeSpanHeight = undefined;
+        blockRangeRubyEndY = undefined;
       }
 
       layoutBlockChild(child);
@@ -716,6 +821,15 @@ export function layoutVertical(
       // range ruby の2文字目以降を消費
       if (child.type === 'token' && !child.slots.ruby && rubySpanRemaining > 0) {
         rubySpanRemaining--;
+        if (rubySpanRemaining === 0) {
+          // center モード: 末尾パディング
+          yOffset += blockRangeCenterBottomPad;
+          blockRangeCenterBottomPad = 0;
+          blockRangeExtraPerToken = 0;
+          blockRangeSpanHeight = undefined;
+          blockRangeRubyEndY = undefined;
+          blockRangeRubyYOffset = 0;
+        }
       }
     }
 

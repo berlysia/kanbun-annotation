@@ -40,6 +40,7 @@ export function resolveOptions(options?: CanvasRenderOptions): ResolvedOptions {
     autoSize: options?.autoSize ?? true,
     maxExtent: options?.maxExtent,
     columnSizing: options?.columnSizing ?? 'uniform',
+    rangeRubyAlignment: options?.rangeRubyAlignment ?? 'distribute',
   };
 }
 

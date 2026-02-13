@@ -129,6 +129,25 @@ function generateCommonStyles(
   const includeRuby = rubyMethod === 'ruby' || rubyMethod === 'both';
   const includeGrid = rubyMethod === 'grid' || rubyMethod === 'both';
 
+  // Annotation row height (ruby-ratio * 1em)
+  const annotationRowH = `calc(var(--${vp}-ruby-ratio) * 1em)`;
+  const halfAnnotationRowH = `calc(var(--${vp}-ruby-ratio) * 0.5em)`;
+
+  // Font sizes
+  const okototenFontSize = '0.3em';
+  const refFontSize = '0.7em';
+  const notesFontSize = '0.9em';
+
+  // Notes spacing
+  const notesMarginTop = '1em';
+  const notesPaddingTop = '1em';
+  const noteItemSpacing = '0.5em';
+  const noteMarkerGap = '0.5em';
+
+  // Selection
+  const selectionOutlineWidth = '2px';
+  const selectionOutlineOffset = '-1px';
+
   const rubyStyles = includeRuby
     ? css`
         /* Ruby styling */
@@ -149,9 +168,7 @@ function generateCommonStyles(
  */
         :where(.${prefix}-ruby-grid) {
           display: inline-grid;
-          grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) auto calc(
-              var(--${vp}-ruby-ratio) * 1em
-            );
+          grid-template-rows: ${annotationRowH} auto ${annotationRowH};
           line-height: 1;
           vertical-align: calc(
             var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 0.5em + 0.5em)
@@ -215,9 +232,7 @@ function generateCommonStyles(
  */
         :where(.${prefix}-saidoku-grid) {
           display: inline-grid;
-          grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) auto calc(
-              var(--${vp}-ruby-ratio) * 1em
-            );
+          grid-template-rows: ${annotationRowH} auto ${annotationRowH};
           line-height: 1;
           vertical-align: calc(
             var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 0.5em + 0.5em)
@@ -271,7 +286,7 @@ function generateCommonStyles(
           grid-row: 1;
           grid-column: 1;
           color: var(--${vp}-color-emphasis);
-          font-size: calc(var(--${vp}-ruby-ratio) * 1em);
+          font-size: ${annotationRowH};
           -webkit-user-select: none;
           user-select: none;
           align-self: end;
@@ -297,9 +312,7 @@ function generateCommonStyles(
  */
         :where(.${prefix}-ruby-grid--emphasis) {
           display: inline-grid;
-          grid-template-rows:
-            calc(var(--${vp}-ruby-ratio) * 1em) calc(var(--${vp}-ruby-ratio) * 1em)
-            auto calc(var(--${vp}-ruby-ratio) * 1em);
+          grid-template-rows: ${annotationRowH} ${annotationRowH} auto ${annotationRowH};
           line-height: 1;
           vertical-align: calc(
             var(--${vp}-ruby-ratio) * 0.5em + var(--${vp}-grid-baseline-fix, 0) * 1em
@@ -337,9 +350,7 @@ function generateCommonStyles(
  */
         :where(.${prefix}-ruby-grid--emphasis-no-ruby) {
           display: inline-grid;
-          grid-template-rows:
-            calc(var(--${vp}-ruby-ratio) * 1em)
-            auto calc(var(--${vp}-ruby-ratio) * 1em);
+          grid-template-rows: ${annotationRowH} auto ${annotationRowH};
           line-height: 1;
           vertical-align: calc(
             var(--${vp}-ruby-ratio) * 0.5em + var(--${vp}-grid-baseline-fix, 0) * 1em
@@ -370,9 +381,7 @@ function generateCommonStyles(
  */
         :where(.${prefix}-saidoku-grid--emphasis) {
           display: inline-grid;
-          grid-template-rows:
-            calc(var(--${vp}-ruby-ratio) * 1em) calc(var(--${vp}-ruby-ratio) * 1em)
-            auto calc(var(--${vp}-ruby-ratio) * 1em);
+          grid-template-rows: ${annotationRowH} ${annotationRowH} auto ${annotationRowH};
           line-height: 1;
           vertical-align: calc(
             var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 1em + 0.5em)
@@ -469,7 +478,7 @@ ${rubyStyles}
 
 :where(.${prefix}-ruby) {
   /* font-size 適用後のコンテキストなので 1em = glyph-size */
-  font-size: calc(var(--${vp}-ruby-ratio) * 1em);
+  font-size: ${annotationRowH};
   font-family: var(--${vp}-font-family-ruby);
   color: var(--${vp}-color-ruby);
   /* text-emphasis は継承するため、親要素の傍点がルビに伝播するのを防止 */
@@ -521,7 +530,7 @@ ${gridStyles}
  */
 :where(.${prefix}-suffix-row) {
   display: inline-grid;
-  grid-template-rows: calc(var(--${vp}-ruby-ratio) * 1em) calc(var(--${vp}-ruby-ratio) * 1em) calc(var(--${vp}-ruby-ratio) * 1em) calc(var(--${vp}-ruby-ratio) * 1em);
+  grid-template-rows: ${annotationRowH} ${annotationRowH} ${annotationRowH} ${annotationRowH};
   line-height: 1;
   /* text-emphasis は継承するため、親要素の傍点が添字・送り仮名に伝播するのを防止 */
   text-emphasis: none;
@@ -550,7 +559,7 @@ ${gridStyles}
 /* Suffix Right (送り仮名・添え仮名) */
 :where(.${prefix}-suffix-okuri) {
   grid-row: 1;
-  font-size: calc(var(--${vp}-ruby-ratio) * 1em);
+  font-size: ${annotationRowH};
   -webkit-user-select: none;
   user-select: none;
 }
@@ -558,7 +567,7 @@ ${gridStyles}
 /* Suffix Center (返り点) - 縦書き時は左寄せ、横書き時は下寄せ */
 :where(.${prefix}-suffix-kaeri) {
   grid-row: 3;
-  font-size: calc(var(--${vp}-ruby-ratio) * 1em);
+  font-size: ${annotationRowH};
   align-self: end;
   -webkit-user-select: none;
   user-select: none;
@@ -567,7 +576,7 @@ ${gridStyles}
 /* Suffix Left (再読文字2回目の送り仮名) */
 :where(.${prefix}-suffix-saidoku) {
   grid-row: 4;
-  font-size: calc(var(--${vp}-ruby-ratio) * 1em);
+  font-size: ${annotationRowH};
   -webkit-user-select: none;
   user-select: none;
 }
@@ -581,7 +590,7 @@ ${gridStyles}
 
 /* Suffix Kana (送り仮名・添え仮名のみの場合) */
 :where(.${prefix}-suffix-kana) {
-  font-size: calc(var(--${vp}-ruby-ratio) * 1em);
+  font-size: ${annotationRowH};
   vertical-align: top;
   -webkit-user-select: none;
   user-select: none;
@@ -622,7 +631,7 @@ ${
 
 :where(.${prefix}-okototen) {
   position: absolute;
-  font-size: 0.3em;
+  font-size: ${okototenFontSize};
   left: calc((var(--okototen-x) / var(--okototen-grid)) * var(--${vp}-glyph-size));
   top: calc((var(--okototen-y) / var(--okototen-grid)) * var(--${vp}-glyph-size));
   pointer-events: none;
@@ -651,8 +660,8 @@ ${
 /* 選択状態 */
 :where(.${prefix}-selected) {
   background-color: var(--${vp}-selection-bg);
-  outline: 2px solid var(--${vp}-selection-border);
-  outline-offset: -1px;
+  outline: ${selectionOutlineWidth} solid var(--${vp}-selection-border);
+  outline-offset: ${selectionOutlineOffset};
 }
 
 /* Tateten (たて点) - 共通部分 */
@@ -665,7 +674,7 @@ ${
 :where(.${prefix}-tateten-mark) {
   display: inline-block;
   vertical-align: middle;
-  font-size: calc(var(--${vp}-ruby-ratio) * 1em);
+  font-size: ${annotationRowH};
   -webkit-user-select: none;
   user-select: none;
   /* text-emphasis は継承するため、親要素の傍点が竪点記号に伝播するのを防止 */
@@ -697,7 +706,7 @@ ${
  */
 :where(.${prefix}-tateten-sep) {
   display: inline-grid;
-  grid-template-rows: repeat(4, calc(var(--${vp}-ruby-ratio) * 0.5em));
+  grid-template-rows: repeat(4, ${halfAnnotationRowH});
   line-height: 1;
   vertical-align: calc(var(--${vp}-grid-baseline-fix, 0) * (0.5em - var(--${vp}-ruby-ratio) * 0.5em));
 }
@@ -717,7 +726,7 @@ ${
 :where(.${prefix}-tateten-sep) > :where(.${prefix}-kaeriten) {
   grid-row: 3 / 5;
   grid-column: 1;
-  font-size: calc(var(--${vp}-ruby-ratio) * 1em);
+  font-size: ${annotationRowH};
   align-self: center;
   -webkit-user-select: none;
   user-select: none;
@@ -725,26 +734,26 @@ ${
 
 /* Ref (参照ラベル) */
 :where(.${prefix}-ref) {
-  font-size: 0.7em;
+  font-size: ${refFontSize};
   vertical-align: super;
   color: inherit;
   text-spacing-trim: trim-start;
 }
 
 :where(.${prefix}-notes) {
-  margin-top: 1em;
-  padding-top: 1em;
+  margin-top: ${notesMarginTop};
+  padding-top: ${notesPaddingTop};
   border-top: 1px solid currentColor;
-  font-size: 0.9em;
+  font-size: ${notesFontSize};
 }
 
 :where(.${prefix}-note-item) {
-  margin-bottom: 0.5em;
+  margin-bottom: ${noteItemSpacing};
 }
 
 :where(.${prefix}-note-marker) {
   font-weight: bold;
-  margin-right: 0.5em;
+  margin-right: ${noteMarkerGap};
 }
 
 /*
@@ -779,16 +788,6 @@ ${
 
 :where(.${prefix}-highlight[data-style="solid"]) {
   /* Default solid line - スタイルは書字方向依存部分で定義 */
-}
-
-/*
- * Label (番号振り) - 教育用途・共通部分
- *
- * 傍線部の識別子や注番号として表示。
- */
-:where(.${prefix}-ref) {
-  font-size: 0.7em;
-  vertical-align: super;
 }
 
 /* highlight内のラベル - 共通部分 */
@@ -865,7 +864,18 @@ function generateWritingModeStyles(
 ): string {
   const vp = variablePrefix ?? prefix;
   const includeGrid = rubyMethod === 'grid' || rubyMethod === 'both';
-  const highlightOffset = '1em';
+  // Highlight layout (vertical): text → line → next column
+  //
+  // With kana:    |-- lineDistance (0.5em) --||---- columnGap (1em) ----|
+  // Without kana: |- lineDistNoKana (0.1em) ||-- columnGap-reduction --|
+  //               Both reduced by noKanaReduction (0.4em)
+  const highlightLineDistance = '0.5em';
+  const highlightLineDistanceNoKana = '0.1em';
+  const highlightColumnGap = '1em';
+  const noKanaReduction = '0.4em'; // = highlightLineDistance - highlightLineDistanceNoKana
+  const annotationRowH = `calc(var(--${vp}-ruby-ratio) * 1em)`;
+  // Horizontal
+  const highlightRowGap = '0.5em';
 
   if (isVertical) {
     return css`
@@ -885,21 +895,21 @@ function generateWritingModeStyles(
        */
       :where(.${prefix}-highlight) {
         display: inline-block;
-        padding-right: ${highlightOffset};
+        padding-right: ${highlightColumnGap};
       }
 
       :where(.${prefix}-highlight-content) {
         display: inline;
-        padding-right: 0.5em;
+        padding-right: ${highlightLineDistance};
       }
 
       /* 仮名なし: 傍線をbase文字に近接配置し、ラベルとの距離も縮小 */
       :where(.${prefix}-highlight:not([data-has-kana])) {
-        padding-right: calc(${highlightOffset} - 0.4em);
+        padding-right: calc(${highlightColumnGap} - ${noKanaReduction});
       }
 
       :where(.${prefix}-highlight:not([data-has-kana])) > :where(.${prefix}-highlight-content) {
-        padding-right: 0.1em;
+        padding-right: ${highlightLineDistanceNoKana};
       }
 
       /* 傍線スタイル共通: background-image + background-position で描画。
@@ -994,8 +1004,8 @@ function generateWritingModeStyles(
              * position: absolute の ::after で正確な位置指定が可能。
              *
              * ::after の right offset:
-             *   highlight の padding-right (${highlightOffset}) + emphasis-row 幅 (ruby-ratio * 1em = 0.5em)
-             *   = 1.25em で、emphasis-row の内側辺（= ruby の外側辺）に傍線を配置。
+             *   highlight の padding-right (${highlightColumnGap}) + emphasis-row 幅 (ruby-ratio * 1em = 0.5em)
+             *   = 1.5em（ruby-ratio=0.5 時）で、emphasis-row の内側辺（= ruby の外側辺）に傍線を配置。
              *
              * emphasis+highlight 共存時は highlight-content の傍線描画を無効化し、
              * 代わりに highlight::after で全スタイルを再現する。
@@ -1010,7 +1020,7 @@ function generateWritingModeStyles(
               }
 
               /* emphasis 共存時: ::after で傍線を描画（共通）
-               * right offset = emphasis-row 幅 (ruby-ratio * 1em) + highlight padding (${highlightOffset})
+               * right offset = emphasis-row 幅 (ruby-ratio * 1em) + highlight padding (${highlightColumnGap})
                * ruby 行有無で同じ値（emphasis-row は常に grid 最右列） */
               :where(
                 .${prefix}-highlight:has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby))
@@ -1019,7 +1029,7 @@ function generateWritingModeStyles(
                 position: absolute;
                 top: 0;
                 bottom: 0;
-                right: calc(var(--${vp}-ruby-ratio) * 1em + ${highlightOffset});
+                right: calc(${annotationRowH} + ${highlightColumnGap});
                 width: 0;
               }
 
@@ -1050,7 +1060,7 @@ function generateWritingModeStyles(
               :where(.${prefix}-highlight[data-style="wavy"]:has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby)))::after {
                 border-right: none;
                 width: 4px;
-                right: calc(var(--${vp}-ruby-ratio) * 1em + ${highlightOffset} - 1.5px);
+                right: calc(${annotationRowH} + ${highlightColumnGap} - 1.5px);
                 background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='8' viewBox='0 0 4 8'%3E%3Cpath d='M3 0 Q0 4 3 8' stroke='%23333' fill='none' stroke-width='1'/%3E%3C/svg%3E");
                 background-size: 4px 8px;
                 background-repeat: repeat-y;
@@ -1060,7 +1070,7 @@ function generateWritingModeStyles(
               :where(.${prefix}-highlight[data-style="double"]:has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby)))::after {
                 border-right: none;
                 width: 3px;
-                right: calc(var(--${vp}-ruby-ratio) * 1em + ${highlightOffset} - 1px);
+                right: calc(${annotationRowH} + ${highlightColumnGap} - 1px);
                 background-image: linear-gradient(
                   to left,
                   currentColor 1px,
@@ -1088,7 +1098,7 @@ function generateWritingModeStyles(
 
       /* Highlight (傍線) - 横書き: 下側に表示 */
       :where(.${prefix}-highlight) {
-        padding-bottom: 0.5em;
+        padding-bottom: ${highlightRowGap};
       }
 
       :where(.${prefix}-highlight-content) {

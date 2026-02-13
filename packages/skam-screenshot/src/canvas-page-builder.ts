@@ -67,6 +67,16 @@ body { padding: ${PADDING}px; }
     //   - ref labels/content
     //   - saidoku forms (yomi/okuri)
     var parts = doc.tokens.map(function(t) { return t.text; });
+    // Resolve emphasis style to actual rendered character for font loading.
+    // resolveEmphasisCharacter() is inside the bundle but not exposed, so we
+    // duplicate the minimal mapping here.
+    var emphasisChars = {
+      'sesame': '\uFE45', 'open sesame': '\uFE46',
+      'dot': '\u2022', 'filled dot': '\u2022', 'open dot': '\u25E6',
+      'circle': '\u25CF', 'filled circle': '\u25CF', 'open circle': '\u25CB',
+      'double-circle': '\u25C9', 'filled double-circle': '\u25C9', 'open double-circle': '\u25CE',
+      'triangle': '\u25B2', 'filled triangle': '\u25B2', 'open triangle': '\u25B3'
+    };
     (doc.marks || []).forEach(function(m) {
       if (m.value) parts.push(m.value);
       if (m.label) parts.push(m.label);
@@ -75,6 +85,11 @@ body { padding: ${PADDING}px; }
         if (f.yomi) parts.push(f.yomi);
         if (f.okuri) parts.push(f.okuri);
       });
+      // emphasis: resolve style to rendered character
+      if (m.type === 'emphasis') {
+        var ch = m.style ? emphasisChars[m.style.trim().toLowerCase()] : '\u2022';
+        if (ch) parts.push(ch);
+      }
     });
     var sampleText = parts.join('');
 

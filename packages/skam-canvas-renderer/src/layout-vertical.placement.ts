@@ -178,10 +178,9 @@ function layoutSingleToken(
  * トークンの垂直コンテンツ高さを計算。
  * tokenY からコンテンツ最下端までの距離。
  *
- * Suffix row（kaeri/kutoten）は除外:
- * - kaeri は cellAdvance にちょうど収まる
- * - kutoten は現行コードで既に 12px 超過しているが視覚的問題なし
- * - overflow の原因は右列/左列の積み上げ高さのみ
+ * Suffix row（kaeri/kutoten）も含む:
+ * - kutoten は fontSize サイズで tokenY + fontSize に配置 → 下端 tokenY + 2*fontSize
+ * - kaeri は rubyFontSize サイズで tokenY + fontSize に配置 → 下端 tokenY + fontSize + rubyFontSize
  */
 function computeTokenContentHeight(
   slots: TokenSlots,
@@ -211,6 +210,16 @@ function computeTokenContentHeight(
   if (saidokuUnderChars > 0 || saidokuOkuri2Chars > 0) {
     const leftExtent = Math.max(fontSize, saidokuUnderChars * R) + saidokuOkuri2Chars * R;
     maxExtent = Math.max(maxExtent, leftExtent);
+  }
+
+  // Suffix row: kaeri/kutoten は tokenY + fontSize に配置される
+  if (slots.kutoten) {
+    // kutoten は fontSize サイズで描画
+    maxExtent = Math.max(maxExtent, fontSize + fontSize);
+  }
+  if (slots.kaeri) {
+    // kaeri は rubyFontSize サイズで描画
+    maxExtent = Math.max(maxExtent, fontSize + R);
   }
 
   return maxExtent;

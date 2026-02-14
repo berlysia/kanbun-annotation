@@ -29,6 +29,7 @@ import {
   getTatetenGroups,
   getHighlightGroups,
   groupTokensByBlock,
+  splitKaeriForTateten,
 } from '@kanbun/skam/rendering';
 import type { RangeMarkGroup } from '@kanbun/skam/rendering';
 
@@ -43,7 +44,6 @@ import type {
   TokenSlots,
 } from './types.js';
 import type { RenderProfile } from './profiles.js';
-import { splitKaeriForTateten } from './helpers.js';
 
 /**
  * Token のスロットを解決する

@@ -19,8 +19,25 @@ export {
 // 型
 export type { RangeMarkGroup } from './types.js';
 
+// AIR 型定義
+export type {
+  AIRRenderProfile,
+  AIRTrailingMark,
+  AIRRangeInfo,
+  AIRTokenSlots,
+  AIRTokenNode,
+  AIRTatetenSeparator,
+  AIRTatetenGroupNode,
+  AIRHighlightGroupNode,
+  AIRBlockStartRef,
+  AIRBlockStartKutoten,
+  AIRBlock,
+  AIRBlockChild,
+  AIRDocument,
+} from './air-types.js';
+
 // 返り点
-export { convertKaeriToUnicode } from './kaeri.js';
+export { convertKaeriToUnicode, splitKaeriForTateten } from './kaeri.js';
 
 // 傍点
 export { resolveEmphasisCharacter } from './emphasis.js';
@@ -36,6 +53,12 @@ export { getMarksForToken } from './mark-lookup.js';
 
 // ブロック
 export { groupTokensByBlock } from './block-utils.js';
+
+// Block-start marks
+export { getBlockStartMarks } from './block-start.js';
+
+// AIR Resolver
+export { buildAnnotationIR } from './build-annotation-ir.js';
 
 // 改行制御
 export { canBreakBefore } from './line-break.js';

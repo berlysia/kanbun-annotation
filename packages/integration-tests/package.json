@@ -12,6 +12,8 @@
   "license": "UNLICENSED",
   "devDependencies": {
     "@kanbun/skam": "workspace:*",
+    "@kanbun/skam-canvas-renderer": "workspace:*",
+    "@kanbun/skam-html-renderer": "workspace:*",
     "@kanbun/skam-xml-parser": "workspace:*",
     "@kanbun/skam-xml-stringify": "workspace:*"
   }

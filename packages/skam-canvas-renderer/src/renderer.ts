@@ -5,12 +5,13 @@
  */
 
 import type { SKAMDocument } from '@kanbun/skam';
+import { buildAnnotationIR } from '@kanbun/skam/rendering';
 import type { CanvasLike } from './canvas-context.js';
 import type { CanvasRenderingContext2DLike } from './canvas-context.js';
 import type { CanvasRenderOptions, MeasureOptions, DocumentDimensions } from './types.js';
 import type { RenderProfile } from './profiles.js';
 import { PROFILES } from './profiles.js';
-import { buildRenderTree } from './render-tree.js';
+import { convertAIRToCanvasRenderTree } from './air-adapter.js';
 import { layout, resolveOptions } from './layout.js';
 import { draw } from './draw.js';
 
@@ -31,8 +32,9 @@ export function render(doc: SKAMDocument, canvas: CanvasLike, options?: CanvasRe
   const profile: RenderProfile = { ...PROFILES.full, ...options?.profile };
   const resolved = resolveOptions(options);
 
-  // Pass 1
-  const tree = buildRenderTree(doc, profile);
+  // Pass 1: AIR 経由
+  const air = buildAnnotationIR(doc, profile);
+  const tree = convertAIRToCanvasRenderTree(air);
 
   // Pass 2 (論理ピクセル座標で計算)
   const documentLayout = layout(tree, ctx, options);
@@ -57,8 +59,9 @@ export function measure(
 ): DocumentDimensions {
   const profile: RenderProfile = { ...PROFILES.full, ...options?.profile };
 
-  // Pass 1
-  const tree = buildRenderTree(doc, profile);
+  // Pass 1: AIR 経由
+  const air = buildAnnotationIR(doc, profile);
+  const tree = convertAIRToCanvasRenderTree(air);
 
   // Pass 2 - spread MeasureOptions directly (compatible with CanvasRenderOptions)
   const documentLayout = layout(tree, ctx, options ? { ...options } : undefined);

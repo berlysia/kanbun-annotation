@@ -211,7 +211,7 @@ function generateCommonStyles(
         /* 熟語訓: suffix-row を ruby-grid 内に配置して改行機会を排除する。
          * column 2 に配置し、ruby annotation (column 1) の下に被らないようにする。 */
         :where(.${prefix}-ruby-grid) > :where(.${prefix}-suffix-row) {
-          grid-row: 2;
+          grid-row: 1;
           grid-column: 2;
         }
 
@@ -333,7 +333,7 @@ function generateCommonStyles(
         }
 
         :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-suffix-row) {
-          grid-row: 3;
+          grid-row: 2;
           grid-column: 2;
         }
 

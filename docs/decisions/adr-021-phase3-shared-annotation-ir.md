@@ -2,7 +2,7 @@
 
 ## ステータス
 
-Proposed
+Accepted
 
 関連 ADR: [ADR-018](adr-018-canvas-layout-vertical-refactor-architecture.md), [ADR-019](adr-019-html-renderer-colocation-and-named-grid-areas.md), [ADR-020](adr-020-html-renderer-phase2-stabilization-and-guardrails.md)
 

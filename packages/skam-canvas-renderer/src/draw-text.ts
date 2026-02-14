@@ -187,7 +187,8 @@ export function drawVerticalText(
   fontSize: number,
   color: string,
   fontFamily: string,
-  emAscentRatio?: number
+  emAscentRatio?: number,
+  charAdvance?: number
 ): void {
   const ascent = getFontAscent(ctx, fontSize, fontFamily, emAscentRatio);
   ctx.save();
@@ -196,11 +197,12 @@ export function drawVerticalText(
   ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'center';
 
+  const advance = charAdvance ?? fontSize;
   let currentY = y;
   for (const char of text) {
     const verticalForm = getVerticalForm(char);
     ctx.fillText(verticalForm ?? char, x, currentY + ascent);
-    currentY += fontSize;
+    currentY += advance;
   }
   ctx.restore();
 }

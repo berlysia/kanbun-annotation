@@ -123,7 +123,8 @@ function drawSlotIfPresent(
       slot.fontSize,
       options.textColor,
       options.fontFamily,
-      options.emAscentRatio
+      options.emAscentRatio,
+      slot.charAdvance
     );
   }
 }

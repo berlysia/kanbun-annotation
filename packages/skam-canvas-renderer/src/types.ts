@@ -34,6 +34,8 @@ export interface CanvasRenderOptions {
   columnSizing?: 'uniform' | 'adaptive';
   /** range ruby overflow 時の配置: 'distribute'=均等配分（デフォルト）, 'center'=中央寄せ */
   rangeRubyAlignment?: 'distribute' | 'center';
+  /** non-overflow 時（漢字列 >= ルビ）のルビ側配置: 'justify'=均等配分（デフォルト）, 'center'=中央, 'start'=先頭, 'end'=末尾 */
+  rangeRubyAlign?: 'center' | 'start' | 'end' | 'justify' | 'space-around' | 'space-evenly';
   /**
    * em box 上端から alphabetic baseline までの距離の比率 (0–1)。
    * fontSize × emAscentRatio = em ascent として描画位置を補正する。
@@ -60,6 +62,8 @@ export interface MeasureOptions {
   columnSizing?: 'uniform' | 'adaptive';
   /** range ruby overflow 時の配置: 'distribute'=均等配分（デフォルト）, 'center'=中央寄せ */
   rangeRubyAlignment?: 'distribute' | 'center';
+  /** non-overflow 時（漢字列 >= ルビ）のルビ側配置: 'justify'=均等配分（デフォルト）, 'center'=中央, 'start'=先頭, 'end'=末尾 */
+  rangeRubyAlign?: 'center' | 'start' | 'end' | 'justify' | 'space-around' | 'space-evenly';
 }
 
 export interface DocumentDimensions {
@@ -159,6 +163,8 @@ export interface SlotLayout {
   fontSize: number;
   /** 縦中横: テキストを横書きで1行に描画する（ref括弧等） */
   tateChuYoko?: boolean;
+  /** justify 配置時の文字間隔（fontSize と異なる場合のみ設定） */
+  charAdvance?: number;
 }
 
 export interface ResolvedSlotLayouts {
@@ -294,6 +300,8 @@ export interface TokenLayoutContext {
   rangeRubyYOffset?: number;
   /** range ruby overflow: ルビ下端の絶対 Y 座標（okuri/soegana の押し下げに使用） */
   rangeRubyEndY?: number;
+  /** non-overflow 時のルビ配置モード */
+  rangeRubyAlign?: 'center' | 'start' | 'end' | 'justify' | 'space-around' | 'space-evenly';
 }
 
 // ============================================================================
@@ -316,5 +324,6 @@ export interface ResolvedOptions {
   maxExtent: number | undefined;
   columnSizing: 'uniform' | 'adaptive';
   rangeRubyAlignment: 'distribute' | 'center';
+  rangeRubyAlign: 'center' | 'start' | 'end' | 'justify' | 'space-around' | 'space-evenly';
   emAscentRatio: number | undefined;
 }

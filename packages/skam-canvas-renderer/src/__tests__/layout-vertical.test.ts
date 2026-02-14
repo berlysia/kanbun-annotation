@@ -518,7 +518,7 @@ describe('layoutVertical', () => {
     const cellAdvance = DEFAULT_FONT_SIZE;
 
     expect(t1.slots.ruby).toBeDefined();
-    // rubySpan=2, so centered over 2 cells
+    // rubySpan=2, default rangeRubyAlign='center'
     // spanHeight = 2 * cellAdvance = 48
     // rubyTextHeight = 3 chars * rubyFontSize = 36
     // rubyY = tokenY + (48 - 36) / 2 = tokenY + 6
@@ -1170,9 +1170,10 @@ describe('layoutVertical', () => {
     it('pushes okuri below range ruby end in block-level overflow', () => {
       const ctx = new RecordingContext();
       const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
-      const cellAdvance = DEFAULT_FONT_SIZE;
 
-      // range yomigana 5 chars across t1-t2, t2 has okuri
+      // range yomigana 6 chars across t1-t2, t2 has okuri
+      // actualSpan = fontSize(24) + max(fontSize, okuri extent)(36) = 60
+      // rubyTextHeight = 6 * 12 = 72 > 60 → overflow
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [
@@ -1182,7 +1183,7 @@ describe('layoutVertical', () => {
         ],
         blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
         marks: [
-          { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しろしめす' },
+          { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しろしめすべ' },
           { type: 'okurigana', anchor: { from: 't2', to: 't2' }, value: 'く' },
         ],
         readings: [],
@@ -1193,13 +1194,208 @@ describe('layoutVertical', () => {
       const t1 = asToken(result.columns[0]!.children[0]!);
       const t2 = asToken(result.columns[0]!.children[1]!);
 
-      const rubyTextHeight = 5 * rubyFontSize; // 60
-      // ルビ下端 = t1.y の leading 分上 + rubyTextHeight
-      const rubyEndY = t1.y - (rubyTextHeight - 2 * cellAdvance) / 3 + rubyTextHeight;
+      // ルビ下端 = ruby Y + rubyTextHeight
+      const rubyEndY = t1.slots.ruby!.y + 6 * rubyFontSize;
 
       // okuri は必ずルビ下端より下に配置される
       expect(t2.slots.okuri).toBeDefined();
       expect(t2.slots.okuri!.y).toBeGreaterThanOrEqual(rubyEndY);
+    });
+
+    describe('rangeRubyAlign (non-overflow)', () => {
+      // 共通: 3 chars ruby across 2 tokens → rubyHeight=36, spanProvided=48 → non-overflow
+      const NON_OVERFLOW_RUBY = 'しいわ';
+
+      it('justify: distributes ruby chars evenly across span', () => {
+        const ctx = new RecordingContext();
+        const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+        const cellAdvance = DEFAULT_FONT_SIZE;
+
+        const doc = threeTokenDoc([
+          { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: NON_OVERFLOW_RUBY },
+        ]);
+        const tree = buildRenderTree(doc, PROFILES.full);
+        const result = layout(tree, ctx, { rangeRubyAlign: 'justify' });
+
+        const t1 = asToken(result.columns[0]!.children[0]!);
+        const numChars = [...NON_OVERFLOW_RUBY].length; // 3
+        const spanHeight = 2 * cellAdvance; // 48
+
+        // justify: rubyY === tokenY, charAdvance = (spanHeight - rubyFontSize) / (numChars - 1)
+        expect(t1.slots.ruby).toBeDefined();
+        expect(t1.slots.ruby!.y).toBe(t1.y);
+        const expectedCharAdvance = (spanHeight - rubyFontSize) / (numChars - 1);
+        expect(t1.slots.ruby!.charAdvance).toBe(expectedCharAdvance);
+      });
+
+      it('start: places ruby at span start', () => {
+        const ctx = new RecordingContext();
+
+        const doc = threeTokenDoc([
+          { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: NON_OVERFLOW_RUBY },
+        ]);
+        const tree = buildRenderTree(doc, PROFILES.full);
+        const result = layout(tree, ctx, { rangeRubyAlign: 'start' });
+
+        const t1 = asToken(result.columns[0]!.children[0]!);
+
+        expect(t1.slots.ruby).toBeDefined();
+        expect(t1.slots.ruby!.y).toBe(t1.y);
+        expect(t1.slots.ruby!.charAdvance).toBeUndefined();
+      });
+
+      it('end: places ruby at span end', () => {
+        const ctx = new RecordingContext();
+        const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+        const cellAdvance = DEFAULT_FONT_SIZE;
+
+        const doc = threeTokenDoc([
+          { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: NON_OVERFLOW_RUBY },
+        ]);
+        const tree = buildRenderTree(doc, PROFILES.full);
+        const result = layout(tree, ctx, { rangeRubyAlign: 'end' });
+
+        const t1 = asToken(result.columns[0]!.children[0]!);
+        const numChars = [...NON_OVERFLOW_RUBY].length; // 3
+        const spanHeight = 2 * cellAdvance; // 48
+        const rubyTextHeight = numChars * rubyFontSize; // 36
+
+        expect(t1.slots.ruby).toBeDefined();
+        expect(t1.slots.ruby!.y).toBe(t1.y + (spanHeight - rubyTextHeight));
+        expect(t1.slots.ruby!.charAdvance).toBeUndefined();
+      });
+
+      it('center: places ruby at span center', () => {
+        const ctx = new RecordingContext();
+        const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+        const cellAdvance = DEFAULT_FONT_SIZE;
+
+        const doc = threeTokenDoc([
+          { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: NON_OVERFLOW_RUBY },
+        ]);
+        const tree = buildRenderTree(doc, PROFILES.full);
+        const result = layout(tree, ctx, { rangeRubyAlign: 'center' });
+
+        const t1 = asToken(result.columns[0]!.children[0]!);
+        const numChars = [...NON_OVERFLOW_RUBY].length; // 3
+        const spanHeight = 2 * cellAdvance; // 48
+        const rubyTextHeight = numChars * rubyFontSize; // 36
+
+        expect(t1.slots.ruby).toBeDefined();
+        expect(t1.slots.ruby!.y).toBe(t1.y + (spanHeight - rubyTextHeight) / 2);
+        expect(t1.slots.ruby!.charAdvance).toBeUndefined();
+      });
+
+      it('justify fallback: single char ruby uses center alignment', () => {
+        const ctx = new RecordingContext();
+        const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+        const cellAdvance = DEFAULT_FONT_SIZE;
+
+        const doc = threeTokenDoc([
+          { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'し' },
+        ]);
+        const tree = buildRenderTree(doc, PROFILES.full);
+        const result = layout(tree, ctx, { rangeRubyAlign: 'justify' });
+
+        const t1 = asToken(result.columns[0]!.children[0]!);
+        const spanHeight = 2 * cellAdvance; // 48
+        const rubyTextHeight = 1 * rubyFontSize; // 12
+
+        // fallback to center when numChars <= 1
+        expect(t1.slots.ruby).toBeDefined();
+        expect(t1.slots.ruby!.y).toBe(t1.y + (spanHeight - rubyTextHeight) / 2);
+        expect(t1.slots.ruby!.charAdvance).toBeUndefined();
+      });
+
+      it('justify fallback: overflow uses center alignment', () => {
+        const ctx = new RecordingContext();
+        const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+        const cellAdvance = DEFAULT_FONT_SIZE;
+
+        // 5 chars across 2 tokens: rubyHeight=60 > spanProvided=48 → overflow
+        const doc = threeTokenDoc([
+          { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しろしめす' },
+        ]);
+        const tree = buildRenderTree(doc, PROFILES.full);
+        const result = layout(tree, ctx, { rangeRubyAlign: 'justify' });
+
+        const t1 = asToken(result.columns[0]!.children[0]!);
+
+        // overflow → distribute で均等割り付け、rangeRubyAlign の justify は効かず center fallback
+        // charAdvance は設定されない（overflow 時は rangeRubySpanHeight で制御）
+        expect(t1.slots.ruby).toBeDefined();
+        expect(t1.slots.ruby!.charAdvance).toBeUndefined();
+      });
+
+      it('space-around: equal space around each char (half at edges)', () => {
+        const ctx = new RecordingContext();
+        const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+        const cellAdvance = DEFAULT_FONT_SIZE;
+
+        const doc = threeTokenDoc([
+          { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: NON_OVERFLOW_RUBY },
+        ]);
+        const tree = buildRenderTree(doc, PROFILES.full);
+        const result = layout(tree, ctx, { rangeRubyAlign: 'space-around' });
+
+        const t1 = asToken(result.columns[0]!.children[0]!);
+        const numChars = [...NON_OVERFLOW_RUBY].length; // 3
+        const spanHeight = 2 * cellAdvance; // 48
+        const rubyTextHeight = numChars * rubyFontSize; // 36
+        const gap = (spanHeight - rubyTextHeight) / numChars; // 4
+
+        expect(t1.slots.ruby).toBeDefined();
+        // first char starts at gap/2 from span start
+        expect(t1.slots.ruby!.y).toBe(t1.y + gap / 2);
+        expect(t1.slots.ruby!.charAdvance).toBe(rubyFontSize + gap);
+      });
+
+      it('space-evenly: equal space between chars and at edges', () => {
+        const ctx = new RecordingContext();
+        const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+        const cellAdvance = DEFAULT_FONT_SIZE;
+
+        const doc = threeTokenDoc([
+          { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: NON_OVERFLOW_RUBY },
+        ]);
+        const tree = buildRenderTree(doc, PROFILES.full);
+        const result = layout(tree, ctx, { rangeRubyAlign: 'space-evenly' });
+
+        const t1 = asToken(result.columns[0]!.children[0]!);
+        const numChars = [...NON_OVERFLOW_RUBY].length; // 3
+        const spanHeight = 2 * cellAdvance; // 48
+        const rubyTextHeight = numChars * rubyFontSize; // 36
+        const gap = (spanHeight - rubyTextHeight) / (numChars + 1); // 3
+
+        expect(t1.slots.ruby).toBeDefined();
+        // first char starts at gap from span start
+        expect(t1.slots.ruby!.y).toBe(t1.y + gap);
+        expect(t1.slots.ruby!.charAdvance).toBe(rubyFontSize + gap);
+      });
+
+      it('space-around fallback: overflow uses center alignment', () => {
+        const ctx = new RecordingContext();
+        const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
+        const cellAdvance = DEFAULT_FONT_SIZE;
+
+        // 5 chars across 2 tokens: rubyHeight=60 > span=48 → overflow
+        const doc = threeTokenDoc([
+          { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しろしめす' },
+        ]);
+        const tree = buildRenderTree(doc, PROFILES.full);
+        const result = layout(tree, ctx, { rangeRubyAlign: 'space-around' });
+
+        const t1 = asToken(result.columns[0]!.children[0]!);
+        const spanHeight = 5 * rubyFontSize; // 60 (overflow → rangeRubySpanHeight)
+        const rubyTextHeight = 5 * rubyFontSize; // 60
+
+        // overflow → center fallback
+        expect(t1.slots.ruby).toBeDefined();
+        expect(t1.slots.ruby!.y).toBe(
+          t1.y + (spanHeight - rubyTextHeight) / 2 + -(spanHeight - 2 * cellAdvance) / 3
+        );
+        expect(t1.slots.ruby!.charAdvance).toBeUndefined();
+      });
     });
 
     it('pushes okuri below range ruby end in tateten overflow', () => {

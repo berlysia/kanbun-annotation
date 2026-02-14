@@ -86,9 +86,9 @@ describe('cross-renderer equivalence: range ruby', () => {
     expect(air.blocks).toHaveLength(1);
     expect(air.blocks[0]!.blockId).toBe('b1');
 
-    // AIR は全トークンを children に保持する（range group で集約されても消えない）
+    // range group の非リードトークンはフィルタされる（リードトークンの rangeInfo に集約済み）
     const tokens = getTokenNodes(air, 0);
-    expect(tokens.map((t) => t.token.id)).toEqual(['t1', 't2', 't3']);
+    expect(tokens.map((t) => t.token.id)).toEqual(['t1', 't3']);
   });
 
   it('range yomigana が先頭トークンに集約される', () => {

@@ -558,9 +558,23 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
       return node;
     });
 
+    // Range group の非リードトークンをフィルタ（リードトークンの rangeInfo に集約済み）
+    // tateten 重複時はフィルタしない（tateten-group レベルで range を処理するため個別トークンを保持）
+    const rangeConsumedTokenIds = new Set<string>();
+    for (const node of tokenNodes) {
+      if (node.rangeInfo) {
+        for (const tid of node.rangeInfo.tokenIds.slice(1)) {
+          rangeConsumedTokenIds.add(tid);
+        }
+      }
+    }
+    const filteredTokenNodes = tokenNodes.filter(
+      (node) => !rangeConsumedTokenIds.has(node.token.id)
+    );
+
     // ref 解決: position-based ref marks をトークンスロットに配置
     if (profile.ref) {
-      for (const tokenNode of tokenNodes) {
+      for (const tokenNode of filteredTokenNodes) {
         const tokenId = tokenNode.token.id;
         for (const ref of refMarks) {
           if (ref.position.blockId !== group.blockId) continue;
@@ -579,8 +593,8 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
     if (profile.tateten) {
       children = [];
       let i = 0;
-      while (i < tokenNodes.length) {
-        const tokenNode = tokenNodes[i]!;
+      while (i < filteredTokenNodes.length) {
+        const tokenNode = filteredTokenNodes[i]!;
         const tatetenMark = tatetenMap.get(tokenNode.token.id);
 
         if (!tatetenMark) {
@@ -589,8 +603,11 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
         } else {
           const groupTokens: AIRTokenNode[] = [tokenNode];
           let j = i + 1;
-          while (j < tokenNodes.length && tatetenMap.get(tokenNodes[j]!.token.id) === tatetenMark) {
-            groupTokens.push(tokenNodes[j]!);
+          while (
+            j < filteredTokenNodes.length &&
+            tatetenMap.get(filteredTokenNodes[j]!.token.id) === tatetenMark
+          ) {
+            groupTokens.push(filteredTokenNodes[j]!);
             j++;
           }
           const tatetenGroup = buildAIRTatetenGroup(
@@ -621,7 +638,7 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
         }
       }
     } else {
-      children = tokenNodes;
+      children = filteredTokenNodes;
     }
 
     // Highlight グルーピング

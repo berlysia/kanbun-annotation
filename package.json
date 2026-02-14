@@ -12,6 +12,8 @@
     "format:check": "prettier --check .",
     "test": "turbo test",
     "test:run": "turbo test:run",
+    "test:semantic": "pnpm --filter @kanbun/integration-tests test:semantic",
+    "test:visual": "pnpm --filter @kanbun/integration-tests test:visual",
     "clean": "knip",
     "playground:dev": "pnpm --filter @kanbun/playground dev",
     "playground:build": "turbo build --filter=@kanbun/playground",

@@ -7,6 +7,8 @@
   "scripts": {
     "test": "vitest",
     "test:run": "vitest run",
+    "test:semantic": "vitest run cross-renderer-equivalence",
+    "test:visual": "playwright test",
     "typecheck": "tsgo --noEmit"
   },
   "license": "UNLICENSED",
@@ -15,6 +17,7 @@
     "@kanbun/skam-canvas-renderer": "workspace:*",
     "@kanbun/skam-html-renderer": "workspace:*",
     "@kanbun/skam-xml-parser": "workspace:*",
-    "@kanbun/skam-xml-stringify": "workspace:*"
+    "@kanbun/skam-xml-stringify": "workspace:*",
+    "@playwright/test": "1.58.0"
   }
 }

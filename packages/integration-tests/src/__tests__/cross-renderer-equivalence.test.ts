@@ -12,7 +12,6 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import type { SKAMDocument } from '@kanbun/skam';
 import {
   buildAnnotationIR,
   type AIRDocument,
@@ -20,6 +19,12 @@ import {
   type AIRTatetenGroupNode,
   type AIRHighlightGroupNode,
 } from '@kanbun/skam/rendering';
+import {
+  FIXTURE_RANGE_RUBY,
+  FIXTURE_TATETEN_KAERI,
+  FIXTURE_HIGHLIGHT_REF,
+  FIXTURE_SAIDOKU,
+} from '../fixtures/test-documents.js';
 
 // ============================================================================
 // テスト用プロファイル
@@ -74,21 +79,7 @@ function getTokenNodes(air: AIRDocument, blockIndex: number): AIRTokenNode[] {
 // ============================================================================
 
 describe('cross-renderer equivalence: range ruby', () => {
-  const doc: SKAMDocument = {
-    format: 'skam@0.1',
-    tokens: [
-      { id: 't1', text: '論' },
-      { id: 't2', text: '語' },
-      { id: 't3', text: '曰' },
-    ],
-    blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
-    marks: [
-      { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'ろんご' },
-      { type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'ノ' },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
-    ],
-    readings: [],
-  };
+  const doc = FIXTURE_RANGE_RUBY;
 
   it('AIR がブロック・トークン順序を維持する', () => {
     const air = buildAnnotationIR(doc, FULL_PROFILE);
@@ -142,21 +133,7 @@ describe('cross-renderer equivalence: range ruby', () => {
 // ============================================================================
 
 describe('cross-renderer equivalence: tateten+kaeri', () => {
-  const doc: SKAMDocument = {
-    format: 'skam@0.1',
-    tokens: [
-      { id: 't1', text: '不' },
-      { id: 't2', text: '亦' },
-      { id: 't3', text: '樂' },
-    ],
-    blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
-    marks: [
-      { type: 'tateten', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '一レ' },
-      { type: 'okurigana', anchor: { from: 't3', to: 't3' }, value: 'シカラ' },
-    ],
-    readings: [],
-  };
+  const doc = FIXTURE_TATETEN_KAERI;
 
   it('tateten グループが正しく構築される', () => {
     const air = buildAnnotationIR(doc, FULL_PROFILE);
@@ -199,32 +176,7 @@ describe('cross-renderer equivalence: tateten+kaeri', () => {
 // ============================================================================
 
 describe('cross-renderer equivalence: highlight+ref', () => {
-  const doc: SKAMDocument = {
-    format: 'skam@0.1',
-    tokens: [
-      { id: 't1', text: '子' },
-      { id: 't2', text: '曰' },
-      { id: 't3', text: '學' },
-    ],
-    blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
-    marks: [
-      {
-        type: 'highlight',
-        id: 'hl1',
-        anchor: { from: 't1', to: 't2' },
-        style: 'solid',
-        ref: 'ref1',
-      },
-      {
-        type: 'ref',
-        id: 'ref1',
-        position: { blockId: 'b1', after: 't2' },
-        format: 'numeric-paren',
-      },
-      { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'し' },
-    ],
-    readings: [],
-  };
+  const doc = FIXTURE_HIGHLIGHT_REF;
 
   it('highlight グループが正しく構築される', () => {
     const air = buildAnnotationIR(doc, FULL_PROFILE);
@@ -265,27 +217,7 @@ describe('cross-renderer equivalence: highlight+ref', () => {
 // ============================================================================
 
 describe('cross-renderer equivalence: saidoku', () => {
-  const doc: SKAMDocument = {
-    format: 'skam@0.1',
-    tokens: [
-      { id: 't1', text: '未' },
-      { id: 't2', text: '嘗' },
-      { id: 't3', text: '有' },
-    ],
-    blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
-    marks: [
-      {
-        type: 'saidoku',
-        anchor: { from: 't1', to: 't1' },
-        forms: [
-          { yomi: 'いま', okuri: 'ダ' },
-          { yomi: 'ず', okuri: '' },
-        ],
-      },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
-    ],
-    readings: [],
-  };
+  const doc = FIXTURE_SAIDOKU;
 
   it('saidoku の第一読みが ruby/okuri に解決される', () => {
     const air = buildAnnotationIR(doc, FULL_PROFILE);

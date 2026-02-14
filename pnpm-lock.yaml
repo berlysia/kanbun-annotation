@@ -77,6 +77,9 @@ importers:
       '@kanbun/skam-xml-stringify':
         specifier: workspace:*
         version: link:../skam-xml-stringify
+      '@playwright/test':
+        specifier: 1.58.0
+        version: 1.58.0
 
   packages/playground:
     dependencies:

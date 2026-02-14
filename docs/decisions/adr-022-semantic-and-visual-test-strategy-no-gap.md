@@ -2,9 +2,11 @@
 
 ## ステータス
 
-Proposed
+Accepted
 
 関連 ADR: [ADR-019](adr-019-html-renderer-colocation-and-named-grid-areas.md), [ADR-020](adr-020-html-renderer-phase2-stabilization-and-guardrails.md), [ADR-021](adr-021-phase3-shared-annotation-ir.md)
+
+実装計画: [Plan](../plans/plan-semantic-and-visual-test-strategy-no-gap.md)
 
 ## コンテキスト
 

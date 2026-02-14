@@ -232,6 +232,61 @@ interface RenderResult {
 }
 ```
 
+## 内部アーキテクチャ
+
+### モジュール構成と依存方向
+
+依存方向は `shared → display → API` の一方向に固定されています。
+
+```
+API層 (renderer.ts)
+  ├── 公開 API (render, renderHTML, generateCSS)
+  ├── option 正規化
+  └── CSS 生成呼び出し (styles.ts)
+       │
+       ▼
+display オーケストレータ層 (render-display-layer.ts)
+  ├── group 解決 (tateten/highlight/range marks)
+  ├── Pass 1/Pass 2 呼び出し
+  └── block 単位合成
+       │
+       ▼
+display 実装層
+  ├── Pass 1: build-render-tree.ts (tokens+marks → BlockRenderTree)
+  ├── Pass 2: render-tree.ts (BlockRenderTree → HTML string)
+  └── token-renderer.ts (個別トークンの HTML 生成)
+       │
+       ▼
+共通基盤層
+  ├── render-config.ts (RenderProfile, RubyMethod, PROFILES)
+  ├── html-utils.ts (escapeHtml, shouldApplyTateChuYoko 等)
+  ├── mark-utils.ts (getBlockStartMarks 等)
+  └── render-tree-types.ts (IR 型定義)
+```
+
+### CSS Grid 命名規約
+
+`styles.ts` のグリッドコンテナは `grid-template-areas` で名前付き配置を使用しています。
+
+| 領域名       | 用途                          |
+| ------------ | ----------------------------- |
+| `ruby`       | ルビ注記（読み仮名）          |
+| `ruby-over`  | 再読文字の上側ルビ            |
+| `ruby-under` | 再読文字の下側ルビ            |
+| `base`       | 本文文字                      |
+| `suffix`     | suffix-row（改行排除用）      |
+| `emphasis`   | 傍点行                        |
+| `okuri`      | 送り仮名（suffix-row 内）     |
+| `kutoten`    | 句読点（suffix-row 内）       |
+| `kaeri`      | 返り点（suffix-row 内）       |
+| `saidoku`    | 再読送り仮名（suffix-row 内） |
+
+### baseline 補正契約
+
+`calibrate.ts` が Chromium の inline-grid baseline バグを実測検出し、
+`--{prefix}-grid-baseline-fix: 1` を設定します。
+各グリッドコンテナの `vertical-align` がこの変数を参照して補正値を算出します。
+
 ## 関連パッケージ
 
 - [@kanbun/skam](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam) - 型定義・バリデーター

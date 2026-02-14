@@ -149,18 +149,19 @@ function generateCommonStyles(
  */
         :where(.${prefix}-ruby-grid) {
           display: inline-grid;
+          grid-template-areas: 'ruby suffix' 'base .' '. .';
           grid-template-rows: ${annotationRowH} auto ${annotationRowH};
+          grid-template-columns: auto auto;
           line-height: 1;
           vertical-align: calc(
             var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 0.5em + 0.5em)
           );
         }
 
-        /* Chromium baseline バグ補正: row1 にプレースホルダーを配置してベースラインを安定させる */
+        /* Chromium baseline バグ補正: ruby 行にプレースホルダーを配置してベースラインを安定させる */
         :where(.${prefix}-ruby-grid)::before {
           content: '';
-          grid-row: 1;
-          grid-column: 1;
+          grid-area: ruby;
         }
 
         /* ruby に内容がある場合はプレースホルダー不要（:not(:empty) で空 ruby を除外）
@@ -177,32 +178,28 @@ function generateCommonStyles(
         }
 
         :where(.${prefix}-ruby-grid) > :where(.${prefix}-ruby) {
-          grid-row: 1;
-          grid-column: 1;
+          grid-area: ruby;
           align-self: end;
           text-align: center;
         }
 
         :where(.${prefix}-ruby-grid) > :where(.${prefix}-base),
         :where(.${prefix}-ruby-grid) > :where(.${prefix}-tateten-group) {
-          grid-row: 2;
-          grid-column: 1;
+          grid-area: base;
         }
 
         /* 熟語訓: suffix-row を ruby-grid 内に配置して改行機会を排除する。
-         * column 2 に配置し、ruby annotation (column 1) の下に被らないようにする。 */
+         * suffix 領域に配置し、ruby annotation の下に被らないようにする。 */
         :where(.${prefix}-ruby-grid) > :where(.${prefix}-suffix-row) {
-          grid-row: 1;
-          grid-column: 2;
+          grid-area: suffix;
         }
 
         /* 熟語訓 + highlight: highlight を ruby-grid 内に grid item として配置。
          * highlight の傍線装飾が suffix（句読点等）に延びるのを防ぐため、
-         * suffix-row (column 2) と分離して column 1 の base 行に配置する。
+         * suffix 領域と分離して base 領域に配置する。
          * padding リセットは書字方向スタイルの後に配置（source order で確実にオーバーライド）。 */
         :where(.${prefix}-ruby-grid) > :where(.${prefix}-highlight) {
-          grid-row: 2;
-          grid-column: 1;
+          grid-area: base;
         }
 
         /*
@@ -213,6 +210,7 @@ function generateCommonStyles(
  */
         :where(.${prefix}-saidoku-grid) {
           display: inline-grid;
+          grid-template-areas: 'ruby-over' 'base' 'ruby-under';
           grid-template-rows: ${annotationRowH} auto ${annotationRowH};
           line-height: 1;
           vertical-align: calc(
@@ -220,10 +218,10 @@ function generateCommonStyles(
           );
         }
 
-        /* Chromium baseline バグ補正: row1 にプレースホルダーを配置してベースラインを安定させる */
+        /* Chromium baseline バグ補正: ruby-over 行にプレースホルダーを配置してベースラインを安定させる */
         :where(.${prefix}-saidoku-grid)::before {
           content: '';
-          grid-row: 1;
+          grid-area: ruby-over;
         }
 
         /* ruby-over に内容がある場合はプレースホルダー不要（:not(:empty) で空 ruby を除外）
@@ -240,17 +238,17 @@ function generateCommonStyles(
         }
 
         :where(.${prefix}-saidoku-grid) > :where(.${prefix}-ruby:not(.${prefix}-saidoku-under)) {
-          grid-row: 1;
+          grid-area: ruby-over;
           align-self: end;
           text-align: center;
         }
 
         :where(.${prefix}-saidoku-grid) > :where(.${prefix}-base) {
-          grid-row: 2;
+          grid-area: base;
         }
 
         :where(.${prefix}-saidoku-grid) > :where(.${prefix}-saidoku-under) {
-          grid-row: 3;
+          grid-area: ruby-under;
           align-self: start;
           text-align: center;
         }
@@ -264,8 +262,7 @@ function generateCommonStyles(
  * 傍点文字（●, ﹅ 等）を直接出力する。
  */
         :where(.${prefix}-emphasis-row) {
-          grid-row: 1;
-          grid-column: 1;
+          grid-area: emphasis;
           color: var(--${vp}-color-emphasis);
           font-size: ${annotationRowH};
           -webkit-user-select: none;
@@ -293,7 +290,9 @@ function generateCommonStyles(
  */
         :where(.${prefix}-ruby-grid--emphasis) {
           display: inline-grid;
+          grid-template-areas: 'emphasis .' 'ruby suffix' 'base .' '. .';
           grid-template-rows: ${annotationRowH} ${annotationRowH} auto ${annotationRowH};
+          grid-template-columns: auto auto;
           line-height: 1;
           vertical-align: calc(
             var(--${vp}-ruby-ratio) * 0.5em + var(--${vp}-grid-baseline-fix, 0) * 1em
@@ -301,26 +300,22 @@ function generateCommonStyles(
         }
 
         :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-ruby) {
-          grid-row: 2;
-          grid-column: 1;
+          grid-area: ruby;
           align-self: end;
           text-align: center;
         }
 
         :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-base),
         :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-tateten-group) {
-          grid-row: 3;
-          grid-column: 1;
+          grid-area: base;
         }
 
         :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-suffix-row) {
-          grid-row: 2;
-          grid-column: 2;
+          grid-area: suffix;
         }
 
         :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-highlight) {
-          grid-row: 3;
-          grid-column: 1;
+          grid-area: base;
         }
 
         /*
@@ -331,7 +326,9 @@ function generateCommonStyles(
  */
         :where(.${prefix}-ruby-grid--emphasis-no-ruby) {
           display: inline-grid;
+          grid-template-areas: 'emphasis .' 'base suffix' '. .';
           grid-template-rows: ${annotationRowH} auto ${annotationRowH};
+          grid-template-columns: auto auto;
           line-height: 1;
           vertical-align: calc(
             var(--${vp}-ruby-ratio) * 0.5em + var(--${vp}-grid-baseline-fix, 0) * 1em
@@ -340,18 +337,15 @@ function generateCommonStyles(
 
         :where(.${prefix}-ruby-grid--emphasis-no-ruby) > :where(.${prefix}-base),
         :where(.${prefix}-ruby-grid--emphasis-no-ruby) > :where(.${prefix}-tateten-group) {
-          grid-row: 2;
-          grid-column: 1;
+          grid-area: base;
         }
 
         :where(.${prefix}-ruby-grid--emphasis-no-ruby) > :where(.${prefix}-suffix-row) {
-          grid-row: 2;
-          grid-column: 2;
+          grid-area: suffix;
         }
 
         :where(.${prefix}-ruby-grid--emphasis-no-ruby) > :where(.${prefix}-highlight) {
-          grid-row: 2;
-          grid-column: 1;
+          grid-area: base;
         }
 
         /*
@@ -362,6 +356,7 @@ function generateCommonStyles(
  */
         :where(.${prefix}-saidoku-grid--emphasis) {
           display: inline-grid;
+          grid-template-areas: 'emphasis' 'ruby-over' 'base' 'ruby-under';
           grid-template-rows: ${annotationRowH} ${annotationRowH} auto ${annotationRowH};
           line-height: 1;
           vertical-align: calc(
@@ -371,17 +366,17 @@ function generateCommonStyles(
 
         :where(.${prefix}-saidoku-grid--emphasis)
           > :where(.${prefix}-ruby:not(.${prefix}-saidoku-under)) {
-          grid-row: 2;
+          grid-area: ruby-over;
           align-self: end;
           text-align: center;
         }
 
         :where(.${prefix}-saidoku-grid--emphasis) > :where(.${prefix}-base) {
-          grid-row: 3;
+          grid-area: base;
         }
 
         :where(.${prefix}-saidoku-grid--emphasis) > :where(.${prefix}-saidoku-under) {
-          grid-row: 4;
+          grid-area: ruby-under;
           align-self: start;
           text-align: center;
         }
@@ -511,6 +506,7 @@ ${gridStyles}
  */
 :where(.${prefix}-suffix-row) {
   display: inline-grid;
+  grid-template-areas: "okuri" "kutoten" "kaeri" "saidoku";
   grid-template-rows: ${annotationRowH} ${annotationRowH} ${annotationRowH} ${annotationRowH};
   line-height: 1;
   /* text-emphasis は継承するため、親要素の傍点が添字・送り仮名に伝播するのを防止 */
@@ -518,10 +514,10 @@ ${gridStyles}
   vertical-align: calc(var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 0.5em + 0.5em));
 }
 
-/* row1 にプレースホルダーを配置してベースラインを安定させる */
+/* okuri 行にプレースホルダーを配置してベースラインを安定させる */
 :where(.${prefix}-suffix-row)::before {
   content: '';
-  grid-row: 1;
+  grid-area: okuri;
 }
 
 /* suffix-okuri がある場合はプレースホルダー不要
@@ -539,7 +535,7 @@ ${gridStyles}
 
 /* Suffix Right (送り仮名・添え仮名) */
 :where(.${prefix}-suffix-okuri) {
-  grid-row: 1;
+  grid-area: okuri;
   font-size: ${annotationRowH};
   -webkit-user-select: none;
   user-select: none;
@@ -547,7 +543,7 @@ ${gridStyles}
 
 /* Suffix Center (返り点) - 縦書き時は左寄せ、横書き時は下寄せ */
 :where(.${prefix}-suffix-kaeri) {
-  grid-row: 3;
+  grid-area: kaeri;
   font-size: ${annotationRowH};
   align-self: end;
   -webkit-user-select: none;
@@ -556,7 +552,7 @@ ${gridStyles}
 
 /* Suffix Left (再読文字2回目の送り仮名) */
 :where(.${prefix}-suffix-saidoku) {
-  grid-row: 4;
+  grid-area: saidoku;
   font-size: ${annotationRowH};
   -webkit-user-select: none;
   user-select: none;
@@ -577,9 +573,9 @@ ${gridStyles}
   user-select: none;
 }
 
-/* Kutoten (句読点) - suffix-row の row2 に配置、行内（親）のフォントサイズを継承 */
+/* Kutoten (句読点) - suffix-row の kutoten 行に配置、行内（親）のフォントサイズを継承 */
 :where(.${prefix}-suffix-kutoten) {
-  grid-row: 2;
+  grid-area: kutoten;
 }
 
 ${

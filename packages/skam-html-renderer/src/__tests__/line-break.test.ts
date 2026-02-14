@@ -154,7 +154,7 @@ describe('line break control in HTML output', () => {
 
     it('熟語訓（tateten+yomigana）直後の kutoten: suffix-row が ruby-grid/ruby 内に配置される', () => {
       // 改行機会の排除: suffix-row を ruby-grid の内部に grid item として配置する。
-      // CSS で grid-column: 2 に配置し、ruby annotation (column 1) と分離。
+      // CSS で suffix 領域 (grid-area: suffix) に配置し、ruby annotation と分離。
       // ruby モードでは </rt> 後 </ruby> 前に配置（anonymous ruby base として表示）。
 
       // grid モード（デフォルト）でテスト

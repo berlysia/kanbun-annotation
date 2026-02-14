@@ -4,26 +4,19 @@
  * SKAMドキュメントから静的HTMLを生成する
  */
 
-import type { SKAMDocument, Mark, HighlightMark, RefMark, Reading } from '@kanbun/skam';
-import {
-  resolveRefValues,
-  getTatetenGroups,
-  getRangeMarkGroups,
-  getHighlightGroups,
-  groupTokensByBlock,
-} from '@kanbun/skam/rendering';
+import type { SKAMDocument, Mark, RefMark, Reading } from '@kanbun/skam';
+import { resolveRefValues } from '@kanbun/skam/rendering';
 import { getDefaultStyles } from './styles.js';
 import type { RenderProfile, RubyMethod, CopyableElement } from './render-config.js';
 import { PROFILES } from './render-config.js';
 import { escapeHtml, shouldApplyTateChuYoko } from './html-utils.js';
+import { renderDisplayLayer } from './render-display-layer.js';
 
 export type { RenderProfile, RubyMethod, CopyableElement } from './render-config.js';
 export { PROFILES } from './render-config.js';
 export { escapeHtml, generateEmphasisMarks, shouldApplyTateChuYoko } from './html-utils.js';
 export { getBlockStartMarks } from './mark-utils.js';
 export { renderToken, type TokenRenderContext } from './token-renderer.js';
-import { buildBlockRenderTree, type BuildTreeContext } from './build-render-tree.js';
-import { renderBlockTree, type RenderTreeContext } from './render-tree.js';
 
 export type { RangeMarkContext, RangeTokenInfo, TokenRenderResult } from './render-tree-types.js';
 
@@ -157,6 +150,8 @@ export interface CSSOptions {
 // Document Rendering
 // ============================================================================
 
+// Display layer orchestration: moved to render-display-layer.ts
+
 /**
  * 読み層のHTMLを生成
  */
@@ -204,92 +199,6 @@ function renderRefNotes(
     .join('');
 
   return `<aside class="${prefix}-notes">${noteItems}</aside>`;
-}
-
-/**
- * Display層のHTMLを生成
- *
- * 2-pass アーキテクチャ:
- * Pass 1 (buildBlockRenderTree): tokens + marks → BlockRenderTree
- * Pass 2 (renderBlockTree): BlockRenderTree → HTML string
- */
-function renderDisplayLayer(
-  doc: SKAMDocument,
-  prefix: string,
-  profile: RenderProfile,
-  inline: boolean,
-  interactive: boolean,
-  rubyMethod: RubyMethod = 'grid'
-): { tokens: string; prefix: string } {
-  const { tokens, marks } = doc;
-
-  // Pre-computation
-  const refValueMap = profile.ref ? resolveRefValues(tokens, marks) : new Map();
-  const tatetenGroups = getTatetenGroups(tokens, marks);
-  const highlightGroups = profile.highlight ? getHighlightGroups(tokens, marks) : new Map();
-
-  const highlightRefIds = new Set<string>();
-  if (profile.highlight) {
-    const highlightMarks = marks.filter((m): m is HighlightMark => m.type === 'highlight');
-    for (const highlight of highlightMarks) {
-      if (highlight.ref) {
-        highlightRefIds.add(highlight.ref);
-      }
-    }
-  }
-
-  const yomiganaRangeGroups = profile.yomigana
-    ? getRangeMarkGroups(tokens, marks, 'yomigana')
-    : new Map();
-  const okuriganaRangeGroups = profile.okurigana
-    ? getRangeMarkGroups(tokens, marks, 'okurigana')
-    : new Map();
-  const soeganaRangeGroups = profile.soegana
-    ? getRangeMarkGroups(tokens, marks, 'soegana')
-    : new Map();
-
-  const buildCtx: BuildTreeContext = {
-    prefix,
-    profile,
-    tokens,
-    marks,
-    refValueMap,
-    highlightRefIds,
-    tatetenGroups,
-    highlightGroups,
-    yomiganaRangeGroups,
-    okuriganaRangeGroups,
-    soeganaRangeGroups,
-  };
-  const renderCtx: RenderTreeContext = {
-    prefix,
-    profile,
-    tokens,
-    marks,
-    interactive,
-    rubyMethod,
-    refValueMap,
-    highlightRefIds,
-  };
-
-  const blockGroups = groupTokensByBlock(doc.blocks ?? [], tokens);
-  const blockTag = inline ? 'span' : 'div';
-  const renderedBlocks: string[] = [];
-
-  for (const blockGroup of blockGroups) {
-    const tree = buildBlockRenderTree(blockGroup.blockId, blockGroup.tokens, buildCtx);
-    const blockContent = renderBlockTree(tree, renderCtx);
-
-    if (blockGroup.blockId) {
-      renderedBlocks.push(
-        `<${blockTag} class="${prefix}-block" data-block-id="${escapeHtml(blockGroup.blockId)}">${blockContent}</${blockTag}>`
-      );
-    } else {
-      renderedBlocks.push(blockContent);
-    }
-  }
-
-  return { tokens: renderedBlocks.join(''), prefix };
 }
 
 // ============================================================================

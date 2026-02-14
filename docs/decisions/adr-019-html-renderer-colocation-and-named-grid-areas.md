@@ -13,6 +13,8 @@ Proposed
 - `renderer.ts` に API、補助関数、token 描画、display オーケストレーションが同居
 - Pass 1 / Pass 2 が `renderer.ts` を参照し、依存が「下位 -> 上位」に逆流
 - `styles.ts` の grid 配置が数値 index（`grid-row: 1..N`, `grid-column: 1..N`）中心で、行追加・並び替え時に壊れやすい
+- `calibrateGridBaseline` と `--*-grid-baseline-fix` による baseline 補正契約が inline-grid 群の前提になっており、grid 移行でこの経路を壊せない
+- 同リポジトリの Canvas renderer は `renderer -> layout(オーケストレータ) -> analysis/columns/placement` の責務分離へ移行済みであり、HTML renderer だけが責務分割規律の例外になっている
 
 問題の本質は「仕様の複雑さ」ではなく「構造と表現の曖昧さ」である。  
 同じ修正でも、担当者によって変更点と判断がぶれやすく、再現性が低い。
@@ -37,6 +39,7 @@ Proposed
 - 利点: 依存方向を固定できる
 - 利点: 「関心が近い実装」を物理的に近づけられる
 - 利点: CSS 配置を意味名で説明でき、判断軸を共有できる
+- 利点: Canvas renderer の既存パターンと整合し、パッケージ横断で理解負荷を下げられる
 - 欠点: 初期の移行差分は増える
 
 ### Option C: renderer 全面再実装
@@ -73,6 +76,21 @@ Proposed
 3. CSS 配置を数値 index 中心から名前参照中心へ移行する
 4. 段階移行で毎段テストし、公開 API と表示仕様を維持する
 
+### 目標アーキテクチャ（Option B 完了時）
+
+- API 層: `renderer.ts`（公開 API と option 正規化）
+- display オーケストレータ層: `render-display-layer.ts`（group 解決、Pass 1/Pass 2 呼び出し）
+- display 実装層:
+  - Pass 1: `build-render-tree.ts`
+  - Pass 2: `render-tree.ts`
+  - token 描画: `token-renderer.ts`
+- 共通基盤層:
+  - `render-config.ts`（`RenderProfile`, `RubyMethod`）
+  - `html-utils.ts`（`escapeHtml` 等の純粋関数）
+  - `mark-utils.ts`（`getBlockStartMarks` など mark 解決の純粋関数）
+
+この構成は Canvas renderer の「公開 API -> オーケストレータ -> 下位レイヤ」という責務分割に合わせる。
+
 ## 設計原則（不変条件）
 
 1. 公開 API シグネチャは変更しない
@@ -80,7 +98,8 @@ Proposed
 3. Pass 1 / Pass 2 から API 層へ逆参照しない
 4. grid 配置の意味は「行番号」ではなく「slot 名」で表現する
 5. 例外（行跨ぎ・重ね配置）が必要な場合も named lines で意味名を付与する
-6. 1 ステップごとに自動テストで回帰確認する
+6. baseline 補正契約（`calibrateGridBaseline` + `--*-grid-baseline-fix`）を維持する
+7. 1 ステップごとに自動テストで回帰確認する
 
 ## 反証条件（この決定を見直す条件）
 
@@ -106,21 +125,25 @@ Proposed
 ## 受け入れ条件
 
 - `build-render-tree.ts` / `render-tree.ts` が `renderer.ts` を import していない
+- package 内テストの import 先が新責務境界に整合している（旧 `renderer.ts` 依存を内部 helper 目的で残さない）
 - 公開 API テストが回帰していない
 - 対象 grid（`suffix-row`, `ruby-grid`, `ruby-grid--emphasis`, `ruby-grid--emphasis-no-ruby`, `saidoku-grid`, `saidoku-grid--emphasis`）が名前参照中心で配置されている
+- `calibrateGridBaseline` の補正経路（`--*-grid-baseline-fix` 参照）が維持されている
 - `pnpm --filter @kanbun/skam-html-renderer test` と `pnpm typecheck` が成功する
 
 ## 確認事項（判定証跡）
 
 受け入れ判定は、以下の証跡が揃っていることを前提とする。
 
-| 観点           | 確認方法                                                                                                                             | 証跡                                                       |
-| -------------- | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
-| 逆依存なし     | `rg -n "from './renderer\\.js'" packages/skam-html-renderer/src/build-render-tree.ts packages/skam-html-renderer/src/render-tree.ts` | 出力 0 件                                                  |
-| API 互換       | 既存 API テスト実行                                                                                                                  | `@kanbun/skam-html-renderer` のテストログ                  |
-| CSS 名前参照化 | `styles.ts` の対象コンテナ定義確認                                                                                                   | `grid-template-areas` または named lines が確認できる diff |
-| 型整合         | `pnpm typecheck`                                                                                                                     | typecheck 成功ログ                                         |
-| 仕様回帰なし   | 主要レンダリングテスト + 手動確認                                                                                                    | テスト成功ログ + Playground 確認メモ                       |
+| 観点               | 確認方法                                                                                                                             | 証跡                                                       |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
+| 逆依存なし         | `rg -n "from './renderer\\.js'" packages/skam-html-renderer/src/build-render-tree.ts packages/skam-html-renderer/src/render-tree.ts` | 出力 0 件                                                  |
+| テスト import 整合 | `rg -n "from '../renderer\\.js'" packages/skam-html-renderer/src/__tests__`                                                          | `renderer.ts` 由来の内部 helper 依存が解消されている diff  |
+| API 互換           | 既存 API テスト実行                                                                                                                  | `@kanbun/skam-html-renderer` のテストログ                  |
+| CSS 名前参照化     | `styles.ts` の対象コンテナ定義確認                                                                                                   | `grid-template-areas` または named lines が確認できる diff |
+| baseline 補正契約  | `styles.ts` と `calibrate.ts` を確認                                                                                                 | `--*-grid-baseline-fix` の参照と設定が維持される diff      |
+| 型整合             | `pnpm typecheck`                                                                                                                     | typecheck 成功ログ                                         |
+| 仕様回帰なし       | 主要レンダリングテスト + 手動確認                                                                                                    | テスト成功ログ + Playground 確認メモ                       |
 
 確認結果は PR 説明に最低限「実行コマンド」「結果」「未確認項目の有無」を記録する。
 
@@ -146,6 +169,7 @@ Proposed
 - マーク解決ロジックや表示仕様（見た目）の再定義
 - HTML renderer 全面再実装（Option C の一括実施）
 - Canvas renderer 側のアーキテクチャ変更
+- `calibrateGridBaseline` 検知アルゴリズムの再設計
 - パフォーマンス最適化を主目的とした内部アルゴリズム変更
 
 ## 参考

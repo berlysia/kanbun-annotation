@@ -2,7 +2,7 @@
 
 ## ステータス
 
-Proposed
+Accepted
 
 関連 ADR: [ADR-019](adr-019-html-renderer-colocation-and-named-grid-areas.md), [ADR-013](adr-013-baseline-compatibility-check.md)
 

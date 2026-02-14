@@ -4,7 +4,7 @@
 
 Accepted
 
-関連 ADR: [ADR-018](adr-018-canvas-layout-vertical-refactor-architecture.md), [ADR-019](adr-019-html-renderer-colocation-and-named-grid-areas.md), [ADR-020](adr-020-html-renderer-phase2-stabilization-and-guardrails.md)
+関連 ADR: [ADR-018](adr-018-canvas-layout-vertical-refactor-architecture.md), [ADR-019](adr-019-html-renderer-colocation-and-named-grid-areas.md), [ADR-020](adr-020-html-renderer-phase2-stabilization-and-guardrails.md), [ADR-022](adr-022-semantic-and-visual-test-strategy-no-gap.md)
 
 ## コンテキスト
 
@@ -157,6 +157,7 @@ Step 2-3 は並行しない。片方を安定化してから次へ進む。
 - `getRangeMarkGroups` / `getTatetenGroups` / `getHighlightGroups` / `groupTokensByBlock` の呼び出しが renderer 個別実装から消える
 - HTML/Canvas それぞれの既存主要テストが回帰しない
 - クロスレンダラー同値テスト（固定4ケース）が追加される
+- テスト運用は ADR-022（二層戦略 + No Test-Gap）に準拠する
 - `pnpm --filter @kanbun/skam-html-renderer test:run`
 - `pnpm --filter @kanbun/skam-canvas-renderer test:run`
 - `pnpm typecheck`
@@ -167,6 +168,43 @@ Step 2-3 は並行しない。片方を安定化してから次へ進む。
 2. tateten + kaeri（レ/非レ分割を含む）
 3. highlight + ref（グループ参照ラベルを含む）
 4. saidoku（二段読み + 第二送り）
+
+### テスト戦略の優先規約
+
+Phase3 のテストレイヤ運用（semantic/visual/legacy-snapshot の扱い、No Test-Gap の判定、移行対応表の運用）は ADR-022 を正本とする。  
+ADR-021 の同値テスト規約は AIR 統合の設計要件に限定し、運用規約の最終判断は ADR-022 に従う。
+
+### 意味論ベーステスト規約（Phase3 必須）
+
+同値テストは次の規約に従う。
+
+1. 入力 fixture は単一ソースを使う（HTML/Canvas で同じ `SKAMDocument` を参照）
+2. AIR 比較は正規化後に行う（順序依存を排除）
+3. 比較対象は AIR 同値性の定義で固定し、DOM/CSS/座標は比較しない
+4. 失敗メッセージは「どの意味スロットが不一致か」を出力する
+
+#### AIR 正規化ルール
+
+1. ブロック配列は `blockId` 順
+2. トークン配列は `token.id` 順
+3. スロットオブジェクトのキーは辞書順
+4. 配列は意味順（入力順）を維持し、比較前に JSON 化する
+
+#### 禁止事項
+
+- HTML 文字列断片の `toContain` を同値判定に使う
+- Canvas 座標の一致を意味同値の代理指標に使う
+- snapshot だけで同値性を判定する
+
+### 判断軸と検証コマンドの対応
+
+| 判断軸           | 検証コマンド                                                                                                              | 合格条件                               |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------ | ------------------------------- |
+| 意味整合性       | `rg -n "buildAnnotationIR" packages/skam-html-renderer/src packages/skam-canvas-renderer/src packages/skam/src/rendering` | Resolver 実装 + 両 renderer 利用を確認 |
+| 変更局所性       | `rg -n "getRangeMarkGroups                                                                                                | getTatetenGroups                       | getHighlightGroups | groupTokensByBlock" packages/skam-html-renderer/src packages/skam-canvas-renderer/src -g '!**/**tests**/**'` | 直接呼び出し 0 件               |
+| 回帰検出力       | `rg -n "range ruby                                                                                                        | tateten\\+kaeri                        | highlight\\+ref    | saidoku" packages -g "*cross-renderer*test.ts"`                                                              | 固定4ケースが test 名として存在 |
+| 移行安全性       | `pnpm --filter @kanbun/skam-html-renderer test:run && pnpm --filter @kanbun/skam-canvas-renderer test:run`                | 両テスト成功                           |
+| 実装コスト妥当性 | `pnpm typecheck`                                                                                                          | 成功                                   |
 
 ## 完了判定手順（再現可能）
 
@@ -188,9 +226,12 @@ Step 2-3 は並行しない。片方を安定化してから次へ進む。
 6. `rg -n "range ruby|tateten\\+kaeri|highlight\\+ref|saidoku" packages -g "*cross-renderer*test.ts"`
    合格条件: 固定4ケースが test 名として確認できる
 
+7. `rg -n "normalize|canonical|AIR" packages -g "*cross-renderer*test.ts"`
+   合格条件: 同値テストに正規化処理が実装されている
+
 ## 判定証跡テンプレート（PR 記載）
 
-1. 実行コマンド一覧（1-6）
+1. 実行コマンド一覧（1-7）
 2. 各コマンドの結果（pass/fail）
 3. 固定4ケースの同値テスト結果
 4. 未達項目がある場合の理由と是正計画

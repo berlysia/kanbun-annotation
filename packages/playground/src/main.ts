@@ -1765,6 +1765,9 @@ function renderCanvasDocument(doc: SKAMDocument): void {
 
   // Sync container writing-mode for correct scroll direction
   renderOutput.style.writingMode = writingMode === 'vertical' ? 'vertical-rl' : '';
+  // In vertical-rl, the flex main axis becomes vertical, so justify-content
+  // would center content vertically. Use flex-start to keep it at the top.
+  renderOutput.style.justifyContent = writingMode === 'vertical' ? 'flex-start' : '';
 
   // Get or create canvas element
   let canvas = renderOutput.querySelector('canvas');
@@ -1847,6 +1850,9 @@ function renderDocument(doc: SKAMDocument): void {
   // Sync writing-mode on the scroll container (.preview-content itself)
   // so the scroll origin matches the content direction (right edge for vertical-rl).
   renderOutput.style.writingMode = writingMode === 'vertical' ? 'vertical-rl' : '';
+  // In vertical-rl, the flex main axis becomes vertical, so justify-content
+  // would center content vertically. Use flex-start to keep it at the top.
+  renderOutput.style.justifyContent = writingMode === 'vertical' ? 'flex-start' : '';
 
   // Apply CSS and HTML
   const styleId = 'skam-playground-styles';

@@ -7,6 +7,48 @@
 import type { CanvasRenderingContext2DLike } from './canvas-context.js';
 
 /**
+ * 横書き用括弧 → 縦書き用 Presentation Form への置換マップ。
+ *
+ * Canvas API は OpenType vert feature を適用しないため、
+ * CJK 括弧類は横書きグリフのまま描画される。
+ * ブラウザの writing-mode: vertical-rl では自動でグリフが切り替わるが、
+ * Canvas では Unicode の Vertical Presentation Forms (U+FE30–FE4F) に
+ * 手動で置換する必要がある。
+ *
+ * 参照: https://www.unicode.org/charts/nameslist/n_FE30.html
+ */
+const VERTICAL_FORM_MAP: ReadonlyMap<string, string> = new Map([
+  // U+FF08/FF09 全角丸括弧 → U+FE35/FE36
+  ['（', '︵'],
+  ['）', '︶'],
+  // U+3014/3015 亀甲括弧 → U+FE39/FE3A
+  ['〔', '︹'],
+  ['〕', '︺'],
+  // U+3010/3011 隅付き括弧 → U+FE3B/FE3C
+  ['【', '︻'],
+  ['】', '︼'],
+  // U+300A/300B 二重山括弧 → U+FE3D/FE3E
+  ['《', '︽'],
+  ['》', '︾'],
+  // U+3008/3009 山括弧 → U+FE3F/FE40
+  ['〈', '︿'],
+  ['〉', '﹀'],
+  // U+300C/300D 鉤括弧 → U+FE41/FE42
+  ['「', '﹁'],
+  ['」', '﹂'],
+  // U+300E/300F 二重鉤括弧 → U+FE43/FE44
+  ['『', '﹃'],
+  ['』', '﹄'],
+]);
+
+/**
+ * 縦書き用グリフへの置換が必要な文字か判定する。
+ */
+export function getVerticalForm(char: string): string | undefined {
+  return VERTICAL_FORM_MAP.get(char);
+}
+
+/**
  * 縦中横判定: 半角括弧付き1文字 or 2文字以下の半角文字
  *
  * HTML レンダラーの shouldApplyTateChuYoko と同等のロジック。
@@ -66,7 +108,8 @@ export function drawVerticalText(
 
   let currentY = y;
   for (const char of text) {
-    ctx.fillText(char, x, currentY);
+    const verticalForm = getVerticalForm(char);
+    ctx.fillText(verticalForm ?? char, x, currentY);
     currentY += fontSize;
   }
   ctx.restore();

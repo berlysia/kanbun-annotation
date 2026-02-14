@@ -1,0 +1,64 @@
+{
+  "overrides": [
+    {
+      "files": [
+        "src/render-config.ts",
+        "src/render-tree-types.ts",
+        "src/html-utils.ts",
+        "src/css-tag.ts",
+        "src/mark-utils.ts",
+        "src/styles.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "./build-render-tree.js",
+                "message": "Shared layer must not import from Display layer"
+              },
+              {
+                "name": "./render-tree.js",
+                "message": "Shared layer must not import from Display layer"
+              },
+              {
+                "name": "./token-renderer.js",
+                "message": "Shared layer must not import from Display layer"
+              },
+              {
+                "name": "./render-display-layer.js",
+                "message": "Shared layer must not import from Display layer"
+              },
+              {
+                "name": "./renderer.js",
+                "message": "Shared layer must not import from API layer"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": [
+        "src/build-render-tree.ts",
+        "src/render-tree.ts",
+        "src/token-renderer.ts",
+        "src/render-display-layer.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "./renderer.js",
+                "message": "Display layer must not import from API layer"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

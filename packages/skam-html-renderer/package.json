@@ -15,13 +15,12 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsgo --noEmit",
-    "lint": "oxlint src",
+    "lint": "oxlint -c .oxlintrc.json src",
     "lint:baseline": "pnpm lint:baseline:css; pnpm lint:baseline:js",
     "lint:baseline:css": "stylelint 'src/**/*.ts'",
     "lint:baseline:js": "eslint -c eslint-baseline.config.js 'src/**/*.ts'",
     "test": "vitest",
-    "test:run": "vitest run",
-    "check:deps": "bash check-deps.sh"
+    "test:run": "vitest run"
   },
   "keywords": [
     "kanbun",

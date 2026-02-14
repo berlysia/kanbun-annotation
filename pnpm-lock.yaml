@@ -71,6 +71,9 @@ importers:
       '@kanbun/skam-html-renderer':
         specifier: workspace:*
         version: link:../skam-html-renderer
+      '@kanbun/skam-screenshot':
+        specifier: workspace:*
+        version: link:../skam-screenshot
       '@kanbun/skam-xml-parser':
         specifier: workspace:*
         version: link:../skam-xml-parser

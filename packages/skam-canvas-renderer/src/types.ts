@@ -34,6 +34,17 @@ export interface CanvasRenderOptions {
   columnSizing?: 'uniform' | 'adaptive';
   /** range ruby overflow 時の配置: 'distribute'=均等配分（デフォルト）, 'center'=中央寄せ */
   rangeRubyAlignment?: 'distribute' | 'center';
+  /**
+   * em box 上端から alphabetic baseline までの距離の比率 (0–1)。
+   * fontSize × emAscentRatio = em ascent として描画位置を補正する。
+   *
+   * Chrome/Firefox では ideographic baseline から自動算出されるが、
+   * Safari では ideographic baseline の実装バグにより自動算出できない。
+   * Safari のフォールバックはCJKフォント標準の 0.88 (sTypoAscender=880/UPM=1000)。
+   * Noto Serif JP 以外のフォントで Safari の描画位置がずれる場合、
+   * フォントの sTypoAscender / unitsPerEm を指定する。
+   */
+  emAscentRatio?: number;
 }
 
 export interface MeasureOptions {
@@ -305,4 +316,5 @@ export interface ResolvedOptions {
   maxExtent: number | undefined;
   columnSizing: 'uniform' | 'adaptive';
   rangeRubyAlignment: 'distribute' | 'center';
+  emAscentRatio: number | undefined;
 }

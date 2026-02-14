@@ -13,6 +13,8 @@ export interface TextMetricsLike {
   readonly width: number;
   readonly actualBoundingBoxAscent?: number;
   readonly actualBoundingBoxDescent?: number;
+  readonly fontBoundingBoxAscent?: number;
+  readonly fontBoundingBoxDescent?: number;
 }
 
 /**

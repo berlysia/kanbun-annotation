@@ -30,12 +30,16 @@ export class TextMeasurer {
     const metrics = this.ctx.measureText(text);
     const ascent = metrics.actualBoundingBoxAscent;
     const descent = metrics.actualBoundingBoxDescent;
+    const fontAscent = metrics.fontBoundingBoxAscent;
+    const fontDescent = metrics.fontBoundingBoxDescent;
     const result: TextMetricsLike =
       ascent != null && descent != null
         ? {
             width: metrics.width,
             actualBoundingBoxAscent: ascent,
             actualBoundingBoxDescent: descent,
+            ...(fontAscent != null ? { fontBoundingBoxAscent: fontAscent } : {}),
+            ...(fontDescent != null ? { fontBoundingBoxDescent: fontDescent } : {}),
           }
         : { width: metrics.width };
 

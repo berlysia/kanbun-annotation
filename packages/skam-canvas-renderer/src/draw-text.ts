@@ -2,6 +2,11 @@
  * テキスト描画ヘルパー（縦書き用）
  *
  * CJK 文字は1文字ずつ fillText で描画する。
+ *
+ * textBaseline: 'alphabetic' を使用し、em ascent で Y 座標を補正する。
+ * Safari は textBaseline: 'top' の解釈が Chrome/Firefox と異なり、
+ * 数ピクセル分文字が下にずれるため、ブラウザ間で一貫した 'alphabetic' を基準とする。
+ * em ascent は ideographic baseline との差分で算出し、Safari では CJK 標準比率にフォールバック。
  */
 
 import type { CanvasRenderingContext2DLike } from './canvas-context.js';
@@ -67,6 +72,87 @@ export function shouldApplyTateChuYoko(text: string): boolean {
 }
 
 /**
+ * em ascent のキャッシュ。キー → em ascent 値。
+ * textBaseline: 'alphabetic' 使用時に、em box 上端からのオフセットとして使用する。
+ */
+const emAscentCache = new Map<string, number>();
+
+/**
+ * CJK フォントの標準 sTypoAscender 比率。
+ * Noto Serif JP, Source Han Serif 等の主要 CJK フォントは
+ * sTypoAscender=880, UPM=1000 (比率 0.88) を使用する。
+ */
+const CJK_DEFAULT_ASCENT_RATIO = 0.88;
+
+/**
+ * em box 上端から alphabetic baseline までの距離（em ascent）を算出する。
+ *
+ * textBaseline の解釈はブラウザ間で異なる：
+ * - 'top': Safari では font bbox top、Chrome/Firefox では em box top 付近（ただし微差あり）
+ * - 'alphabetic': 全ブラウザで一致（最も安定した baseline）
+ * - 'ideographic': Chrome/Firefox では em box bottom、Safari では font bbox bottom
+ *
+ * そのため 'alphabetic' を描画 baseline とし、'ideographic' との差分で
+ * em descent を算出、fontSize - emDescent = emAscent を得る。
+ * Safari では 'ideographic' が font bbox bottom と同一になるバグがあるため、
+ * fontBoundingBoxDescent(ideographic) ≈ 0 で検知し CJK 標準比率にフォールバックする。
+ */
+function getFontAscent(
+  ctx: CanvasRenderingContext2DLike,
+  fontSize: number,
+  fontFamily: string,
+  emAscentRatio?: number
+): number {
+  const fontStr = `${fontSize}px ${fontFamily}`;
+  const cacheKey = emAscentRatio != null ? `${fontStr}@${emAscentRatio}` : fontStr;
+  const cached = emAscentCache.get(cacheKey);
+  if (cached !== undefined) return cached;
+
+  let emAscent: number;
+
+  if (emAscentRatio != null) {
+    // ユーザー指定の比率を使用（フォントの sTypoAscender / unitsPerEm）
+    emAscent = fontSize * emAscentRatio;
+  } else {
+    const prevFont = ctx.font;
+    const prevBaseline = ctx.textBaseline;
+    ctx.font = fontStr;
+
+    // ideographic baseline と alphabetic baseline の fontBoundingBoxAscent 差から em descent を算出。
+    // em descent = fontAscent(ideographic) - fontAscent(alphabetic)
+    // em ascent = fontSize - em descent
+    ctx.textBaseline = 'ideographic';
+    const mIdeo = ctx.measureText('国');
+    ctx.textBaseline = 'alphabetic';
+    const mAlpha = ctx.measureText('国');
+
+    ctx.font = prevFont;
+    ctx.textBaseline = prevBaseline;
+
+    const fontAscentIdeo = mIdeo.fontBoundingBoxAscent;
+    const fontAscentAlpha = mAlpha.fontBoundingBoxAscent;
+    const fontDescentIdeo = mIdeo.fontBoundingBoxDescent;
+
+    if (
+      fontAscentIdeo != null &&
+      fontAscentAlpha != null &&
+      fontDescentIdeo != null &&
+      // Safari 検知: ideographic の fontDescent ≈ 0 は ideographic = font bbox bottom を意味する
+      fontDescentIdeo > 1
+    ) {
+      const emDescent = fontAscentIdeo - fontAscentAlpha;
+      emAscent = fontSize - emDescent;
+    } else {
+      // Safari フォールバック: CJK フォントの標準比率を使用
+      emAscent = fontSize * CJK_DEFAULT_ASCENT_RATIO;
+    }
+  }
+
+  emAscentCache.set(cacheKey, emAscent);
+  return emAscent;
+}
+
+/**
  * 単一文字を描画する
  */
 export function drawChar(
@@ -76,14 +162,16 @@ export function drawChar(
   y: number,
   fontSize: number,
   color: string,
-  fontFamily: string
+  fontFamily: string,
+  emAscentRatio?: number
 ): void {
+  const ascent = getFontAscent(ctx, fontSize, fontFamily, emAscentRatio);
   ctx.save();
   ctx.font = `${fontSize}px ${fontFamily}`;
   ctx.fillStyle = color;
-  ctx.textBaseline = 'top';
+  ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'center';
-  ctx.fillText(char, x, y);
+  ctx.fillText(char, x, y + ascent);
   ctx.restore();
 }
 
@@ -98,18 +186,20 @@ export function drawVerticalText(
   y: number,
   fontSize: number,
   color: string,
-  fontFamily: string
+  fontFamily: string,
+  emAscentRatio?: number
 ): void {
+  const ascent = getFontAscent(ctx, fontSize, fontFamily, emAscentRatio);
   ctx.save();
   ctx.font = `${fontSize}px ${fontFamily}`;
   ctx.fillStyle = color;
-  ctx.textBaseline = 'top';
+  ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'center';
 
   let currentY = y;
   for (const char of text) {
     const verticalForm = getVerticalForm(char);
-    ctx.fillText(verticalForm ?? char, x, currentY);
+    ctx.fillText(verticalForm ?? char, x, currentY + ascent);
     currentY += fontSize;
   }
   ctx.restore();
@@ -133,18 +223,20 @@ export function drawKutotenText(
   y: number,
   fontSize: number,
   color: string,
-  fontFamily: string
+  fontFamily: string,
+  emAscentRatio?: number
 ): void {
+  const ascent = getFontAscent(ctx, fontSize, fontFamily, emAscentRatio);
   ctx.save();
   ctx.font = `${fontSize}px ${fontFamily}`;
   ctx.fillStyle = color;
-  ctx.textBaseline = 'top';
+  ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'center';
 
   const offset = fontSize / 2;
   let currentY = y;
   for (const char of text) {
-    ctx.fillText(char, x + offset, currentY - offset);
+    ctx.fillText(char, x + offset, currentY - offset + ascent);
     currentY += fontSize;
   }
   ctx.restore();
@@ -162,14 +254,16 @@ export function drawTateChuYokoText(
   y: number,
   fontSize: number,
   color: string,
-  fontFamily: string
+  fontFamily: string,
+  emAscentRatio?: number
 ): void {
+  const ascent = getFontAscent(ctx, fontSize, fontFamily, emAscentRatio);
   ctx.save();
   ctx.font = `${fontSize}px ${fontFamily}`;
   ctx.fillStyle = color;
-  ctx.textBaseline = 'top';
+  ctx.textBaseline = 'alphabetic';
   ctx.textAlign = 'center';
   // テキスト全体を1つの fillText で横書き描画
-  ctx.fillText(text, x, y);
+  ctx.fillText(text, x, y + ascent);
   ctx.restore();
 }

@@ -41,6 +41,7 @@ export function resolveOptions(options?: CanvasRenderOptions): ResolvedOptions {
     maxExtent: options?.maxExtent,
     columnSizing: options?.columnSizing ?? 'uniform',
     rangeRubyAlignment: options?.rangeRubyAlignment ?? 'distribute',
+    emAscentRatio: options?.emAscentRatio,
   };
 }
 

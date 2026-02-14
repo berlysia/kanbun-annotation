@@ -37,7 +37,8 @@ export function draw(
           child.y,
           child.fontSize,
           options.textColor,
-          options.fontFamily
+          options.fontFamily,
+          options.emAscentRatio
         );
         // Draw kaeri on separator if present
         drawSlotIfPresent(ctx, child.kaeri, options);
@@ -52,7 +53,8 @@ export function draw(
         child.y,
         options.fontSize,
         options.textColor,
-        options.fontFamily
+        options.fontFamily,
+        options.emAscentRatio
       );
 
       // Draw slots
@@ -90,7 +92,8 @@ function drawKutotenSlotIfPresent(
     slot.y,
     slot.fontSize,
     options.textColor,
-    options.fontFamily
+    options.fontFamily,
+    options.emAscentRatio
   );
 }
 
@@ -108,7 +111,8 @@ function drawSlotIfPresent(
       slot.y,
       slot.fontSize,
       options.textColor,
-      options.fontFamily
+      options.fontFamily,
+      options.emAscentRatio
     );
   } else {
     drawVerticalText(
@@ -118,7 +122,8 @@ function drawSlotIfPresent(
       slot.y,
       slot.fontSize,
       options.textColor,
-      options.fontFamily
+      options.fontFamily,
+      options.emAscentRatio
     );
   }
 }

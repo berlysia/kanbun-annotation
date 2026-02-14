@@ -42,6 +42,9 @@ packages/
 ├── skam-xml-stringify/   # @kanbun/skam-xml-stringify - SKAM JSON → SKAM-ML/XML シリアライザー
 ├── skam-html-renderer/   # @kanbun/skam-html-renderer - HTML レンダラー
 ├── skam-canvas-renderer/ # @kanbun/skam-canvas-renderer - Canvas レンダラー（画像エクスポート用）
+├── skam-web-component/   # @kanbun/skam-web-component - Web Component ラッパー
+├── skam-screenshot/      # @kanbun/skam-screenshot - スクリーンショット用ユーティリティ（private）
+├── baseline-check/       # @kanbun/baseline-check - ベースライン互換性チェック（private）
 ├── integration-tests/    # @kanbun/integration-tests - パッケージ間統合テスト（parse/stringify roundtrip 等）
 └── playground/           # @kanbun/playground - インタラクティブデモ (GitHub Pages)
 ```
@@ -101,9 +104,14 @@ import {
   // 定数
   KAERI_UNICODE,
   IROHA_SEQUENCE,
+  IROHA_HIRAGANA_SEQUENCE,
+  GOJUON_SEQUENCE,
+  GOJUON_HIRAGANA_SEQUENCE,
+  KANJI_NUMBERS,
   CIRCLED_NUMBERS,
   // 返り点
   convertKaeriToUnicode,
+  splitKaeriForTateten,
   // 傍点
   resolveEmphasisCharacter,
   // Ref
@@ -117,8 +125,22 @@ import {
   getMarksForToken,
   // ブロック
   groupTokensByBlock,
+  // Block-start marks
+  getBlockStartMarks,
+  // AIR Resolver
+  buildAnnotationIR,
+  // 改行制御
+  canBreakBefore,
 } from '@kanbun/skam/rendering';
-import type { RangeMarkGroup } from '@kanbun/skam/rendering';
+import type {
+  RangeMarkGroup,
+  AIRDocument,
+  AIRBlock,
+  AIRBlockChild,
+  AIRTokenNode,
+  AIRTatetenGroupNode,
+  AIRHighlightGroupNode,
+} from '@kanbun/skam/rendering';
 ```
 
 ### @kanbun/skam-canvas-renderer 主要 API
@@ -173,6 +195,9 @@ const { html, css } = render(doc);
 
 // ブラウザ環境: インタラクティブイベントハンドラ
 import { attachInteractiveHandlers } from '@kanbun/skam-html-renderer';
+
+// ブラウザ環境: inline-grid baseline 補正
+import { calibrateGridBaseline } from '@kanbun/skam-html-renderer';
 ```
 
 ### SKAM データモデル
@@ -233,7 +258,7 @@ anchor ベースと position ベースは共通基底 `MarkBase` から対等に
 
 全 CRUD 操作は新しいドキュメントオブジェクトを返す。元のドキュメントは変更しない。
 
-#### テストヘルパー (`__tests__/operations/helpers.ts`)
+#### テストヘルパー (`src/__tests__/operations/helpers.ts`)
 
 - `createTestDocument(marks)`: 3 token (子/曰/學, t1-t3) / 1 block (b1)
 - `createMultiBlockDocument(marks)`: 6 token (t1-t6) / 2 block (b1, b2)

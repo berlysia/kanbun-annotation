@@ -64,12 +64,11 @@ assertSKAMDocument(input);
 | `joji`      | 助字（文法ラベル）       |
 | `kutoten`   | 句読点                   |
 | `emphasis`  | 傍点・圏点               |
-| `note`      | 注釈                     |
 | `saidoku`   | 再読文字                 |
 | `okototen`  | ヲコト点                 |
 | `tateten`   | たて点（熟語境界）       |
-| `underline` | 傍線（教育用途）         |
-| `label`     | 番号振り（教育用途）     |
+| `highlight` | 傍線（ref を参照可）     |
+| `ref`       | 参照識別子・注釈         |
 
 ## Reading Kinds
 

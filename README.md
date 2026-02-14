@@ -19,12 +19,14 @@ SKAM-ML/XML を試せるインタラクティブなデモ: https://berlysia.gith
 
 ## パッケージ構成
 
-| パッケージ                                                   | 説明                      | 状態   |
-| ------------------------------------------------------------ | ------------------------- | ------ |
-| [@kanbun/skam](./packages/skam/)                             | SKAM 型定義（TypeScript） | v0.1.0 |
-| [@kanbun/skam-xml-parser](./packages/skam-xml-parser/)       | SKAM-ML/XML パーサー      | v0.1.0 |
-| [@kanbun/skam-html-renderer](./packages/skam-html-renderer/) | SKAM → HTML レンダラー    | v0.1.0 |
-| [@kanbun/playground](./packages/playground/)                 | インタラクティブデモ      | -      |
+| パッケージ                                                       | 説明                                           | 状態   |
+| ---------------------------------------------------------------- | ---------------------------------------------- | ------ |
+| [@kanbun/skam](./packages/skam/)                                 | SKAM 型定義・バリデーター・操作                | v0.1.0 |
+| [@kanbun/skam-xml-parser](./packages/skam-xml-parser/)           | SKAM-ML/XML パーサー                           | v0.1.0 |
+| [@kanbun/skam-xml-stringify](./packages/skam-xml-stringify/)     | SKAM JSON → SKAM-ML/XML シリアライザー         | v0.1.0 |
+| [@kanbun/skam-html-renderer](./packages/skam-html-renderer/)     | SKAM → HTML レンダラー                         | v0.1.0 |
+| [@kanbun/skam-canvas-renderer](./packages/skam-canvas-renderer/) | SKAM → Canvas レンダラー（画像エクスポート用） | v0.1.0 |
+| [@kanbun/playground](./packages/playground/)                     | インタラクティブデモ                           | -      |
 
 ## インストール
 
@@ -55,13 +57,14 @@ const doc: SKAMDocument = {
     { id: 't4', text: '習' },
     { id: 't5', text: '之' },
   ],
+  blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3', 't4', 't5'] }],
   marks: [
     { type: 'yomigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'まな' },
     { type: 'okurigana', id: 'm2', anchor: { from: 't1', to: 't1' }, value: 'びて' },
     { type: 'okurigana', id: 'm3', anchor: { from: 't3', to: 't3' }, value: 'に' },
     { type: 'soegana', id: 'm4', anchor: { from: 't5', to: 't5' }, value: 'を' },
     { type: 'okurigana', id: 'm5', anchor: { from: 't4', to: 't4' }, value: 'ふ' },
-    { type: 'kaeri', id: 'm6', anchor: { from: 't5', to: 't5' }, value: 'レ' },
+    { type: 'kaeri', id: 'm6', position: { blockId: 'b1', after: 't5' }, value: 'レ' },
   ],
   readings: [{ kind: 'kakikudashi', text: '学びて時に之を習ふ' }],
 };
@@ -126,10 +129,11 @@ SKAMDocument
 | `joji`      | 助字（文法的機能を持つ漢字ラベル） | なし                                  |
 | `kutoten`   | 句読点                             | 必須（句点・読点等）                  |
 | `emphasis`  | 傍点・圏点                         | 任意（傍点の種類）                    |
-| `note`      | 注釈（割注・欄外注含む）           | 必須（注釈テキスト）                  |
 | `saidoku`   | 再読文字                           | forms 配列必須                        |
 | `okototen`  | ヲコト点                           | position・shape 必須                  |
 | `tateten`   | たて点（熟語境界）                 | なし                                  |
+| `highlight` | 傍線（ref を参照可）               | なし                                  |
+| `ref`       | 参照識別子・注釈                   | 必須（参照テキスト）                  |
 
 ### Reading Kinds
 

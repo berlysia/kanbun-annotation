@@ -5,6 +5,8 @@
 HTML レンダラー: **Done** (アプローチ 5 + no-ruby バリアント)
 Canvas レンダラー: In Progress
 
+実装計画: [Plan](../plans/plan-emphasis-highlight-layout-order-canvas.md)
+
 ## コンテキスト
 
 縦書きモードにおいて、傍点（emphasis）と傍線（highlight）の配置順序を変更したい。

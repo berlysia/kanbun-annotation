@@ -214,11 +214,10 @@ const css = generateCSS({ useLayer: false });
 | `joji`      | ✅       |
 | `kutoten`   | ✅       |
 | `emphasis`  | ✅       |
-| `note`      | ✅       |
 | `saidoku`   | ✅       |
 | `tateten`   | ✅       |
-| `underline` | ✅       |
-| `label`     | ✅       |
+| `highlight` | ✅       |
+| `ref`       | ✅       |
 | `okototen`  | 🚧       |
 
 ## 出力形式

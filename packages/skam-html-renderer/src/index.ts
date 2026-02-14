@@ -8,15 +8,18 @@ export {
   render,
   renderHTML,
   generateCSS,
-  PROFILES,
-  type RenderProfile,
   type RenderOptions,
   type RenderHTMLOptions,
   type CSSOptions,
   type RenderResult,
+} from './renderer.js';
+
+export {
+  PROFILES,
+  type RenderProfile,
   type CopyableElement,
   type RubyMethod,
-} from './renderer.js';
+} from './render-config.js';
 
 export { getDefaultStyles, type StyleOptions } from './styles.js';
 

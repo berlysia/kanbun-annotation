@@ -12,9 +12,10 @@ import type {
   BlockRenderTree,
   RenderNode,
 } from './render-tree-types.js';
-import type { RenderProfile, RubyMethod } from './renderer.js';
+import type { RenderProfile, RubyMethod } from './render-config.js';
 import { resolveEmphasisCharacter, canBreakBefore } from '@kanbun/skam/rendering';
-import { escapeHtml, renderToken, generateEmphasisMarks } from './renderer.js';
+import { escapeHtml, generateEmphasisMarks } from './html-utils.js';
+import { renderToken } from './token-renderer.js';
 
 /** @internal */
 export interface RenderTreeContext {

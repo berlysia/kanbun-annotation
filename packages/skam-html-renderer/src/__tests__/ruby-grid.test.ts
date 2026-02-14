@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { SKAMDocument } from '@kanbun/skam';
 import { render, renderHTML, generateCSS, getDefaultStyles } from '../index.js';
 import { resolveEmphasisCharacter } from '@kanbun/skam/rendering';
-import { generateEmphasisMarks } from '../renderer.js';
+import { generateEmphasisMarks } from '../html-utils.js';
 
 /**
  * Helper: create a minimal SKAMDocument

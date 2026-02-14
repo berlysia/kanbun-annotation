@@ -8,7 +8,7 @@ import {
   getHighlightGroups,
   getRangeMarkGroups,
 } from '@kanbun/skam/rendering';
-import type { RenderProfile } from '../renderer.js';
+import type { RenderProfile } from '../render-config.js';
 import type { TokenItem, TatetenGroupNode, HighlightGroupNode } from '../render-tree-types.js';
 
 // ============================================================================

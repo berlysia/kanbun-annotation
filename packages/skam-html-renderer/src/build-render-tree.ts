@@ -29,8 +29,9 @@ import type {
 } from './render-tree-types.js';
 import type { RangeMarkGroup } from '@kanbun/skam/rendering';
 import { getMarksForToken, getRangeMarkGroups } from '@kanbun/skam/rendering';
-import type { RenderProfile } from './renderer.js';
-import { escapeHtml, shouldApplyTateChuYoko, getBlockStartMarks } from './renderer.js';
+import type { RenderProfile } from './render-config.js';
+import { escapeHtml, shouldApplyTateChuYoko } from './html-utils.js';
+import { getBlockStartMarks } from './mark-utils.js';
 
 /** @internal */
 export interface BuildTreeContext {

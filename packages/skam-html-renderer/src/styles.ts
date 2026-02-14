@@ -3,28 +3,9 @@
  */
 
 import { css } from './css-tag.js';
+import type { CopyableElement, RubyMethod } from './render-config.js';
 
-/**
- * コピー可能にする要素の種類
- *
- * - 'ruby': 読み仮名（ルビ）
- * - 'okurigana': 送り仮名
- * - 'soegana': 添え仮名
- * - 'kaeriten': 返り点
- * - 'okototen': ヲコト点
- *
- * これらは data-copyable 属性で実行時に制御可能。
- * 例: <div class="skam-document" data-copyable="ruby okurigana">
- */
-export type CopyableElement = 'ruby' | 'okurigana' | 'soegana' | 'kaeriten' | 'okototen';
-
-/**
- * CSSスタイル生成オプション
- */
-/**
- * Ruby要素のレンダリング方式
- */
-export type RubyMethod = 'ruby' | 'grid';
+export type { CopyableElement, RubyMethod } from './render-config.js';
 
 export interface StyleOptions {
   /** CSSクラス名プレフィックス（default: 'skam'） */

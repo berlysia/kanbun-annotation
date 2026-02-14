@@ -20,7 +20,8 @@
     "lint:baseline:css": "stylelint 'src/**/*.ts'",
     "lint:baseline:js": "eslint -c eslint-baseline.config.js 'src/**/*.ts'",
     "test": "vitest",
-    "test:run": "vitest run"
+    "test:run": "vitest run",
+    "check:deps": "bash check-deps.sh"
   },
   "keywords": [
     "kanbun",

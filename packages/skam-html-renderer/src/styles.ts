@@ -683,25 +683,25 @@ ${
  */
 :where(.${prefix}-tateten-sep) {
   display: inline-grid;
-  grid-template-rows: repeat(4, ${halfAnnotationRowH});
+  grid-template-rows: [sep-spacer-start] ${halfAnnotationRowH} [sep-tateten-start] ${halfAnnotationRowH} [sep-kaeri-start] ${halfAnnotationRowH} [sep-end] ${halfAnnotationRowH};
   line-height: 1;
   vertical-align: calc(var(--${vp}-grid-baseline-fix, 0) * (0.5em - var(--${vp}-ruby-ratio) * 0.5em));
 }
 
 :where(.${prefix}-tateten-sep)::before {
   content: '';
-  grid-row: 1 / 3;
+  grid-row: sep-spacer-start / sep-kaeri-start;
   grid-column: 1;
 }
 
 :where(.${prefix}-tateten-sep) > :where(.${prefix}-tateten-mark) {
-  grid-row: 2 / 4;
+  grid-row: sep-tateten-start / sep-end;
   grid-column: 1;
   align-self: center;
 }
 
 :where(.${prefix}-tateten-sep) > :where(.${prefix}-kaeriten) {
-  grid-row: 3 / 5;
+  grid-row: sep-kaeri-start / span 2;
   grid-column: 1;
   font-size: ${annotationRowH};
   align-self: center;

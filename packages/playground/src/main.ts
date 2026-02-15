@@ -2776,8 +2776,11 @@ function hideTouchRangeHint(): void {
 // Setup resizable divider
 setupResizableDivider();
 
-// Detect inline-grid baseline bug and set CSS compensation variable
-calibrateGridBaseline(renderOutput);
+// Detect inline-grid baseline bug and set CSS compensation variable.
+// Use document.body (always visible) instead of renderOutput, because in
+// compact layout renderOutput's ancestor (.preview-pane) may be display:none
+// and measurements would return 0. The CSS variable cascades to descendants.
+calibrateGridBaseline(document.body);
 
 // Restore state from URL
 const initialState = getStateFromURL();

@@ -2,7 +2,10 @@
 
 ## Stand-off Kanbun Annotation Model – Markup Language (XML)
 
-### Specification Draft v0.1
+### Specification v0.1
+
+> **Status:** この仕様は v0.1.0 リリースに対応する安定版です。
+> ファイル名の "draft" は歴史的な経緯によるもので、仕様の安定性には影響しません。
 
 ---
 

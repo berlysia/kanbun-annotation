@@ -148,12 +148,20 @@
    * ============================================================================ */
   .editor-container {
     display: flex;
+    flex-direction: column;
     flex: 1;
     min-height: 500px;
     background-color: var(--editor-bg);
     border: 1px solid var(--editor-border);
     border-radius: var(--radius);
     box-shadow: var(--shadow);
+    overflow: hidden;
+  }
+
+  .panes-container {
+    display: flex;
+    flex: 1;
+    min-height: 0;
     overflow: hidden;
   }
 
@@ -166,16 +174,17 @@
     overflow: hidden;
   }
 
-  .xml-pane .toolbar {
+  .editor-container > .toolbar {
     display: flex;
     justify-content: space-between;
     align-items: center;
     padding: 0.75rem 1rem;
     border-bottom: 1px solid var(--editor-border);
     background-color: var(--editor-bg-secondary);
+    flex-shrink: 0;
   }
 
-  .xml-pane .toolbar h2 {
+  .editor-container > .toolbar h2 {
     font-size: 0.875rem;
     font-weight: 600;
     color: var(--editor-text-secondary);
@@ -603,7 +612,8 @@
     background-color: var(--editor-bg-secondary);
     display: flex;
     flex-direction: column;
-    overflow: hidden;
+    overflow-y: auto;
+    overscroll-behavior: contain;
     font-family: var(--font-sans);
   }
 
@@ -622,7 +632,6 @@
   .selection-info {
     flex: 1;
     padding: 0.75rem;
-    overflow-y: auto;
     font-size: 0.8125rem;
     color: var(--editor-text);
   }
@@ -635,21 +644,27 @@
   }
 
   .selection-summary {
-    margin-bottom: 0.75rem;
-    padding-bottom: 0.75rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    padding-bottom: 0.5rem;
     border-bottom: 1px solid var(--editor-border);
   }
 
   .selection-count {
     font-weight: 600;
-    color: var(--editor-primary);
-    margin-bottom: 0.25rem;
+    font-size: 0.75rem;
+    color: var(--editor-text-secondary);
+    white-space: nowrap;
   }
 
   .selection-chars {
     font-family: var(--font-serif);
-    font-size: 1.25rem;
-    letter-spacing: 0.1em;
+    font-size: 1.125rem;
+    font-weight: 600;
+    color: var(--editor-text);
+    letter-spacing: 0.05em;
   }
 
   /* Selection Actions */
@@ -1367,29 +1382,124 @@
   }
 
   /* ============================================================================
+   * SP Tab Bar (hidden on PC)
+   * ============================================================================ */
+  .compact-tab-bar {
+    display: none;
+  }
+
+  /* ============================================================================
+   * Bottom Sheet Handle (hidden on PC)
+   * ============================================================================ */
+
+  /* ============================================================================
+   * Backdrop (shared for settings modal and bottom sheet)
+   * ============================================================================ */
+  .overlay-backdrop {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background-color: rgba(0, 0, 0, 0.4);
+    z-index: 99;
+  }
+
+  .overlay-backdrop.visible {
+    display: block;
+  }
+
+  .bottom-sheet-backdrop {
+    z-index: 199;
+  }
+
+  /* SP range selection hint */
+  .touch-range-hint {
+    font-size: 0.6875rem;
+    color: var(--editor-primary);
+    padding: 0.375rem 0.75rem;
+    text-align: center;
+    background-color: var(--editor-primary-light);
+    border-bottom: 1px solid var(--editor-border);
+  }
+
+  /* ============================================================================
    * Responsive: Stack vertically on smaller screens
    * ============================================================================ */
   @media (max-width: 768px) {
     .editor-container {
-      flex-direction: column;
       min-height: auto;
+    }
+
+    .panes-container {
+      flex-direction: column;
+      flex: 1;
+      min-height: 0;
     }
 
     .xml-pane,
     .preview-pane {
       min-width: 0;
-      min-height: 300px;
     }
 
+    /* --- Toolbar: hide heading on SP, compact layout --- */
+    .editor-container > .toolbar h2 {
+      display: none;
+    }
+
+    .editor-container > .toolbar {
+      flex-wrap: wrap;
+      gap: 0.5rem;
+    }
+
+    /* --- SP Tab Bar --- */
+    .compact-tab-bar {
+      display: flex;
+      border-bottom: 1px solid var(--editor-border);
+      background-color: var(--editor-bg-secondary);
+      flex-shrink: 0;
+    }
+
+    .compact-tab {
+      flex: 1;
+      padding: 0.625rem 1rem;
+      font-size: 0.875rem;
+      font-weight: 600;
+      border: none;
+      background: none;
+      color: var(--editor-text-secondary);
+      cursor: pointer;
+      transition:
+        color var(--transition-fast),
+        border-color var(--transition-fast);
+      border-bottom: 2px solid transparent;
+    }
+
+    .compact-tab.active {
+      color: var(--editor-primary);
+      border-bottom-color: var(--editor-primary);
+    }
+
+    .compact-tab:hover:not(.active) {
+      color: var(--editor-text);
+    }
+
+    /* --- SP Tab Pane Switching --- */
+    .editor-container[data-active-tab='editor'] .preview-pane {
+      display: none;
+    }
+
+    .editor-container[data-active-tab='preview'] .xml-pane {
+      display: none;
+    }
+
+    .editor-container[data-active-tab='editor'] .xml-pane,
+    .editor-container[data-active-tab='preview'] .preview-pane {
+      flex: 1;
+      min-height: 0;
+    }
+
+    /* --- Divider: hidden on SP --- */
     .divider {
-      width: 100%;
-      height: var(--divider-width);
-      cursor: row-resize;
-    }
-
-    .divider::before {
-      width: 40px;
-      height: 2px;
+      display: none;
     }
 
     .preview-toolbar {
@@ -1401,15 +1511,68 @@
       flex-wrap: wrap;
     }
 
-    .preview-main {
-      flex-direction: column;
+    /* --- Settings Panel: Fullscreen Modal on SP --- */
+    .settings-panel[open] {
+      position: fixed;
+      inset: 0;
+      z-index: 100;
+      background-color: var(--editor-bg);
+      overflow-y: auto;
+      padding: 0 1rem 1rem;
+      margin: 0;
     }
 
-    .selection-panel {
+    .settings-panel[open] > summary {
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      background-color: var(--editor-bg);
+      padding: 1rem 0;
+      border-bottom: 1px solid var(--editor-border);
+      font-size: 1rem;
+    }
+
+    /* --- Preview Main: block layout for bottom sheet separation --- */
+    .preview-main {
+      display: block;
+      flex: 1;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    .preview-content {
       width: 100%;
-      max-height: 150px;
+      height: 100%;
+      overflow: auto;
+    }
+
+    /* --- Selection Panel: Bottom Sheet on SP --- */
+    .selection-panel {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      width: auto;
+      max-height: 70vh;
       border-left: none;
-      border-top: 1px solid var(--editor-border);
+      border-top: none;
+      border-radius: 12px 12px 0 0;
+      box-shadow: 0 -4px 16px rgba(0, 0, 0, 0.15);
+      transform: translateY(100%);
+      transition: transform 0.3s ease;
+      z-index: 200;
+      overflow-y: auto;
+      overscroll-behavior: contain;
+      padding-bottom: env(safe-area-inset-bottom, 0);
+    }
+
+    .selection-panel.open {
+      transform: translateY(0);
+    }
+
+    /* Peek mode: only hint bar visible, no backdrop */
+    .selection-panel.peek {
+      transform: translateY(calc(100% - 1.75rem));
     }
 
     .customize-options {

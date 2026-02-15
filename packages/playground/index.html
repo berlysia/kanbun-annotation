@@ -37,462 +37,479 @@
     </header>
 
     <main class="main">
-      <div class="editor-container">
-        <div class="xml-pane" role="region" aria-label="XML編集">
-          <div class="toolbar">
-            <h2>SKAM-ML/XML</h2>
-            <div class="toolbar-actions">
-              <input type="file" id="file-upload" accept=".xml,.skam.xml" style="display: none" />
-              <button id="upload-btn" type="button" class="toolbar-btn">開く</button>
-              <button id="download-btn" type="button" class="toolbar-btn">保存</button>
-              <div class="samples">
-                <label for="sample-select">サンプル:</label>
-                <select id="sample-select">
-                  <option value="">-- 選択 --</option>
-                </select>
-              </div>
-            </div>
-          </div>
-          <div class="xml-editor-wrapper">
-            <textarea id="xml-input" placeholder="SKAM-ML/XMLを入力..."></textarea>
-          </div>
-          <div class="action-bar">
-            <button id="parse-btn" type="button">パース &amp; レンダリング</button>
-          </div>
-          <div id="error-panel" class="error-panel" role="alert" aria-live="polite"></div>
-        </div>
-
-        <div class="divider" id="divider"></div>
-
-        <div class="preview-pane" role="region" aria-label="漢文プレビュー">
-          <div class="preview-toolbar">
-            <h2>レンダリング結果</h2>
-            <div class="render-options">
-              <label>
-                <input type="radio" name="renderer" value="html" checked />
-                HTML
-              </label>
-              <label>
-                <input type="radio" name="renderer" value="canvas" />
-                Canvas
-              </label>
-              <span class="option-separator">|</span>
-              <label for="profile-select">プロファイル:</label>
-              <select id="profile-select">
-                <option value="full">すべて表示</option>
-                <option value="learningBasic">返り点のみ</option>
-                <option value="learningHint">返り点＋送り仮名</option>
-                <option value="custom" disabled>カスタム</option>
+      <div class="editor-container" data-active-tab="editor">
+        <div class="toolbar">
+          <h2>SKAM-ML/XML</h2>
+          <div class="toolbar-actions">
+            <input type="file" id="file-upload" accept=".xml,.skam.xml" style="display: none" />
+            <button id="upload-btn" type="button" class="toolbar-btn">開く</button>
+            <button id="download-btn" type="button" class="toolbar-btn">保存</button>
+            <div class="samples">
+              <label for="sample-select">サンプル:</label>
+              <select id="sample-select">
+                <option value="">-- 選択 --</option>
               </select>
-              <label>
-                <input type="radio" name="writing-mode" value="vertical" checked />
-                縦書き
-              </label>
-              <label>
-                <input type="radio" name="writing-mode" value="horizontal" />
-                横書き
-              </label>
             </div>
-            <p class="horizontal-notice" id="horizontal-notice" hidden>
-              ※ 横書き表示は実験的な機能です。表示が不安定な場合があります。
-            </p>
-            <p class="canvas-notice" id="canvas-notice" hidden>
-              ※ Canvasモードでは選択・編集機能は使用できません。横書きは未実装です。
-            </p>
-            <details class="settings-panel" id="settings-panel">
-              <summary>詳細設定</summary>
-              <div class="settings-sections">
-                <fieldset class="settings-section html-only-option">
-                  <legend>レンダリング方式</legend>
-                  <div class="settings-section-content">
-                    <label>
-                      <input type="radio" name="ruby-method" value="ruby" />
-                      Ruby
-                    </label>
-                    <label>
-                      <input type="radio" name="ruby-method" value="grid" checked />
-                      Grid
-                    </label>
-                    <label>
-                      <input type="checkbox" id="inline-mode" />
-                      インライン
-                    </label>
-                  </div>
-                </fieldset>
-                <fieldset class="settings-section">
-                  <legend>表示要素</legend>
-                  <div class="profile-checkboxes" id="profile-checkboxes">
-                    <label title="ルビとして表示される読み">
-                      <input type="checkbox" data-profile-key="yomigana" />
-                      読み仮名
-                    </label>
-                    <label title="漢字の後に付く仮名">
-                      <input type="checkbox" data-profile-key="okurigana" />
-                      送り仮名
-                    </label>
-                    <label title="レ、一二、上下、甲乙など">
-                      <input type="checkbox" data-profile-key="kaeriten" />
-                      返り点
-                    </label>
-                    <label title="訓読時に補う助詞">
-                      <input type="checkbox" data-profile-key="soegana" />
-                      添え仮名
-                    </label>
-                    <label title="。、など">
-                      <input type="checkbox" data-profile-key="kutoten" />
-                      句読点
-                    </label>
-                    <label title="2回読む漢字（将、未など）">
-                      <input type="checkbox" data-profile-key="saidoku" />
-                      再読文字
-                    </label>
-                    <label title="読まない漢字のマーク">
-                      <input type="checkbox" data-profile-key="okimoji" />
-                      置字
-                    </label>
-                    <label title="文法機能の分類ラベル">
-                      <input type="checkbox" data-profile-key="joji" />
-                      助字
-                    </label>
-                    <label title="強調の点（圏点）">
-                      <input type="checkbox" data-profile-key="emphasis" />
-                      傍点
-                    </label>
-                    <label title="アンダーライン">
-                      <input type="checkbox" data-profile-key="highlight" />
-                      傍線
-                    </label>
-                    <label title="注釈への参照">
-                      <input type="checkbox" data-profile-key="ref" />
-                      参照
-                    </label>
-                    <label title="熟語境界マーク">
-                      <input type="checkbox" data-profile-key="tateten" />
-                      たて点
-                    </label>
-                    <label title="古式の読み点">
-                      <input type="checkbox" data-profile-key="okototen" />
-                      ヲコト点
-                    </label>
-                  </div>
-                </fieldset>
-                <fieldset class="settings-section">
-                  <legend>スタイル</legend>
-                  <div class="customize-options">
-                    <div class="customize-group">
-                      <label>
-                        返り点の色
-                        <input type="color" id="color-kaeriten" value="#000000" />
-                      </label>
-                      <label>
-                        ルビの色
-                        <input type="color" id="color-ruby" value="#000000" />
-                      </label>
-                      <label>
-                        傍点の色
-                        <input type="color" id="color-emphasis" value="#000000" />
-                      </label>
-                    </div>
-                    <div class="customize-group">
-                      <label>
-                        フォント
-                        <select id="font-family">
-                          <option value="'Noto Serif JP', serif" selected>Noto Serif JP</option>
-                          <option value="inherit">継承</option>
-                          <option value="'Yu Mincho', 'YuMincho', serif">游明朝</option>
-                          <option value="'Hiragino Mincho ProN', serif">ヒラギノ明朝</option>
-                          <option value="'MS Mincho', serif">MS 明朝</option>
-                        </select>
-                      </label>
-                    </div>
-                    <div class="customize-group">
-                      <label>
-                        文字サイズ
-                        <input type="range" id="glyph-size" min="1" max="3" step="0.1" value="2" />
-                        <span id="glyph-size-value">2em</span>
-                      </label>
-                      <label>
-                        ルビ比率
-                        <input
-                          type="range"
-                          id="ruby-ratio"
-                          min="0.3"
-                          max="0.8"
-                          step="0.05"
-                          value="0.5"
-                        />
-                        <span id="ruby-ratio-value">0.5</span>
-                      </label>
-                      <label>
-                        行間
-                        <input
-                          type="range"
-                          id="line-height"
-                          min="1.5"
-                          max="3"
-                          step="0.1"
-                          value="2"
-                        />
-                        <span id="line-height-value">2</span>
-                      </label>
-                    </div>
-                    <button id="reset-customize-btn" type="button" class="reset-btn">
-                      リセット
-                    </button>
-                  </div>
-                </fieldset>
-              </div>
-            </details>
           </div>
-          <div class="preview-main">
-            <div class="preview-content" id="render-output"></div>
-            <aside class="selection-panel" id="selection-panel">
-              <h3>選択</h3>
-              <div class="selection-info" id="selection-info">
-                <p class="selection-empty">文字をクリックまたはドラッグで選択</p>
+        </div>
+        <div class="compact-tab-bar" role="tablist" aria-label="エディタ/プレビュー切り替え">
+          <button role="tab" class="compact-tab active" data-tab="editor" aria-selected="true">
+            XML
+          </button>
+          <button role="tab" class="compact-tab" data-tab="preview" aria-selected="false">
+            ビジュアル
+          </button>
+        </div>
+        <div class="panes-container">
+          <div class="xml-pane" role="region" aria-label="XML編集">
+            <div class="xml-editor-wrapper">
+              <textarea id="xml-input" placeholder="SKAM-ML/XMLを入力..."></textarea>
+            </div>
+            <div class="action-bar">
+              <button id="parse-btn" type="button">パース &amp; レンダリング</button>
+            </div>
+            <div id="error-panel" class="error-panel" role="alert" aria-live="polite"></div>
+          </div>
+
+          <div class="divider" id="divider"></div>
+
+          <div class="preview-pane" role="region" aria-label="漢文プレビュー">
+            <div class="preview-toolbar">
+              <h2>レンダリング結果</h2>
+              <div class="render-options">
+                <label>
+                  <input type="radio" name="renderer" value="html" checked />
+                  HTML
+                </label>
+                <label>
+                  <input type="radio" name="renderer" value="canvas" />
+                  Canvas
+                </label>
+                <span class="option-separator">|</span>
+                <label for="profile-select">プロファイル:</label>
+                <select id="profile-select">
+                  <option value="full">すべて表示</option>
+                  <option value="learningBasic">返り点のみ</option>
+                  <option value="learningHint">返り点＋送り仮名</option>
+                  <option value="custom" disabled>カスタム</option>
+                </select>
+                <label>
+                  <input type="radio" name="writing-mode" value="vertical" checked />
+                  縦書き
+                </label>
+                <label>
+                  <input type="radio" name="writing-mode" value="horizontal" />
+                  横書き
+                </label>
               </div>
-              <div class="selection-actions" id="selection-actions" style="display: none">
-                <div class="selection-action-group">
-                  <label class="selection-action-label">仮名</label>
-                  <div class="selection-kana-types" id="selection-kana-types">
-                    <button
-                      type="button"
-                      class="selection-kana-type-btn active"
-                      data-type="yomigana"
-                    >
-                      読み
-                    </button>
-                    <button type="button" class="selection-kana-type-btn" data-type="okurigana">
-                      送り
-                    </button>
-                    <button type="button" class="selection-kana-type-btn" data-type="soegana">
-                      添え
-                    </button>
-                    <button
-                      type="button"
-                      class="selection-kana-type-btn"
-                      id="selection-saidoku-btn"
-                      data-type="saidoku"
-                    >
-                      再読
-                    </button>
-                  </div>
-                  <div class="selection-kana-row">
-                    <input
-                      type="text"
-                      id="selection-kana-input"
-                      class="selection-kana-input"
-                      placeholder="仮名"
-                      autocomplete="off"
-                    />
-                    <button
-                      type="button"
-                      id="selection-kana-apply"
-                      class="selection-btn-apply"
-                      disabled
-                    >
-                      適用
-                    </button>
-                  </div>
-                  <div
-                    class="selection-saidoku-reread"
-                    id="selection-saidoku-reread"
-                    style="display: none"
-                  >
-                    <span class="selection-saidoku-reread-label">再読部分</span>
+              <p class="horizontal-notice" id="horizontal-notice" hidden>
+                ※ 横書き表示は実験的な機能です。表示が不安定な場合があります。
+              </p>
+              <p class="canvas-notice" id="canvas-notice" hidden>
+                ※ Canvasモードでは選択・編集機能は使用できません。横書きは未実装です。
+              </p>
+              <details class="settings-panel" id="settings-panel">
+                <summary>詳細設定</summary>
+                <div class="settings-sections">
+                  <fieldset class="settings-section html-only-option">
+                    <legend>レンダリング方式</legend>
+                    <div class="settings-section-content">
+                      <label>
+                        <input type="radio" name="ruby-method" value="ruby" />
+                        Ruby
+                      </label>
+                      <label>
+                        <input type="radio" name="ruby-method" value="grid" checked />
+                        Grid
+                      </label>
+                      <label>
+                        <input type="checkbox" id="inline-mode" />
+                        インライン
+                      </label>
+                    </div>
+                  </fieldset>
+                  <fieldset class="settings-section">
+                    <legend>表示要素</legend>
+                    <div class="profile-checkboxes" id="profile-checkboxes">
+                      <label title="ルビとして表示される読み">
+                        <input type="checkbox" data-profile-key="yomigana" />
+                        読み仮名
+                      </label>
+                      <label title="漢字の後に付く仮名">
+                        <input type="checkbox" data-profile-key="okurigana" />
+                        送り仮名
+                      </label>
+                      <label title="レ、一二、上下、甲乙など">
+                        <input type="checkbox" data-profile-key="kaeriten" />
+                        返り点
+                      </label>
+                      <label title="訓読時に補う助詞">
+                        <input type="checkbox" data-profile-key="soegana" />
+                        添え仮名
+                      </label>
+                      <label title="。、など">
+                        <input type="checkbox" data-profile-key="kutoten" />
+                        句読点
+                      </label>
+                      <label title="2回読む漢字（将、未など）">
+                        <input type="checkbox" data-profile-key="saidoku" />
+                        再読文字
+                      </label>
+                      <label title="読まない漢字のマーク">
+                        <input type="checkbox" data-profile-key="okimoji" />
+                        置字
+                      </label>
+                      <label title="文法機能の分類ラベル">
+                        <input type="checkbox" data-profile-key="joji" />
+                        助字
+                      </label>
+                      <label title="強調の点（圏点）">
+                        <input type="checkbox" data-profile-key="emphasis" />
+                        傍点
+                      </label>
+                      <label title="アンダーライン">
+                        <input type="checkbox" data-profile-key="highlight" />
+                        傍線
+                      </label>
+                      <label title="注釈への参照">
+                        <input type="checkbox" data-profile-key="ref" />
+                        参照
+                      </label>
+                      <label title="熟語境界マーク">
+                        <input type="checkbox" data-profile-key="tateten" />
+                        たて点
+                      </label>
+                      <label title="古式の読み点">
+                        <input type="checkbox" data-profile-key="okototen" />
+                        ヲコト点
+                      </label>
+                    </div>
+                  </fieldset>
+                  <fieldset class="settings-section">
+                    <legend>スタイル</legend>
+                    <div class="customize-options">
+                      <div class="customize-group">
+                        <label>
+                          返り点の色
+                          <input type="color" id="color-kaeriten" value="#000000" />
+                        </label>
+                        <label>
+                          ルビの色
+                          <input type="color" id="color-ruby" value="#000000" />
+                        </label>
+                        <label>
+                          傍点の色
+                          <input type="color" id="color-emphasis" value="#000000" />
+                        </label>
+                      </div>
+                      <div class="customize-group">
+                        <label>
+                          フォント
+                          <select id="font-family">
+                            <option value="'Noto Serif JP', serif" selected>Noto Serif JP</option>
+                            <option value="inherit">継承</option>
+                            <option value="'Yu Mincho', 'YuMincho', serif">游明朝</option>
+                            <option value="'Hiragino Mincho ProN', serif">ヒラギノ明朝</option>
+                            <option value="'MS Mincho', serif">MS 明朝</option>
+                          </select>
+                        </label>
+                      </div>
+                      <div class="customize-group">
+                        <label>
+                          文字サイズ
+                          <input
+                            type="range"
+                            id="glyph-size"
+                            min="1"
+                            max="3"
+                            step="0.1"
+                            value="2"
+                          />
+                          <span id="glyph-size-value">2em</span>
+                        </label>
+                        <label>
+                          ルビ比率
+                          <input
+                            type="range"
+                            id="ruby-ratio"
+                            min="0.3"
+                            max="0.8"
+                            step="0.05"
+                            value="0.5"
+                          />
+                          <span id="ruby-ratio-value">0.5</span>
+                        </label>
+                        <label>
+                          行間
+                          <input
+                            type="range"
+                            id="line-height"
+                            min="1.5"
+                            max="3"
+                            step="0.1"
+                            value="2"
+                          />
+                          <span id="line-height-value">2</span>
+                        </label>
+                      </div>
+                      <button id="reset-customize-btn" type="button" class="reset-btn">
+                        リセット
+                      </button>
+                    </div>
+                  </fieldset>
+                </div>
+              </details>
+            </div>
+            <div class="preview-main">
+              <div class="preview-content" id="render-output"></div>
+              <aside class="selection-panel" id="selection-panel">
+                <h3>選択</h3>
+                <div class="selection-info" id="selection-info">
+                  <p class="selection-empty">文字をクリックまたはドラッグで選択</p>
+                </div>
+                <div class="selection-actions" id="selection-actions" style="display: none">
+                  <div class="selection-action-group">
+                    <label class="selection-action-label">仮名</label>
+                    <div class="selection-kana-types" id="selection-kana-types">
+                      <button
+                        type="button"
+                        class="selection-kana-type-btn active"
+                        data-type="yomigana"
+                      >
+                        読み
+                      </button>
+                      <button type="button" class="selection-kana-type-btn" data-type="okurigana">
+                        送り
+                      </button>
+                      <button type="button" class="selection-kana-type-btn" data-type="soegana">
+                        添え
+                      </button>
+                      <button
+                        type="button"
+                        class="selection-kana-type-btn"
+                        id="selection-saidoku-btn"
+                        data-type="saidoku"
+                      >
+                        再読
+                      </button>
+                    </div>
                     <div class="selection-kana-row">
                       <input
                         type="text"
-                        id="selection-saidoku-reread-yomi"
+                        id="selection-kana-input"
                         class="selection-kana-input"
-                        placeholder="読み"
-                        autocomplete="off"
-                      />
-                      <input
-                        type="text"
-                        id="selection-saidoku-reread-okuri"
-                        class="selection-kana-input"
-                        placeholder="送り"
+                        placeholder="仮名"
                         autocomplete="off"
                       />
                       <button
                         type="button"
-                        id="selection-saidoku-reread-apply"
+                        id="selection-kana-apply"
                         class="selection-btn-apply"
+                        disabled
                       >
                         適用
                       </button>
                     </div>
+                    <div
+                      class="selection-saidoku-reread"
+                      id="selection-saidoku-reread"
+                      style="display: none"
+                    >
+                      <span class="selection-saidoku-reread-label">再読部分</span>
+                      <div class="selection-kana-row">
+                        <input
+                          type="text"
+                          id="selection-saidoku-reread-yomi"
+                          class="selection-kana-input"
+                          placeholder="読み"
+                          autocomplete="off"
+                        />
+                        <input
+                          type="text"
+                          id="selection-saidoku-reread-okuri"
+                          class="selection-kana-input"
+                          placeholder="送り"
+                          autocomplete="off"
+                        />
+                        <button
+                          type="button"
+                          id="selection-saidoku-reread-apply"
+                          class="selection-btn-apply"
+                        >
+                          適用
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                  <div class="selection-action-group">
+                    <label class="selection-action-label">返り点</label>
+                    <div class="selection-kaeri-buttons" id="selection-kaeri-buttons"></div>
+                  </div>
+                  <div class="selection-action-group">
+                    <label class="selection-action-label">傍点</label>
+                    <div class="selection-emphasis-styles" id="selection-emphasis-styles">
+                      <button
+                        type="button"
+                        class="selection-emphasis-style-btn"
+                        data-style="sesame"
+                        title="ゴマ点"
+                      >
+                        ﹅
+                      </button>
+                      <button
+                        type="button"
+                        class="selection-emphasis-style-btn"
+                        data-style="circle"
+                        title="黒丸"
+                      >
+                        ●
+                      </button>
+                      <button
+                        type="button"
+                        class="selection-emphasis-style-btn"
+                        data-style="dot"
+                        title="点"
+                      >
+                        •
+                      </button>
+                      <button
+                        type="button"
+                        class="selection-emphasis-style-btn"
+                        data-style="open circle"
+                        title="白丸"
+                      >
+                        ○
+                      </button>
+                      <button
+                        type="button"
+                        class="selection-emphasis-style-btn"
+                        data-style="open sesame"
+                        title="白ゴマ点"
+                      >
+                        ﹆
+                      </button>
+                      <button
+                        type="button"
+                        class="selection-emphasis-style-btn"
+                        data-style="open dot"
+                        title="白点"
+                      >
+                        ◦
+                      </button>
+                    </div>
+                    <div class="selection-emphasis-row" id="selection-emphasis-row">
+                      <button
+                        type="button"
+                        class="selection-emphasis-btn"
+                        id="selection-emphasis-btn"
+                      >
+                        傍点をつける
+                      </button>
+                    </div>
+                  </div>
+                  <div class="selection-action-group">
+                    <label class="selection-action-label">傍線</label>
+                    <div class="selection-underline-styles" id="selection-underline-styles">
+                      <button
+                        type="button"
+                        class="selection-underline-style-btn active"
+                        data-style="solid"
+                        title="実線"
+                      >
+                        ─
+                      </button>
+                      <button
+                        type="button"
+                        class="selection-underline-style-btn"
+                        data-style="dotted"
+                        title="点線"
+                      >
+                        ┄
+                      </button>
+                      <button
+                        type="button"
+                        class="selection-underline-style-btn"
+                        data-style="dashed"
+                        title="破線"
+                      >
+                        ╌
+                      </button>
+                      <button
+                        type="button"
+                        class="selection-underline-style-btn"
+                        data-style="wavy"
+                        title="波線"
+                      >
+                        〜
+                      </button>
+                      <button
+                        type="button"
+                        class="selection-underline-style-btn"
+                        data-style="double"
+                        title="二重線"
+                      >
+                        ═
+                      </button>
+                    </div>
+                    <div class="selection-underline-ref-row">
+                      <input
+                        type="text"
+                        id="selection-underline-ref"
+                        class="selection-underline-ref-input"
+                        placeholder="ref ID (任意)"
+                        autocomplete="off"
+                      />
+                      <select
+                        id="selection-underline-format"
+                        class="selection-underline-format-select"
+                      >
+                        <option value="">ラベルなし</option>
+                        <option value="iroha-katakana">イ, ロ, ハ...</option>
+                        <option value="iroha-hiragana">い, ろ, は...</option>
+                        <option value="gojuon-katakana">ア, イ, ウ...</option>
+                        <option value="gojuon-hiragana">あ, い, う...</option>
+                        <option value="kanji-numeric">一, 二, 三...</option>
+                        <option value="numeric-circled">①, ②, ③...</option>
+                        <option value="numeric-paren">(1), (2)...</option>
+                        <option value="numeric-bracket">[1], [2]...</option>
+                        <option value="alpha-upper">A, B, C...</option>
+                        <option value="alpha-lower">a, b, c...</option>
+                        <option value="roman-upper">Ⅰ, Ⅱ, Ⅲ...</option>
+                        <option value="roman-lower">ⅰ, ⅱ, ⅲ...</option>
+                      </select>
+                    </div>
+                    <div class="selection-underline-row" id="selection-underline-row">
+                      <button
+                        type="button"
+                        class="selection-underline-btn"
+                        id="selection-underline-btn"
+                      >
+                        傍線を引く
+                      </button>
+                    </div>
+                  </div>
+                  <div class="selection-action-group">
+                    <label class="selection-action-label">竪点</label>
+                    <div class="selection-tateten-row" id="selection-tateten-row">
+                      <button
+                        type="button"
+                        class="selection-tateten-btn"
+                        id="selection-tateten-btn"
+                        disabled
+                      >
+                        熟語にする
+                      </button>
+                    </div>
                   </div>
                 </div>
-                <div class="selection-action-group">
-                  <label class="selection-action-label">返り点</label>
-                  <div class="selection-kaeri-buttons" id="selection-kaeri-buttons"></div>
-                </div>
-                <div class="selection-action-group">
-                  <label class="selection-action-label">傍点</label>
-                  <div class="selection-emphasis-styles" id="selection-emphasis-styles">
-                    <button
-                      type="button"
-                      class="selection-emphasis-style-btn"
-                      data-style="sesame"
-                      title="ゴマ点"
-                    >
-                      ﹅
-                    </button>
-                    <button
-                      type="button"
-                      class="selection-emphasis-style-btn"
-                      data-style="circle"
-                      title="黒丸"
-                    >
-                      ●
-                    </button>
-                    <button
-                      type="button"
-                      class="selection-emphasis-style-btn"
-                      data-style="dot"
-                      title="点"
-                    >
-                      •
-                    </button>
-                    <button
-                      type="button"
-                      class="selection-emphasis-style-btn"
-                      data-style="open circle"
-                      title="白丸"
-                    >
-                      ○
-                    </button>
-                    <button
-                      type="button"
-                      class="selection-emphasis-style-btn"
-                      data-style="open sesame"
-                      title="白ゴマ点"
-                    >
-                      ﹆
-                    </button>
-                    <button
-                      type="button"
-                      class="selection-emphasis-style-btn"
-                      data-style="open dot"
-                      title="白点"
-                    >
-                      ◦
-                    </button>
+                <details class="marks-list-panel" id="marks-list-panel">
+                  <summary>マーク一覧</summary>
+                  <div class="marks-list" id="marks-list">
+                    <p class="marks-list-empty">マークがありません</p>
                   </div>
-                  <div class="selection-emphasis-row" id="selection-emphasis-row">
-                    <button
-                      type="button"
-                      class="selection-emphasis-btn"
-                      id="selection-emphasis-btn"
-                    >
-                      傍点をつける
-                    </button>
-                  </div>
-                </div>
-                <div class="selection-action-group">
-                  <label class="selection-action-label">傍線</label>
-                  <div class="selection-underline-styles" id="selection-underline-styles">
-                    <button
-                      type="button"
-                      class="selection-underline-style-btn active"
-                      data-style="solid"
-                      title="実線"
-                    >
-                      ─
-                    </button>
-                    <button
-                      type="button"
-                      class="selection-underline-style-btn"
-                      data-style="dotted"
-                      title="点線"
-                    >
-                      ┄
-                    </button>
-                    <button
-                      type="button"
-                      class="selection-underline-style-btn"
-                      data-style="dashed"
-                      title="破線"
-                    >
-                      ╌
-                    </button>
-                    <button
-                      type="button"
-                      class="selection-underline-style-btn"
-                      data-style="wavy"
-                      title="波線"
-                    >
-                      〜
-                    </button>
-                    <button
-                      type="button"
-                      class="selection-underline-style-btn"
-                      data-style="double"
-                      title="二重線"
-                    >
-                      ═
-                    </button>
-                  </div>
-                  <div class="selection-underline-ref-row">
-                    <input
-                      type="text"
-                      id="selection-underline-ref"
-                      class="selection-underline-ref-input"
-                      placeholder="ref ID (任意)"
-                      autocomplete="off"
-                    />
-                    <select
-                      id="selection-underline-format"
-                      class="selection-underline-format-select"
-                    >
-                      <option value="">ラベルなし</option>
-                      <option value="iroha-katakana">イ, ロ, ハ...</option>
-                      <option value="iroha-hiragana">い, ろ, は...</option>
-                      <option value="gojuon-katakana">ア, イ, ウ...</option>
-                      <option value="gojuon-hiragana">あ, い, う...</option>
-                      <option value="kanji-numeric">一, 二, 三...</option>
-                      <option value="numeric-circled">①, ②, ③...</option>
-                      <option value="numeric-paren">(1), (2)...</option>
-                      <option value="numeric-bracket">[1], [2]...</option>
-                      <option value="alpha-upper">A, B, C...</option>
-                      <option value="alpha-lower">a, b, c...</option>
-                      <option value="roman-upper">Ⅰ, Ⅱ, Ⅲ...</option>
-                      <option value="roman-lower">ⅰ, ⅱ, ⅲ...</option>
-                    </select>
-                  </div>
-                  <div class="selection-underline-row" id="selection-underline-row">
-                    <button
-                      type="button"
-                      class="selection-underline-btn"
-                      id="selection-underline-btn"
-                    >
-                      傍線を引く
-                    </button>
-                  </div>
-                </div>
-                <div class="selection-action-group">
-                  <label class="selection-action-label">竪点</label>
-                  <div class="selection-tateten-row" id="selection-tateten-row">
-                    <button
-                      type="button"
-                      class="selection-tateten-btn"
-                      id="selection-tateten-btn"
-                      disabled
-                    >
-                      熟語にする
-                    </button>
-                  </div>
-                </div>
-              </div>
-              <details class="marks-list-panel" id="marks-list-panel">
-                <summary>マーク一覧</summary>
-                <div class="marks-list" id="marks-list">
-                  <p class="marks-list-empty">マークがありません</p>
-                </div>
-              </details>
-            </aside>
+                </details>
+              </aside>
+            </div>
           </div>
         </div>
       </div>

@@ -21,9 +21,9 @@ export interface InteractiveCallbacks {
   /**
    * トークンがクリックされた時のコールバック
    * @param tokenId クリックされたトークンのID
-   * @param event マウスイベント
+   * @param event マウスイベント（タッチ操作の場合は省略）
    */
-  onTokenClick?: (tokenId: string, event: MouseEvent) => void;
+  onTokenClick?: (tokenId: string, event?: MouseEvent) => void;
 
   /**
    * トークンの範囲が選択された時のコールバック
@@ -538,12 +538,76 @@ export function attachInteractiveHandlers(
     // ここでは何もしない（ドラッグなしクリックもマウスアップで処理）
   };
 
+  // ============================================================================
+  // Touch Event Handlers (SP tap support)
+  // ============================================================================
+
+  let touchStartTokenId: string | null = null;
+  let touchStartPos: { x: number; y: number } | null = null;
+  let touchMoved = false;
+
+  const handleTouchStart = (event: TouchEvent): void => {
+    const touch = event.touches[0];
+    if (!touch) return;
+
+    touchMoved = false;
+    touchStartPos = { x: touch.clientX, y: touch.clientY };
+
+    const target = document.elementFromPoint(touch.clientX, touch.clientY);
+    touchStartTokenId = getTokenIdFromElement(target, touchStartPos, isVertical);
+  };
+
+  const handleTouchMove = (_event: TouchEvent): void => {
+    touchMoved = true;
+  };
+
+  const handleTouchEnd = (event: TouchEvent): void => {
+    if (touchMoved || !touchStartPos) {
+      touchStartTokenId = null;
+      touchStartPos = null;
+      return;
+    }
+
+    const touch = event.changedTouches[0];
+    if (!touch) return;
+
+    // Check if movement is within tap threshold (10px)
+    const dx = touch.clientX - touchStartPos.x;
+    const dy = touch.clientY - touchStartPos.y;
+    if (dx * dx + dy * dy > 100) {
+      // 10px threshold squared
+      touchStartTokenId = null;
+      touchStartPos = null;
+      return;
+    }
+
+    // Prevent ghost click
+    event.preventDefault();
+
+    if (touchStartTokenId) {
+      callbacks.onTokenClick?.(touchStartTokenId);
+      state.lastSelectedTokenId = touchStartTokenId;
+    } else {
+      callbacks.onEmptyClick?.(
+        new MouseEvent('click', { clientX: touch.clientX, clientY: touch.clientY })
+      );
+    }
+
+    touchStartTokenId = null;
+    touchStartPos = null;
+  };
+
   // イベントリスナーを登録（イベントデリゲーション）
   container.addEventListener('mousedown', handleMouseDown);
   container.addEventListener('mousemove', handleMouseMove);
   container.addEventListener('mouseup', handleMouseUp);
   container.addEventListener('mouseleave', handleMouseLeave);
   container.addEventListener('click', handleClick);
+
+  // Touch events
+  container.addEventListener('touchstart', handleTouchStart, { passive: true });
+  container.addEventListener('touchmove', handleTouchMove, { passive: true });
+  container.addEventListener('touchend', handleTouchEnd, { passive: false });
 
   // cleanup関数を返す
   return () => {
@@ -552,6 +616,9 @@ export function attachInteractiveHandlers(
     container.removeEventListener('mouseup', handleMouseUp);
     container.removeEventListener('mouseleave', handleMouseLeave);
     container.removeEventListener('click', handleClick);
+    container.removeEventListener('touchstart', handleTouchStart);
+    container.removeEventListener('touchmove', handleTouchMove);
+    container.removeEventListener('touchend', handleTouchEnd);
   };
 }
 

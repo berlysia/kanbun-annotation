@@ -80,6 +80,7 @@ const profileCheckboxes = document.getElementById('profile-checkboxes') as HTMLD
 
 // 2-pane layout elements
 const editorContainer = document.querySelector('.editor-container') as HTMLDivElement;
+const panesContainer = document.querySelector('.panes-container') as HTMLDivElement;
 const xmlPane = document.querySelector('.xml-pane') as HTMLDivElement;
 const divider = document.getElementById('divider') as HTMLDivElement;
 const previewPane = document.querySelector('.preview-pane') as HTMLDivElement;
@@ -846,7 +847,7 @@ function updateSelectionPanel(fromId: string, toId: string): void {
     currentKanaType = 'yomigana';
   }
 
-  // Build HTML - only selection summary, marks are shown in the marks list panel
+  // Build HTML - selection summary
   const html = `
     <div class="selection-summary">
       <div class="selection-count">${count}文字選択</div>
@@ -1880,20 +1881,22 @@ function renderDocument(doc: SKAMDocument): void {
     cleanupInteractiveHandlers = attachInteractiveHandlers(renderOutput, {
       onTokenClick: (tokenId) => {
         if (!currentDocument) return;
-        // Update selection panel (selection visual handled by interactive handlers)
+        // SP: 2-tap range selection logic
+        if (handleTouchTokenTap(tokenId)) return;
+        // PC: standard selection
         updateSelectionPanel(tokenId, tokenId);
-        // Apply selection classes
         setSelectionClasses(renderOutput, tokenId, tokenId);
       },
       onTokenSelect: (fromId, toId) => {
         if (!currentDocument) return;
-        // Update selection panel
+        // Range selection (PC drag or SP 2-tap)
         updateSelectionPanel(fromId, toId);
-        // Apply selection classes
         setSelectionClasses(renderOutput, fromId, toId);
       },
       onEmptyClick: () => {
-        // Clear selection when clicking empty area
+        // SP: handle empty tap
+        if (handleTouchEmptyTap()) return;
+        // PC: clear selection
         clearSelectionPanel();
         clearSelection(renderOutput);
       },
@@ -2069,7 +2072,7 @@ function setupResizableDivider(): void {
   function onMouseMove(e: MouseEvent): void {
     if (!isDragging) return;
 
-    const containerRect = editorContainer.getBoundingClientRect();
+    const containerRect = panesContainer.getBoundingClientRect();
 
     if (isVerticalLayout()) {
       // Vertical layout: resize height
@@ -2134,7 +2137,7 @@ function setupResizableDivider(): void {
     const touch = e.touches[0];
     if (!touch) return;
 
-    const containerRect = editorContainer.getBoundingClientRect();
+    const containerRect = panesContainer.getBoundingClientRect();
 
     if (isVerticalLayout()) {
       const deltaY = touch.clientY - startY;
@@ -2575,6 +2578,198 @@ selectionUnderlineFormatSelect.addEventListener('change', () => {
 selectionUnderlineBtn.addEventListener('click', handleUnderlineToggle);
 
 // ============================================================================
+// Compact Layout Support (single-pane mode for narrow viewports)
+// ============================================================================
+
+const selectionPanel = document.getElementById('selection-panel') as HTMLElement;
+const settingsPanel = document.getElementById('settings-panel') as HTMLDetailsElement;
+const compactTabBar = document.querySelector('.compact-tab-bar') as HTMLDivElement;
+
+/** Check if viewport uses compact (single-pane) layout */
+function isCompactLayout(): boolean {
+  return window.matchMedia('(max-width: 768px)').matches;
+}
+
+// --- Phase 1: SP Tab Switching ---
+
+compactTabBar.addEventListener('click', (e) => {
+  const target = (e.target as HTMLElement).closest('.compact-tab') as HTMLElement | null;
+  if (!target) return;
+
+  const tab = target.dataset['tab'];
+  if (!tab) return;
+
+  editorContainer.dataset['activeTab'] = tab;
+
+  // Update tab active states
+  for (const btn of compactTabBar.querySelectorAll<HTMLElement>('.compact-tab')) {
+    const isActive = btn.dataset['tab'] === tab;
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-selected', String(isActive));
+  }
+
+  // Auto-render when switching to preview tab
+  if (tab === 'preview') {
+    parseAndRender();
+  }
+
+  // Reset SP range selection state on tab switch
+  touchRangeState = 'idle';
+  touchFirstTokenId = null;
+});
+
+// --- Phase 2: Settings Panel SP Modal ---
+
+let settingsBackdrop: HTMLDivElement | null = null;
+
+function createSettingsBackdrop(): HTMLDivElement {
+  if (!settingsBackdrop) {
+    settingsBackdrop = document.createElement('div');
+    settingsBackdrop.className = 'overlay-backdrop';
+    settingsBackdrop.addEventListener('click', () => {
+      settingsPanel.open = false;
+      settingsBackdrop?.classList.remove('visible');
+    });
+    document.body.appendChild(settingsBackdrop);
+  }
+  return settingsBackdrop;
+}
+
+settingsPanel.addEventListener('toggle', () => {
+  if (!isCompactLayout()) return;
+
+  const backdrop = createSettingsBackdrop();
+  if (settingsPanel.open) {
+    backdrop.classList.add('visible');
+  } else {
+    backdrop.classList.remove('visible');
+  }
+});
+
+// --- Phase 4: Bottom Sheet ---
+
+let bottomSheetBackdrop: HTMLDivElement | null = null;
+
+function createBottomSheetBackdrop(): HTMLDivElement {
+  if (!bottomSheetBackdrop) {
+    bottomSheetBackdrop = document.createElement('div');
+    bottomSheetBackdrop.className = 'overlay-backdrop bottom-sheet-backdrop';
+    bottomSheetBackdrop.addEventListener('click', () => {
+      closeBottomSheet();
+      clearSelectionPanel();
+      clearSelection(renderOutput);
+    });
+    document.body.appendChild(bottomSheetBackdrop);
+  }
+  return bottomSheetBackdrop;
+}
+
+function openBottomSheet(): void {
+  if (!isCompactLayout()) return;
+  selectionPanel.classList.remove('peek');
+  selectionPanel.classList.add('open');
+  createBottomSheetBackdrop().classList.add('visible');
+}
+
+/** Open bottom sheet in minimal "peek" mode (hint only, no backdrop) */
+function peekBottomSheet(): void {
+  if (!isCompactLayout()) return;
+  selectionPanel.classList.remove('open');
+  selectionPanel.classList.add('peek');
+  bottomSheetBackdrop?.classList.remove('visible');
+}
+
+function closeBottomSheet(): void {
+  selectionPanel.classList.remove('open', 'peek');
+  bottomSheetBackdrop?.classList.remove('visible');
+}
+
+// --- Phase 5: 2-Tap Range Selection ---
+
+let touchRangeState: 'idle' | 'first-selected' | 'range-selected' = 'idle';
+let touchFirstTokenId: string | null = null;
+
+/**
+ * Handle touch token tap with 2-tap range selection logic.
+ * Returns true if handled (touch device), false otherwise (caller should handle).
+ */
+function handleTouchTokenTap(tokenId: string): boolean {
+  if (!isCompactLayout()) return false;
+
+  switch (touchRangeState) {
+    case 'idle': {
+      touchRangeState = 'first-selected';
+      touchFirstTokenId = tokenId;
+      updateSelectionPanel(tokenId, tokenId);
+      setSelectionClasses(renderOutput, tokenId, tokenId);
+      peekBottomSheet();
+      showTouchRangeHint();
+      return true;
+    }
+    case 'first-selected': {
+      if (tokenId === touchFirstTokenId) {
+        // Same token tapped again - back to idle
+        touchRangeState = 'idle';
+        touchFirstTokenId = null;
+        clearSelectionPanel();
+        clearSelection(renderOutput);
+        closeBottomSheet();
+        hideTouchRangeHint();
+      } else {
+        // Different token - range selection
+        touchRangeState = 'range-selected';
+        updateSelectionPanel(touchFirstTokenId!, tokenId);
+        setSelectionClasses(renderOutput, touchFirstTokenId!, tokenId);
+        openBottomSheet();
+        hideTouchRangeHint();
+      }
+      return true;
+    }
+    case 'range-selected': {
+      // New single selection
+      touchRangeState = 'first-selected';
+      touchFirstTokenId = tokenId;
+      updateSelectionPanel(tokenId, tokenId);
+      setSelectionClasses(renderOutput, tokenId, tokenId);
+      peekBottomSheet();
+      showTouchRangeHint();
+      return true;
+    }
+  }
+}
+
+function handleTouchEmptyTap(): boolean {
+  if (!isCompactLayout()) return false;
+
+  touchRangeState = 'idle';
+  touchFirstTokenId = null;
+  clearSelectionPanel();
+  clearSelection(renderOutput);
+  closeBottomSheet();
+  hideTouchRangeHint();
+  return true;
+}
+
+/** Show hint in bottom sheet for range selection */
+function showTouchRangeHint(): void {
+  let hint = selectionPanel.querySelector('.touch-range-hint');
+  if (!hint) {
+    hint = document.createElement('div');
+    hint.className = 'touch-range-hint';
+    hint.textContent = 'もう一文字タップで範囲選択';
+    selectionPanel.prepend(hint);
+  }
+  (hint as HTMLElement).style.display = '';
+}
+
+function hideTouchRangeHint(): void {
+  const hint = selectionPanel.querySelector('.touch-range-hint');
+  if (hint) {
+    (hint as HTMLElement).style.display = 'none';
+  }
+}
+
+// ============================================================================
 // Initialize
 // ============================================================================
 
@@ -2618,3 +2813,13 @@ loadSample(initialState.sample, false);
 
 // Apply initial customize styles
 applyCustomStyles();
+
+// SP: default to preview tab (content is already loaded via loadSample)
+if (isCompactLayout()) {
+  editorContainer.dataset['activeTab'] = 'preview';
+  for (const btn of compactTabBar.querySelectorAll<HTMLElement>('.compact-tab')) {
+    const isActive = btn.dataset['tab'] === 'preview';
+    btn.classList.toggle('active', isActive);
+    btn.setAttribute('aria-selected', String(isActive));
+  }
+}

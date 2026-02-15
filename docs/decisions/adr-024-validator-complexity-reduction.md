@@ -165,4 +165,4 @@ P0 完了後の知見を元に、以下の方向を検討する:
 
 - `packages/skam/src/validator.ts`
 - `packages/skam/src/__tests__/validator.test.ts`
-- `.tmp/structure-analysis.md`
+- [構造解析レポート 2026-02-16](../structure-analysis-2026-02-16.md)

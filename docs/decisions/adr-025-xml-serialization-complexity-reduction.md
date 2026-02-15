@@ -159,4 +159,4 @@ Parser (`parser-core.ts`) と Serializer (`stringify.ts`) の両方で、マー�
 - `packages/skam-xml-stringify/src/stringify.ts`
 - `packages/skam-xml-parser/src/parser-core.ts`
 - `packages/integration-tests/src/roundtrip.test.ts`
-- `.tmp/structure-analysis.md`
+- [構造解析レポート 2026-02-16](../structure-analysis-2026-02-16.md)

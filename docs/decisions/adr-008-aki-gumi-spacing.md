@@ -198,7 +198,7 @@ tateten-sep 自体が token 間のセパレータとして機能するため、t
 
 ### 検証結果
 
-2026-02-06 に Chromium headless (v145) + Playwright + CSS 仕様読み込みで実証を完了。検証コードは `.tmp/adr-008-verification/` に保存。
+2026-02-06 に Chromium headless (v145) + Playwright + CSS 仕様読み込みで実証を完了。検証結果は以下にインライン記載。
 
 #### 検証方法の補足
 

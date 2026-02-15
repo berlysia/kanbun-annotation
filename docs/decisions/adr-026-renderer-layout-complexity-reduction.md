@@ -193,4 +193,4 @@ P0 の `BlockLayoutState` を基盤に、`LayoutContext` の設計を見直す�
 - `packages/skam-canvas-renderer/src/__tests__/layout-vertical.test.ts`
 - [ADR-018](adr-018-canvas-layout-vertical-refactor-architecture.md)
 - [ADR-021](adr-021-phase3-shared-annotation-ir.md)
-- `.tmp/structure-analysis.md`
+- [構造解析レポート 2026-02-16](../structure-analysis-2026-02-16.md)

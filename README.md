@@ -19,14 +19,18 @@ SKAM-ML/XML を試せるインタラクティブなデモ: https://berlysia.gith
 
 ## パッケージ構成
 
-| パッケージ                                                       | 説明                                           | 状態   |
-| ---------------------------------------------------------------- | ---------------------------------------------- | ------ |
-| [@kanbun/skam](./packages/skam/)                                 | SKAM 型定義・バリデーター・操作                | v0.1.0 |
-| [@kanbun/skam-xml-parser](./packages/skam-xml-parser/)           | SKAM-ML/XML パーサー                           | v0.1.0 |
-| [@kanbun/skam-xml-stringify](./packages/skam-xml-stringify/)     | SKAM JSON → SKAM-ML/XML シリアライザー         | v0.1.0 |
-| [@kanbun/skam-html-renderer](./packages/skam-html-renderer/)     | SKAM → HTML レンダラー                         | v0.1.0 |
-| [@kanbun/skam-canvas-renderer](./packages/skam-canvas-renderer/) | SKAM → Canvas レンダラー（画像エクスポート用） | v0.1.0 |
-| [@kanbun/playground](./packages/playground/)                     | インタラクティブデモ                           | -      |
+| パッケージ                                                       | 説明                                                   | 状態    |
+| ---------------------------------------------------------------- | ------------------------------------------------------ | ------- |
+| [@kanbun/skam](./packages/skam/)                                 | SKAM 型定義・バリデーター・操作                        | v0.1.0  |
+| [@kanbun/skam-xml-parser](./packages/skam-xml-parser/)           | SKAM-ML/XML パーサー                                   | v0.1.0  |
+| [@kanbun/skam-xml-stringify](./packages/skam-xml-stringify/)     | SKAM JSON → SKAM-ML/XML シリアライザー                 | v0.1.0  |
+| [@kanbun/skam-html-renderer](./packages/skam-html-renderer/)     | SKAM → HTML レンダラー                                 | v0.1.0  |
+| [@kanbun/skam-canvas-renderer](./packages/skam-canvas-renderer/) | SKAM → Canvas レンダラー（画像エクスポート用）         | v0.1.0  |
+| [@kanbun/skam-web-component](./packages/skam-web-component/)     | Web Component ラッパー                                 | v0.1.0  |
+| [@kanbun/skam-screenshot](./packages/skam-screenshot/)           | スクリーンショット用ユーティリティ                     | private |
+| [@kanbun/baseline-check](./packages/baseline-check/)             | ベースライン互換性チェック                             | private |
+| [@kanbun/integration-tests](./packages/integration-tests/)       | パッケージ間統合テスト（parse/stringify roundtrip 等） | private |
+| [@kanbun/playground](./packages/playground/)                     | インタラクティブデモ                                   | -       |
 
 ## インストール
 
@@ -111,6 +115,7 @@ const { html, css } = render(doc); // 縦書き（デフォルト）
 SKAMDocument
 ├── format: "skam@0.1"
 ├── tokens: Token[]          # 本文 token 列
+├── blocks: Block[]          # ブロック構造（原文順、tokenIds で token を参照）
 ├── marks: Mark[]            # 注記（返り点・送り仮名等）
 ├── derivations?: Derivation[] # 導出情報（読み順等）
 ├── readings: Reading[]      # 読み層（書き下し文・読み上げ文）
@@ -119,21 +124,23 @@ SKAMDocument
 
 ### Mark Types (v0.1)
 
-| type        | 意味                               | value                                 |
-| ----------- | ---------------------------------- | ------------------------------------- |
-| `kaeri`     | 返り点                             | 必須（レ、一、二、上、下、甲、乙 等） |
-| `okurigana` | 送り仮名                           | 必須（送り仮名テキスト）              |
-| `yomigana`  | 読み仮名（ルビ）                   | 必須（読み仮名テキスト）              |
-| `soegana`   | 添え仮名（訓読時に補う助詞）       | 必須（助詞テキスト）                  |
-| `okimoji`   | 置字（訓読時に読まない漢字）       | なし                                  |
-| `joji`      | 助字（文法的機能を持つ漢字ラベル） | なし                                  |
-| `kutoten`   | 句読点                             | 必須（句点・読点等）                  |
-| `emphasis`  | 傍点・圏点                         | 任意（傍点の種類）                    |
-| `saidoku`   | 再読文字                           | forms 配列必須                        |
-| `okototen`  | ヲコト点                           | position・shape 必須                  |
-| `tateten`   | たて点（熟語境界）                 | なし                                  |
-| `highlight` | 傍線（ref を参照可）               | なし                                  |
-| `ref`       | 参照識別子・注釈                   | 必須（参照テキスト）                  |
+| type        | 配置 | 意味                               | value                                 |
+| ----------- | ---- | ---------------------------------- | ------------------------------------- |
+| `kaeri`     | P    | 返り点                             | 必須（レ、一、二、上、下、甲、乙 等） |
+| `okurigana` | A    | 送り仮名                           | 必須（送り仮名テキスト）              |
+| `yomigana`  | A    | 読み仮名（ルビ）                   | 必須（読み仮名テキスト）              |
+| `soegana`   | A    | 添え仮名（訓読時に補う助詞）       | 必須（助詞テキスト）                  |
+| `okimoji`   | A    | 置字（訓読時に読まない漢字）       | なし                                  |
+| `joji`      | A    | 助字（文法的機能を持つ漢字ラベル） | なし                                  |
+| `kutoten`   | P    | 句読点                             | 必須（句点・読点等）                  |
+| `emphasis`  | A    | 傍点・圏点                         | 任意（傍点の種類）                    |
+| `saidoku`   | A    | 再読文字                           | forms 配列必須                        |
+| `okototen`  | A    | ヲコト点                           | position・shape 必須                  |
+| `tateten`   | A    | たて点（熟語境界）                 | なし                                  |
+| `highlight` | A    | 傍線（ref を参照可）               | なし                                  |
+| `ref`       | P    | 参照識別子・注釈                   | 必須（参照テキスト）                  |
+
+`A = anchor: { from, to }（token 範囲に付随）、P = position: { blockId, after? }（token 間位置に配置）`
 
 ### Reading Kinds
 
@@ -164,4 +171,4 @@ pnpm format
 
 ## ライセンス
 
-MIT
+UNLICENSED

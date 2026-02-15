@@ -66,6 +66,9 @@ import type {
   PositionedMark,
   AnchoredMarkType,
   PositionedMarkType,
+  MarkInput,
+  MarkUpdates,
+  AddMarkResult,
 } from '@kanbun/skam';
 
 // バリデーション
@@ -73,25 +76,44 @@ import { validateSKAMDocument, isSKAMDocument, assertSKAMDocument } from '@kanbu
 
 // ID 生成
 import { createRandomIdGenerator, createSequentialIdGenerator } from '@kanbun/skam';
+import { generateId, generateMarkId } from '@kanbun/skam';
 
 // CRUD 操作
-import { addMark, updateMark, replaceMark, removeMark } from '@kanbun/skam';
+import { addMark, addMarkWithResult, updateMark, replaceMark, removeMark } from '@kanbun/skam';
 
-// クエリ・ユーティリティ
+// 複合操作
+import { removeHighlightWithRef } from '@kanbun/skam';
+
+// Token ユーティリティ
+import { buildTokenIndexMap, getTokenIndex, getTokenByIndex } from '@kanbun/skam';
+
+// Mark 検索・クエリ
 import {
   getMarkById,
+  getBlockForToken,
   getMarksForToken,
   getMarksForRange,
   getMarksExactRange,
   getAnchoredMarksExactRange,
   getPositionedMarksInRange,
-  buildTokenIndexMap,
-  getTokenIndex,
-  getTokenByIndex,
+} from '@kanbun/skam';
+
+// Mark 表示ユーティリティ
+import {
+  getAnchorText,
+  getAnchorRangeLabel,
+  getMarkSortIndex,
+  sortMarksByPosition,
+} from '@kanbun/skam';
+
+// Mark 型ガード
+import {
   isAnchorBasedMark,
   isPositionBasedMark,
   isMarkType,
   filterMarksByType,
+  hasMarkValue,
+  isExactAnchorMatch,
 } from '@kanbun/skam';
 ```
 
@@ -134,12 +156,19 @@ import {
 } from '@kanbun/skam/rendering';
 import type {
   RangeMarkGroup,
-  AIRDocument,
-  AIRBlock,
-  AIRBlockChild,
+  AIRRenderProfile,
+  AIRTrailingMark,
+  AIRRangeInfo,
+  AIRTokenSlots,
   AIRTokenNode,
+  AIRTatetenSeparator,
   AIRTatetenGroupNode,
   AIRHighlightGroupNode,
+  AIRBlockStartRef,
+  AIRBlockStartKutoten,
+  AIRBlock,
+  AIRBlockChild,
+  AIRDocument,
 } from '@kanbun/skam/rendering';
 ```
 

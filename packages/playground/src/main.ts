@@ -2708,12 +2708,9 @@ function handleTouchTokenTap(tokenId: string): boolean {
     }
     case 'first-selected': {
       if (tokenId === touchFirstTokenId) {
-        // Same token tapped again - back to idle
-        touchRangeState = 'idle';
-        touchFirstTokenId = null;
-        clearSelectionPanel();
-        clearSelection(renderOutput);
-        closeBottomSheet();
+        // Same token tapped again - confirm single-character selection
+        touchRangeState = 'range-selected';
+        openBottomSheet();
         hideTouchRangeHint();
       } else {
         // Different token - range selection

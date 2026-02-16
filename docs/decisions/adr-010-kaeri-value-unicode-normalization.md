@@ -1,5 +1,5 @@
 ---
-status: Complete
+status: Accepted
 plan: plan-kaeri-value-unicode-normalization.md
 ---
 

@@ -1,5 +1,5 @@
 ---
-status: Accepted
+status: Complete
 deps: [18]
 plan: plan-renderer-layout-complexity-reduction.md
 ---

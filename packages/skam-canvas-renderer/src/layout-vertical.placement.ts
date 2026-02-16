@@ -445,7 +445,6 @@ function placeBlockChild(
     columnY,
     blockColumnX,
     blockBaseCenterX,
-    blockColumnWidth,
     highlightLineX,
     highlightGap,
     effectiveFlags,

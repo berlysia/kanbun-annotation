@@ -1,8 +1,10 @@
 ---
-status: Accepted
+status: Completed
 ---
 
 # ADR-013: Web Platform Baseline 互換性チェックの導入
+
+実装計画: [Plan](../plans/plan-baseline-compatibility-check.md)
 
 ## コンテキスト
 

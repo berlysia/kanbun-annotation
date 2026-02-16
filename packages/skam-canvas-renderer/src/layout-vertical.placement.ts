@@ -6,6 +6,7 @@
  */
 
 import type { HighlightStyle } from '@kanbun/skam';
+import { resolveSpacingEm } from '@kanbun/skam/rendering';
 import type {
   CanvasTokenNode,
   CanvasTatetenSeparator,
@@ -75,10 +76,11 @@ function buildPlacementContext(plan: ColumnPlan, options: ResolvedOptions): Plac
   const blockColumnX = plan.x;
   const { columnWidth: blockColumnWidth, baseCenterX: blockBaseCenterX } = plan.dimensions;
 
+  const spacingPx = resolveSpacingEm(options.spacing) * fontSize;
   return {
     fontSize,
     rubyFontSize,
-    cellAdvance: fontSize,
+    cellAdvance: fontSize + spacingPx,
     separatorAdvance: rubyFontSize,
     grid: plan.grid,
     columnY,

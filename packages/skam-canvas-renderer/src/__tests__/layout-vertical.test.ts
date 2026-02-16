@@ -1550,4 +1550,81 @@ describe('adaptive columnSizing', () => {
     // adaptive: Block A is narrower → total width is smaller than uniform
     expect(adaptiveResult.width).toBeLessThan(uniformResult.width);
   });
+
+  // ============================================================================
+  // spacing (aki-gumi)
+  // ============================================================================
+
+  describe('spacing (aki-gumi)', () => {
+    it('increases token y-interval with quarter spacing', () => {
+      const ctx = new RecordingContext();
+      const tree = buildRenderTree(threeTokenDoc(), PROFILES.full);
+      const result = layout(tree, ctx, { spacing: 'quarter' });
+
+      const tokens = result.columns[0]!.children;
+      // cellAdvance = fontSize + 0.25 * fontSize = 24 + 6 = 30
+      const cellAdvance = DEFAULT_FONT_SIZE + 0.25 * DEFAULT_FONT_SIZE;
+      expect(tokens[1]!.y - tokens[0]!.y).toBe(cellAdvance);
+      expect(tokens[2]!.y - tokens[1]!.y).toBe(cellAdvance);
+    });
+
+    it('increases token y-interval with half spacing', () => {
+      const ctx = new RecordingContext();
+      const tree = buildRenderTree(threeTokenDoc(), PROFILES.full);
+      const result = layout(tree, ctx, { spacing: 'half' });
+
+      const tokens = result.columns[0]!.children;
+      // cellAdvance = fontSize + 0.5 * fontSize = 24 + 12 = 36
+      const cellAdvance = DEFAULT_FONT_SIZE + 0.5 * DEFAULT_FONT_SIZE;
+      expect(tokens[1]!.y - tokens[0]!.y).toBe(cellAdvance);
+      expect(tokens[2]!.y - tokens[1]!.y).toBe(cellAdvance);
+    });
+
+    it('has no effect with solid spacing (default)', () => {
+      const ctx = new RecordingContext();
+      const tree = buildRenderTree(threeTokenDoc(), PROFILES.full);
+      const resultSolid = layout(tree, ctx, { spacing: 'solid' });
+      const resultDefault = layout(tree, ctx);
+
+      const tokensSolid = resultSolid.columns[0]!.children;
+      const tokensDefault = resultDefault.columns[0]!.children;
+      expect(tokensSolid[1]!.y - tokensSolid[0]!.y).toBe(DEFAULT_FONT_SIZE);
+      expect(tokensDefault[1]!.y - tokensDefault[0]!.y).toBe(DEFAULT_FONT_SIZE);
+    });
+
+    it('accepts numeric spacing value', () => {
+      const ctx = new RecordingContext();
+      const tree = buildRenderTree(threeTokenDoc(), PROFILES.full);
+      const result = layout(tree, ctx, { spacing: 0.3 });
+
+      const tokens = result.columns[0]!.children;
+      const cellAdvance = DEFAULT_FONT_SIZE + 0.3 * DEFAULT_FONT_SIZE;
+      expect(tokens[1]!.y - tokens[0]!.y).toBeCloseTo(cellAdvance);
+    });
+
+    it('clamps negative spacing to zero', () => {
+      const ctx = new RecordingContext();
+      const tree = buildRenderTree(threeTokenDoc(), PROFILES.full);
+      const resultNegative = layout(tree, ctx, { spacing: -0.5 });
+      const resultDefault = layout(tree, ctx);
+
+      const tokensNeg = resultNegative.columns[0]!.children;
+      const tokensDef = resultDefault.columns[0]!.children;
+      expect(tokensNeg[1]!.y - tokensNeg[0]!.y).toBe(tokensDef[1]!.y - tokensDef[0]!.y);
+    });
+
+    it('increases document height proportionally', () => {
+      const ctx = new RecordingContext();
+      const tree = buildRenderTree(threeTokenDoc(), PROFILES.full);
+      const resultSolid = layout(tree, ctx, { spacing: 'solid' });
+      const resultQuarter = layout(tree, ctx, { spacing: 'quarter' });
+
+      // 3 tokens: height difference = 3 * spacingPx = 3 * (0.25 * 24) = 18
+      // But last token doesn't add spacing after it in column height calculation,
+      // so difference = (numTokens) * spacingPx - 0 = wait, cellAdvance is applied to all tokens' yOffset progression
+      // Actually, height = padding * 2 + 3 * cellAdvance (all 3 tokens contribute to yOffset)
+      const spacingPx = 0.25 * DEFAULT_FONT_SIZE;
+      expect(resultQuarter.height - resultSolid.height).toBe(3 * spacingPx);
+    });
+  });
 });

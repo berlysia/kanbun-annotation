@@ -3,6 +3,7 @@
  */
 
 import type { Token, HighlightStyle } from '@kanbun/skam';
+import type { Spacing } from '@kanbun/skam/rendering';
 import type { RenderProfile } from './profiles.js';
 
 // ============================================================================
@@ -37,6 +38,15 @@ export interface CanvasRenderOptions {
   /** non-overflow 時（漢字列 >= ルビ）のルビ側配置: 'justify'=均等配分（デフォルト）, 'center'=中央, 'start'=先頭, 'end'=末尾 */
   rangeRubyAlign?: 'center' | 'start' | 'end' | 'justify' | 'space-around' | 'space-evenly';
   /**
+   * 字間スペーシング（アキ組み）
+   *
+   * - 'solid': ベタ組み（アキなし、デフォルト）
+   * - 'quarter': 四分アキ（0.25em）
+   * - 'half': 二分アキ（0.5em）
+   * - number: 任意の em 値（0以上）
+   */
+  spacing?: Spacing;
+  /**
    * em box 上端から alphabetic baseline までの距離の比率 (0–1)。
    * fontSize × emAscentRatio = em ascent として描画位置を補正する。
    *
@@ -64,6 +74,8 @@ export interface MeasureOptions {
   rangeRubyAlignment?: 'distribute' | 'center';
   /** non-overflow 時（漢字列 >= ルビ）のルビ側配置: 'justify'=均等配分（デフォルト）, 'center'=中央, 'start'=先頭, 'end'=末尾 */
   rangeRubyAlign?: 'center' | 'start' | 'end' | 'justify' | 'space-around' | 'space-evenly';
+  /** 字間スペーシング（アキ組み） */
+  spacing?: Spacing;
 }
 
 export interface DocumentDimensions {
@@ -295,5 +307,6 @@ export interface ResolvedOptions {
   columnSizing: 'uniform' | 'adaptive';
   rangeRubyAlignment: 'distribute' | 'center';
   rangeRubyAlign: 'center' | 'start' | 'end' | 'justify' | 'space-around' | 'space-evenly';
+  spacing: Spacing;
   emAscentRatio: number | undefined;
 }

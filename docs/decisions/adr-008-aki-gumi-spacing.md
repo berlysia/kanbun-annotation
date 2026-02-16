@@ -1,9 +1,9 @@
 ---
-status: Accepted
+status: Complete
 plan: plan-aki-gumi-spacing.md
 substatus:
   html: Complete
-  canvas: Pending
+  canvas: Complete
 ---
 
 # ADR-008: アキ組み（字間スペーシング）の導入

@@ -42,6 +42,7 @@ export function resolveOptions(options?: CanvasRenderOptions): ResolvedOptions {
     columnSizing: options?.columnSizing ?? 'uniform',
     rangeRubyAlignment: options?.rangeRubyAlignment ?? 'distribute',
     rangeRubyAlign: options?.rangeRubyAlign ?? 'center',
+    spacing: options?.spacing ?? 'solid',
     emAscentRatio: options?.emAscentRatio,
   };
 }

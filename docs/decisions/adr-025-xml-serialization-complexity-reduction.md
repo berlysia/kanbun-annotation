@@ -1,5 +1,5 @@
 ---
-status: Accepted
+status: Complete
 plan: plan-xml-serialization-complexity-reduction.md
 ---
 

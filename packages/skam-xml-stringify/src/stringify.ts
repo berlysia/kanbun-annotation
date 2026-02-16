@@ -191,6 +191,58 @@ function getPositionAfterTokenId(position: Position): string | undefined {
   return undefined;
 }
 
+/** Position-based mark (kaeri/kutoten/ref) を annotation に追加 */
+function applyPositionBasedMark(mark: Mark, annotations: Map<string, TokenAnnotation>): void {
+  const positionMark = mark as KaeriMark | KutotenMark | RefMark;
+  const tokenId = getPositionAfterTokenId(positionMark.position);
+  if (!tokenId) return;
+
+  const annotation = annotations.get(tokenId);
+  if (!annotation) return;
+
+  if (mark.type === 'kaeri') {
+    if (!annotation.kaeriAfter) annotation.kaeriAfter = [];
+    annotation.kaeriAfter.push(mark as KaeriMark);
+  } else if (mark.type === 'kutoten') {
+    if (!annotation.kutotenAfter) annotation.kutotenAfter = [];
+    annotation.kutotenAfter.push(mark as KutotenMark);
+  } else if (mark.type === 'ref') {
+    if (!annotation.refAfter) annotation.refAfter = [];
+    annotation.refAfter.push(mark as RefMark);
+  }
+}
+
+/** 単一トークンの anchor-based mark を annotation に追加 */
+function applySingleTokenAnchorMark(mark: Mark, annotation: TokenAnnotation): void {
+  switch (mark.type) {
+    case 'yomigana':
+      annotation.yomi = (mark as YomiganaMark).value;
+      break;
+    case 'okurigana':
+      annotation.okuri = (mark as OkuriganaMark).value;
+      break;
+    case 'soegana':
+      annotation.soe = (mark as SoeganaMark).value;
+      break;
+    case 'okimoji':
+      if (!annotation.wrappers) annotation.wrappers = [];
+      annotation.wrappers.push({ type: 'okimoji', mark: mark as OkimojiMark });
+      break;
+    case 'joji':
+      if (!annotation.wrappers) annotation.wrappers = [];
+      annotation.wrappers.push({ type: 'joji', mark: mark as JojiMark });
+      break;
+    case 'okototen':
+      if (!annotation.wrappers) annotation.wrappers = [];
+      annotation.wrappers.push({ type: 'okototen', mark: mark as OkototenMark });
+      break;
+    case 'saidoku':
+      if (!annotation.wrappers) annotation.wrappers = [];
+      annotation.wrappers.push({ type: 'saidoku', mark: mark as SaidokuMark });
+      break;
+  }
+}
+
 /**
  * Token ごとの annotation を収集（単一トークンマーク用）
  */
@@ -201,92 +253,23 @@ function collectTokenAnnotations(
 ): Map<string, TokenAnnotation> {
   const annotations = new Map<string, TokenAnnotation>();
 
-  // 各 token の annotation を初期化
   for (const token of tokens) {
     annotations.set(token.id, {});
   }
 
-  // Mark を処理
   for (const mark of marks) {
-    // Position-based marks (kaeri, kutoten, ref) are handled separately
     if (!isAnchorBasedMark(mark)) {
-      const positionMark = mark as KaeriMark | KutotenMark | RefMark;
-      const tokenId = getPositionAfterTokenId(positionMark.position);
-      if (!tokenId) {
-        // before-only position marks are not attached to a token annotation
-        continue;
-      }
-      const annotation = annotations.get(tokenId);
-      if (!annotation) {
-        continue;
-      }
-
-      if (mark.type === 'kaeri') {
-        if (!annotation.kaeriAfter) {
-          annotation.kaeriAfter = [];
-        }
-        annotation.kaeriAfter.push(mark as KaeriMark);
-      } else if (mark.type === 'kutoten') {
-        if (!annotation.kutotenAfter) {
-          annotation.kutotenAfter = [];
-        }
-        annotation.kutotenAfter.push(mark as KutotenMark);
-      } else if (mark.type === 'ref') {
-        if (!annotation.refAfter) {
-          annotation.refAfter = [];
-        }
-        annotation.refAfter.push(mark as RefMark);
-      }
+      applyPositionBasedMark(mark, annotations);
       continue;
     }
 
-    // Anchor-based marks: only process single-token marks
-    if (mark.anchor.from !== mark.anchor.to) {
-      // 複数 token にまたがる mark は別途処理
-      continue;
-    }
+    // 複数 token にまたがる mark は別途処理
+    if (mark.anchor.from !== mark.anchor.to) continue;
 
-    const tokenId = mark.anchor.from;
-    const annotation = annotations.get(tokenId);
-    if (!annotation) {
-      continue;
-    }
+    const annotation = annotations.get(mark.anchor.from);
+    if (!annotation) continue;
 
-    switch (mark.type) {
-      case 'yomigana':
-        annotation.yomi = (mark as YomiganaMark).value;
-        break;
-      case 'okurigana':
-        annotation.okuri = (mark as OkuriganaMark).value;
-        break;
-      case 'soegana':
-        annotation.soe = (mark as SoeganaMark).value;
-        break;
-      case 'okimoji':
-        if (!annotation.wrappers) {
-          annotation.wrappers = [];
-        }
-        annotation.wrappers.push({ type: 'okimoji', mark: mark as OkimojiMark });
-        break;
-      case 'joji':
-        if (!annotation.wrappers) {
-          annotation.wrappers = [];
-        }
-        annotation.wrappers.push({ type: 'joji', mark: mark as JojiMark });
-        break;
-      case 'okototen':
-        if (!annotation.wrappers) {
-          annotation.wrappers = [];
-        }
-        annotation.wrappers.push({ type: 'okototen', mark: mark as OkototenMark });
-        break;
-      case 'saidoku':
-        if (!annotation.wrappers) {
-          annotation.wrappers = [];
-        }
-        annotation.wrappers.push({ type: 'saidoku', mark: mark as SaidokuMark });
-        break;
-    }
+    applySingleTokenAnchorMark(mark, annotation);
   }
 
   return annotations;
@@ -302,78 +285,49 @@ function collectTokenAnnotations(
  * ref は position ベースなので範囲マークとしては扱わない。
  * （content がある場合は notes セクションに出力される）
  */
-function collectRangeMarks(marks: Mark[], tokenIndexMap: Map<string, number>): RangeMark[] {
-  const rangeMarks: RangeMark[] = [];
+interface KunGroup {
+  yomi?: string;
+  okuri?: string;
+  soe?: string;
+  from: string;
+  to: string;
+  startIndex: number;
+  endIndex: number;
+}
 
-  // 複数トークン kun マークを範囲でグループ化
-  const kunGroups = new Map<
-    string,
-    {
-      yomi?: string;
-      okuri?: string;
-      soe?: string;
-      from: string;
-      to: string;
-      startIndex: number;
-      endIndex: number;
-    }
-  >();
+/** 複数トークンにまたがる kun 系マークをグループ化して合成マークを生成 */
+function collectKunRangeGroups(marks: Mark[], tokenIndexMap: Map<string, number>): RangeMark[] {
+  const kunGroups = new Map<string, KunGroup>();
 
   for (const mark of marks) {
-    // emphasis, tateten, highlight は直接範囲マークとして追加
-    if (mark.type === 'emphasis' || mark.type === 'tateten' || mark.type === 'highlight') {
-      const anchorMark = mark as EmphasisMark | TatetenMark | HighlightMark;
+    if (mark.type !== 'yomigana' && mark.type !== 'okurigana' && mark.type !== 'soegana') continue;
+    if (mark.anchor.from === mark.anchor.to) continue;
 
-      const startIndex = tokenIndexMap.get(anchorMark.anchor.from);
-      const endIndex = tokenIndexMap.get(anchorMark.anchor.to);
+    const startIndex = tokenIndexMap.get(mark.anchor.from);
+    const endIndex = tokenIndexMap.get(mark.anchor.to);
+    if (startIndex === undefined || endIndex === undefined) continue;
 
-      if (startIndex === undefined || endIndex === undefined) {
-        continue;
-      }
-
-      rangeMarks.push({
-        mark,
-        startIndex,
-        endIndex,
-      });
-      continue;
+    const key = `${mark.anchor.from}:${mark.anchor.to}`;
+    let group = kunGroups.get(key);
+    if (!group) {
+      group = { from: mark.anchor.from, to: mark.anchor.to, startIndex, endIndex };
+      kunGroups.set(key, group);
     }
 
-    // 複数トークンにまたがる kun 系マーク（from !== to）をグループ化
-    if (mark.type === 'yomigana' || mark.type === 'okurigana' || mark.type === 'soegana') {
-      if (mark.anchor.from === mark.anchor.to) {
-        // 単一トークンは collectTokenAnnotations で処理済み
-        continue;
-      }
-
-      const startIndex = tokenIndexMap.get(mark.anchor.from);
-      const endIndex = tokenIndexMap.get(mark.anchor.to);
-      if (startIndex === undefined || endIndex === undefined) {
-        continue;
-      }
-
-      const key = `${mark.anchor.from}:${mark.anchor.to}`;
-      let group = kunGroups.get(key);
-      if (!group) {
-        group = { from: mark.anchor.from, to: mark.anchor.to, startIndex, endIndex };
-        kunGroups.set(key, group);
-      }
-
-      switch (mark.type) {
-        case 'yomigana':
-          group.yomi = (mark as YomiganaMark).value;
-          break;
-        case 'okurigana':
-          group.okuri = (mark as OkuriganaMark).value;
-          break;
-        case 'soegana':
-          group.soe = (mark as SoeganaMark).value;
-          break;
-      }
+    switch (mark.type) {
+      case 'yomigana':
+        group.yomi = (mark as YomiganaMark).value;
+        break;
+      case 'okurigana':
+        group.okuri = (mark as OkuriganaMark).value;
+        break;
+      case 'soegana':
+        group.soe = (mark as SoeganaMark).value;
+        break;
     }
   }
 
-  // グループ化された kun マークを合成マークとして範囲マークに追加
+  const result: RangeMark[] = [];
   for (const group of kunGroups.values()) {
     const syntheticMark: KunRangeSyntheticMark = {
       type: '__kun_range',
@@ -383,12 +337,26 @@ function collectRangeMarks(marks: Mark[], tokenIndexMap: Map<string, number>): R
     if (group.okuri) syntheticMark.okuri = group.okuri;
     if (group.soe) syntheticMark.soe = group.soe;
 
-    rangeMarks.push({
-      mark: syntheticMark,
-      startIndex: group.startIndex,
-      endIndex: group.endIndex,
-    });
+    result.push({ mark: syntheticMark, startIndex: group.startIndex, endIndex: group.endIndex });
   }
+  return result;
+}
+
+function collectRangeMarks(marks: Mark[], tokenIndexMap: Map<string, number>): RangeMark[] {
+  const rangeMarks: RangeMark[] = [];
+
+  // emphasis, tateten, highlight は直接範囲マークとして追加
+  for (const mark of marks) {
+    if (mark.type !== 'emphasis' && mark.type !== 'tateten' && mark.type !== 'highlight') continue;
+    const anchorMark = mark as EmphasisMark | TatetenMark | HighlightMark;
+    const startIndex = tokenIndexMap.get(anchorMark.anchor.from);
+    const endIndex = tokenIndexMap.get(anchorMark.anchor.to);
+    if (startIndex === undefined || endIndex === undefined) continue;
+    rangeMarks.push({ mark, startIndex, endIndex });
+  }
+
+  // 複数トークン kun 系マークのグループ化
+  rangeMarks.push(...collectKunRangeGroups(marks, tokenIndexMap));
 
   // ソート：開始位置昇順、同一開始なら終了位置降順（外側が先）
   rangeMarks.sort((a, b) => {
@@ -687,13 +655,103 @@ function refMarkToXml(ref: RefMark, isEmpty: boolean): string {
 }
 
 /**
+ * 範囲マークの型に応じた XML 要素を生成
+ */
+function renderRangeElement(mark: Mark | KunRangeSyntheticMark, childrenXml: string): string {
+  switch (mark.type) {
+    case '__kun_range': {
+      const kun = mark as KunRangeSyntheticMark;
+      const attrs: string[] = [];
+      if (kun.yomi) attrs.push(`yomi="${escapeXml(kun.yomi)}"`);
+      if (kun.okuri) attrs.push(`okuri="${escapeXml(kun.okuri)}"`);
+      if (kun.soe) attrs.push(`soe="${escapeXml(kun.soe)}"`);
+      return `<skam:kun ${attrs.join(' ')}>${childrenXml}</skam:kun>`;
+    }
+    case 'emphasis': {
+      const emp = mark as EmphasisMark;
+      let attrs = 'type="emphasis"';
+      if (emp.style) {
+        attrs += ` style="${escapeXml(emp.style)}"`;
+      }
+      return `<skam:span ${attrs}>${childrenXml}</skam:span>`;
+    }
+    case 'tateten':
+      return `<skam:tateten>${childrenXml}</skam:tateten>`;
+    case 'highlight': {
+      const hl = mark as HighlightMark;
+      let attrs = 'type="highlight"';
+      if (hl.style) {
+        attrs += ` style="${hl.style}"`;
+      }
+      if (hl.ref) {
+        attrs += ` ref="${escapeXml(hl.ref)}"`;
+      }
+      return `<skam:span ${attrs}>${childrenXml}</skam:span>`;
+    }
+    case 'ref':
+      return refMarkToXml(mark as RefMark, false);
+    default:
+      return childrenXml;
+  }
+}
+
+/** trailing marks を一時的に保存・抑制する */
+interface SavedTrailingMarks {
+  kaeri?: KaeriMark[];
+  kutoten?: KutotenMark[];
+  ref?: RefMark[];
+}
+
+/**
+ * 要素ノードの最終子テキストから trailing marks を退避し、
+ * 子を再帰処理後、退避した marks の XML を返す
+ */
+function renderElementWithTrailing(node: ElementNode): {
+  childrenXml: string;
+  trailingXml: string;
+} {
+  const lastChild = node.children[node.children.length - 1];
+  let saved: SavedTrailingMarks = {};
+
+  // 最終直接子テキストの trailing marks を退避（range 要素の外に配置するため）
+  if (lastChild?.type === 'text') {
+    const ann = lastChild.annotation;
+    saved = {
+      ...(ann.kaeriAfter ? { kaeri: ann.kaeriAfter } : {}),
+      ...(ann.kutotenAfter ? { kutoten: ann.kutotenAfter } : {}),
+      ...(ann.refAfter ? { ref: ann.refAfter } : {}),
+    };
+    delete ann.kaeriAfter;
+    delete ann.kutotenAfter;
+    delete ann.refAfter;
+  }
+
+  const childrenXml = node.children.map(contentNodeToXml).join('');
+
+  // アノテーションを復元
+  if (lastChild?.type === 'text') {
+    if (saved.kaeri) lastChild.annotation.kaeriAfter = saved.kaeri;
+    if (saved.kutoten) lastChild.annotation.kutotenAfter = saved.kutoten;
+    if (saved.ref) lastChild.annotation.refAfter = saved.ref;
+  }
+
+  // 退避した trailing marks の XML を生成（tokenTrailingToXml と同形式）
+  const trailingAnnotation: TokenAnnotation = {
+    ...(saved.kaeri ? { kaeriAfter: saved.kaeri } : {}),
+    ...(saved.kutoten ? { kutotenAfter: saved.kutoten } : {}),
+    ...(saved.ref ? { refAfter: saved.ref } : {}),
+  };
+  const trailingXml = tokenTrailingToXml(trailingAnnotation);
+
+  return { childrenXml, trailingXml };
+}
+
+/**
  * コンテンツノードを XML に変換
  */
 function contentNodeToXml(node: ContentNode): string {
   if (node.type === 'text') {
-    // テキストノード：annotation を適用
-    // wrapper がある場合、trailing marks（kaeri/kutoten/ref）を
-    // wrapper 要素の外に配置する（joji/okimoji/saidoku 等すべて共通）
+    // wrapper がある場合、trailing marks を wrapper の外に配置
     if (node.annotation.wrappers?.length) {
       const baseXml = tokenBaseToXml(node.text, node.annotation);
       const trailingXml = tokenTrailingToXml(node.annotation);
@@ -701,106 +759,12 @@ function contentNodeToXml(node: ContentNode): string {
     }
     const innerXml = tokenContentToXml(node.text, node.annotation);
     return applyWrappers(innerXml, node.annotation.wrappers);
-  } else {
-    // 要素ノード：最終直接子テキストノードの位置マーク（kaeri, kutoten, ref）は
-    // range 要素の閉じタグの後に配置すべき。非最終トークンの位置マークは内部に留まる。
-    const lastChild = node.children[node.children.length - 1];
-    let savedKaeri: KaeriMark[] | undefined;
-    let savedKutoten: KutotenMark[] | undefined;
-    let savedRef: RefMark[] | undefined;
-
-    if (lastChild?.type === 'text') {
-      const ann = lastChild.annotation;
-      savedKaeri = ann.kaeriAfter;
-      savedKutoten = ann.kutotenAfter;
-      savedRef = ann.refAfter;
-      // 一時的に抑制
-      delete ann.kaeriAfter;
-      delete ann.kutotenAfter;
-      delete ann.refAfter;
-    }
-
-    // 子を再帰的に処理（最終子の位置マークは抑制済み）
-    const childrenXml = node.children.map(contentNodeToXml).join('');
-
-    // アノテーションを復元
-    if (lastChild?.type === 'text') {
-      if (savedKaeri) lastChild.annotation.kaeriAfter = savedKaeri;
-      if (savedKutoten) lastChild.annotation.kutotenAfter = savedKutoten;
-      if (savedRef) lastChild.annotation.refAfter = savedRef;
-    }
-
-    // 位置マークを閉じタグの後に配置する XML を生成
-    let trailingXml = '';
-    if (savedKaeri) {
-      for (const kaeri of savedKaeri) {
-        const kind = kaeriValueToKind(kaeri.value);
-        trailingXml += `<skam:kaeri kind="${escapeXml(kind)}"/>`;
-      }
-    }
-    if (savedKutoten) {
-      for (const kutoten of savedKutoten) {
-        let attrs = `value="${escapeXml(kutoten.value)}"`;
-        if (kutoten.kind) {
-          attrs += ` kind="${kutoten.kind}"`;
-        }
-        trailingXml += `<skam:kutoten ${attrs}/>`;
-      }
-    }
-    if (savedRef) {
-      for (const ref of savedRef) {
-        trailingXml += refMarkToXml(ref, true);
-      }
-    }
-
-    let elementXml: string;
-    switch (node.mark.type) {
-      case '__kun_range': {
-        // 複数トークンにまたがる kun 系マーク
-        const kun = node.mark as KunRangeSyntheticMark;
-        const attrs: string[] = [];
-        if (kun.yomi) attrs.push(`yomi="${escapeXml(kun.yomi)}"`);
-        if (kun.okuri) attrs.push(`okuri="${escapeXml(kun.okuri)}"`);
-        if (kun.soe) attrs.push(`soe="${escapeXml(kun.soe)}"`);
-        elementXml = `<skam:kun ${attrs.join(' ')}>${childrenXml}</skam:kun>`;
-        break;
-      }
-      case 'emphasis': {
-        const emp = node.mark as EmphasisMark;
-        let attrs = 'type="emphasis"';
-        if (emp.style) {
-          attrs += ` style="${escapeXml(emp.style)}"`;
-        }
-        elementXml = `<skam:span ${attrs}>${childrenXml}</skam:span>`;
-        break;
-      }
-      case 'tateten':
-        elementXml = `<skam:tateten>${childrenXml}</skam:tateten>`;
-        break;
-      case 'highlight': {
-        const hl = node.mark as HighlightMark;
-        let attrs = 'type="highlight"';
-        if (hl.style) {
-          attrs += ` style="${hl.style}"`;
-        }
-        if (hl.ref) {
-          attrs += ` ref="${escapeXml(hl.ref)}"`;
-        }
-        elementXml = `<skam:span ${attrs}>${childrenXml}</skam:span>`;
-        break;
-      }
-      case 'ref': {
-        const ref = node.mark as RefMark;
-        elementXml = refMarkToXml(ref, false);
-        break;
-      }
-      default:
-        elementXml = childrenXml;
-        break;
-    }
-
-    return elementXml + trailingXml;
   }
+
+  // 要素ノード：trailing marks を range 要素の外に配置
+  const { childrenXml, trailingXml } = renderElementWithTrailing(node);
+  const elementXml = renderRangeElement(node.mark, childrenXml);
+  return elementXml + trailingXml;
 }
 
 /**

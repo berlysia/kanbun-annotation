@@ -4,6 +4,8 @@ status: Accepted
 
 # ADR-027: Complexity Metrics CI 統合
 
+実装計画: [Plan](../plans/plan-complexity-metrics-ci-integration.md)
+
 ## コンテキスト
 
 [構造解析レポート（2026-02-16）](../structure-analysis-2026-02-16.md)で、プロジェクト全体の品質は優秀（総合 1.9/5）だが、一部の関数が高複雑度（CC 28〜48）を維持していることが判明した。現在、複雑度メトリクスの継続的な監視は行われておらず、リファクタリング（ADR-024〜026）の効果測定や今後の複雑度劣化の早期検出ができない。

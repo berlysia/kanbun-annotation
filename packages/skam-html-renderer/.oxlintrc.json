@@ -1,4 +1,7 @@
 {
+  "rules": {
+    "eslint/complexity": ["warn", { "max": 20 }]
+  },
   "overrides": [
     {
       "files": [

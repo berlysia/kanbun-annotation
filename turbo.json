@@ -13,7 +13,7 @@
       "outputs": []
     },
     "lint": {
-      "inputs": ["src/**"],
+      "inputs": ["src/**", ".oxlintrc.json", "../../.oxlintrc.json"],
       "outputs": []
     },
     "test": {

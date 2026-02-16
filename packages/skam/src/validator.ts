@@ -20,8 +20,6 @@ import type {
   SaidokuForm,
   RefFormat,
   HighlightStyle,
-  KutotenMark,
-  RefMark,
 } from './index.js';
 import {
   type ValidationError,
@@ -376,6 +374,282 @@ function validateSaidokuForm(
   return valid;
 }
 
+// ============================================================================
+// Type-specific Mark Validators
+// ============================================================================
+
+/** value フィールドが必須のマーク型 (kaeri, okurigana, yomigana, soegana, kutoten) */
+function validateValueMark(
+  mark: Record<string, unknown>,
+  path: string,
+  markType: string,
+  errors: ValidationError[]
+): boolean {
+  if (!isString(mark['value'])) {
+    errors.push(
+      createValidationError(
+        'MISSING_FIELD',
+        `${path}.value`,
+        `${markType} requires a value field`,
+        'string',
+        typeof mark['value']
+      )
+    );
+    return false;
+  }
+  return true;
+}
+
+function validateKutotenMark(
+  mark: Record<string, unknown>,
+  path: string,
+  errors: ValidationError[]
+): boolean {
+  let valid = validateValueMark(mark, path, 'kutoten', errors);
+  if ('kind' in mark && mark['kind'] !== undefined) {
+    if (!['ku', 'ten', 'other'].includes(mark['kind'] as string)) {
+      errors.push(
+        createValidationError(
+          'INVALID_VALUE',
+          `${path}.kind`,
+          'kutoten kind must be "ku", "ten", or "other"',
+          'ku|ten|other',
+          mark['kind']
+        )
+      );
+      valid = false;
+    }
+  }
+  return valid;
+}
+
+function validateEmphasisMark(
+  mark: Record<string, unknown>,
+  path: string,
+  errors: ValidationError[]
+): boolean {
+  if ('style' in mark && mark['style'] !== undefined && !isString(mark['style'])) {
+    errors.push(
+      createValidationError(
+        'INVALID_TYPE',
+        `${path}.style`,
+        'emphasis style must be a string if provided',
+        'string',
+        typeof mark['style']
+      )
+    );
+    return false;
+  }
+  return true;
+}
+
+function validateSaidokuMark(
+  mark: Record<string, unknown>,
+  path: string,
+  errors: ValidationError[]
+): boolean {
+  if (!isArray(mark['forms'])) {
+    errors.push(
+      createValidationError(
+        'MISSING_FIELD',
+        `${path}.forms`,
+        'saidoku requires a forms array',
+        'array',
+        typeof mark['forms']
+      )
+    );
+    return false;
+  }
+  let valid = true;
+  mark['forms'].forEach((form, formIndex) => {
+    if (!validateSaidokuForm(form, `${path}.forms[${formIndex}]`, errors)) {
+      valid = false;
+    }
+  });
+  return valid;
+}
+
+function validateOkototenMark(
+  mark: Record<string, unknown>,
+  path: string,
+  errors: ValidationError[]
+): boolean {
+  let valid = true;
+  if (!validateGlyphGridCoord(mark['position'], `${path}.position`, errors)) {
+    valid = false;
+  }
+  if (!isString(mark['shape'])) {
+    errors.push(
+      createValidationError(
+        'MISSING_FIELD',
+        `${path}.shape`,
+        'okototen requires a shape field',
+        'string',
+        typeof mark['shape']
+      )
+    );
+    valid = false;
+  }
+  return valid;
+}
+
+function validateHighlightMark(
+  mark: Record<string, unknown>,
+  path: string,
+  errors: ValidationError[]
+): boolean {
+  let valid = true;
+  if ('style' in mark && mark['style'] !== undefined) {
+    if (!VALID_HIGHLIGHT_STYLES.includes(mark['style'] as HighlightStyle)) {
+      errors.push(
+        createValidationError(
+          'INVALID_VALUE',
+          `${path}.style`,
+          `highlight style must be one of: ${VALID_HIGHLIGHT_STYLES.join(', ')}`,
+          VALID_HIGHLIGHT_STYLES.join('|'),
+          mark['style']
+        )
+      );
+      valid = false;
+    }
+  }
+  if ('ref' in mark && mark['ref'] !== undefined && !isString(mark['ref'])) {
+    errors.push(
+      createValidationError(
+        'INVALID_TYPE',
+        `${path}.ref`,
+        'ref must be a string if provided',
+        'string',
+        typeof mark['ref']
+      )
+    );
+    valid = false;
+  }
+  return valid;
+}
+
+function validateRefMark(
+  mark: Record<string, unknown>,
+  path: string,
+  errors: ValidationError[]
+): boolean {
+  let valid = true;
+
+  // At least one of label, format, or content must be present
+  if (!('label' in mark) && !('format' in mark) && !('content' in mark)) {
+    errors.push(
+      createValidationError(
+        'MISSING_FIELD',
+        `${path}`,
+        'ref requires at least one of: label, format, or content',
+        'label, format, or content',
+        'none'
+      )
+    );
+    valid = false;
+  }
+  // label and format are mutually exclusive
+  if (
+    'label' in mark &&
+    mark['label'] !== undefined &&
+    'format' in mark &&
+    mark['format'] !== undefined
+  ) {
+    errors.push(
+      createValidationError(
+        'INVALID_VALUE',
+        `${path}`,
+        'ref cannot have both label and format (mutually exclusive)',
+        'label OR format',
+        'both'
+      )
+    );
+    valid = false;
+  }
+  // label is optional but must be string if present
+  if ('label' in mark && mark['label'] !== undefined && !isString(mark['label'])) {
+    errors.push(
+      createValidationError(
+        'INVALID_TYPE',
+        `${path}.label`,
+        'label must be a string if provided',
+        'string',
+        typeof mark['label']
+      )
+    );
+    valid = false;
+  }
+  // format is optional but must be valid if present
+  if ('format' in mark && mark['format'] !== undefined) {
+    if (!VALID_REF_FORMATS.includes(mark['format'] as RefFormat)) {
+      errors.push(
+        createValidationError(
+          'INVALID_VALUE',
+          `${path}.format`,
+          `ref format must be one of: ${VALID_REF_FORMATS.join(', ')}`,
+          VALID_REF_FORMATS.join('|'),
+          mark['format']
+        )
+      );
+      valid = false;
+    }
+  }
+  // content is optional but must be string if present
+  if ('content' in mark && mark['content'] !== undefined && !isString(mark['content'])) {
+    errors.push(
+      createValidationError(
+        'INVALID_TYPE',
+        `${path}.content`,
+        'content must be a string if provided',
+        'string',
+        typeof mark['content']
+      )
+    );
+    valid = false;
+  }
+  return valid;
+}
+
+/**
+ * Type-specific validation dispatch
+ *
+ * 各マーク型固有のフィールド検証を対応するバリデーターに委任する
+ */
+function validateMarkTypeFields(
+  mark: Record<string, unknown>,
+  markType: MarkType,
+  path: string,
+  errors: ValidationError[]
+): boolean {
+  switch (markType) {
+    case 'kaeri':
+    case 'okurigana':
+    case 'yomigana':
+    case 'soegana':
+      return validateValueMark(mark, path, markType, errors);
+    case 'okimoji':
+    case 'joji':
+    case 'tateten':
+      return true; // No additional required fields
+    case 'kutoten':
+      return validateKutotenMark(mark, path, errors);
+    case 'emphasis':
+      return validateEmphasisMark(mark, path, errors);
+    case 'saidoku':
+      return validateSaidokuMark(mark, path, errors);
+    case 'okototen':
+      return validateOkototenMark(mark, path, errors);
+    case 'highlight':
+      return validateHighlightMark(mark, path, errors);
+    case 'ref':
+      return validateRefMark(mark, path, errors);
+  }
+}
+
+// ============================================================================
+// Main Mark Validator
+// ============================================================================
+
 function validateMark(mark: unknown, index: number, errors: ValidationError[]): mark is Mark {
   const path = `marks[${index}]`;
 
@@ -407,11 +681,9 @@ function validateMark(mark: unknown, index: number, errors: ValidationError[]): 
   const isPositionBased = markType === 'kaeri' || markType === 'kutoten' || markType === 'ref';
 
   if (isPositionBased) {
-    // position (required for position-based marks)
     if (!validatePosition(mark['position'], `${path}.position`, errors)) {
       valid = false;
     }
-    // anchor should not be present
     if ('anchor' in mark && mark['anchor'] !== undefined) {
       errors.push(
         createValidationError(
@@ -425,231 +697,15 @@ function validateMark(mark: unknown, index: number, errors: ValidationError[]): 
       valid = false;
     }
   } else {
-    // anchor (required for anchor-based marks)
     if (!validateAnchor(mark['anchor'], `${path}.anchor`, errors)) {
       valid = false;
     }
   }
 
-  // Type-specific validation
+  // Type-specific validation (dispatch to dedicated validators)
   if (isString(markType)) {
-    switch (markType as MarkType) {
-      case 'kaeri':
-      case 'okurigana':
-      case 'yomigana':
-      case 'soegana':
-        if (!isString(mark['value'])) {
-          errors.push(
-            createValidationError(
-              'MISSING_FIELD',
-              `${path}.value`,
-              `${markType} requires a value field`,
-              'string',
-              typeof mark['value']
-            )
-          );
-          valid = false;
-        }
-        break;
-
-      case 'okimoji':
-      case 'joji':
-        // No additional required fields (label marks)
-        break;
-
-      case 'kutoten':
-        if (!isString(mark['value'])) {
-          errors.push(
-            createValidationError(
-              'MISSING_FIELD',
-              `${path}.value`,
-              'kutoten requires a value field',
-              'string',
-              typeof mark['value']
-            )
-          );
-          valid = false;
-        }
-        if ('kind' in mark && mark['kind'] !== undefined) {
-          if (!['ku', 'ten', 'other'].includes(mark['kind'] as string)) {
-            errors.push(
-              createValidationError(
-                'INVALID_VALUE',
-                `${path}.kind`,
-                'kutoten kind must be "ku", "ten", or "other"',
-                'ku|ten|other',
-                mark['kind']
-              )
-            );
-            valid = false;
-          }
-        }
-        break;
-
-      case 'emphasis':
-        // style is optional; CSS text-emphasis-style value (string)
-        if ('style' in mark && mark['style'] !== undefined && !isString(mark['style'])) {
-          errors.push(
-            createValidationError(
-              'INVALID_TYPE',
-              `${path}.style`,
-              'emphasis style must be a string if provided',
-              'string',
-              typeof mark['style']
-            )
-          );
-          valid = false;
-        }
-        break;
-
-      case 'saidoku':
-        if (!isArray(mark['forms'])) {
-          errors.push(
-            createValidationError(
-              'MISSING_FIELD',
-              `${path}.forms`,
-              'saidoku requires a forms array',
-              'array',
-              typeof mark['forms']
-            )
-          );
-          valid = false;
-        } else {
-          mark['forms'].forEach((form, formIndex) => {
-            if (!validateSaidokuForm(form, `${path}.forms[${formIndex}]`, errors)) {
-              valid = false;
-            }
-          });
-        }
-        break;
-
-      case 'okototen':
-        if (!validateGlyphGridCoord(mark['position'], `${path}.position`, errors)) {
-          valid = false;
-        }
-        if (!isString(mark['shape'])) {
-          errors.push(
-            createValidationError(
-              'MISSING_FIELD',
-              `${path}.shape`,
-              'okototen requires a shape field',
-              'string',
-              typeof mark['shape']
-            )
-          );
-          valid = false;
-        }
-        break;
-
-      case 'tateten':
-        // No additional required fields
-        break;
-
-      case 'highlight':
-        // style is optional but must be valid if present
-        if ('style' in mark && mark['style'] !== undefined) {
-          if (!VALID_HIGHLIGHT_STYLES.includes(mark['style'] as HighlightStyle)) {
-            errors.push(
-              createValidationError(
-                'INVALID_VALUE',
-                `${path}.style`,
-                `highlight style must be one of: ${VALID_HIGHLIGHT_STYLES.join(', ')}`,
-                VALID_HIGHLIGHT_STYLES.join('|'),
-                mark['style']
-              )
-            );
-            valid = false;
-          }
-        }
-        // ref is optional string
-        if ('ref' in mark && mark['ref'] !== undefined && !isString(mark['ref'])) {
-          errors.push(
-            createValidationError(
-              'INVALID_TYPE',
-              `${path}.ref`,
-              'ref must be a string if provided',
-              'string',
-              typeof mark['ref']
-            )
-          );
-          valid = false;
-        }
-        break;
-
-      case 'ref':
-        // At least one of label, format, or content must be present
-        if (!('label' in mark) && !('format' in mark) && !('content' in mark)) {
-          errors.push(
-            createValidationError(
-              'MISSING_FIELD',
-              `${path}`,
-              'ref requires at least one of: label, format, or content',
-              'label, format, or content',
-              'none'
-            )
-          );
-          valid = false;
-        }
-        // label and format are mutually exclusive
-        if (
-          'label' in mark &&
-          mark['label'] !== undefined &&
-          'format' in mark &&
-          mark['format'] !== undefined
-        ) {
-          errors.push(
-            createValidationError(
-              'INVALID_VALUE',
-              `${path}`,
-              'ref cannot have both label and format (mutually exclusive)',
-              'label OR format',
-              'both'
-            )
-          );
-          valid = false;
-        }
-        // label is optional but must be string if present
-        if ('label' in mark && mark['label'] !== undefined && !isString(mark['label'])) {
-          errors.push(
-            createValidationError(
-              'INVALID_TYPE',
-              `${path}.label`,
-              'label must be a string if provided',
-              'string',
-              typeof mark['label']
-            )
-          );
-          valid = false;
-        }
-        // format is optional but must be valid if present
-        if ('format' in mark && mark['format'] !== undefined) {
-          if (!VALID_REF_FORMATS.includes(mark['format'] as RefFormat)) {
-            errors.push(
-              createValidationError(
-                'INVALID_VALUE',
-                `${path}.format`,
-                `ref format must be one of: ${VALID_REF_FORMATS.join(', ')}`,
-                VALID_REF_FORMATS.join('|'),
-                mark['format']
-              )
-            );
-            valid = false;
-          }
-        }
-        // content is optional but must be string if present
-        if ('content' in mark && mark['content'] !== undefined && !isString(mark['content'])) {
-          errors.push(
-            createValidationError(
-              'INVALID_TYPE',
-              `${path}.content`,
-              'content must be a string if provided',
-              'string',
-              typeof mark['content']
-            )
-          );
-          valid = false;
-        }
-        break;
+    if (!validateMarkTypeFields(mark, markType as MarkType, path, errors)) {
+      valid = false;
     }
   }
 
@@ -1210,23 +1266,31 @@ function validateUniqueIds(tokens: Token[], marks: Mark[], errors: ValidationErr
 // Main Validation Functions
 // ============================================================================
 
-/**
- * SKAMDocument を検証する
- *
- * @param input 検証対象のオブジェクト
- * @returns 検証結果
- */
-export function validateSKAMDocument(input: unknown): ValidationResult<SKAMDocument> {
-  const errors: ValidationError[] = [];
-
-  // Root object check
-  if (!isObject(input)) {
+function validateRequiredArray(
+  input: Record<string, unknown>,
+  field: string,
+  errors: ValidationError[],
+  itemValidator: (item: unknown, index: number, errors: ValidationError[]) => void
+): void {
+  const value = input[field];
+  if (!isArray(value)) {
     errors.push(
-      createValidationError('INVALID_TYPE', '', 'Input must be an object', 'object', typeof input)
+      createValidationError(
+        'MISSING_FIELD',
+        field,
+        `${field} is required and must be an array`,
+        'array',
+        typeof value
+      )
     );
-    return { valid: false, errors };
+  } else {
+    value.forEach((item, index) => {
+      itemValidator(item, index, errors);
+    });
   }
+}
 
+function validateDocumentFields(input: Record<string, unknown>, errors: ValidationError[]): void {
   // format (required)
   if (input['format'] !== VALID_FORMAT) {
     errors.push(
@@ -1240,25 +1304,11 @@ export function validateSKAMDocument(input: unknown): ValidationResult<SKAMDocum
     );
   }
 
-  // tokens (required array)
-  const tokens = input['tokens'];
-  if (!isArray(tokens)) {
-    errors.push(
-      createValidationError(
-        'MISSING_FIELD',
-        'tokens',
-        'tokens is required and must be an array',
-        'array',
-        typeof tokens
-      )
-    );
-  } else {
-    tokens.forEach((token, index) => {
-      validateToken(token, index, errors);
-    });
-  }
+  validateRequiredArray(input, 'tokens', errors, validateToken);
+  validateRequiredArray(input, 'marks', errors, validateMark);
+  validateRequiredArray(input, 'readings', errors, validateReading);
 
-  // blocks (required array)
+  // blocks (required array with additional empty-document check)
   const blocks = input['blocks'];
   if (!isArray(blocks)) {
     errors.push(
@@ -1275,10 +1325,8 @@ export function validateSKAMDocument(input: unknown): ValidationResult<SKAMDocum
       validateBlock(block, index, errors);
     });
 
-    // Empty document warning: blocks=[] && tokens=[] is valid but unusual
-    if (blocks.length === 0 && isArray(tokens) && tokens.length === 0) {
-      // Valid but unusual - no error
-    } else if (blocks.length === 0 && isArray(tokens) && tokens.length > 0) {
+    const tokens = input['tokens'];
+    if (blocks.length === 0 && isArray(tokens) && tokens.length > 0) {
       errors.push(
         createValidationError(
           'INVALID_VALUE',
@@ -1289,42 +1337,6 @@ export function validateSKAMDocument(input: unknown): ValidationResult<SKAMDocum
         )
       );
     }
-  }
-
-  // marks (required array)
-  const marks = input['marks'];
-  if (!isArray(marks)) {
-    errors.push(
-      createValidationError(
-        'MISSING_FIELD',
-        'marks',
-        'marks is required and must be an array',
-        'array',
-        typeof marks
-      )
-    );
-  } else {
-    marks.forEach((mark, index) => {
-      validateMark(mark, index, errors);
-    });
-  }
-
-  // readings (required array)
-  const readings = input['readings'];
-  if (!isArray(readings)) {
-    errors.push(
-      createValidationError(
-        'MISSING_FIELD',
-        'readings',
-        'readings is required and must be an array',
-        'array',
-        typeof readings
-      )
-    );
-  } else {
-    readings.forEach((reading, index) => {
-      validateReading(reading, index, errors);
-    });
   }
 
   // derivations (optional array)
@@ -1346,8 +1358,33 @@ export function validateSKAMDocument(input: unknown): ValidationResult<SKAMDocum
       });
     }
   }
+}
+
+/**
+ * SKAMDocument を検証する
+ *
+ * @param input 検証対象のオブジェクト
+ * @returns 検証結果
+ */
+export function validateSKAMDocument(input: unknown): ValidationResult<SKAMDocument> {
+  const errors: ValidationError[] = [];
+
+  // Root object check
+  if (!isObject(input)) {
+    errors.push(
+      createValidationError('INVALID_TYPE', '', 'Input must be an object', 'object', typeof input)
+    );
+    return { valid: false, errors };
+  }
+
+  // Field-level validation
+  validateDocumentFields(input, errors);
 
   // Cross-reference validation (only if basic validation passed)
+  const tokens = input['tokens'];
+  const blocks = input['blocks'];
+  const marks = input['marks'];
+  const derivations = input['derivations'];
   if (errors.length === 0 && isArray(tokens) && isArray(marks) && isArray(blocks)) {
     validateUniqueIds(tokens as Token[], marks as Mark[], errors);
     validateBlockTokenIntegrity(tokens as Token[], blocks as Block[], errors);

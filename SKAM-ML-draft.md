@@ -189,7 +189,9 @@ position は `{ blockId, after: tokenId }` または `{ blockId }`（ブロッ�
 | `jo`   | 上              |
 | `chu`  | 中              |
 | `ge`   | 下              |
-| `ten`  | 点              |
+| `ten`  | 天              |
+| `chi`  | 地              |
+| `jin`  | 人              |
 | `ko`   | 甲              |
 | `otsu` | 乙              |
 | `hei`  | 丙              |

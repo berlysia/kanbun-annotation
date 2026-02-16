@@ -1,5 +1,5 @@
 ---
-status: Proposed
+status: Accepted
 ---
 
 # ADR-010: 返り点 value の Unicode Kanbun ブロック正規化
@@ -115,8 +115,8 @@ export const KAERI = {
 
 - **parser**: `kind` → Kanbun ブロック文字に変換（`KAERI_VALUE_MAP` の値を更新）
 - **stringify**: Kanbun ブロック文字 → `kind` に逆変換（`KAERI_KIND_MAP` のキーを更新）
-- **renderer**: `KAERI_UNICODE` マップを削除（value が既に Kanbun ブロックなので変換不要）
-- **playground**: 返り点の表示・選択 UI を更新
+- **renderer**: `KAERI_UNICODE` マップと `convertKaeriToUnicode()` を削除（value が既に Kanbun ブロックなので変換不要）。`splitKaeriForTateten()` はレ/非レ分離ロジックが引き続き必要なため、比較対象を `'\u3191'` に更新して維持する
+- **playground**: 返り点の表示・選択 UI を更新。`parseKaeriValue()` 内の `value.includes('レ')` を `value.includes('\u3191')` に変更
 
 ### 4. 仕様書を修正する
 
@@ -141,6 +141,16 @@ XML 上の表現 (`kind="ichi"`, `kind="ichi-re"` 等) は現行のまま維持�
 - **破壊的変更**: 既存の SKAM JSON データの `value` フィールドが非互換になる
 - JSON ファイルを生で読んだ際に Kanbun ブロック文字は見慣れない（ただし SKAM-ML が人間向けフォーマットであり、JSON を直接読む場面は少ない）
 - テストコードの `value` リテラルをすべて `KAERI.*` 定数に置換する必要がある
+
+## 追加考慮事項
+
+### バリデータの強化
+
+現在のバリデータは kaeri の `value` を「string であること」しか検証していない。正規化に合わせて、Kanbun ブロック文字 (U+3190〜U+319F) のみを受け入れるバリデーションを追加する。Plan 作成時に詳細を検討すること。
+
+### 破壊的変更について
+
+SKAM v0.1 はドラフト段階であり、後方互換性を保証しない。既存の SKAM JSON データに対するマイグレーションツールは提供せず、利用者が手動で更新する前提とする。
 
 ## 参考
 

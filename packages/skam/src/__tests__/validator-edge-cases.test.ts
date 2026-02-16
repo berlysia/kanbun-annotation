@@ -205,7 +205,7 @@ describe('validateSKAMDocument - edge cases', () => {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
         blocks: [{ id: 'b1', tokenIds: ['t1'] }],
-        marks: [{ type: 'kaeri', position: 'invalid', value: 'レ' }],
+        marks: [{ type: 'kaeri', position: 'invalid', value: '㆑' }],
         readings: [],
       };
       const result = validateSKAMDocument(doc);
@@ -220,7 +220,7 @@ describe('validateSKAMDocument - edge cases', () => {
         format: 'skam@0.1',
         tokens: [{ id: 't1', text: '學' }],
         blocks: [{ id: 'b1', tokenIds: ['t1'] }],
-        marks: [{ type: 'kaeri', position: { blockId: 'b1', after: 123 }, value: 'レ' }],
+        marks: [{ type: 'kaeri', position: { blockId: 'b1', after: 123 }, value: '㆑' }],
         readings: [],
       };
       const result = validateSKAMDocument(doc);
@@ -644,7 +644,7 @@ describe('validateSKAMDocument - edge cases', () => {
             type: 'kaeri',
             position: { blockId: 'b1', after: 't1' },
             anchor: { from: 't1', to: 't1' },
-            value: 'レ',
+            value: '㆑',
           },
         ],
         readings: [],

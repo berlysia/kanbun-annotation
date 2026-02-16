@@ -53,7 +53,7 @@ describe('1. addMark → レンダリング反映', () => {
     const afterDoc = addMark(doc, {
       type: 'kaeri',
       position: { blockId: 'b1', after: 't3' },
-      value: 'レ',
+      value: '㆑',
     });
     const afterHtml = render(afterDoc).html;
 
@@ -280,7 +280,7 @@ describe('2. removeMark → レンダリング反映', () => {
         type: 'kaeri',
         id: 'mk1',
         position: { blockId: 'b1', after: 't3' },
-        value: 'レ',
+        value: '㆑',
       },
     ]);
     const beforeHtml = render(doc).html;
@@ -557,12 +557,12 @@ describe('3. updateMark → レンダリング反映', () => {
         type: 'kaeri',
         id: 'mk1',
         position: { blockId: 'b1', after: 't3' },
-        value: 'レ',
+        value: '㆑',
       },
     ]);
     const beforeHtml = render(doc).html;
 
-    const afterDoc = updateMark(doc, 'mk1', { value: '二' });
+    const afterDoc = updateMark(doc, 'mk1', { value: '㆓' });
     const afterHtml = render(afterDoc).html;
 
     expect(beforeHtml).toContain('\u3191'); // レ
@@ -714,7 +714,7 @@ describe('5. 複合オペレーション → レンダリング反映', () => {
     doc = addMark(doc, {
       type: 'kaeri',
       position: { blockId: 'b1', after: 't3' },
-      value: 'レ',
+      value: '㆑',
     });
 
     // Step 2: 送り仮名追加
@@ -761,7 +761,7 @@ describe('5. 複合オペレーション → レンダリング反映', () => {
     const { doc: doc1, markId: kaeriId } = addMarkWithResult(createBaseDocument(), {
       type: 'kaeri',
       position: { blockId: 'b1', after: 't3' },
-      value: 'レ',
+      value: '㆑',
     });
 
     const doc2 = addMark(doc1, {
@@ -789,7 +789,7 @@ describe('5. 複合オペレーション → レンダリング反映', () => {
     const { doc: doc1, markId: kaeriId } = addMarkWithResult(createBaseDocument(), {
       type: 'kaeri',
       position: { blockId: 'b1', after: 't3' },
-      value: 'レ',
+      value: '㆑',
     });
     const beforeHtml = render(doc1).html;
     expect(beforeHtml).toContain('\u3191'); // レ
@@ -799,7 +799,7 @@ describe('5. 複合オペレーション → レンダリング反映', () => {
     const doc3 = addMark(doc2, {
       type: 'kaeri',
       position: { blockId: 'b1', after: 't3' },
-      value: '一',
+      value: '㆒',
     });
     const afterHtml = render(doc3).html;
 
@@ -838,7 +838,7 @@ describe('6. プロファイル×オペレーション', () => {
     const afterDoc = addMark(doc, {
       type: 'kaeri',
       position: { blockId: 'b1', after: 't3' },
-      value: 'レ',
+      value: '㆑',
     });
     const html = render(afterDoc, { profile: { kaeriten: false } }).html;
 
@@ -855,7 +855,7 @@ describe('6. プロファイル×オペレーション', () => {
     doc = addMark(doc, {
       type: 'kaeri',
       position: { blockId: 'b1', after: 't3' },
-      value: 'レ',
+      value: '㆑',
     });
     doc = addMark(doc, {
       type: 'yomigana',

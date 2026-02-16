@@ -135,7 +135,7 @@ describe('layoutVertical', () => {
   it('places kaeri on left side with Unicode conversion', () => {
     const ctx = new RecordingContext();
     const doc = threeTokenDoc([
-      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
@@ -168,7 +168,7 @@ describe('layoutVertical', () => {
     const doc = singleTokenDoc([
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
       { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'ぶ' },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '一レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆒㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
@@ -196,7 +196,7 @@ describe('layoutVertical', () => {
     const doc = singleTokenDoc([
       { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'ぶ' },
       { type: 'kutoten', position: { blockId: 'b1', after: 't1' }, value: '。' },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
@@ -256,7 +256,7 @@ describe('layoutVertical', () => {
     // kaeri only: hasSuffix=true, hasSaidoku=false, hasRightColumn=false → columnWidth = F
     const ctxKaeri = new RecordingContext();
     const docKaeri = singleTokenDoc([
-      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
     ]);
     const resultKaeri = layout(buildRenderTree(docKaeri, PROFILES.full), ctxKaeri);
     expect(resultKaeri.columns[0]!.width).toBe(DEFAULT_FONT_SIZE);
@@ -265,7 +265,7 @@ describe('layoutVertical', () => {
     const ctxOkuriKaeri = new RecordingContext();
     const docOkuriKaeri = singleTokenDoc([
       { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'ぶ' },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
     ]);
     const resultOkuriKaeri = layout(buildRenderTree(docOkuriKaeri, PROFILES.full), ctxOkuriKaeri);
     expect(resultOkuriKaeri.columns[0]!.width).toBe(DEFAULT_FONT_SIZE + rubyFontSize);
@@ -350,7 +350,7 @@ describe('layoutVertical', () => {
     const ctx = new RecordingContext();
     const doc = singleTokenDoc([
       { type: 'emphasis', anchor: { from: 't1', to: 't1' } },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
@@ -370,7 +370,7 @@ describe('layoutVertical', () => {
     const doc = singleTokenDoc([
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
       { type: 'emphasis', anchor: { from: 't1', to: 't1' } },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
@@ -507,7 +507,7 @@ describe('layoutVertical', () => {
       // range yomigana spanning t1-t2
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しいわ' },
       // suffix mark to trigger suffix mode
-      { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: '㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
@@ -552,7 +552,7 @@ describe('layoutVertical', () => {
     const ctx = new RecordingContext();
     const doc = singleTokenDoc([
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
@@ -598,7 +598,7 @@ describe('layoutVertical', () => {
     const ctx = new RecordingContext();
     const doc = threeTokenDoc([
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '一レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆒㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
@@ -684,7 +684,7 @@ describe('layoutVertical', () => {
     const doc = threeTokenDoc([
       { type: 'highlight', anchor: { from: 't1', to: 't2' }, style: 'solid' },
       { type: 'yomigana', anchor: { from: 't3', to: 't3' }, value: 'まな' },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: '㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
@@ -707,7 +707,7 @@ describe('layoutVertical', () => {
     const doc = threeTokenDoc([
       { type: 'highlight', anchor: { from: 't1', to: 't2' }, style: 'solid' },
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'し' },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: '㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
@@ -939,7 +939,7 @@ describe('layoutVertical', () => {
         { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まなびや' },
         { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'ぶ' },
         // trigger suffix mode
-        { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: 'レ' },
+        { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: '㆑' },
       ]);
       const tree = buildRenderTree(doc, PROFILES.full);
       const result = layout(tree, ctx);
@@ -966,7 +966,7 @@ describe('layoutVertical', () => {
         // ruby 2 chars on t1 → fits in cellAdvance
         { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
         // trigger suffix mode
-        { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: 'レ' },
+        { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: '㆑' },
       ]);
       const tree = buildRenderTree(doc, PROFILES.full);
       const result = layout(tree, ctx);
@@ -1465,7 +1465,7 @@ describe('adaptive columnSizing', () => {
     const ctx = new RecordingContext();
     const doc = singleTokenDoc([
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
@@ -1486,7 +1486,7 @@ describe('adaptive columnSizing', () => {
     const ctx = new RecordingContext();
     const doc = twoBlockDoc([
       { type: 'yomigana', anchor: { from: 't4', to: 't4' }, value: 'しか' },
-      { type: 'kaeri', position: { blockId: 'b2', after: 't5' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b2', after: 't5' }, value: '㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
@@ -1505,7 +1505,7 @@ describe('adaptive columnSizing', () => {
     const ctx = new RecordingContext();
     const doc = twoBlockDoc([
       { type: 'yomigana', anchor: { from: 't4', to: 't4' }, value: 'しか' },
-      { type: 'kaeri', position: { blockId: 'b2', after: 't5' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b2', after: 't5' }, value: '㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
@@ -1539,7 +1539,7 @@ describe('adaptive columnSizing', () => {
     const ctx = new RecordingContext();
     const doc = twoBlockDoc([
       { type: 'yomigana', anchor: { from: 't4', to: 't4' }, value: 'しか' },
-      { type: 'kaeri', position: { blockId: 'b2', after: 't5' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b2', after: 't5' }, value: '㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 

@@ -17,7 +17,7 @@ export const FIXTURE_RANGE_RUBY: SKAMDocument = {
   marks: [
     { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'ろんご' },
     { type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'ノ' },
-    { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
+    { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆑' },
   ],
   readings: [],
 };
@@ -33,7 +33,7 @@ export const FIXTURE_TATETEN_KAERI: SKAMDocument = {
   blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
   marks: [
     { type: 'tateten', anchor: { from: 't1', to: 't2' } },
-    { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '一レ' },
+    { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆒㆑' },
     { type: 'okurigana', anchor: { from: 't3', to: 't3' }, value: 'シカラ' },
   ],
   readings: [],
@@ -85,7 +85,7 @@ export const FIXTURE_SAIDOKU: SKAMDocument = {
         { yomi: 'ず', okuri: '' },
       ],
     },
-    { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
+    { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆑' },
   ],
   readings: [],
 };

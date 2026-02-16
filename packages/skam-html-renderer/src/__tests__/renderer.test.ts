@@ -211,7 +211,7 @@ describe('render', () => {
           {
             type: 'kaeri',
             position: { blockId: '', after: 't1' },
-            value: 'レ',
+            value: '㆑',
           },
         ],
         readings: [],
@@ -236,12 +236,12 @@ describe('render', () => {
           {
             type: 'kaeri',
             position: { blockId: '', after: 't1' },
-            value: '二',
+            value: '㆓',
           },
           {
             type: 'kaeri',
             position: { blockId: '', after: 't2' },
-            value: '一',
+            value: '㆒',
           },
         ],
         readings: [],
@@ -262,7 +262,7 @@ describe('render', () => {
           {
             type: 'kaeri',
             position: { blockId: '', after: 't1' },
-            value: '一レ',
+            value: '㆒㆑',
           },
         ],
         readings: [],
@@ -581,7 +581,7 @@ describe('render', () => {
           {
             type: 'kaeri',
             position: { blockId: '', after: 't1' },
-            value: 'レ',
+            value: '㆑',
           },
         ],
         readings: [],
@@ -1116,7 +1116,7 @@ describe('「學而時習之」sample rendering', () => {
         { type: 'yomigana', anchor: { from: 't3', to: 't3' }, value: 'とき' },
         { type: 'okurigana', anchor: { from: 't3', to: 't3' }, value: 'に' },
         { type: 'soegana', anchor: { from: 't5', to: 't5' }, value: 'を' },
-        { type: 'kaeri', position: { blockId: '', after: 't4' }, value: 'レ' },
+        { type: 'kaeri', position: { blockId: '', after: 't4' }, value: '㆑' },
         { type: 'yomigana', anchor: { from: 't4', to: 't4' }, value: 'なら' },
         { type: 'okurigana', anchor: { from: 't4', to: 't4' }, value: 'ふ' },
       ],

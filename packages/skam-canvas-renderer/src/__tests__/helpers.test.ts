@@ -1,40 +1,8 @@
 import { describe, it } from 'vitest';
 import { expect } from 'vitest';
 import type { Token, Mark, RefMark } from '@kanbun/skam';
-import {
-  convertKaeriToUnicode,
-  resolveEmphasisCharacter,
-  formatRefIndex,
-  resolveRefValues,
-} from '@kanbun/skam/rendering';
+import { resolveEmphasisCharacter, formatRefIndex, resolveRefValues } from '@kanbun/skam/rendering';
 import { splitKaeriForTateten } from '../helpers.js';
-
-describe('convertKaeriToUnicode', () => {
-  it('converts single kaeri characters', () => {
-    expect(convertKaeriToUnicode('レ')).toBe('\u3191');
-    expect(convertKaeriToUnicode('一')).toBe('\u3192');
-    expect(convertKaeriToUnicode('二')).toBe('\u3193');
-    expect(convertKaeriToUnicode('三')).toBe('\u3194');
-    expect(convertKaeriToUnicode('上')).toBe('\u3196');
-    expect(convertKaeriToUnicode('中')).toBe('\u3197');
-    expect(convertKaeriToUnicode('下')).toBe('\u3198');
-    expect(convertKaeriToUnicode('甲')).toBe('\u3199');
-    expect(convertKaeriToUnicode('乙')).toBe('\u319A');
-  });
-
-  it('converts compound kaeri (e.g. 一レ)', () => {
-    expect(convertKaeriToUnicode('一レ')).toBe('\u3192\u3191');
-    expect(convertKaeriToUnicode('上レ')).toBe('\u3196\u3191');
-  });
-
-  it('passes through unknown characters', () => {
-    expect(convertKaeriToUnicode('X')).toBe('X');
-  });
-
-  it('handles empty string', () => {
-    expect(convertKaeriToUnicode('')).toBe('');
-  });
-});
 
 describe('resolveEmphasisCharacter', () => {
   it('returns filled dot for undefined style', () => {
@@ -92,31 +60,31 @@ describe('resolveEmphasisCharacter', () => {
 
 describe('splitKaeriForTateten', () => {
   it('splits レ into re component', () => {
-    const result = splitKaeriForTateten('レ');
+    const result = splitKaeriForTateten('\u3191');
     expect(result.re).toBe('\u3191');
     expect(result.nonRe).toBe('');
   });
 
   it('splits 一レ into re and nonRe', () => {
-    const result = splitKaeriForTateten('一レ');
+    const result = splitKaeriForTateten('\u3192\u3191');
     expect(result.re).toBe('\u3191');
     expect(result.nonRe).toBe('\u3192');
   });
 
   it('splits 上 into nonRe only', () => {
-    const result = splitKaeriForTateten('上');
+    const result = splitKaeriForTateten('\u3196');
     expect(result.re).toBe('');
     expect(result.nonRe).toBe('\u3196');
   });
 
   it('splits 上レ into both components', () => {
-    const result = splitKaeriForTateten('上レ');
+    const result = splitKaeriForTateten('\u3196\u3191');
     expect(result.re).toBe('\u3191');
     expect(result.nonRe).toBe('\u3196');
   });
 
   it('handles 二 (nonRe only)', () => {
-    const result = splitKaeriForTateten('二');
+    const result = splitKaeriForTateten('\u3193');
     expect(result.re).toBe('');
     expect(result.nonRe).toBe('\u3193');
   });

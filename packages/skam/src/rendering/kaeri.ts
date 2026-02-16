@@ -1,36 +1,24 @@
 /**
- * 返り点 Unicode 変換
+ * 返り点ユーティリティ
  */
 
-import { KAERI_UNICODE } from './constants.js';
-
-/**
- * 返り点記号を Unicode に変換。
- * 複合返り点（例: 一レ）は1文字ずつ変換して連結する。
- */
-export function convertKaeriToUnicode(value: string): string {
-  if (value.length === 1) {
-    return KAERI_UNICODE[value] ?? value;
-  }
-  let result = '';
-  for (const char of value) {
-    result += KAERI_UNICODE[char] ?? char;
-  }
-  return result;
-}
+/** Unicode Kanbun ブロック レ点 (U+3191) */
+const KAERI_RE = '\u3191';
 
 /**
  * tateten 内の返り点を「レ成分」と「非レ成分」に分離。
  * レはトークンの suffix に付与、非レはセパレータの kaeri に配置。
+ *
+ * value は既に Unicode Kanbun ブロック文字のため変換不要。
  */
 export function splitKaeriForTateten(value: string): { re: string; nonRe: string } {
   let re = '';
   let nonRe = '';
   for (const char of value) {
-    if (char === 'レ') {
-      re += KAERI_UNICODE[char] ?? char;
+    if (char === KAERI_RE) {
+      re += char;
     } else {
-      nonRe += KAERI_UNICODE[char] ?? char;
+      nonRe += char;
     }
   }
   return { re, nonRe };

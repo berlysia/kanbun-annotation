@@ -264,7 +264,7 @@ export function addMark(doc: SKAMDocument, mark: MarkInput): SKAMDocument {
  *
  * @example
  * updateMark<EmphasisMark>(doc, 'm1', { style: 'filled sesame' });
- * updateMark<KaeriMark>(doc, 'm2', { value: 'レ' });
+ * updateMark<KaeriMark>(doc, 'm2', { value: '㆑' });
  */
 export function updateMark<M extends Mark = Mark>(
   doc: SKAMDocument,

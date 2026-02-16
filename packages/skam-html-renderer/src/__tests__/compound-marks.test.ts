@@ -361,7 +361,7 @@ describe('Tateten + kaeri: non-レ kaeri alongside tateten separator', () => {
   it('tateten + non-レ kaeri on last token: kaeri placed in tateten-sep', () => {
     const doc = createThreeTokenDoc('梁', '執', '与', [
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '二' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆓' },
     ]);
     const { html } = render(doc);
     // 最終トークンの純粋非レ返り点は竪点セパレータに配置
@@ -374,7 +374,7 @@ describe('Tateten + kaeri: non-レ kaeri alongside tateten separator', () => {
   it('tateten + レ kaeri: レ stays in suffix-kaeri', () => {
     const doc = createThreeTokenDoc('梁', '執', '与', [
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
     ]);
     const { html } = render(doc);
     // レ点は suffix-kaeri に残る
@@ -389,8 +389,8 @@ describe('Tateten + kaeri: non-レ kaeri alongside tateten separator', () => {
   it('tateten + mixed kaeri (レ on mid + non-レ on last): split correctly', () => {
     const doc = createThreeTokenDoc('梁', '執', '与', [
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '二' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆓' },
     ]);
     const { html } = render(doc);
     // レ点は非最終トークン(t1)の suffix に残る
@@ -403,7 +403,7 @@ describe('Tateten + kaeri: non-レ kaeri alongside tateten separator', () => {
   it('tateten + kaeri on last token: kaeri placed at last separator', () => {
     const doc = createThreeTokenDoc('梁', '執', '与', [
       { type: 'tateten', anchor: { from: 't1', to: 't3' } },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: '二' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: '㆓' },
     ]);
     const { html } = render(doc);
     // 最終トークンの非レ kaeri は最終セパレータに配置
@@ -413,7 +413,7 @@ describe('Tateten + kaeri: non-レ kaeri alongside tateten separator', () => {
 
   it('no tateten + kaeri: kaeri stays in suffix (regression)', () => {
     const doc = createThreeTokenDoc('子', '曰', '學', [
-      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '二' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆓' },
     ]);
     const { html } = render(doc);
     // tateten がないので suffix-kaeri に配置
@@ -425,7 +425,7 @@ describe('Tateten + kaeri: non-レ kaeri alongside tateten separator', () => {
   it('compound kaeri (一レ) on non-last token: split into sep (一) + suffix (レ)', () => {
     const doc = createThreeTokenDoc('梁', '執', '与', [
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '一レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆒㆑' },
     ]);
     const { html } = render(doc);
     // 一部分は tateten-sep に配置
@@ -438,7 +438,7 @@ describe('Tateten + kaeri: non-レ kaeri alongside tateten separator', () => {
   it('compound kaeri (一レ) on last token: split into sep (一) + suffix (レ)', () => {
     const doc = createThreeTokenDoc('梁', '執', '与', [
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '一レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆒㆑' },
     ]);
     const { html } = render(doc);
     // 一部分は最終セパレータに配置
@@ -458,7 +458,7 @@ describe('Range kana + tateten + kaeri: kaeri must not disappear', () => {
     const doc = createThreeTokenDoc('春', '風', '吹', [
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しゅんぷう' },
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '二' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆓' },
     ]);
     const { html } = render(doc);
     // kaeri が出力に存在する
@@ -502,7 +502,7 @@ describe('Range kana + tateten + kaeri: kaeri must not disappear', () => {
     const doc = createThreeTokenDoc('春', '風', '吹', [
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しゅんぷう' },
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '一レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆒㆑' },
     ]);
     const { html } = render(doc);
     // 一部分は tateten-sep に配置
@@ -517,7 +517,7 @@ describe('Range kana + tateten + kaeri: kaeri must not disappear', () => {
     const doc = createThreeTokenDoc('不', '能', '爲', [
       { type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'ず' },
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '二' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆓' },
     ]);
     const { html } = render(doc);
     // kaeri が存在
@@ -533,7 +533,7 @@ describe('Range kana + tateten + kaeri: kaeri must not disappear', () => {
     const doc = createThreeTokenDoc('天', '地', '人', [
       { type: 'soegana', anchor: { from: 't1', to: 't2' }, value: 'ノ' },
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '二' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆓' },
     ]);
     const { html } = render(doc);
     // kaeri が存在
@@ -549,7 +549,7 @@ describe('Range kana + tateten + kaeri: kaeri must not disappear', () => {
     const doc = createThreeTokenDoc('春', '風', '吹', [
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しゅんぷう' },
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
     ]);
     const { html } = render(doc);
     // レ kaeri は suffix-kaeri に配置
@@ -583,7 +583,7 @@ describe('Tateten + yomigana: last token suffix-row inside ruby/ruby-grid', () =
     const doc = createTwoTokenDoc('春', '風', [
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しゅんぷう' },
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '二' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆓' },
       { type: 'kutoten', position: { blockId: 'b1', after: 't2' }, value: '。' },
     ]);
     const { html } = render(doc, { rubyMethod: 'ruby' });
@@ -631,7 +631,7 @@ describe('Tateten + yomigana: last token suffix-row inside ruby/ruby-grid', () =
     const doc = createTwoTokenDoc('春', '風', [
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しゅんぷう' },
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
     ]);
     const { html } = render(doc, { rubyMethod: 'ruby' });
     // 中間トークン(t1)のレ kaeri は suffix-kaeri 内（rb 内）に残る

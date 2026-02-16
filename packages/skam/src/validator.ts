@@ -400,6 +400,31 @@ function validateValueMark(
   return true;
 }
 
+/** kaeri: value は Unicode Kanbun ブロック文字 (U+3191〜U+319F) のみ */
+function validateKaeriMark(
+  mark: Record<string, unknown>,
+  path: string,
+  errors: ValidationError[]
+): boolean {
+  let valid = validateValueMark(mark, path, 'kaeri', errors);
+  if (valid && isString(mark['value'])) {
+    const value = mark['value'] as string;
+    if (!/^[\u3191-\u319F]+$/.test(value)) {
+      errors.push(
+        createValidationError(
+          'INVALID_VALUE',
+          `${path}.value`,
+          'kaeri value must consist of Unicode Kanbun block characters (U+3191–U+319F)',
+          'U+3191–U+319F',
+          value
+        )
+      );
+      valid = false;
+    }
+  }
+  return valid;
+}
+
 function validateKutotenMark(
   mark: Record<string, unknown>,
   path: string,
@@ -623,6 +648,7 @@ function validateMarkTypeFields(
 ): boolean {
   switch (markType) {
     case 'kaeri':
+      return validateKaeriMark(mark, path, errors);
     case 'okurigana':
     case 'yomigana':
     case 'soegana':

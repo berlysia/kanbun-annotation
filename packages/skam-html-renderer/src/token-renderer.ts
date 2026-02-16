@@ -21,11 +21,7 @@ import type {
   OkototenMark,
   RefMark,
 } from '@kanbun/skam';
-import {
-  convertKaeriToUnicode,
-  resolveEmphasisCharacter,
-  getMarksForToken,
-} from '@kanbun/skam/rendering';
+import { resolveEmphasisCharacter, getMarksForToken } from '@kanbun/skam/rendering';
 import type { RenderProfile, RubyMethod } from './render-config.js';
 import { escapeHtml, generateEmphasisMarks, shouldApplyTateChuYoko } from './html-utils.js';
 import type { RangeMarkContext, RangeTokenInfo, TokenRenderResult } from './render-tree-types.js';
@@ -323,16 +319,14 @@ export function renderToken(
     const suffixParts: string[] = [];
     const separatorParts: string[] = [];
     for (const m of allKaeriMarks) {
-      const hasRe = m.value.includes('レ');
-      const nonRePart = m.value.replace(/レ/g, '');
+      const hasRe = m.value.includes('\u3191');
+      const nonRePart = m.value.replace(/\u3191/g, '');
       if (hasRe) {
-        suffixParts.push(
-          `<span class="${prefix}-kaeriten" aria-hidden="true">${convertKaeriToUnicode('レ')}</span>`
-        );
+        suffixParts.push(`<span class="${prefix}-kaeriten" aria-hidden="true">\u3191</span>`);
       }
       if (nonRePart) {
         separatorParts.push(
-          `<span class="${prefix}-kaeriten" aria-hidden="true">${convertKaeriToUnicode(nonRePart)}</span>`
+          `<span class="${prefix}-kaeriten" aria-hidden="true">${nonRePart}</span>`
         );
       }
     }
@@ -340,10 +334,7 @@ export function renderToken(
     tatetenKaeriHtml = separatorParts.join('');
   } else if (profile.kaeriten && allKaeriMarks.length > 0) {
     kaeriten = allKaeriMarks
-      .map(
-        (m) =>
-          `<span class="${prefix}-kaeriten" aria-hidden="true">${convertKaeriToUnicode(m.value)}</span>`
-      )
+      .map((m) => `<span class="${prefix}-kaeriten" aria-hidden="true">${m.value}</span>`)
       .join('');
   }
 

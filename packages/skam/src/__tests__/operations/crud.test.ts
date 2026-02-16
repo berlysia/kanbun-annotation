@@ -55,7 +55,7 @@ describe('addMark', () => {
       type: 'kaeri',
       id: 'm1',
       position: { blockId: 'b1', after: 't1' },
-      value: 'レ',
+      value: '㆑',
     };
     const doc = createTestDocument([existingMark]);
     assertValidDocument(doc);
@@ -196,7 +196,7 @@ describe('addMarkWithResult', () => {
     const newMark: MarkInput = {
       type: 'kaeri',
       position: { blockId: 'b1', after: 't1' },
-      value: 'レ',
+      value: '㆑',
     };
 
     const withResult = addMarkWithResult(doc, newMark);
@@ -225,7 +225,7 @@ describe('addMarkWithResult', () => {
       type: 'kaeri',
       id: 'm1',
       position: { blockId: 'b1', after: 't1' },
-      value: 'レ',
+      value: '㆑',
     };
     const doc = createTestDocument([existing]);
     assertValidDocument(doc);
@@ -433,7 +433,7 @@ describe('replaceMark', () => {
   it('4.6: 配列内の位置を維持する', () => {
     const doc = createTestDocument([
       { type: 'okurigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'ク' },
-      { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
+      { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: '㆑' },
       { type: 'okurigana', id: 'm3', anchor: { from: 't3', to: 't3' }, value: 'ブ' },
     ]);
     assertValidDocument(doc);
@@ -441,13 +441,13 @@ describe('replaceMark', () => {
     const result = replaceMark(doc, 'm2', {
       type: 'kaeri',
       position: { blockId: 'b1', after: 't2' },
-      value: '一',
+      value: '㆒',
     });
     assertValidDocument(result);
 
     expect(result.marks[0]?.id).toBe('m1');
     expect(result.marks[1]?.id).toBe('m2');
-    expect((result.marks[1] as KaeriMark).value).toBe('一');
+    expect((result.marks[1] as KaeriMark).value).toBe('㆒');
     expect(result.marks[2]?.id).toBe('m3');
     expect((result.marks[0] as OkuriganaMark).value).toBe('ク');
     expect((result.marks[2] as OkuriganaMark).value).toBe('ブ');
@@ -462,7 +462,7 @@ describe('removeMark', () => {
   it('5.1: マークを削除し、新しいドキュメントを返す', () => {
     const doc = createTestDocument([
       { type: 'okurigana', id: 'm1', anchor: { from: 't1', to: 't1' }, value: 'ク' },
-      { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
+      { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: '㆑' },
     ]);
     assertValidDocument(doc);
 

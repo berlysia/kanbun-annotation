@@ -74,6 +74,12 @@ import type {
 // バリデーション
 import { validateSKAMDocument, isSKAMDocument, assertSKAMDocument } from '@kanbun/skam';
 
+// 返り点定数（Unicode Kanbun ブロック U+3191〜U+319F）
+import { KAERI } from '@kanbun/skam';
+// KAERI.RE, KAERI.ICHI, KAERI.NI, KAERI.SAN, KAERI.SHI,
+// KAERI.JO, KAERI.CHU, KAERI.GE, KAERI.KO, KAERI.OTSU,
+// KAERI.HEI, KAERI.TEI, KAERI.TEN, KAERI.CHI, KAERI.JIN
+
 // ID 生成
 import { createRandomIdGenerator, createSequentialIdGenerator } from '@kanbun/skam';
 import { generateId, generateMarkId } from '@kanbun/skam';
@@ -124,7 +130,6 @@ Canvas/HTML 両レンダラーで共有するマーク解決・変換ユーテ�
 ```typescript
 import {
   // 定数
-  KAERI_UNICODE,
   IROHA_SEQUENCE,
   IROHA_HIRAGANA_SEQUENCE,
   GOJUON_SEQUENCE,
@@ -132,7 +137,6 @@ import {
   KANJI_NUMBERS,
   CIRCLED_NUMBERS,
   // 返り点
-  convertKaeriToUnicode,
   splitKaeriForTateten,
   // 傍点
   resolveEmphasisCharacter,

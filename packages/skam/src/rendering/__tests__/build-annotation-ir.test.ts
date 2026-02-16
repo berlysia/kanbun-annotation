@@ -114,7 +114,7 @@ describe('buildAnnotationIR', () => {
 
   it('kaeri を Unicode 変換済みで解決する', () => {
     const doc = createDoc([
-      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆑' },
     ]);
     const air = buildAnnotationIR(doc, FULL_PROFILE);
     const token = air.blocks[0]!.children[1] as AIRTokenNode;
@@ -209,7 +209,7 @@ describe('buildAnnotationIR', () => {
   it('tateten + kaeri でレ/非レ分割する', () => {
     const doc = createDoc([
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '一レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆒㆑' },
     ]);
     const air = buildAnnotationIR(doc, FULL_PROFILE);
 
@@ -328,7 +328,7 @@ describe('buildAnnotationIR', () => {
   it('range group の後続トークンから trailing marks を収集する', () => {
     const doc = createDoc([
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しいわく' },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆑' },
     ]);
     const air = buildAnnotationIR(doc, FULL_PROFILE);
 
@@ -346,7 +346,7 @@ describe('buildAnnotationIR', () => {
   it('profile で無効な mark は解決しない', () => {
     const doc = createDoc([
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'し' },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆑' },
     ]);
     const noYomiganaProfile: AIRRenderProfile = {
       ...FULL_PROFILE,

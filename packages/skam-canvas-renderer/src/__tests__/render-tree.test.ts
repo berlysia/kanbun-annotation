@@ -98,7 +98,7 @@ describe('buildRenderTree', () => {
 
   it('resolves single kaeri into Unicode', () => {
     const doc = threeTokenDoc([
-      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
@@ -107,7 +107,7 @@ describe('buildRenderTree', () => {
 
   it('resolves compound kaeri into Unicode', () => {
     const doc = threeTokenDoc([
-      { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: '一レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: '㆒㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
@@ -127,7 +127,7 @@ describe('buildRenderTree', () => {
     const doc = threeTokenDoc([
       { type: 'yomigana', anchor: { from: 't3', to: 't3' }, value: 'まな' },
       { type: 'okurigana', anchor: { from: 't3', to: 't3' }, value: 'ぶ' },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: '一レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: '㆒㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
@@ -139,7 +139,7 @@ describe('buildRenderTree', () => {
 
   it('respects profile: kaeriten=false', () => {
     const doc = threeTokenDoc([
-      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆑' },
     ]);
     const tree = buildRenderTree(doc, { ...PROFILES.full, kaeriten: false });
 
@@ -398,7 +398,7 @@ describe('buildRenderTree', () => {
   it('splits kaeri in tateten group: レ→token, non-レ→separator', () => {
     const doc = threeTokenDoc([
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '一レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆒㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
@@ -412,7 +412,7 @@ describe('buildRenderTree', () => {
   it('puts non-レ only kaeri on separator, removes from token', () => {
     const doc = threeTokenDoc([
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '上' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆖' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
@@ -426,7 +426,7 @@ describe('buildRenderTree', () => {
   it('puts last token non-レ kaeri on last separator', () => {
     const doc = threeTokenDoc([
       { type: 'tateten', anchor: { from: 't1', to: 't3' } },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: '一' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: '㆒' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
@@ -765,7 +765,7 @@ describe('BlockLayoutFlags', () => {
 
   it('kaeri sets hasSuffix only', () => {
     const doc = threeTokenDoc([
-      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
     expect(tree.blocks[0]!.flags).toEqual({
@@ -815,7 +815,7 @@ describe('BlockLayoutFlags', () => {
       const doc = twoBlockDoc([
         { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'し' },
         { type: 'okurigana', anchor: { from: 't3', to: 't3' }, value: 'ぶ' },
-        { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
+        { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆑' },
       ]);
       const tree = buildRenderTree(doc, PROFILES.full);
 
@@ -835,7 +835,7 @@ describe('BlockLayoutFlags', () => {
         { type: 'emphasis', anchor: { from: 't1', to: 't1' } },
         // Block B: okurigana + kaeri
         { type: 'okurigana', anchor: { from: 't6', to: 't6' }, value: 'ふ' },
-        { type: 'kaeri', position: { blockId: 'b2', after: 't5' }, value: 'レ' },
+        { type: 'kaeri', position: { blockId: 'b2', after: 't5' }, value: '㆑' },
       ]);
       const tree = buildRenderTree(doc, PROFILES.full);
 

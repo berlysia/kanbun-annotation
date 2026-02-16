@@ -198,21 +198,21 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 
 ### 6.2 type 一覧（v0.1）
 
-| type        | 意味                               | 参照方式     | value                                 |
-| ----------- | ---------------------------------- | ------------ | ------------------------------------- |
-| `kaeri`     | 返り点                             | **position** | 必須（レ、一、二、上、下、甲、乙 等） |
-| `okurigana` | 送り仮名                           | anchor       | 必須（送り仮名テキスト）              |
-| `yomigana`  | 読み仮名（ルビ）                   | anchor       | 必須（読み仮名テキスト）              |
-| `soegana`   | 添え仮名（訓読時に補う助詞）       | anchor       | 必須（助詞テキスト）                  |
-| `okimoji`   | 置字（訓読時に読まない漢字）       | anchor       | なし                                  |
-| `joji`      | 助字（文法的機能を持つ漢字ラベル） | anchor       | なし                                  |
-| `kutoten`   | 句読点                             | **position** | 必須（句読点記号）、kind任意          |
-| `emphasis`  | 傍点・圏点（後世の記述）           | anchor       | style任意（傍点の種類）               |
-| `saidoku`   | 再読文字                           | anchor       | 必須（forms配列）                     |
-| `okototen`  | ヲコト点                           | anchor       | position必須、shape必須               |
-| `tateten`   | たて点（熟語境界）                 | anchor       | なし                                  |
-| `highlight` | 傍線・ハイライト（後世の記述）     | anchor       | style任意、ref任意                    |
-| `ref`       | 参照識別子・注釈                   | **position** | label/format/contentのいずれか必須    |
+| type        | 意味                               | 参照方式     | value                                              |
+| ----------- | ---------------------------------- | ------------ | -------------------------------------------------- |
+| `kaeri`     | 返り点                             | **position** | 必須（Unicode Kanbun ブロック文字 U+3191〜U+319F） |
+| `okurigana` | 送り仮名                           | anchor       | 必須（送り仮名テキスト）                           |
+| `yomigana`  | 読み仮名（ルビ）                   | anchor       | 必須（読み仮名テキスト）                           |
+| `soegana`   | 添え仮名（訓読時に補う助詞）       | anchor       | 必須（助詞テキスト）                               |
+| `okimoji`   | 置字（訓読時に読まない漢字）       | anchor       | なし                                               |
+| `joji`      | 助字（文法的機能を持つ漢字ラベル） | anchor       | なし                                               |
+| `kutoten`   | 句読点                             | **position** | 必須（句読点記号）、kind任意                       |
+| `emphasis`  | 傍点・圏点（後世の記述）           | anchor       | style任意（傍点の種類）                            |
+| `saidoku`   | 再読文字                           | anchor       | 必須（forms配列）                                  |
+| `okototen`  | ヲコト点                           | anchor       | position必須、shape必須                            |
+| `tateten`   | たて点（熟語境界）                 | anchor       | なし                                               |
+| `highlight` | 傍線・ハイライト（後世の記述）     | anchor       | style任意、ref任意                                 |
+| `ref`       | 参照識別子・注釈                   | **position** | label/format/contentのいずれか必須                 |
 
 ※ `type` の追加は後方互換で許可される。
 ※ **position** 参照の Mark（kaeri, kutoten, ref）はトークン間の位置に存在し、anchor を持たない。
@@ -805,7 +805,7 @@ SKAM データは常に完全な情報を保持し、用途に応じた情報の
 {
   "type": "kaeri",
   "position": { "blockId": "b1", "after": "t7" },
-  "value": "レ",
+  "value": "\u3191",
   "ext": {
     "skam-editor": { "color": "red" },
     "mytool": { "confidence": 0.7 }
@@ -874,7 +874,7 @@ SKAM データは常に完全な情報を保持し、用途に応じた情報の
       "type": "kaeri",
       "id": "m5",
       "position": { "blockId": "b1", "after": "t5" },
-      "value": "レ"
+      "value": "\u3191"
     }
   ],
   "readings": [
@@ -994,13 +994,13 @@ SKAM データは常に完全な情報を保持し、用途に応じた情報の
       "type": "kaeri",
       "id": "m1",
       "position": { "blockId": "b1", "after": "t2" },
-      "value": "二"
+      "value": "\u3193"
     },
     {
       "type": "kaeri",
       "id": "m2",
       "position": { "blockId": "b1", "after": "t4" },
-      "value": "一レ"
+      "value": "\u3192\u3191"
     },
     {
       "type": "okurigana",
@@ -1102,7 +1102,7 @@ SKAM データは常に完全な情報を保持し、用途に応じた情報の
       "type": "kaeri",
       "id": "m7",
       "position": { "blockId": "b1", "after": "t5" },
-      "value": "レ"
+      "value": "\u3191"
     }
   ],
   "readings": [

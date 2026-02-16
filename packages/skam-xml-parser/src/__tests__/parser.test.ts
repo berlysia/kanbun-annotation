@@ -53,7 +53,7 @@ describe('parse - valid fixtures', () => {
       const kaeri = doc.marks[0]!;
       expect(kaeri.type).toBe('kaeri');
       if (kaeri.type === 'kaeri') {
-        expect(kaeri.value).toBe('レ');
+        expect(kaeri.value).toBe('\u3191');
         expect(kaeri.position.blockId).toBe('b1');
         expect(kaeri.position.after).toBe('t2'); // 而
       }
@@ -70,14 +70,14 @@ describe('parse - valid fixtures', () => {
 
       // Check some kaeri values
       const values = kaeriMarks.map((m) => (m as { value: string }).value);
-      expect(values).toContain('一');
-      expect(values).toContain('二');
-      expect(values).toContain('上');
-      expect(values).toContain('中');
-      expect(values).toContain('下');
-      expect(values).toContain('甲');
-      expect(values).toContain('乙');
-      expect(values).toContain('レ');
+      expect(values).toContain('\u3192');
+      expect(values).toContain('\u3193');
+      expect(values).toContain('\u3196');
+      expect(values).toContain('\u3197');
+      expect(values).toContain('\u3198');
+      expect(values).toContain('\u3199');
+      expect(values).toContain('\u319A');
+      expect(values).toContain('\u3191');
     });
   });
 
@@ -90,9 +90,9 @@ describe('parse - valid fixtures', () => {
       expect(kaeriMarks).toHaveLength(3);
 
       const values = kaeriMarks.map((m) => (m as { value: string }).value);
-      expect(values).toContain('一レ');
-      expect(values).toContain('レ');
-      expect(values).toContain('上レ');
+      expect(values).toContain('\u3192\u3191');
+      expect(values).toContain('\u3191');
+      expect(values).toContain('\u3196\u3191');
     });
   });
 

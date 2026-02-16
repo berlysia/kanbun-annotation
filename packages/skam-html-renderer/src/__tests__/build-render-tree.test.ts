@@ -190,7 +190,7 @@ describe('buildBlockRenderTree', () => {
     it('trailing marks collected from merged tokens', () => {
       const doc = threeTokenDoc([
         { type: 'yomigana', anchor: { from: 't1', to: 't3' }, value: 'しのたまわく' },
-        { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
+        { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆑' },
       ]);
       const ctx = createBuildCtx(doc);
       const tree = buildBlockRenderTree('b1', blockTokens(doc), ctx);
@@ -198,7 +198,7 @@ describe('buildBlockRenderTree', () => {
       expect(tree.items).toHaveLength(1);
       const item = tree.items[0] as TokenItem;
       expect(item.rangeCtx!.trailingKaeriMarks).toHaveLength(1);
-      expect(item.rangeCtx!.trailingKaeriMarks![0]!.value).toBe('レ');
+      expect(item.rangeCtx!.trailingKaeriMarks![0]!.value).toBe('㆑');
     });
   });
 

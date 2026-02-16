@@ -58,21 +58,21 @@ const VALID_KAERI_KINDS = [
 type KaeriKind = (typeof VALID_KAERI_KINDS)[number];
 
 const KAERI_VALUE_MAP: Record<KaeriKind, string> = {
-  re: 'レ',
-  ichi: '一',
-  ni: '二',
-  san: '三',
-  shi: '四',
-  jo: '上',
-  chu: '中',
-  ge: '下',
-  ko: '甲',
-  otsu: '乙',
-  hei: '丙',
-  tei: '丁',
-  ten: '天',
-  chi: '地',
-  jin: '人',
+  re: '\u3191',
+  ichi: '\u3192',
+  ni: '\u3193',
+  san: '\u3194',
+  shi: '\u3195',
+  jo: '\u3196',
+  chu: '\u3197',
+  ge: '\u3198',
+  ko: '\u3199',
+  otsu: '\u319A',
+  hei: '\u319B',
+  tei: '\u319C',
+  ten: '\u319D',
+  chi: '\u319E',
+  jin: '\u319F',
 };
 
 const VALID_HIGHLIGHT_STYLES = ['solid', 'dotted', 'dashed', 'wavy', 'double'] as const;

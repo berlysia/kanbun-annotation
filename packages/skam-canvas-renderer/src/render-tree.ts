@@ -21,7 +21,6 @@ import type {
 } from '@kanbun/skam';
 
 import {
-  convertKaeriToUnicode,
   resolveEmphasisCharacter,
   resolveRefValues,
   getMarksForToken as resolveTokenMarks,
@@ -85,7 +84,7 @@ function resolveSlots(
   if (profile.kaeriten) {
     const kaeriMarks = (tokenMarks.get('kaeri') ?? []) as KaeriMark[];
     if (kaeriMarks.length > 0) {
-      slots.kaeri = kaeriMarks.map((m) => convertKaeriToUnicode(m.value)).join('');
+      slots.kaeri = kaeriMarks.map((m) => m.value).join('');
     }
   }
 

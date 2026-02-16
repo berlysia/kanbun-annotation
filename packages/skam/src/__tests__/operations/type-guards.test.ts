@@ -45,7 +45,7 @@ describe('isAnchorBasedMark', () => {
       type: 'kaeri',
       id: 'm0',
       position: { blockId: 'b1', after: 't1' },
-      value: 'レ',
+      value: '㆑',
     };
     const kutoten: KutotenMark = {
       type: 'kutoten',
@@ -76,7 +76,7 @@ describe('hasMarkValue', () => {
       type: 'kaeri',
       id: 'm1',
       position: { blockId: 'b1', after: 't1' },
-      value: 'レ',
+      value: '㆑',
     };
     const okurigana: OkuriganaMark = {
       type: 'okurigana',
@@ -157,7 +157,7 @@ describe('getAnchorRangeLabel', () => {
       type: 'kaeri',
       id: 'm1',
       position: { blockId: 'b1', after: 't1' },
-      value: '一',
+      value: '㆒',
     };
 
     expect(getAnchorRangeLabel(mark)).toBe('');
@@ -250,13 +250,13 @@ describe('isMarkType', () => {
       type: 'kaeri',
       id: 'm1',
       position: { blockId: 'b1', after: 't1' },
-      value: 'レ',
+      value: '㆑',
     };
 
     expect(isMarkType(mark, 'kaeri')).toBe(true);
     if (isMarkType(mark, 'kaeri')) {
       // KaeriMark にナローされるので value にアクセス可能
-      expect(mark.value).toBe('レ');
+      expect(mark.value).toBe('㆑');
     }
   });
 
@@ -265,7 +265,7 @@ describe('isMarkType', () => {
       type: 'kaeri',
       id: 'm1',
       position: { blockId: 'b1', after: 't1' },
-      value: 'レ',
+      value: '㆑',
     };
 
     expect(isMarkType(mark, 'okurigana')).toBe(false);
@@ -294,20 +294,20 @@ describe('isMarkType', () => {
 describe('filterMarksByType', () => {
   it('6.1: 指定 type のマークのみをフィルタリングする', () => {
     const marks: Mark[] = [
-      { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+      { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
       { type: 'okurigana', id: 'm2', anchor: { from: 't1', to: 't1' }, value: 'ク' },
-      { type: 'kaeri', id: 'm3', position: { blockId: 'b1', after: 't2' }, value: '一' },
+      { type: 'kaeri', id: 'm3', position: { blockId: 'b1', after: 't2' }, value: '㆒' },
     ];
 
     const result = filterMarksByType(marks, 'kaeri');
     expect(result).toHaveLength(2);
-    expect(result[0]?.value).toBe('レ');
-    expect(result[1]?.value).toBe('一');
+    expect(result[0]?.value).toBe('㆑');
+    expect(result[1]?.value).toBe('㆒');
   });
 
   it('6.2: マッチなしで空配列を返す', () => {
     const marks: Mark[] = [
-      { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+      { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
     ];
 
     const result = filterMarksByType(marks, 'okurigana');
@@ -316,7 +316,7 @@ describe('filterMarksByType', () => {
 
   it('6.3: position ベースマーク（kutoten）をフィルタリングする', () => {
     const marks: Mark[] = [
-      { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+      { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
       { type: 'kutoten', id: 'm2', position: { blockId: 'b1', after: 't1' }, value: '。' },
       { type: 'kutoten', id: 'm3', position: { blockId: 'b1', after: 't2' }, value: '、' },
     ];

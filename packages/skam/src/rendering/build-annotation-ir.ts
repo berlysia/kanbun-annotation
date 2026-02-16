@@ -43,7 +43,7 @@ import { getMarksForToken } from './mark-lookup.js';
 import { getRangeMarkGroups, getTatetenGroups, getHighlightGroups } from './mark-groups.js';
 import { groupTokensByBlock } from './block-utils.js';
 import { getBlockStartMarks } from './block-start.js';
-import { convertKaeriToUnicode, splitKaeriForTateten } from './kaeri.js';
+import { splitKaeriForTateten } from './kaeri.js';
 import { resolveEmphasisCharacter } from './emphasis.js';
 import { resolveRefValues } from './ref.js';
 
@@ -84,7 +84,7 @@ function resolveTokenSlots(
   if (profile.kaeriten) {
     const kaeriMarks = (tokenMarks.get('kaeri') ?? []) as KaeriMark[];
     if (kaeriMarks.length > 0) {
-      slots.kaeri = kaeriMarks.map((m) => convertKaeriToUnicode(m.value)).join('');
+      slots.kaeri = kaeriMarks.map((m) => m.value).join('');
     }
   }
 
@@ -151,7 +151,7 @@ function resolveTrailingMark(
         kind: 'kaeri',
         sourceTokenId,
         raw: mark,
-        resolved: convertKaeriToUnicode(kaeriMark.value),
+        resolved: kaeriMark.value,
       };
     }
     case 'kutoten': {

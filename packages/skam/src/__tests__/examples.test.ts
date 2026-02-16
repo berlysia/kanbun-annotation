@@ -20,7 +20,7 @@ describe('SKAM Examples', () => {
           { type: 'okurigana', id: 'm3', anchor: { from: 't3', to: 't3' }, value: 'に' },
           { type: 'soegana', id: 'm4', anchor: { from: 't5', to: 't5' }, value: 'を' },
           { type: 'okurigana', id: 'm5', anchor: { from: 't4', to: 't4' }, value: 'ふ' },
-          { type: 'kaeri', id: 'm6', position: { blockId: 'b1', after: 't5' }, value: 'レ' },
+          { type: 'kaeri', id: 'm6', position: { blockId: 'b1', after: 't5' }, value: '㆑' },
         ],
         readings: [{ kind: 'kakikudashi', text: '学びて時に之を習ふ' }],
       };
@@ -161,8 +161,8 @@ describe('SKAM Examples', () => {
         ],
         blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3', 't4'] }],
         marks: [
-          { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't2' }, value: '二' },
-          { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't4' }, value: '一レ' },
+          { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't2' }, value: '㆓' },
+          { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't4' }, value: '㆒㆑' },
         ],
         derivations: [
           { kind: 'readingOrder', method: 'kaeriten-stack', result: ['t4', 't3', 't2', 't1'] },

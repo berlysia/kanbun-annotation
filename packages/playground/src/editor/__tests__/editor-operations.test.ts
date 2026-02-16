@@ -290,7 +290,7 @@ describe('仮名の適用: 選択範囲に対する仮名マークの追加・�
 
     it('返り点など他種のマークは影響を受けない', () => {
       const doc = createDoc([
-        { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+        { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
       ]);
 
       const result = applyKana(doc, 't1', 't1', 'yomigana', 'し');
@@ -564,32 +564,32 @@ describe('返り点の操作', () => {
     it('既存なし → 新規追加', () => {
       const doc = createDoc([]);
 
-      const result = applyKaeri(doc, 't1', 't1', 'レ', 'single');
+      const result = applyKaeri(doc, 't1', 't1', '\u3191', 'single');
 
       const marks = getMarksByType(result, 'kaeri');
       expect(marks).toHaveLength(1);
       expect(marks[0]).toMatchObject({
         type: 'kaeri',
         position: { blockId: 'b1', after: 't1' },
-        value: 'レ',
+        value: '㆑',
       });
     });
 
     it('既存あり → 置換', () => {
       const doc = createDoc([
-        { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+        { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
       ]);
 
-      const result = applyKaeri(doc, 't1', 't1', '一', 'single');
+      const result = applyKaeri(doc, 't1', 't1', '\u3192', 'single');
 
       const marks = getMarksByType(result, 'kaeri');
       expect(marks).toHaveLength(1);
-      expect((marks[0] as { value: string }).value).toBe('一');
+      expect((marks[0] as { value: string }).value).toBe('㆒');
     });
 
     it('null で既存を削除', () => {
       const doc = createDoc([
-        { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: 'レ' },
+        { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
       ]);
 
       const result = applyKaeri(doc, 't1', 't1', null, 'single');
@@ -601,7 +601,7 @@ describe('返り点の操作', () => {
       // t1-t3 を選択しているが single モード
       const doc = createDoc([]);
 
-      const result = applyKaeri(doc, 't1', 't3', 'レ', 'single');
+      const result = applyKaeri(doc, 't1', 't3', '\u3191', 'single');
 
       const marks = getMarksByType(result, 'kaeri');
       expect(marks).toHaveLength(1);
@@ -616,28 +616,28 @@ describe('返り点の操作', () => {
     it('竪点範囲全体に返り点を適用', () => {
       const doc = createDoc([{ type: 'tateten', id: 'm1', anchor: { from: 't1', to: 't2' } }]);
 
-      const result = applyKaeri(doc, 't1', 't2', '一', 'tateten');
+      const result = applyKaeri(doc, 't1', 't2', '\u3192', 'tateten');
 
       const marks = getMarksByType(result, 'kaeri');
       expect(marks).toHaveLength(1);
       expect(marks[0]).toMatchObject({
         type: 'kaeri',
         position: { blockId: 'b1', after: 't2' },
-        value: '一',
+        value: '㆒',
       });
     });
 
     it('竪点範囲の返り点を更新', () => {
       const doc = createDoc([
         { type: 'tateten', id: 'm1', anchor: { from: 't1', to: 't2' } },
-        { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: '一' },
+        { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: '㆒' },
       ]);
 
-      const result = applyKaeri(doc, 't1', 't2', '二', 'tateten');
+      const result = applyKaeri(doc, 't1', 't2', '\u3193', 'tateten');
 
       const kaeriMarks = getMarksByType(result, 'kaeri');
       expect(kaeriMarks).toHaveLength(1);
-      expect((kaeriMarks[0] as { value: string }).value).toBe('二');
+      expect((kaeriMarks[0] as { value: string }).value).toBe('㆓');
       // 竪点自体は残る
       expect(getMarksByType(result, 'tateten')).toHaveLength(1);
     });
@@ -645,7 +645,7 @@ describe('返り点の操作', () => {
     it('竪点範囲の返り点を削除しても竪点は残る', () => {
       const doc = createDoc([
         { type: 'tateten', id: 'm1', anchor: { from: 't1', to: 't2' } },
-        { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: '一' },
+        { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: '㆒' },
       ]);
 
       const result = applyKaeri(doc, 't1', 't2', null, 'tateten');
@@ -720,7 +720,7 @@ describe('竪点の操作', () => {
   it('竪点を解除しても関連する返り点は独立して残る', () => {
     const doc = createDoc([
       { type: 'tateten', id: 'm1', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: '一' },
+      { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: '㆒' },
     ]);
 
     const result = toggleTateten(doc, 't1', 't2', 'tateten', 'm1');
@@ -732,7 +732,7 @@ describe('竪点の操作', () => {
   it('竪点を解除しても他のマークは影響を受けない', () => {
     const doc = createDoc([
       { type: 'tateten', id: 'm1', anchor: { from: 't1', to: 't2' } },
-      { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: '一' },
+      { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: '㆒' },
       { type: 'yomigana', id: 'm3', anchor: { from: 't1', to: 't2' }, value: 'しいわく' },
     ]);
 
@@ -751,7 +751,7 @@ describe('竪点の操作', () => {
 describe('仮名と他マークの相互作用', () => {
   it('返り点のあるトークンに仮名を追加しても返り点は残る', () => {
     const doc = createDoc([
-      { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't3' }, value: 'レ' },
+      { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't3' }, value: '㆑' },
     ]);
 
     const result = applyKana(doc, 't3', 't3', 'yomigana', 'まな');

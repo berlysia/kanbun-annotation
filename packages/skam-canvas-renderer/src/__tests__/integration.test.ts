@@ -30,7 +30,7 @@ function annotatedDoc(): SKAMDocument {
       { type: 'yomigana', anchor: { from: 't3', to: 't3' }, value: 'まな' },
       { type: 'okurigana', anchor: { from: 't3', to: 't3' }, value: 'ぶ' },
       { type: 'soegana', anchor: { from: 't1', to: 't1' }, value: 'は' },
-      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: 'レ' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆑' },
       { type: 'kutoten', position: { blockId: 'b1', after: 't3' }, value: '。' },
     ],
     readings: [],
@@ -201,7 +201,7 @@ describe('integration: render()', () => {
       blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
       marks: [
         { type: 'tateten', anchor: { from: 't1', to: 't2' } },
-        { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '一レ' },
+        { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆒㆑' },
       ],
       readings: [],
     };

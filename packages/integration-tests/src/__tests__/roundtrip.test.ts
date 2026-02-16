@@ -59,7 +59,7 @@ describe('round-trip - basic', () => {
           type: 'kaeri',
           id: 'm1',
           position: { blockId: 'b1', after: 't2' },
-          value: 'レ',
+          value: '㆑',
         } as KaeriMark,
       ],
       readings: [],
@@ -70,7 +70,7 @@ describe('round-trip - basic', () => {
 
     expect(reparsedDoc.marks).toHaveLength(1);
     expect(reparsedDoc.marks[0]!.type).toBe('kaeri');
-    expect((reparsedDoc.marks[0] as KaeriMark).value).toBe('レ');
+    expect((reparsedDoc.marks[0] as KaeriMark).value).toBe('㆑');
   });
 
   it('should produce XML that can be re-parsed (compound kaeri)', () => {
@@ -88,13 +88,13 @@ describe('round-trip - basic', () => {
           type: 'kaeri',
           id: 'm1',
           position: { blockId: 'b1', after: 't1' },
-          value: '一レ',
+          value: '㆒㆑',
         } as KaeriMark,
         {
           type: 'kaeri',
           id: 'm2',
           position: { blockId: 'b1', after: 't3' },
-          value: 'レ',
+          value: '㆑',
         } as KaeriMark,
       ],
       readings: [],
@@ -109,8 +109,8 @@ describe('round-trip - basic', () => {
     expect(kaeriMarks).toHaveLength(2);
 
     const values = kaeriMarks.map((m) => (m as KaeriMark).value);
-    expect(values).toContain('一レ');
-    expect(values).toContain('レ');
+    expect(values).toContain('㆒㆑');
+    expect(values).toContain('㆑');
   });
 
   it('should produce XML that can be re-parsed (kun attributes)', () => {
@@ -592,7 +592,7 @@ describe('round-trip - multi-token', () => {
           type: 'kaeri',
           id: 'm2',
           position: { blockId: 'b1', after: 't1' },
-          value: 'レ',
+          value: '㆑',
         } as KaeriMark,
       ],
       readings: [],
@@ -605,7 +605,7 @@ describe('round-trip - multi-token', () => {
     const kaeri = reparsedDoc.marks.find((m) => m.type === 'kaeri');
     expect(tateten).toBeDefined();
     expect(kaeri).toBeDefined();
-    expect((kaeri as KaeriMark).value).toBe('レ');
+    expect((kaeri as KaeriMark).value).toBe('㆑');
   });
 
   it('should round-trip multi-token highlight with style', () => {
@@ -668,7 +668,7 @@ describe('round-trip - multi-token', () => {
           type: 'kaeri',
           id: 'm3',
           position: { blockId: 'b1', after: 't3' },
-          value: '二',
+          value: '㆓',
         } as KaeriMark,
         {
           type: 'yomigana',
@@ -686,7 +686,7 @@ describe('round-trip - multi-token', () => {
           type: 'kaeri',
           id: 'm6',
           position: { blockId: 'b1', after: 't5' },
-          value: '一',
+          value: '㆒',
         } as KaeriMark,
       ],
       readings: [],
@@ -726,7 +726,7 @@ describe('round-trip - multi-token', () => {
           type: 'kaeri',
           id: 'm2',
           position: { blockId: 'b1', after: 't1' },
-          value: 'レ',
+          value: '㆑',
         } as KaeriMark,
       ],
       readings: [],
@@ -800,7 +800,7 @@ describe('round-trip - saidoku with trailing marks', () => {
           type: 'kaeri',
           id: 'm2',
           position: { blockId: 'b1', after: 't1' },
-          value: 'レ',
+          value: '㆑',
         } as KaeriMark,
       ],
       readings: [],
@@ -819,7 +819,7 @@ describe('round-trip - saidoku with trailing marks', () => {
     expect(saidoku).toBeDefined();
     expect((saidoku as SaidokuMark).forms).toHaveLength(2);
     expect(kaeri).toBeDefined();
-    expect((kaeri as KaeriMark).value).toBe('レ');
+    expect((kaeri as KaeriMark).value).toBe('㆑');
   });
 });
 
@@ -882,7 +882,7 @@ describe('round-trip - joji with trailing marks', () => {
           type: 'kaeri',
           id: 'm2',
           position: { blockId: 'b1', after: 't1' },
-          value: 'レ',
+          value: '㆑',
         } as KaeriMark,
       ],
       readings: [],
@@ -900,7 +900,7 @@ describe('round-trip - joji with trailing marks', () => {
 
     expect(joji).toBeDefined();
     expect(kaeri).toBeDefined();
-    expect((kaeri as KaeriMark).value).toBe('レ');
+    expect((kaeri as KaeriMark).value).toBe('㆑');
   });
 });
 

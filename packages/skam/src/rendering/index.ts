@@ -7,7 +7,6 @@
 
 // 定数
 export {
-  KAERI_UNICODE,
   IROHA_SEQUENCE,
   IROHA_HIRAGANA_SEQUENCE,
   GOJUON_SEQUENCE,
@@ -37,7 +36,7 @@ export type {
 } from './air-types.js';
 
 // 返り点
-export { convertKaeriToUnicode, splitKaeriForTateten } from './kaeri.js';
+export { splitKaeriForTateten } from './kaeri.js';
 
 // 傍点
 export { resolveEmphasisCharacter } from './emphasis.js';

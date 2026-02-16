@@ -274,36 +274,6 @@ export interface ColumnPlan {
   effectiveMaxRubyWidth: number;
 }
 
-/** @internal Placement レイヤ: ブロック単位の不変文脈（派生定数を格納） */
-export interface PlacementContext {
-  fontSize: number;
-  rubyFontSize: number;
-  cellAdvance: number;
-  separatorAdvance: number;
-  highlightGap: number;
-  columnY: number;
-  plan: ColumnPlan;
-  options: ResolvedOptions;
-}
-
-/** @internal Placement レイヤ: per-token/per-group のレイアウト文脈 */
-export interface TokenLayoutContext {
-  fontSize: number;
-  rubyFontSize: number;
-  cellAdvance: number;
-  grid: GridColumns;
-  /** highlight-group 内でのみ設定: emphasis を highlight 線の外側に配置 */
-  emphasisOverrideX?: number;
-  /** range ruby overflow: 実際のスパン高さ（均等割り付け後、centering 用） */
-  rangeRubySpanHeight?: number;
-  /** range ruby overflow: center モードでの ruby Y オフセット */
-  rangeRubyYOffset?: number;
-  /** range ruby overflow: ルビ下端の絶対 Y 座標（okuri/soegana の押し下げに使用） */
-  rangeRubyEndY?: number;
-  /** non-overflow 時のルビ配置モード */
-  rangeRubyAlign?: 'center' | 'start' | 'end' | 'justify' | 'space-around' | 'space-evenly';
-}
-
 // ============================================================================
 // Resolved Options (internal)
 // ============================================================================

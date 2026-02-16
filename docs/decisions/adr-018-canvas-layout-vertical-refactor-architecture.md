@@ -1,5 +1,5 @@
 ---
-status: Proposed
+status: Complete
 deps: [16, 17]
 ---
 
@@ -209,6 +209,7 @@ interface ColumnPlan {
 
 - 分析結果キャッシュ（DocumentAnalysis の再利用）の扱い
 - highlight まわりの group 走査最適化の扱い
+- range ruby overflow 計算の重複排除: tateten 内と block-level で ~120 行の類似ロジック（`computeRangeRubyOverflow()` ヘルパー抽出の余地）
 
 ## 参考
 

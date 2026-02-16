@@ -5,6 +5,8 @@ deps: [18]
 
 # ADR-026: Renderer Layout 複雑度削減
 
+実装計画: [Plan](../plans/plan-renderer-layout-complexity-reduction.md)
+
 ## コンテキスト
 
 ### ADR-018 との関係

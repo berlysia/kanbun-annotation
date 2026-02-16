@@ -4,6 +4,8 @@ status: Accepted
 
 # ADR-008: アキ組み（字間スペーシング）の導入
 
+実装計画: [Plan](../plans/plan-aki-gumi-spacing.md)
+
 ## コンテキスト
 
 ### 現状

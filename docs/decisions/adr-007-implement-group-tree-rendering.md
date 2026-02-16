@@ -4,6 +4,8 @@ status: Accepted
 
 # ADR-007: グループツリーレンダリングの実装
 
+実装計画: [Plan](../plans/plan-implement-group-tree-rendering.md)
+
 ## コンテキスト
 
 ### 背景

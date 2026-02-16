@@ -4,6 +4,8 @@ status: Accepted
 
 # ADR-024: Validator 複雑度削減
 
+実装計画: [Plan](../plans/plan-validator-complexity-reduction.md)
+
 ## コンテキスト
 
 `packages/skam/src/validator.ts` の `validateMark()` 関数は CC 45（推定）・279 行で、13 種のマーク型を単一 switch-case で処理している。マーク型追加や検証ロジック変更時に関数全体を読む必要があり、テストも関数単位でしか書けない。

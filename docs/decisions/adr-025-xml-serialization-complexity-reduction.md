@@ -4,6 +4,8 @@ status: Accepted
 
 # ADR-025: XML Serialization 複雑度削減
 
+実装計画: [Plan](../plans/plan-xml-serialization-complexity-reduction.md)
+
 ## コンテキスト
 
 ### contentNodeToXml() (CC 42, 103 行)

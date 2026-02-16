@@ -1,5 +1,6 @@
 ---
 status: Accepted
+plan: plan-implement-group-tree-rendering.md
 ---
 
 # ADR-007: グループツリーレンダリングの実装

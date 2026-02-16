@@ -1,5 +1,6 @@
 ---
 status: Accepted
+plan: plan-xml-serialization-complexity-reduction.md
 ---
 
 # ADR-025: XML Serialization 複雑度削減

@@ -1,5 +1,6 @@
 ---
 status: Accepted
+plan: plan-complexity-metrics-ci-integration.md
 ---
 
 # ADR-027: Complexity Metrics CI 統合

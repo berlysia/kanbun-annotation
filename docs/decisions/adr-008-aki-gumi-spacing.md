@@ -1,5 +1,6 @@
 ---
 status: Accepted
+plan: plan-aki-gumi-spacing.md
 ---
 
 # ADR-008: アキ組み（字間スペーシング）の導入

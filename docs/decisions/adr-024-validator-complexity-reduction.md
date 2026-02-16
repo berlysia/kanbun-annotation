@@ -1,5 +1,6 @@
 ---
 status: Accepted
+plan: plan-validator-complexity-reduction.md
 ---
 
 # ADR-024: Validator 複雑度削減

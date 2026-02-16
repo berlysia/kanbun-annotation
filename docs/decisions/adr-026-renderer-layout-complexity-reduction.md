@@ -1,6 +1,7 @@
 ---
 status: Accepted
 deps: [18]
+plan: plan-renderer-layout-complexity-reduction.md
 ---
 
 # ADR-026: Renderer Layout 複雑度削減

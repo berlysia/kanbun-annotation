@@ -3,6 +3,8 @@ status: Accepted
 plan: plan-line-break-control.md
 ---
 
+<!-- validated -->
+
 # ADR-014: 改行位置制御
 
 ## コンテキスト

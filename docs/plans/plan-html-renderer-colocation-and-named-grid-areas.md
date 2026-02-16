@@ -1,3 +1,5 @@
+<!-- validated -->
+
 # HTML Renderer コロケーション再編 + CSS Grid 名前参照化
 
 ## 概要

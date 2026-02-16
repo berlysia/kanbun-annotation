@@ -1,5 +1,5 @@
 ---
-status: Accepted
+status: Complete
 deps: [19]
 ---
 
@@ -126,8 +126,8 @@ Step 3 または Step 4 が未達なら Step 5 で完了判定しない。
 ## 受け入れ条件
 
 - `tateten-sep` が named lines または同等の名前参照で配置される
-- `check:deps` スクリプトで `shared -> display -> api` 依存方向違反を検出できる
-- CI が `check:deps` を実行し、違反時に失敗する
+- `oxlint` の `no-restricted-imports` ルール（`.oxlintrc.json`）で `shared -> display -> api` 依存方向違反を検出できる
+- CI が `pnpm lint` を実行し、依存方向違反時に失敗する
 - 対象 7 コンテナの slot 対応を検証するテストが存在する
 - `calibrateGridBaseline` 補正経路（変数設定/参照）が回帰しない
 - `pnpm --filter @kanbun/skam-html-renderer test:run` と `pnpm typecheck` が成功する
@@ -148,11 +148,11 @@ Step 3 または Step 4 が未達なら Step 5 で完了判定しない。
 4. `rg -n "sep-spacer-start|sep-tateten-start|sep-kaeri-start|sep-end" packages/skam-html-renderer/src/styles.ts`
    合格条件: 上記4つの行名が `tateten-sep` 配置定義に出現する
 
-5. `pnpm --filter @kanbun/skam-html-renderer run check:deps`
-   合格条件: 現行コードで成功する
+5. `pnpm --filter @kanbun/skam-html-renderer lint`
+   合格条件: oxlint の `no-restricted-imports` ルールで依存方向違反が 0 件
 
-6. `rg -n "check:deps|pnpm --filter @kanbun/skam-html-renderer run check:deps" .github/workflows`
-   合格条件: CI ワークフローに `check:deps` 実行が存在する
+6. `rg -n "pnpm lint" .github/workflows`
+   合格条件: CI lint ステップで `pnpm lint`（oxlint 含む）が実行されている
 
 ## 反証条件（この決定を見直す条件）
 

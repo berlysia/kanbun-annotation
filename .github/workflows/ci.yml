@@ -31,9 +31,6 @@ jobs:
       - name: Lint
         run: pnpm lint
 
-      - name: Check dependency direction (html-renderer)
-        run: pnpm --filter @kanbun/skam-html-renderer run check:deps
-
   format:
     name: Format Check
     runs-on: ubuntu-latest

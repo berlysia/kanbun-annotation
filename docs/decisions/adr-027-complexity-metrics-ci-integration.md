@@ -1,5 +1,5 @@
 ---
-status: Accepted
+status: Complete
 plan: plan-complexity-metrics-ci-integration.md
 ---
 

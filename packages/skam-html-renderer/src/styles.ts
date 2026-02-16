@@ -4,6 +4,8 @@
 
 import { css } from './css-tag.js';
 import type { CopyableElement, RubyMethod } from './render-config.js';
+import type { Spacing } from '@kanbun/skam/rendering';
+import { resolveSpacingEm } from '@kanbun/skam/rendering';
 
 export type { CopyableElement, RubyMethod } from './render-config.js';
 
@@ -28,6 +30,15 @@ export interface StyleOptions {
    * - 'both': 両方のCSSを出力
    */
   rubyMethod?: RubyMethod | 'both';
+  /**
+   * 字間スペーシング（アキ組み）
+   *
+   * - 'solid': ベタ組み（アキなし、デフォルト）
+   * - 'quarter': 四分アキ（0.25em）
+   * - 'half': 二分アキ（0.5em）
+   * - number: 任意の em 値（0以上、負の値は0にクランプ）
+   */
+  spacing?: Spacing;
 }
 
 /**
@@ -49,8 +60,10 @@ export function getDefaultStyles(options: StyleOptions = {}): string {
   const useLayer = options.useLayer ?? true;
   const layerName = options.layerName ?? 'skam-kanbun';
   const rubyMethod = options.rubyMethod ?? 'grid';
+  const spacingEm = resolveSpacingEm(options.spacing);
+  const letterSpacingValue = `${spacingEm}em`;
 
-  const commonStyles = generateCommonStyles(prefix, vp, rubyMethod);
+  const commonStyles = generateCommonStyles(prefix, vp, rubyMethod, letterSpacingValue);
   const inlineStyles = inline ? generateInlineStyles(prefix) : '';
 
   let result: string;
@@ -105,7 +118,8 @@ ${inlineStyles}`.trim();
 function generateCommonStyles(
   prefix: string,
   vp: string,
-  rubyMethod: RubyMethod | 'both' = 'grid'
+  rubyMethod: RubyMethod | 'both' = 'grid',
+  letterSpacingValue = '0em'
 ): string {
   const includeRuby = rubyMethod === 'ruby' || rubyMethod === 'both';
   const includeGrid = rubyMethod === 'grid' || rubyMethod === 'both';
@@ -397,7 +411,7 @@ function generateCommonStyles(
   --${vp}-ruby-ratio: 0.5;
   --${vp}-ruby-font-size: calc(var(--${vp}-ruby-ratio) * var(--${vp}-glyph-size));
   --${vp}-line-height: 2;
-  --${vp}-letter-spacing: 0;
+  --${vp}-letter-spacing: ${letterSpacingValue};
 
   /* Selection CSS Variables */
   --${vp}-selection-bg: rgba(66, 133, 244, 0.3);
@@ -511,6 +525,8 @@ ${gridStyles}
   line-height: 1;
   /* text-emphasis は継承するため、親要素の傍点が添字・送り仮名に伝播するのを防止 */
   text-emphasis: none;
+  /* letter-spacing の継承を遮断（suffix-row 内部レイアウトへの影響を防止） */
+  letter-spacing: 0;
   vertical-align: calc(var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 0.5em + 0.5em));
 }
 
@@ -685,6 +701,11 @@ ${
   display: inline-grid;
   grid-template-rows: [sep-spacer-start] ${halfAnnotationRowH} [sep-tateten-start] ${halfAnnotationRowH} [sep-kaeri-start] ${halfAnnotationRowH} [sep-end] ${halfAnnotationRowH};
   line-height: 1;
+  /* letter-spacing の継承を遮断 */
+  letter-spacing: 0;
+  /* tateten-sep 前後の二重アキを相殺: [token]+アキ/2+[sep]+アキ/2+[token] */
+  margin-inline-start: calc(-0.5 * var(--${vp}-letter-spacing));
+  margin-inline-end: calc(-0.5 * var(--${vp}-letter-spacing));
   vertical-align: calc(var(--${vp}-grid-baseline-fix, 0) * (0.5em - var(--${vp}-ruby-ratio) * 0.5em));
 }
 

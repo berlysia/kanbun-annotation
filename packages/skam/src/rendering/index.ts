@@ -61,3 +61,7 @@ export { buildAnnotationIR } from './build-annotation-ir.js';
 
 // 改行制御
 export { canBreakBefore } from './line-break.js';
+
+// アキ組み
+export { resolveSpacingEm } from './spacing.js';
+export type { Spacing, SpacingPreset } from './spacing.js';

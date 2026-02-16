@@ -2143,3 +2143,104 @@ describe('XML to HTML integration - highlight with ref', () => {
     expect(htmlContent).toContain('<sup class="skam-ref');
   });
 });
+
+describe('spacing (aki-gumi)', () => {
+  describe('render() with spacing option', () => {
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [{ id: 't1', text: '學' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+      marks: [],
+      readings: [],
+    };
+
+    it('default (no spacing) outputs 0em letter-spacing', () => {
+      const { css } = render(doc);
+      expect(css).toContain('--skam-letter-spacing: 0em');
+    });
+
+    it('spacing: "solid" outputs 0em', () => {
+      const { css } = render(doc, { spacing: 'solid' });
+      expect(css).toContain('--skam-letter-spacing: 0em');
+    });
+
+    it('spacing: "quarter" outputs 0.25em', () => {
+      const { css } = render(doc, { spacing: 'quarter' });
+      expect(css).toContain('--skam-letter-spacing: 0.25em');
+    });
+
+    it('spacing: "half" outputs 0.5em', () => {
+      const { css } = render(doc, { spacing: 'half' });
+      expect(css).toContain('--skam-letter-spacing: 0.5em');
+    });
+
+    it('spacing: number outputs custom em value', () => {
+      const { css } = render(doc, { spacing: 0.3 });
+      expect(css).toContain('--skam-letter-spacing: 0.3em');
+    });
+
+    it('negative number is clamped to 0', () => {
+      const { css } = render(doc, { spacing: -0.5 });
+      expect(css).toContain('--skam-letter-spacing: 0em');
+    });
+  });
+
+  describe('generateCSS() with spacing option', () => {
+    it('spacing: "quarter" outputs 0.25em', async () => {
+      const { generateCSS } = await import('../index.js');
+      const css = generateCSS({ spacing: 'quarter' });
+      expect(css).toContain('--skam-letter-spacing: 0.25em');
+    });
+
+    it('spacing: "half" outputs 0.5em', async () => {
+      const { generateCSS } = await import('../index.js');
+      const css = generateCSS({ spacing: 'half' });
+      expect(css).toContain('--skam-letter-spacing: 0.5em');
+    });
+
+    it('produces same CSS as render() with same spacing', async () => {
+      const { generateCSS } = await import('../index.js');
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '學' }],
+        blocks: [],
+        marks: [],
+        readings: [],
+      };
+
+      const cssOnly = generateCSS({ writingMode: 'vertical', spacing: 'quarter' });
+      const { css } = render(doc, { writingMode: 'vertical', spacing: 'quarter' });
+      expect(cssOnly).toBe(css);
+    });
+  });
+
+  describe('getDefaultStyles() with spacing option', () => {
+    it('spacing: "quarter" outputs 0.25em', () => {
+      const css = getDefaultStyles({ spacing: 'quarter' });
+      expect(css).toContain('--skam-letter-spacing: 0.25em');
+    });
+  });
+
+  describe('CSS structure for spacing', () => {
+    it('includes letter-spacing reset on suffix-row', () => {
+      const css = getDefaultStyles();
+      // suffix-row should reset letter-spacing to prevent inheritance
+      expect(css).toMatch(/\.skam-suffix-row\)[\s\S]*?letter-spacing:\s*0/);
+    });
+
+    it('includes letter-spacing reset on tateten-sep', () => {
+      const css = getDefaultStyles();
+      expect(css).toMatch(/\.skam-tateten-sep\)[\s\S]*?letter-spacing:\s*0/);
+    });
+
+    it('includes negative margin compensation on tateten-sep', () => {
+      const css = getDefaultStyles();
+      expect(css).toMatch(
+        /\.skam-tateten-sep\)[\s\S]*?margin-inline-start:\s*calc\(-0\.5 \* var\(--skam-letter-spacing\)\)/
+      );
+      expect(css).toMatch(
+        /\.skam-tateten-sep\)[\s\S]*?margin-inline-end:\s*calc\(-0\.5 \* var\(--skam-letter-spacing\)\)/
+      );
+    });
+  });
+});

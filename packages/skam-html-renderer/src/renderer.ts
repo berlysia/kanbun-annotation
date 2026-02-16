@@ -5,6 +5,7 @@
  */
 
 import type { SKAMDocument, Mark, RefMark, Reading } from '@kanbun/skam';
+import type { Spacing } from '@kanbun/skam/rendering';
 import { resolveRefValues } from '@kanbun/skam/rendering';
 import { getDefaultStyles } from './styles.js';
 import type { RenderProfile, RubyMethod, CopyableElement } from './render-config.js';
@@ -65,6 +66,15 @@ export interface RenderOptions {
    * - 'grid': inline-grid で代替レンダリング
    */
   rubyMethod?: RubyMethod;
+  /**
+   * 字間スペーシング（アキ組み）
+   *
+   * - 'solid': ベタ組み（アキなし、デフォルト）
+   * - 'quarter': 四分アキ（0.25em）
+   * - 'half': 二分アキ（0.5em）
+   * - number: 任意の em 値（0以上）
+   */
+  spacing?: Spacing;
 }
 
 /**
@@ -133,6 +143,15 @@ export interface CSSOptions {
    * - 'both': 両方のCSSを出力
    */
   rubyMethod?: RubyMethod | 'both';
+  /**
+   * 字間スペーシング（アキ組み）
+   *
+   * - 'solid': ベタ組み（アキなし、デフォルト）
+   * - 'quarter': 四分アキ（0.25em）
+   * - 'half': 二分アキ（0.5em）
+   * - number: 任意の em 値（0以上）
+   */
+  spacing?: Spacing;
 }
 
 // Presets: re-exported from render-config.ts
@@ -258,6 +277,9 @@ export function render(doc: SKAMDocument, options: RenderOptions = {}): RenderRe
   if (options.variablePrefix !== undefined) {
     styleOptions.variablePrefix = options.variablePrefix;
   }
+  if (options.spacing !== undefined) {
+    styleOptions.spacing = options.spacing;
+  }
   const css = getDefaultStyles(styleOptions);
 
   return { html, css };
@@ -356,6 +378,9 @@ export function generateCSS(options: CSSOptions = {}): string {
   }
   if (options.rubyMethod !== undefined) {
     styleOptions.rubyMethod = options.rubyMethod;
+  }
+  if (options.spacing !== undefined) {
+    styleOptions.spacing = options.spacing;
   }
   return getDefaultStyles(styleOptions);
 }

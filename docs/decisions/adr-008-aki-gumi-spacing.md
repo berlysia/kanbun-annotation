@@ -1,5 +1,5 @@
 ---
-status: Accepted
+status: Complete
 plan: plan-aki-gumi-spacing.md
 ---
 

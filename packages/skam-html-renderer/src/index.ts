@@ -21,6 +21,8 @@ export {
   type RubyMethod,
 } from './render-config.js';
 
+export type { Spacing, SpacingPreset } from '@kanbun/skam/rendering';
+
 export { getDefaultStyles, type StyleOptions } from './styles.js';
 
 /**

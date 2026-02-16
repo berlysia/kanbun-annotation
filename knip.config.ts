@@ -3,8 +3,8 @@ import type { KnipConfig } from 'knip';
 const config: KnipConfig = {
   workspaces: {
     '.': {
-      entry: [],
-      project: [],
+      entry: ['scripts/adr-status.ts', 'scripts/adr-deps.ts', 'scripts/adr-migrate-fm.ts'],
+      project: ['scripts/**/*.ts'],
       vitest: false,
     },
     'packages/skam': {

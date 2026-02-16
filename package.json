@@ -24,6 +24,8 @@
     "changeset:version": "changeset version",
     "changeset:publish": "changeset publish",
     "screenshot": "turbo build --filter=@kanbun/skam-screenshot && node packages/skam-screenshot/dist/cli.js",
+    "adr:status": "node scripts/adr-status.ts",
+    "adr:deps": "node scripts/adr-deps.ts",
     "prepare": "husky"
   },
   "keywords": [

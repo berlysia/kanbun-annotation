@@ -1,5 +1,5 @@
 ---
-status: Accepted
+status: Complete
 plan: plan-canvas-3level-layout.md
 ---
 

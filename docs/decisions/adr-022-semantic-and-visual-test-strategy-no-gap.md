@@ -1,5 +1,5 @@
 ---
-status: Accepted
+status: Complete
 plan: plan-semantic-and-visual-test-strategy-no-gap.md
 ---
 

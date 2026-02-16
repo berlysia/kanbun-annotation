@@ -1,5 +1,5 @@
 ---
-status: Accepted
+status: Complete
 plan: plan-implement-group-tree-rendering.md
 ---
 

@@ -1,6 +1,7 @@
 import { describe, it } from 'vitest';
 import { expect } from 'vitest';
 import type { Token, Mark, RefMark } from '@kanbun/skam';
+import { KAERI } from '@kanbun/skam';
 import { resolveEmphasisCharacter, formatRefIndex, resolveRefValues } from '@kanbun/skam/rendering';
 import { splitKaeriForTateten } from '../helpers.js';
 
@@ -60,33 +61,33 @@ describe('resolveEmphasisCharacter', () => {
 
 describe('splitKaeriForTateten', () => {
   it('splits レ into re component', () => {
-    const result = splitKaeriForTateten('\u3191');
-    expect(result.re).toBe('\u3191');
+    const result = splitKaeriForTateten(KAERI.RE);
+    expect(result.re).toBe(KAERI.RE);
     expect(result.nonRe).toBe('');
   });
 
   it('splits 一レ into re and nonRe', () => {
-    const result = splitKaeriForTateten('\u3192\u3191');
-    expect(result.re).toBe('\u3191');
-    expect(result.nonRe).toBe('\u3192');
+    const result = splitKaeriForTateten(KAERI.ICHI + KAERI.RE);
+    expect(result.re).toBe(KAERI.RE);
+    expect(result.nonRe).toBe(KAERI.ICHI);
   });
 
   it('splits 上 into nonRe only', () => {
-    const result = splitKaeriForTateten('\u3196');
+    const result = splitKaeriForTateten(KAERI.JO);
     expect(result.re).toBe('');
-    expect(result.nonRe).toBe('\u3196');
+    expect(result.nonRe).toBe(KAERI.JO);
   });
 
   it('splits 上レ into both components', () => {
-    const result = splitKaeriForTateten('\u3196\u3191');
-    expect(result.re).toBe('\u3191');
-    expect(result.nonRe).toBe('\u3196');
+    const result = splitKaeriForTateten(KAERI.JO + KAERI.RE);
+    expect(result.re).toBe(KAERI.RE);
+    expect(result.nonRe).toBe(KAERI.JO);
   });
 
   it('handles 二 (nonRe only)', () => {
-    const result = splitKaeriForTateten('\u3193');
+    const result = splitKaeriForTateten(KAERI.NI);
     expect(result.re).toBe('');
-    expect(result.nonRe).toBe('\u3193');
+    expect(result.nonRe).toBe(KAERI.NI);
   });
 });
 

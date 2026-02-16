@@ -38,7 +38,7 @@ import type {
   RefMark,
   TatetenMark,
 } from '@kanbun/skam';
-import { isAnchorBasedMark } from '@kanbun/skam';
+import { isAnchorBasedMark, KAERI } from '@kanbun/skam';
 
 // ============================================================================
 // Constants
@@ -48,21 +48,21 @@ const SKAM_NS = 'urn:skam:1';
 
 // 返り点の value → kind 逆マッピング
 const KAERI_KIND_MAP: Record<string, string> = {
-  '\u3191': 're',
-  '\u3192': 'ichi',
-  '\u3193': 'ni',
-  '\u3194': 'san',
-  '\u3195': 'shi',
-  '\u3196': 'jo',
-  '\u3197': 'chu',
-  '\u3198': 'ge',
-  '\u3199': 'ko',
-  '\u319A': 'otsu',
-  '\u319B': 'hei',
-  '\u319C': 'tei',
-  '\u319D': 'ten',
-  '\u319E': 'chi',
-  '\u319F': 'jin',
+  [KAERI.RE]: 're',
+  [KAERI.ICHI]: 'ichi',
+  [KAERI.NI]: 'ni',
+  [KAERI.SAN]: 'san',
+  [KAERI.SHI]: 'shi',
+  [KAERI.JO]: 'jo',
+  [KAERI.CHU]: 'chu',
+  [KAERI.GE]: 'ge',
+  [KAERI.KO]: 'ko',
+  [KAERI.OTSU]: 'otsu',
+  [KAERI.HEI]: 'hei',
+  [KAERI.TEI]: 'tei',
+  [KAERI.TEN]: 'ten',
+  [KAERI.CHI]: 'chi',
+  [KAERI.JIN]: 'jin',
 };
 
 // ============================================================================

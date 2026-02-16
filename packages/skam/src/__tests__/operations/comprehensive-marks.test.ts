@@ -26,6 +26,7 @@ import type {
   KutotenMark,
   RefMark,
 } from '../../index.js';
+import { KAERI } from '../../index.js';
 import {
   addMark,
   addMarkWithResult,
@@ -1407,21 +1408,21 @@ describe('Okototen variations', () => {
 
 describe('Kaeri value variations', () => {
   const kaeriValues = [
-    '\u3191',
-    '\u3192',
-    '\u3193',
-    '\u3194',
-    '\u3195',
-    '\u3196',
-    '\u3197',
-    '\u3198',
-    '\u3199',
-    '\u319A',
-    '\u319B',
-    '\u319C',
-    '\u319D',
-    '\u319E',
-    '\u319F',
+    KAERI.RE,
+    KAERI.ICHI,
+    KAERI.NI,
+    KAERI.SAN,
+    KAERI.SHI,
+    KAERI.JO,
+    KAERI.CHU,
+    KAERI.GE,
+    KAERI.KO,
+    KAERI.OTSU,
+    KAERI.HEI,
+    KAERI.TEI,
+    KAERI.TEN,
+    KAERI.CHI,
+    KAERI.JIN,
   ];
 
   for (const value of kaeriValues) {
@@ -1438,11 +1439,11 @@ describe('Kaeri value variations', () => {
   }
 
   const compoundKaeriValues = [
-    '\u3192\u3191',
-    '\u3193\u3191',
-    '\u3196\u3191',
-    '\u3199\u3191',
-    '\u319D\u3191',
+    KAERI.ICHI + KAERI.RE,
+    KAERI.NI + KAERI.RE,
+    KAERI.JO + KAERI.RE,
+    KAERI.KO + KAERI.RE,
+    KAERI.TEN + KAERI.RE,
   ];
   for (const value of compoundKaeriValues) {
     it(`compound kaeri value: ${value}`, () => {

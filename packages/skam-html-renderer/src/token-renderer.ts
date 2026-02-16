@@ -21,6 +21,7 @@ import type {
   OkototenMark,
   RefMark,
 } from '@kanbun/skam';
+import { KAERI } from '@kanbun/skam';
 import { resolveEmphasisCharacter, getMarksForToken } from '@kanbun/skam/rendering';
 import type { RenderProfile, RubyMethod } from './render-config.js';
 import { escapeHtml, generateEmphasisMarks, shouldApplyTateChuYoko } from './html-utils.js';
@@ -319,10 +320,10 @@ export function renderToken(
     const suffixParts: string[] = [];
     const separatorParts: string[] = [];
     for (const m of allKaeriMarks) {
-      const hasRe = m.value.includes('\u3191');
-      const nonRePart = m.value.replace(/\u3191/g, '');
+      const hasRe = m.value.includes(KAERI.RE);
+      const nonRePart = m.value.replace(new RegExp(KAERI.RE, 'g'), '');
       if (hasRe) {
-        suffixParts.push(`<span class="${prefix}-kaeriten" aria-hidden="true">\u3191</span>`);
+        suffixParts.push(`<span class="${prefix}-kaeriten" aria-hidden="true">${KAERI.RE}</span>`);
       }
       if (nonRePart) {
         separatorParts.push(

@@ -2,8 +2,7 @@
  * 返り点ユーティリティ
  */
 
-/** Unicode Kanbun ブロック レ点 (U+3191) */
-const KAERI_RE = '\u3191';
+import { KAERI } from '../index.js';
 
 /**
  * tateten 内の返り点を「レ成分」と「非レ成分」に分離。
@@ -15,7 +14,7 @@ export function splitKaeriForTateten(value: string): { re: string; nonRe: string
   let re = '';
   let nonRe = '';
   for (const char of value) {
-    if (char === KAERI_RE) {
+    if (char === KAERI.RE) {
       re += char;
     } else {
       nonRe += char;

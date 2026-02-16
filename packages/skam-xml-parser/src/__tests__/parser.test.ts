@@ -4,7 +4,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse, SKAMXMLParseError } from '../index.js';
 import type { ParseOptions } from '../index.js';
-import { validateSKAMDocument, createSequentialIdGenerator } from '@kanbun/skam';
+import { validateSKAMDocument, createSequentialIdGenerator, KAERI } from '@kanbun/skam';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const VALID_FIXTURES = join(__dirname, 'fixtures', 'valid');
@@ -53,7 +53,7 @@ describe('parse - valid fixtures', () => {
       const kaeri = doc.marks[0]!;
       expect(kaeri.type).toBe('kaeri');
       if (kaeri.type === 'kaeri') {
-        expect(kaeri.value).toBe('\u3191');
+        expect(kaeri.value).toBe(KAERI.RE);
         expect(kaeri.position.blockId).toBe('b1');
         expect(kaeri.position.after).toBe('t2'); // 而
       }
@@ -70,14 +70,14 @@ describe('parse - valid fixtures', () => {
 
       // Check some kaeri values
       const values = kaeriMarks.map((m) => (m as { value: string }).value);
-      expect(values).toContain('\u3192');
-      expect(values).toContain('\u3193');
-      expect(values).toContain('\u3196');
-      expect(values).toContain('\u3197');
-      expect(values).toContain('\u3198');
-      expect(values).toContain('\u3199');
-      expect(values).toContain('\u319A');
-      expect(values).toContain('\u3191');
+      expect(values).toContain(KAERI.ICHI);
+      expect(values).toContain(KAERI.NI);
+      expect(values).toContain(KAERI.JO);
+      expect(values).toContain(KAERI.CHU);
+      expect(values).toContain(KAERI.GE);
+      expect(values).toContain(KAERI.KO);
+      expect(values).toContain(KAERI.OTSU);
+      expect(values).toContain(KAERI.RE);
     });
   });
 
@@ -90,9 +90,9 @@ describe('parse - valid fixtures', () => {
       expect(kaeriMarks).toHaveLength(3);
 
       const values = kaeriMarks.map((m) => (m as { value: string }).value);
-      expect(values).toContain('\u3192\u3191');
-      expect(values).toContain('\u3191');
-      expect(values).toContain('\u3196\u3191');
+      expect(values).toContain(KAERI.ICHI + KAERI.RE);
+      expect(values).toContain(KAERI.RE);
+      expect(values).toContain(KAERI.JO + KAERI.RE);
     });
   });
 

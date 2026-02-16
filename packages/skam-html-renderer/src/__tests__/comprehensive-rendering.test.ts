@@ -18,6 +18,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import type { SKAMDocument, Mark } from '@kanbun/skam';
+import { KAERI } from '@kanbun/skam';
 import { render, PROFILES } from '../index.js';
 
 // ============================================================================
@@ -313,7 +314,7 @@ describe('Mark combination rendering', () => {
     const { html } = render(doc);
     expect(html).toContain('なら');
     expect(html).toContain('skam-kaeriten');
-    expect(html).toContain('\u3191'); // レ
+    expect(html).toContain(KAERI.RE); // レ
   });
 
   it('yomigana + okurigana + kaeri on same token', () => {
@@ -325,7 +326,7 @@ describe('Mark combination rendering', () => {
     const { html } = render(doc);
     expect(html).toContain('なら');
     expect(html).toContain('ふ');
-    expect(html).toContain('\u3191'); // レ
+    expect(html).toContain(KAERI.RE); // レ
     expect(html).toContain('skam-ruby');
     expect(html).toContain('skam-okuri');
     expect(html).toContain('skam-kaeriten');
@@ -341,7 +342,7 @@ describe('Mark combination rendering', () => {
     const { html } = render(doc);
     expect(html).toContain('まな');
     expect(html).toContain('ブ');
-    expect(html).toContain('\u3193'); // 二
+    expect(html).toContain(KAERI.NI); // 二
     expect(html).toContain('を');
     expect(html).toContain('skam-ruby');
     expect(html).toContain('skam-okuri');
@@ -369,7 +370,7 @@ describe('Mark combination rendering', () => {
     const { html } = render(doc);
     expect(html).toContain('skam-okimoji');
     expect(html).toContain('skam-kaeriten');
-    expect(html).toContain('\u3192'); // 一
+    expect(html).toContain(KAERI.ICHI); // 一
   });
 
   it('joji + okurigana on same token', () => {
@@ -547,21 +548,21 @@ describe('Mark combination rendering', () => {
 
 describe('Kaeri value rendering variations', () => {
   const kaeriExpected: Array<{ value: string; unicode: string; label: string }> = [
-    { value: '㆑', unicode: '\u3191', label: 're' },
-    { value: '㆒', unicode: '\u3192', label: 'ichi' },
-    { value: '㆓', unicode: '\u3193', label: 'ni' },
-    { value: '㆔', unicode: '\u3194', label: 'san' },
-    { value: '㆕', unicode: '\u3195', label: 'shi' },
-    { value: '㆖', unicode: '\u3196', label: 'jou' },
-    { value: '㆗', unicode: '\u3197', label: 'chuu' },
-    { value: '㆘', unicode: '\u3198', label: 'ge' },
-    { value: '㆙', unicode: '\u3199', label: 'kou' },
-    { value: '㆚', unicode: '\u319A', label: 'otsu' },
-    { value: '㆛', unicode: '\u319B', label: 'hei' },
-    { value: '㆜', unicode: '\u319C', label: 'tei' },
-    { value: '㆝', unicode: '\u319D', label: 'ten' },
-    { value: '㆞', unicode: '\u319E', label: 'chi' },
-    { value: '㆟', unicode: '\u319F', label: 'jin' },
+    { value: '㆑', unicode: KAERI.RE, label: 're' },
+    { value: '㆒', unicode: KAERI.ICHI, label: 'ichi' },
+    { value: '㆓', unicode: KAERI.NI, label: 'ni' },
+    { value: '㆔', unicode: KAERI.SAN, label: 'san' },
+    { value: '㆕', unicode: KAERI.SHI, label: 'shi' },
+    { value: '㆖', unicode: KAERI.JO, label: 'jou' },
+    { value: '㆗', unicode: KAERI.CHU, label: 'chuu' },
+    { value: '㆘', unicode: KAERI.GE, label: 'ge' },
+    { value: '㆙', unicode: KAERI.KO, label: 'kou' },
+    { value: '㆚', unicode: KAERI.OTSU, label: 'otsu' },
+    { value: '㆛', unicode: KAERI.HEI, label: 'hei' },
+    { value: '㆜', unicode: KAERI.TEI, label: 'tei' },
+    { value: '㆝', unicode: KAERI.TEN, label: 'ten' },
+    { value: '㆞', unicode: KAERI.CHI, label: 'chi' },
+    { value: '㆟', unicode: KAERI.JIN, label: 'jin' },
   ];
 
   for (const { value, unicode, label } of kaeriExpected) {
@@ -581,7 +582,7 @@ describe('Kaeri value rendering variations', () => {
         { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆒㆑' },
       ]);
       const { html } = render(doc);
-      expect(html).toContain('\u3192\u3191'); // 一レ
+      expect(html).toContain(KAERI.ICHI + KAERI.RE); // 一レ
     });
 
     it('二レ → 二 + レ Unicode', () => {
@@ -589,7 +590,7 @@ describe('Kaeri value rendering variations', () => {
         { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆓㆑' },
       ]);
       const { html } = render(doc);
-      expect(html).toContain('\u3193\u3191'); // 二レ
+      expect(html).toContain(KAERI.NI + KAERI.RE); // 二レ
     });
 
     it('上レ → 上 + レ Unicode', () => {
@@ -597,7 +598,7 @@ describe('Kaeri value rendering variations', () => {
         { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆖㆑' },
       ]);
       const { html } = render(doc);
-      expect(html).toContain('\u3196\u3191'); // 上レ
+      expect(html).toContain(KAERI.JO + KAERI.RE); // 上レ
     });
 
     it('甲レ → 甲 + レ Unicode', () => {
@@ -605,7 +606,7 @@ describe('Kaeri value rendering variations', () => {
         { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆙㆑' },
       ]);
       const { html } = render(doc);
-      expect(html).toContain('\u3199\u3191'); // 甲レ
+      expect(html).toContain(KAERI.KO + KAERI.RE); // 甲レ
     });
 
     it('天レ → 天 + レ Unicode', () => {
@@ -613,7 +614,7 @@ describe('Kaeri value rendering variations', () => {
         { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆝㆑' },
       ]);
       const { html } = render(doc);
-      expect(html).toContain('\u319D\u3191'); // 天レ
+      expect(html).toContain(KAERI.TEN + KAERI.RE); // 天レ
     });
   });
 });
@@ -955,7 +956,7 @@ describe('Saidoku rendering variations', () => {
     const { html } = render(doc);
     expect(html).toContain('skam-saidoku');
     expect(html).toContain('skam-kaeriten');
-    expect(html).toContain('\u3193'); // 二
+    expect(html).toContain(KAERI.NI); // 二
   });
 
   it('saidoku with interactive mode', () => {
@@ -1124,7 +1125,7 @@ describe('Complex document rendering', () => {
     expect(html).toContain('を');
     expect(html).toContain('なら');
     expect(html).toContain('ふ');
-    expect(html).toContain('\u3191'); // レ
+    expect(html).toContain(KAERI.RE); // レ
     expect(html).toContain('。');
 
     // CSS classes present
@@ -1198,7 +1199,7 @@ describe('Complex document rendering', () => {
     const { html } = render(doc);
     // Block 1 marks
     expect(html).toContain('し');
-    expect(html).toContain('\u3191'); // レ
+    expect(html).toContain(KAERI.RE); // レ
     expect(html).toContain('。');
     // Block 2 marks
     expect(html).toContain('skam-emphasis');
@@ -1253,7 +1254,7 @@ describe('Writing mode × mark type', () => {
     ]);
     const { html } = render(doc, { writingMode: 'vertical' });
     expect(html).toContain('skam-kaeriten');
-    expect(html).toContain('\u3191');
+    expect(html).toContain(KAERI.RE);
   });
 
   it('horizontal mode with kaeriten', () => {
@@ -1262,7 +1263,7 @@ describe('Writing mode × mark type', () => {
     ]);
     const { html } = render(doc, { writingMode: 'horizontal' });
     expect(html).toContain('skam-kaeriten');
-    expect(html).toContain('\u3191');
+    expect(html).toContain(KAERI.RE);
   });
 
   it('vertical mode with saidoku', () => {
@@ -1342,7 +1343,7 @@ describe('Profile × mark type interactions', () => {
       ]);
       const { html } = render(doc, { profile: PROFILES.learningBasic });
       expect(html).toContain('skam-kaeriten');
-      expect(html).toContain('\u3191');
+      expect(html).toContain(KAERI.RE);
     });
 
     it('shows kutoten', () => {
@@ -1394,7 +1395,7 @@ describe('Profile × mark type interactions', () => {
         { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
       ]);
       const { html } = render(doc, { profile: PROFILES.learningHint });
-      expect(html).toContain('\u3191');
+      expect(html).toContain(KAERI.RE);
     });
   });
 
@@ -1411,7 +1412,7 @@ describe('Profile × mark type interactions', () => {
       const { html } = render(doc, { profile: PROFILES.full });
       expect(html).toContain('まな');
       expect(html).toContain('ブ');
-      expect(html).toContain('\u3191');
+      expect(html).toContain(KAERI.RE);
       expect(html).toContain('を');
       expect(html).toContain('skam-emphasis');
       expect(html).toContain('skam-highlight');
@@ -1540,7 +1541,7 @@ describe('Inline mode with various marks', () => {
     ]);
     const { html } = render(doc, { inline: true });
     expect(html).toContain('skam-kaeriten');
-    expect(html).toContain('\u3191');
+    expect(html).toContain(KAERI.RE);
     expect(html).toContain('skam-document--inline');
   });
 });

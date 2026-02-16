@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { SKAMDocument, Mark } from '@kanbun/skam';
+import { KAERI } from '@kanbun/skam';
 import { buildRenderTree } from '../render-tree.js';
 import { PROFILES } from '../profiles.js';
 import type {
@@ -102,7 +103,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    expect(asTokenNode(tree.blocks[0]!.children[1]!).slots.kaeri).toBe('\u3191');
+    expect(asTokenNode(tree.blocks[0]!.children[1]!).slots.kaeri).toBe(KAERI.RE);
   });
 
   it('resolves compound kaeri into Unicode', () => {
@@ -111,7 +112,7 @@ describe('buildRenderTree', () => {
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
 
-    expect(asTokenNode(tree.blocks[0]!.children[2]!).slots.kaeri).toBe('\u3192\u3191');
+    expect(asTokenNode(tree.blocks[0]!.children[2]!).slots.kaeri).toBe(KAERI.ICHI + KAERI.RE);
   });
 
   it('resolves kutoten slot', () => {
@@ -134,7 +135,7 @@ describe('buildRenderTree', () => {
     const t3 = asTokenNode(tree.blocks[0]!.children[2]!);
     expect(t3.slots.ruby).toBe('まな');
     expect(t3.slots.okuri).toBe('ぶ');
-    expect(t3.slots.kaeri).toBe('\u3192\u3191');
+    expect(t3.slots.kaeri).toBe(KAERI.ICHI + KAERI.RE);
   });
 
   it('respects profile: kaeriten=false', () => {
@@ -404,9 +405,9 @@ describe('buildRenderTree', () => {
 
     const group = asTatetenGroup(tree.blocks[0]!.children[0]!);
     // t1 gets レ component only
-    expect(asGroupToken(group.children[0]!).slots.kaeri).toBe('\u3191');
+    expect(asGroupToken(group.children[0]!).slots.kaeri).toBe(KAERI.RE);
     // separator gets 一 component
-    expect(asSeparator(group.children[1]!).kaeri).toBe('\u3192');
+    expect(asSeparator(group.children[1]!).kaeri).toBe(KAERI.ICHI);
   });
 
   it('puts non-レ only kaeri on separator, removes from token', () => {
@@ -420,7 +421,7 @@ describe('buildRenderTree', () => {
     // t1 has no kaeri (レ part is empty)
     expect(asGroupToken(group.children[0]!).slots.kaeri).toBeUndefined();
     // separator gets 上
-    expect(asSeparator(group.children[1]!).kaeri).toBe('\u3196');
+    expect(asSeparator(group.children[1]!).kaeri).toBe(KAERI.JO);
   });
 
   it('puts last token non-レ kaeri on last separator', () => {
@@ -434,7 +435,7 @@ describe('buildRenderTree', () => {
     // last token (t3) has no kaeri (レ part is empty)
     expect(asGroupToken(group.children[4]!).slots.kaeri).toBeUndefined();
     // last separator gets 一
-    expect(asSeparator(group.children[3]!).kaeri).toBe('\u3192');
+    expect(asSeparator(group.children[3]!).kaeri).toBe(KAERI.ICHI);
   });
 
   it('respects profile: tateten=false', () => {

@@ -41,6 +41,7 @@ import {
   generateId,
   hasMarkValue,
   isExactAnchorMatch,
+  KAERI,
 } from '@kanbun/skam';
 import {
   render as canvasRender,
@@ -166,39 +167,39 @@ let currentSelectedKanaType: 'yomigana' | 'okurigana' | 'soegana' = 'yomigana';
 // group: 'レ' can coexist with others, same group values are mutually exclusive
 // value は Unicode Kanbun ブロック文字 (U+3191〜U+319F)
 const KAERI_GROUPS: Array<{ group: string; values: Array<{ label: string; value: string }> }> = [
-  { group: 're', values: [{ label: 'レ', value: '\u3191' }] },
+  { group: 're', values: [{ label: 'レ', value: KAERI.RE }] },
   {
     group: 'number',
     values: [
-      { label: '一', value: '\u3192' },
-      { label: '二', value: '\u3193' },
-      { label: '三', value: '\u3194' },
-      { label: '四', value: '\u3195' },
+      { label: '一', value: KAERI.ICHI },
+      { label: '二', value: KAERI.NI },
+      { label: '三', value: KAERI.SAN },
+      { label: '四', value: KAERI.SHI },
     ],
   },
   {
     group: 'joge',
     values: [
-      { label: '上', value: '\u3196' },
-      { label: '中', value: '\u3197' },
-      { label: '下', value: '\u3198' },
+      { label: '上', value: KAERI.JO },
+      { label: '中', value: KAERI.CHU },
+      { label: '下', value: KAERI.GE },
     ],
   },
   {
     group: 'kouotsu',
     values: [
-      { label: '甲', value: '\u3199' },
-      { label: '乙', value: '\u319A' },
-      { label: '丙', value: '\u319B' },
-      { label: '丁', value: '\u319C' },
+      { label: '甲', value: KAERI.KO },
+      { label: '乙', value: KAERI.OTSU },
+      { label: '丙', value: KAERI.HEI },
+      { label: '丁', value: KAERI.TEI },
     ],
   },
   {
     group: 'tenchijin',
     values: [
-      { label: '天', value: '\u319D' },
-      { label: '地', value: '\u319E' },
-      { label: '人', value: '\u319F' },
+      { label: '天', value: KAERI.TEN },
+      { label: '地', value: KAERI.CHI },
+      { label: '人', value: KAERI.JIN },
     ],
   },
 ];
@@ -938,8 +939,8 @@ function updateTatetenButton(): void {
 function parseKaeriValue(value: string | null): { re: boolean; other: string | null } {
   if (!value) return { re: false, other: null };
 
-  const hasRe = value.includes('\u3191');
-  const other = value.replace('\u3191', '') || null;
+  const hasRe = value.includes(KAERI.RE);
+  const other = value.replace(KAERI.RE, '') || null;
   return { re: hasRe, other };
 }
 
@@ -949,9 +950,9 @@ function parseKaeriValue(value: string | null): { re: boolean; other: string | n
  */
 function combineKaeriValue(re: boolean, other: string | null): string | null {
   if (!re && !other) return null;
-  if (re && !other) return '\u3191';
+  if (re && !other) return KAERI.RE;
   if (!re && other) return other;
-  return `${other}\u3191`;
+  return `${other}${KAERI.RE}`;
 }
 
 function updateKaeriButtons(currentValue: string | null): void {

@@ -9,6 +9,7 @@ import type {
   HighlightLineLayout,
   ResolvedSlotLayouts,
 } from '../types.js';
+import { KAERI } from '@kanbun/skam';
 
 function createSimpleLayout(tokens: Partial<TokenLayout>[]): DocumentLayout {
   return {
@@ -138,7 +139,7 @@ describe('draw', () => {
       {
         baseChar: '曰',
         slots: {
-          kaeri: { text: '\u3191', x: 70, y: 20, fontSize: 12 },
+          kaeri: { text: KAERI.RE, x: 70, y: 20, fontSize: 12 },
         },
       },
     ]);
@@ -148,7 +149,7 @@ describe('draw', () => {
 
     const fillTexts = ctx.getCalls('fillText');
     const texts = fillTexts.map((c) => c.args[0]);
-    expect(texts).toContain('\u3191');
+    expect(texts).toContain(KAERI.RE);
   });
 
   it('draws kutoten slot', () => {
@@ -179,7 +180,7 @@ describe('draw', () => {
           ruby: { text: 'まな', x: 120, y: 16, fontSize: 12 },
           okuri: { text: 'ぶ', x: 80, y: 16, fontSize: 12 },
           soegana: { text: 'は', x: 80, y: 28, fontSize: 12 },
-          kaeri: { text: '\u3192\u3191', x: 70, y: 16, fontSize: 12 },
+          kaeri: { text: KAERI.ICHI + KAERI.RE, x: 70, y: 16, fontSize: 12 },
           kutoten: { text: '。', x: 80, y: 40, fontSize: 24 },
         },
       },
@@ -195,8 +196,8 @@ describe('draw', () => {
     expect(texts).toContain('な');
     expect(texts).toContain('ぶ');
     expect(texts).toContain('は');
-    expect(texts).toContain('\u3192');
-    expect(texts).toContain('\u3191');
+    expect(texts).toContain(KAERI.ICHI);
+    expect(texts).toContain(KAERI.RE);
     expect(texts).toContain('。');
   });
 
@@ -320,7 +321,7 @@ describe('draw', () => {
       x: 100,
       y: 64,
       fontSize: 12,
-      kaeri: { text: '\u3192', x: 70, y: 64, fontSize: 12 },
+      kaeri: { text: KAERI.ICHI, x: 70, y: 64, fontSize: 12 },
     };
     const docLayout: DocumentLayout = {
       width: 200,
@@ -342,7 +343,7 @@ describe('draw', () => {
     const fillTexts = ctx.getCalls('fillText');
     const texts = fillTexts.map((c) => c.args[0]);
     expect(texts).toContain('\u3190');
-    expect(texts).toContain('\u3192');
+    expect(texts).toContain(KAERI.ICHI);
   });
 
   it('draws ref slot on token', () => {

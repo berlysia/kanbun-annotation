@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { SKAMDocument, Mark } from '@kanbun/skam';
+import { KAERI } from '@kanbun/skam';
 import { buildRenderTree } from '../render-tree.js';
 import { layout } from '../layout.js';
 import { PROFILES } from '../profiles.js';
@@ -142,7 +143,7 @@ describe('layoutVertical', () => {
 
     const t2 = asToken(result.columns[0]!.children[1]!);
     expect(t2.slots.kaeri).toBeDefined();
-    expect(t2.slots.kaeri!.text).toBe('\u3191');
+    expect(t2.slots.kaeri!.text).toBe(KAERI.RE);
     expect(t2.slots.kaeri!.x).toBeLessThan(t2.x);
     // kaeri is in suffix row (below base character)
     expect(t2.slots.kaeri!.y).toBe(t2.y + DEFAULT_FONT_SIZE);
@@ -606,7 +607,7 @@ describe('layoutVertical', () => {
     const sep = asSep(result.columns[0]!.children[1]!);
     // separator should have kaeri slot with 一 (non-レ part)
     expect(sep.kaeri).toBeDefined();
-    expect(sep.kaeri!.text).toBe('\u3192');
+    expect(sep.kaeri!.text).toBe(KAERI.ICHI);
   });
 
   // ref layout

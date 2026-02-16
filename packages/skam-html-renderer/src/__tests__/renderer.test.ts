@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { SKAMDocument } from '@kanbun/skam';
+import { KAERI } from '@kanbun/skam';
 import { parse } from '@kanbun/skam-xml-parser';
 import { render, PROFILES, getDefaultStyles } from '../index.js';
 
@@ -220,7 +221,7 @@ describe('render', () => {
       const result = render(doc);
 
       expect(result.html).toContain('skam-kaeriten');
-      expect(result.html).toContain('\u3191'); // Unicode for レ
+      expect(result.html).toContain(KAERI.RE); // Unicode for レ
       expect(result.html).toContain('aria-hidden="true"');
     });
 
@@ -249,8 +250,8 @@ describe('render', () => {
 
       const result = render(doc);
 
-      expect(result.html).toContain('\u3193'); // 二
-      expect(result.html).toContain('\u3192'); // 一
+      expect(result.html).toContain(KAERI.NI); // 二
+      expect(result.html).toContain(KAERI.ICHI); // 一
     });
 
     it('should render compound kaeriten with Unicode characters', () => {
@@ -271,7 +272,7 @@ describe('render', () => {
       const result = render(doc);
 
       expect(result.html).toContain('skam-kaeriten');
-      expect(result.html).toContain('\u3192\u3191'); // 一レ (Unicode)
+      expect(result.html).toContain(KAERI.ICHI + KAERI.RE); // 一レ (Unicode)
     });
   });
 
@@ -590,7 +591,7 @@ describe('render', () => {
       const result = render(doc, { profile: PROFILES.learningBasic });
 
       expect(result.html).not.toContain('まな');
-      expect(result.html).toContain('\u3191'); // kaeriten still visible
+      expect(result.html).toContain(KAERI.RE); // kaeriten still visible
     });
 
     it('should show okurigana in learningHint profile', () => {
@@ -1151,7 +1152,7 @@ describe('「學而時習之」sample rendering', () => {
     expect(result.html).toContain('skam-soegana');
 
     // Check kaeriten
-    expect(result.html).toContain('\u3191'); // レ
+    expect(result.html).toContain(KAERI.RE); // レ
 
     // Check reading layer
     expect(result.html).toContain('学びて時に之を習ふ');

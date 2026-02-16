@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { SKAMDocument } from '@kanbun/skam';
+import { KAERI } from '@kanbun/skam';
 import { render, measure, PROFILES } from '../index.js';
 import { RecordingCanvas, RecordingContext } from './recording-context.js';
 
@@ -74,7 +75,7 @@ describe('integration: render()', () => {
     expect(chars).toContain('は');
 
     // Kaeri (Unicode)
-    expect(chars).toContain('\u3191');
+    expect(chars).toContain(KAERI.RE);
 
     // Kutoten
     expect(chars).toContain('。');
@@ -118,7 +119,7 @@ describe('integration: render()', () => {
     const chars = fillTexts.map((c) => c.args[0]);
 
     // Kaeri should be present (kaeriten: true)
-    expect(chars).toContain('\u3191');
+    expect(chars).toContain(KAERI.RE);
 
     // Yomigana should NOT be present (yomigana: false)
     expect(chars).not.toContain('ま');
@@ -216,9 +217,9 @@ describe('integration: render()', () => {
     // Tateten separator U+3190
     expect(chars).toContain('\u3190');
     // レ component stays on token
-    expect(chars).toContain('\u3191');
+    expect(chars).toContain(KAERI.RE);
     // 一 component goes to separator kaeri
-    expect(chars).toContain('\u3192');
+    expect(chars).toContain(KAERI.ICHI);
   });
 
   it('renders ref mark label', () => {

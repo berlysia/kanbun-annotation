@@ -10,6 +10,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import type { SKAMDocument, Mark } from '@kanbun/skam';
+import { KAERI } from '@kanbun/skam';
 import {
   addMark,
   addMarkWithResult,
@@ -59,7 +60,7 @@ describe('1. addMark → レンダリング反映', () => {
 
     expect(beforeHtml).not.toContain('skam-kaeriten');
     expect(afterHtml).toContain('skam-kaeriten');
-    expect(afterHtml).toContain('\u3191'); // Unicode for レ
+    expect(afterHtml).toContain(KAERI.RE); // Unicode for レ
     // 既存トークンは影響なし
     expect(afterHtml).toContain('子');
     expect(afterHtml).toContain('曰');
@@ -565,10 +566,10 @@ describe('3. updateMark → レンダリング反映', () => {
     const afterDoc = updateMark(doc, 'mk1', { value: '㆓' });
     const afterHtml = render(afterDoc).html;
 
-    expect(beforeHtml).toContain('\u3191'); // レ
-    expect(beforeHtml).not.toContain('\u3193'); // 二
-    expect(afterHtml).toContain('\u3193'); // 二
-    expect(afterHtml).not.toContain('\u3191'); // レ
+    expect(beforeHtml).toContain(KAERI.RE); // レ
+    expect(beforeHtml).not.toContain(KAERI.NI); // 二
+    expect(afterHtml).toContain(KAERI.NI); // 二
+    expect(afterHtml).not.toContain(KAERI.RE); // レ
   });
 
   it('3.3 emphasis style変更: 傍点スタイル変更', () => {
@@ -727,7 +728,7 @@ describe('5. 複合オペレーション → レンダリング反映', () => {
     const html = render(doc).html;
 
     expect(html).toContain('skam-kaeriten');
-    expect(html).toContain('\u3191'); // レ
+    expect(html).toContain(KAERI.RE); // レ
     expect(html).toContain('skam-okuri');
     expect(html).toContain('ブ');
   });
@@ -792,7 +793,7 @@ describe('5. 複合オペレーション → レンダリング反映', () => {
       value: '㆑',
     });
     const beforeHtml = render(doc1).html;
-    expect(beforeHtml).toContain('\u3191'); // レ
+    expect(beforeHtml).toContain(KAERI.RE); // レ
 
     // remove + add で値変更
     const doc2 = removeMark(doc1, kaeriId);
@@ -803,8 +804,8 @@ describe('5. 複合オペレーション → レンダリング反映', () => {
     });
     const afterHtml = render(doc3).html;
 
-    expect(afterHtml).not.toContain('\u3191'); // レ should be gone
-    expect(afterHtml).toContain('\u3192'); // 一
+    expect(afterHtml).not.toContain(KAERI.RE); // レ should be gone
+    expect(afterHtml).toContain(KAERI.ICHI); // 一
     expect(afterHtml).toContain('skam-kaeriten');
   });
 });
@@ -844,7 +845,7 @@ describe('6. プロファイル×オペレーション', () => {
 
     // kaeriten should not be visible
     expect(html).not.toContain('skam-kaeriten');
-    expect(html).not.toContain('\u3191');
+    expect(html).not.toContain(KAERI.RE);
     // token text should still be present
     expect(html).toContain('學');
   });
@@ -872,7 +873,7 @@ describe('6. プロファイル×オペレーション', () => {
 
     // kaeri should be visible (learningBasic: kaeriten=true)
     expect(html).toContain('skam-kaeriten');
-    expect(html).toContain('\u3191'); // レ
+    expect(html).toContain(KAERI.RE); // レ
     // yomigana should be hidden (learningBasic: yomigana=false)
     expect(html).not.toContain('まな');
     // okurigana should be hidden (learningBasic: okurigana=false)

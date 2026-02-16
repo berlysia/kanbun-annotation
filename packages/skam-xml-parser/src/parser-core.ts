@@ -30,7 +30,7 @@ import type {
   RefMark,
   RefFormat,
 } from '@kanbun/skam';
-import { createRandomIdGenerator } from '@kanbun/skam';
+import { createRandomIdGenerator, KAERI } from '@kanbun/skam';
 
 // ============================================================================
 // Constants
@@ -58,21 +58,21 @@ const VALID_KAERI_KINDS = [
 type KaeriKind = (typeof VALID_KAERI_KINDS)[number];
 
 const KAERI_VALUE_MAP: Record<KaeriKind, string> = {
-  re: '\u3191',
-  ichi: '\u3192',
-  ni: '\u3193',
-  san: '\u3194',
-  shi: '\u3195',
-  jo: '\u3196',
-  chu: '\u3197',
-  ge: '\u3198',
-  ko: '\u3199',
-  otsu: '\u319A',
-  hei: '\u319B',
-  tei: '\u319C',
-  ten: '\u319D',
-  chi: '\u319E',
-  jin: '\u319F',
+  re: KAERI.RE,
+  ichi: KAERI.ICHI,
+  ni: KAERI.NI,
+  san: KAERI.SAN,
+  shi: KAERI.SHI,
+  jo: KAERI.JO,
+  chu: KAERI.CHU,
+  ge: KAERI.GE,
+  ko: KAERI.KO,
+  otsu: KAERI.OTSU,
+  hei: KAERI.HEI,
+  tei: KAERI.TEI,
+  ten: KAERI.TEN,
+  chi: KAERI.CHI,
+  jin: KAERI.JIN,
 };
 
 const VALID_HIGHLIGHT_STYLES = ['solid', 'dotted', 'dashed', 'wavy', 'double'] as const;

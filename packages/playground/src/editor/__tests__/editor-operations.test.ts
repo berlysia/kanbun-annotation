@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import type { SKAMDocument, Mark } from '@kanbun/skam';
+import { KAERI } from '@kanbun/skam';
 import { addMark, removeMark, getMarksForToken, getMarksForRange } from '@kanbun/skam';
 
 // ============================================================================
@@ -564,7 +565,7 @@ describe('返り点の操作', () => {
     it('既存なし → 新規追加', () => {
       const doc = createDoc([]);
 
-      const result = applyKaeri(doc, 't1', 't1', '\u3191', 'single');
+      const result = applyKaeri(doc, 't1', 't1', KAERI.RE, 'single');
 
       const marks = getMarksByType(result, 'kaeri');
       expect(marks).toHaveLength(1);
@@ -580,7 +581,7 @@ describe('返り点の操作', () => {
         { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
       ]);
 
-      const result = applyKaeri(doc, 't1', 't1', '\u3192', 'single');
+      const result = applyKaeri(doc, 't1', 't1', KAERI.ICHI, 'single');
 
       const marks = getMarksByType(result, 'kaeri');
       expect(marks).toHaveLength(1);
@@ -601,7 +602,7 @@ describe('返り点の操作', () => {
       // t1-t3 を選択しているが single モード
       const doc = createDoc([]);
 
-      const result = applyKaeri(doc, 't1', 't3', '\u3191', 'single');
+      const result = applyKaeri(doc, 't1', 't3', KAERI.RE, 'single');
 
       const marks = getMarksByType(result, 'kaeri');
       expect(marks).toHaveLength(1);
@@ -616,7 +617,7 @@ describe('返り点の操作', () => {
     it('竪点範囲全体に返り点を適用', () => {
       const doc = createDoc([{ type: 'tateten', id: 'm1', anchor: { from: 't1', to: 't2' } }]);
 
-      const result = applyKaeri(doc, 't1', 't2', '\u3192', 'tateten');
+      const result = applyKaeri(doc, 't1', 't2', KAERI.ICHI, 'tateten');
 
       const marks = getMarksByType(result, 'kaeri');
       expect(marks).toHaveLength(1);
@@ -633,7 +634,7 @@ describe('返り点の操作', () => {
         { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't2' }, value: '㆒' },
       ]);
 
-      const result = applyKaeri(doc, 't1', 't2', '\u3193', 'tateten');
+      const result = applyKaeri(doc, 't1', 't2', KAERI.NI, 'tateten');
 
       const kaeriMarks = getMarksByType(result, 'kaeri');
       expect(kaeriMarks).toHaveLength(1);

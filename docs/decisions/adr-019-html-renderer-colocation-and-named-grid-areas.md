@@ -1,5 +1,5 @@
 ---
-status: Accepted
+status: Complete
 plan: plan-html-renderer-colocation-and-named-grid-areas.md
 ---
 

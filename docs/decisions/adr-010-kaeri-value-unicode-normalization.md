@@ -1,6 +1,7 @@
 ---
 status: Accepted
 plan: plan-kaeri-value-unicode-normalization.md
+substatus: '残作業: KAERI定数の全体適用（Unicode正規化自体は完了済み）'
 ---
 
 # ADR-010: 返り点 value の Unicode Kanbun ブロック正規化

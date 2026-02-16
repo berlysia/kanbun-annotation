@@ -119,3 +119,30 @@ SKAM-ML（XML マークアップ）での `<skam:kaeri kind="re"/>` の配置位
 ### 設計原則
 
 marks 層は配置情報のみを保持する。読み順の意味解釈（返り点から読み順を導出する処理）は `derivations[]` 層で行う。
+
+## 検証で判明した問題
+
+Plan 検証（logic-validator）により、ADR と対応 Plan の間に重大な乖離が発見された。
+
+### 1. ADR と Plan の決定内容が根本的に乖離
+
+- **ADR の決定**: 全 kaeri marks を anchor-based から position-based に変更
+- **Plan の実施内容**: レ点のアンカー先トークンを上→下に変更（anchor-based のまま維持）
+
+Plan は ADR が採用した選択肢 D（position-based 移行）ではなく、却下された選択肢 A（アンカー先を下に統一）を実装する内容になっている。
+
+### 2. 影響範囲テーブルとの矛盾
+
+ADR の影響範囲テーブルが要求する変更（型定義・バリデーター・パーサー・stringify のコード変更）に対し、Plan は「変更しない」と明記している。
+
+### 3. ファイル名の不整合
+
+ADR ファイル名 `adr-004-kaeri-re-anchor-convention.md`（レ点アンカー慣例）と ADR タイトル「position-based mark に変更」が乖離。ADR が当初は選択肢 A で作成され、後から選択肢 D に変更された可能性がある。
+
+### 対応方針（要決定）
+
+以下のいずれかを選択する必要がある:
+
+- **Option A**: Plan を ADR の決定（position-based 移行）に合わせて再作成
+- **Option B**: ADR を Plan の内容（アンカー先変更のみ）に差し戻す（ただし却下理由との矛盾を解消する必要あり）
+- **Option C**: 段階的実装を明示（現 Plan を Phase 1、position-based 移行を Phase 2 として再定義）

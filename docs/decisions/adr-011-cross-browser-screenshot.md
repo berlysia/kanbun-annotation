@@ -1,5 +1,5 @@
 ---
-status: Accepted
+status: Complete
 plan: plan-cross-browser-screenshot.md
 ---
 

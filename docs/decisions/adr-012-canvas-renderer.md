@@ -1,5 +1,5 @@
 ---
-status: Accepted
+status: Complete
 plan: plan-canvas-renderer.md
 ---
 

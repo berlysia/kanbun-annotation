@@ -1,5 +1,5 @@
 ---
-status: Accepted
+status: Complete
 plan: plan-line-break-control.md
 ---
 

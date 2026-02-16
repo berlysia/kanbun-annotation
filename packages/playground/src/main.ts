@@ -50,6 +50,7 @@ import {
   type CanvasRenderingContext2DLike,
   type CanvasLike,
 } from '@kanbun/skam-canvas-renderer';
+import type { Spacing, SpacingPreset } from '@kanbun/skam/rendering';
 import { SAMPLES } from './samples.js';
 import { ErrorPanel, type ParseError } from './editor/error-panel.js';
 import { XmlEditor } from './editor/xml-editor.js';
@@ -76,6 +77,7 @@ const writingModeRadios = document.querySelectorAll<HTMLInputElement>('input[nam
 const rubyMethodRadios = document.querySelectorAll<HTMLInputElement>('input[name="ruby-method"]');
 const horizontalNotice = document.getElementById('horizontal-notice') as HTMLSpanElement;
 const inlineModeCheckbox = document.getElementById('inline-mode') as HTMLInputElement;
+const spacingSelect = document.getElementById('spacing-select') as HTMLSelectElement;
 const profileSelect = document.getElementById('profile-select') as HTMLSelectElement;
 const profileCheckboxes = document.getElementById('profile-checkboxes') as HTMLDivElement;
 
@@ -334,6 +336,7 @@ interface URLState {
   inline: boolean;
   profile: ProfileName;
   rubyMethod: RubyMethod;
+  spacing: SpacingPreset;
 }
 
 function getStateFromURL(): URLState {
@@ -364,7 +367,11 @@ function getStateFromURL(): URLState {
   const rubyMethodStr = params.get('rubyMethod');
   const rubyMethod: RubyMethod = rubyMethodStr === 'ruby' ? 'ruby' : 'grid';
 
-  return { sample, renderer, mode, inline, profile, rubyMethod };
+  const spacingStr = params.get('spacing');
+  const spacing: SpacingPreset =
+    spacingStr === 'quarter' || spacingStr === 'half' ? spacingStr : 'solid';
+
+  return { sample, renderer, mode, inline, profile, rubyMethod, spacing };
 }
 
 function updateURL(state: Partial<URLState>): void {
@@ -415,6 +422,14 @@ function updateURL(state: Partial<URLState>): void {
       params.delete('rubyMethod');
     } else {
       params.set('rubyMethod', state.rubyMethod);
+    }
+  }
+
+  if (state.spacing !== undefined) {
+    if (state.spacing === 'solid') {
+      params.delete('spacing');
+    } else {
+      params.set('spacing', state.spacing);
     }
   }
 
@@ -535,6 +550,14 @@ function getRubyMethod(): RubyMethod {
     }
   }
   return 'ruby';
+}
+
+function getSpacing(): Spacing {
+  const value = spacingSelect.value;
+  if (value === 'quarter' || value === 'half') {
+    return value;
+  }
+  return 'solid';
 }
 
 function getProfile(): ProfileNameOrCustom {
@@ -1789,6 +1812,8 @@ function renderCanvasDocument(doc: SKAMDocument): void {
   // Cast to CanvasRenderingContext2DLike (browser's fillStyle is wider than string-only)
   const ctxLike = ctx as unknown as CanvasRenderingContext2DLike;
 
+  const spacing = getSpacing();
+
   // Measure dimensions
   const dims = canvasMeasure(doc, ctxLike, {
     writingMode,
@@ -1797,6 +1822,7 @@ function renderCanvasDocument(doc: SKAMDocument): void {
     fontFamily,
     rubyRatio,
     lineHeight,
+    spacing,
   });
 
   // HiDPI setup
@@ -1813,6 +1839,7 @@ function renderCanvasDocument(doc: SKAMDocument): void {
     fontFamily,
     rubyRatio,
     lineHeight,
+    spacing,
     textColor: '#000',
     backgroundColor: '#fff',
     pixelRatio: dpr,
@@ -1848,7 +1875,15 @@ function renderDocument(doc: SKAMDocument): void {
   const inline = getInlineMode();
   const profile = getProfileSettings();
   const rubyMethod = getRubyMethod();
-  const result = render(doc, { writingMode, inline, profile, interactive: true, rubyMethod });
+  const spacing = getSpacing();
+  const result = render(doc, {
+    writingMode,
+    inline,
+    profile,
+    interactive: true,
+    rubyMethod,
+    spacing,
+  });
 
   // Sync writing-mode on the scroll container (.preview-content itself)
   // so the scroll origin matches the content direction (right edge for vertical-rl).
@@ -2410,6 +2445,14 @@ inlineModeCheckbox.addEventListener('change', () => {
   }
 });
 
+// Spacing change
+spacingSelect.addEventListener('change', () => {
+  updateURL({ spacing: getSpacing() as SpacingPreset });
+  if (currentDocument) {
+    renderDocument(currentDocument);
+  }
+});
+
 // Profile change
 profileSelect.addEventListener('change', () => {
   const profile = getProfile();
@@ -2803,6 +2846,9 @@ inlineModeCheckbox.checked = initialState.inline;
 for (const radio of rubyMethodRadios) {
   radio.checked = radio.value === initialState.rubyMethod;
 }
+
+// Set spacing
+spacingSelect.value = initialState.spacing;
 
 // Set profile and sync checkboxes
 applyPresetProfile(initialState.profile);

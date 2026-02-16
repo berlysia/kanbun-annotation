@@ -102,6 +102,8 @@ export interface AIRTokenNode {
   slots: AIRTokenSlots;
   /** range mark に属する場合の集約情報（先頭トークンのみに設定） */
   rangeInfo?: AIRRangeInfo;
+  /** range group の非リードトークン（リードトークンの rangeInfo に集約済み） */
+  rangeConsumed?: true;
 }
 
 // ============================================================================

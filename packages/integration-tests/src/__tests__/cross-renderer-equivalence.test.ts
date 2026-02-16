@@ -86,9 +86,13 @@ describe('cross-renderer equivalence: range ruby', () => {
     expect(air.blocks).toHaveLength(1);
     expect(air.blocks[0]!.blockId).toBe('b1');
 
-    // range group の非リードトークンはフィルタされる（リードトークンの rangeInfo に集約済み）
+    // 非リードトークンはフィルタされず rangeConsumed フラグ付きで残る
     const tokens = getTokenNodes(air, 0);
-    expect(tokens.map((t) => t.token.id)).toEqual(['t1', 't3']);
+    expect(tokens.map((t) => t.token.id)).toEqual(['t1', 't2', 't3']);
+    const t2 = tokens.find((t) => t.token.id === 't2')!;
+    expect(t2.rangeConsumed).toBe(true);
+    // range 関連スロットはクリア済み
+    expect(t2.slots.ruby).toBeUndefined();
   });
 
   it('range yomigana が先頭トークンに集約される', () => {

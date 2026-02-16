@@ -558,8 +558,11 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
       return node;
     });
 
-    // Range group の非リードトークンをフィルタ（リードトークンの rangeInfo に集約済み）
-    // tateten 重複時はフィルタしない（tateten-group レベルで range を処理するため個別トークンを保持）
+    // Range group の非リードトークンにフラグ付け（リードトークンの rangeInfo に集約済み）
+    // tateten 重複時はフラグしない（tateten-group レベルで range を処理するため個別トークンを保持）
+    // NOTE: フィルタではなくフラグにする理由 — Canvas レンダラーは各トークンの base character を
+    // 個別に fillText するため、非リードトークンもツリーに残す必要がある。
+    // HTML レンダラーは rangeInfo.baseText で連結文字列を取得するため、Adapter 層でスキップする。
     const rangeConsumedTokenIds = new Set<string>();
     for (const node of tokenNodes) {
       if (node.rangeInfo) {
@@ -568,13 +571,18 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
         }
       }
     }
-    const filteredTokenNodes = tokenNodes.filter(
-      (node) => !rangeConsumedTokenIds.has(node.token.id)
-    );
+    for (const node of tokenNodes) {
+      if (rangeConsumedTokenIds.has(node.token.id)) {
+        node.rangeConsumed = true;
+        // range 関連スロットをクリア（リードトークンの rangeInfo に集約済み）
+        const { ruby, okuri, soegana, ...rest } = node.slots;
+        node.slots = rest;
+      }
+    }
 
     // ref 解決: position-based ref marks をトークンスロットに配置
     if (profile.ref) {
-      for (const tokenNode of filteredTokenNodes) {
+      for (const tokenNode of tokenNodes) {
         const tokenId = tokenNode.token.id;
         for (const ref of refMarks) {
           if (ref.position.blockId !== group.blockId) continue;
@@ -593,8 +601,8 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
     if (profile.tateten) {
       children = [];
       let i = 0;
-      while (i < filteredTokenNodes.length) {
-        const tokenNode = filteredTokenNodes[i]!;
+      while (i < tokenNodes.length) {
+        const tokenNode = tokenNodes[i]!;
         const tatetenMark = tatetenMap.get(tokenNode.token.id);
 
         if (!tatetenMark) {
@@ -603,11 +611,8 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
         } else {
           const groupTokens: AIRTokenNode[] = [tokenNode];
           let j = i + 1;
-          while (
-            j < filteredTokenNodes.length &&
-            tatetenMap.get(filteredTokenNodes[j]!.token.id) === tatetenMark
-          ) {
-            groupTokens.push(filteredTokenNodes[j]!);
+          while (j < tokenNodes.length && tatetenMap.get(tokenNodes[j]!.token.id) === tatetenMark) {
+            groupTokens.push(tokenNodes[j]!);
             j++;
           }
           const tatetenGroup = buildAIRTatetenGroup(
@@ -638,7 +643,7 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
         }
       }
     } else {
-      children = filteredTokenNodes;
+      children = tokenNodes;
     }
 
     // Highlight グルーピング

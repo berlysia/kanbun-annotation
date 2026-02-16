@@ -342,16 +342,19 @@ export function convertAIRToBlockRenderTrees(
   return air.blocks.map((airBlock) => {
     const blockStartHtml = buildBlockStartHtml(airBlock, prefix);
 
-    const items: RenderNode[] = airBlock.children.map((child): RenderNode => {
-      switch (child.type) {
-        case 'token':
-          return convertTokenNode(child);
-        case 'tateten-group':
-          return convertTatetenGroup(child);
-        case 'highlight-group':
-          return convertHighlightGroup(child, prefix, tokens, marks);
-      }
-    });
+    const items: RenderNode[] = airBlock.children
+      // rangeConsumed トークンをスキップ（リードトークンの rangeInfo.baseText で連結描画済み）
+      .filter((child) => !(child.type === 'token' && child.rangeConsumed))
+      .map((child): RenderNode => {
+        switch (child.type) {
+          case 'token':
+            return convertTokenNode(child);
+          case 'tateten-group':
+            return convertTatetenGroup(child);
+          case 'highlight-group':
+            return convertHighlightGroup(child, prefix, tokens, marks);
+        }
+      });
 
     // blockHasRuby 判定 & highlight group 内のフラグ更新
     const blockHasRuby = checkBlockHasRuby(items, tokens, marks);

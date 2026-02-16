@@ -1,10 +1,9 @@
+---
+status: Complete
+plan: plan-fix-multi-token-range-rendering.md
+---
+
 # ADR-002: マルチトークン範囲マークのレンダリング修正
-
-## ステータス
-
-Accepted (実装完了)
-
-実装計画: [Plan](../plans/plan-fix-multi-token-range-rendering.md)
 
 ## コンテキスト
 

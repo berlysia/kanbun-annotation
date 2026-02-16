@@ -1,8 +1,8 @@
+---
+status: Accepted
+---
+
 # ADR-024: Validator 複雑度削減
-
-## ステータス
-
-Accepted
 
 ## コンテキスト
 

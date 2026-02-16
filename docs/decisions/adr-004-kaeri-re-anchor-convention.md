@@ -1,10 +1,9 @@
+---
+status: Accepted
+plan: plan-kaeri-re-anchor-convention.md
+---
+
 # ADR-004: 返り点（kaeri）を position-based mark に変更
-
-## ステータス
-
-Accepted
-
-実装計画: [Plan](../plans/plan-kaeri-re-anchor-convention.md)
 
 ## コンテキスト
 

@@ -1,12 +1,8 @@
+---
+status: Proposed
+---
+
 # ADR-NNN: {タイトル}
-
-## ステータス
-
-Proposed
-
-<!-- Accept 後に以下を追加:
-実装計画: [Plan](../plans/plan-{slug}.md)
--->
 
 ## コンテキスト
 

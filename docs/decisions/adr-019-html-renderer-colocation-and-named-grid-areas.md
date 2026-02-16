@@ -1,12 +1,9 @@
+---
+status: Accepted
+plan: plan-html-renderer-colocation-and-named-grid-areas.md
+---
+
 # ADR-019: HTML Renderer のコロケーション再編と CSS Grid 名前参照化
-
-## ステータス
-
-Accepted
-
-実装計画: [Plan](../plans/plan-html-renderer-colocation-and-named-grid-areas.md)
-
-関連 ADR: [ADR-005](adr-005-restructure-display-layer-rendering.md), [ADR-006](adr-006-group-tree-rendering-restructure.md), [ADR-007](adr-007-implement-group-tree-rendering.md), [ADR-014](adr-014-line-break-control.md), [ADR-015](adr-015-emphasis-highlight-layout-order.md)
 
 ## コンテキスト
 

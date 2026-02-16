@@ -1,10 +1,9 @@
+---
+status: Accepted
+plan: plan-operation-renderer-integration-tests.md
+---
+
 # ADR-001: オペレーション→レンダラー統合テストの導入
-
-## ステータス
-
-Accepted
-
-実装計画: [Plan](../plans/plan-operation-renderer-integration-tests.md)
 
 ## コンテキスト
 

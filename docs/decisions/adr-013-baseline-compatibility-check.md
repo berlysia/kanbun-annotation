@@ -1,8 +1,8 @@
+---
+status: Accepted
+---
+
 # ADR-013: Web Platform Baseline 互換性チェックの導入
-
-## ステータス
-
-Accepted
 
 ## コンテキスト
 

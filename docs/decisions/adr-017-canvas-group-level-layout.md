@@ -1,10 +1,9 @@
+---
+status: Accepted
+plan: plan-canvas-3level-layout.md
+---
+
 # ADR-017: Canvas レンダラー グループ・トークン単位レイアウト判定
-
-## ステータス
-
-Accepted
-
-実装計画: [Plan](../plans/plan-canvas-3level-layout.md)
 
 ## コンテキスト
 

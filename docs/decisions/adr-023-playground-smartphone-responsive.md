@@ -1,10 +1,9 @@
+---
+status: Accepted
+plan: plan-playground-smartphone-responsive.md
+---
+
 # ADR-023: Playground スマートフォン対応
-
-## ステータス
-
-Accepted
-
-実装計画: [Plan](../plans/plan-playground-smartphone-responsive.md)
 
 ## コンテキスト
 

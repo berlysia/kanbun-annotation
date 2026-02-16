@@ -1,10 +1,9 @@
+---
+status: Proposed
+deps: [16, 17]
+---
+
 # ADR-018: Canvas `layout-vertical` の責務分割アーキテクチャ
-
-## ステータス
-
-Proposed
-
-関連 ADR: [ADR-012](adr-012-canvas-renderer.md), [ADR-016](adr-016-canvas-column-sizing-mode.md), [ADR-017](adr-017-canvas-group-level-layout.md)
 
 ## コンテキスト
 

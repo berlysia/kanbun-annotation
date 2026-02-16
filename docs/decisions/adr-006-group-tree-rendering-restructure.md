@@ -1,10 +1,8 @@
+---
+status: Complete
+---
+
 # ADR-006: Display 層グループツリーレンダリングへの再構築
-
-## ステータス
-
-Complete（Phase A: テスト拡充、Phase B: ツリー再構築 — ADR-007 で実装完了）
-
-実装計画: 未作成（実装は ADR-007 の Plan で管理）
 
 ## コンテキスト
 

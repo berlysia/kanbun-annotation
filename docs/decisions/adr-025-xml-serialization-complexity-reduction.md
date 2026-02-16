@@ -1,8 +1,8 @@
+---
+status: Accepted
+---
+
 # ADR-025: XML Serialization 複雑度削減
-
-## ステータス
-
-Accepted
 
 ## コンテキスト
 

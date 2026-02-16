@@ -1,10 +1,9 @@
+---
+status: Accepted
+plan: plan-canvas-renderer.md
+---
+
 # ADR-012: Canvas Renderer パッケージの新設
-
-## ステータス
-
-Accepted
-
-実装計画: [Plan](../plans/plan-canvas-renderer.md) | [Phase 2 Plan](../plans/plan-canvas-renderer-phase2.md) | [Layout Fixes Plan](../plans/plan-canvas-renderer-layout-fixes.md)
 
 ## コンテキスト
 

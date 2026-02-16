@@ -1,8 +1,8 @@
+---
+status: Accepted
+---
+
 # ADR-027: Complexity Metrics CI 統合
-
-## ステータス
-
-Accepted
 
 ## コンテキスト
 

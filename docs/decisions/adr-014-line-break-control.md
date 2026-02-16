@@ -1,10 +1,9 @@
+---
+status: Accepted
+plan: plan-line-break-control.md
+---
+
 # ADR-014: 改行位置制御
-
-## ステータス
-
-Accepted
-
-実装計画: [Plan](../plans/plan-line-break-control.md)
 
 ## コンテキスト
 

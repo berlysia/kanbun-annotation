@@ -1,10 +1,9 @@
+---
+status: Accepted
+deps: [19, 20]
+---
+
 # ADR-021: Phase3 共通 Annotation IR（HTML/Canvas 内部モデル統合）
-
-## ステータス
-
-Accepted
-
-関連 ADR: [ADR-018](adr-018-canvas-layout-vertical-refactor-architecture.md), [ADR-019](adr-019-html-renderer-colocation-and-named-grid-areas.md), [ADR-020](adr-020-html-renderer-phase2-stabilization-and-guardrails.md), [ADR-022](adr-022-semantic-and-visual-test-strategy-no-gap.md)
 
 ## コンテキスト
 

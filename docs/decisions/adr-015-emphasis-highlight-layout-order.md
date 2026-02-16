@@ -1,11 +1,12 @@
+---
+status: InProgress
+plan: plan-emphasis-highlight-layout-order-canvas.md
+substatus:
+  html: Complete
+  canvas: InProgress
+---
+
 # ADR-015: 傍点・傍線レイアウト配置順序の変更
-
-## ステータス
-
-HTML レンダラー: **Done** (アプローチ 5 + no-ruby バリアント)
-Canvas レンダラー: In Progress
-
-実装計画: [Plan](../plans/plan-emphasis-highlight-layout-order-canvas.md)
 
 ## コンテキスト
 

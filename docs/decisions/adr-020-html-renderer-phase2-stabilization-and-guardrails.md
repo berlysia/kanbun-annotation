@@ -1,10 +1,9 @@
+---
+status: Accepted
+deps: [19]
+---
+
 # ADR-020: HTML Renderer Phase2 安定化（`tateten-sep` 名前参照化と依存制約の機械検証）
-
-## ステータス
-
-Accepted
-
-関連 ADR: [ADR-019](adr-019-html-renderer-colocation-and-named-grid-areas.md), [ADR-013](adr-013-baseline-compatibility-check.md)
 
 ## コンテキスト
 

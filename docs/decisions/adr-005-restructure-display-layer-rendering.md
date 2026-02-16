@@ -1,10 +1,11 @@
+---
+status: Complete
+plan: plan-restructure-display-layer-rendering.md
+---
+
 # ADR-005: Display 層レンダリングの構造改善
 
-## ステータス
-
-Accepted (Phase 1 完了 — Phase 2 以降は ADR-006 に移管)
-
-実装計画: [Plan](../plans/plan-restructure-display-layer-rendering.md)
+> **Note:** (Phase 1 完了 — Phase 2 以降は ADR-006 に移管)
 
 ## コンテキスト
 

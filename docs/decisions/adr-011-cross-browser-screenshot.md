@@ -1,10 +1,9 @@
+---
+status: Accepted
+plan: plan-cross-browser-screenshot.md
+---
+
 # ADR-011: クロスブラウザスクリーンショット撮影ツール (`skam-screenshot`)
-
-## ステータス
-
-Accepted
-
-実装計画: [Plan](../plans/plan-cross-browser-screenshot.md)
 
 ## コンテキスト
 

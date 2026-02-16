@@ -1,8 +1,8 @@
+---
+status: Proposed
+---
+
 # ADR-010: 返り点 value の Unicode Kanbun ブロック正規化
-
-## ステータス
-
-Proposed
 
 ## コンテキスト
 

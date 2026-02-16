@@ -1,10 +1,9 @@
+---
+status: Accepted
+plan: plan-web-component.md
+---
+
 # ADR-009: SKAM Web Component (`<skam-renderer>`)
-
-## ステータス
-
-Accepted
-
-実装計画: [Plan](../plans/plan-web-component.md)
 
 ## コンテキスト
 

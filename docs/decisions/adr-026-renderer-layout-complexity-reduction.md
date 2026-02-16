@@ -1,13 +1,9 @@
+---
+status: Accepted
+deps: [18]
+---
+
 # ADR-026: Renderer Layout 複雑度削減
-
-## ステータス
-
-Accepted
-
-関連 ADR:
-
-- [ADR-018](adr-018-canvas-layout-vertical-refactor-architecture.md) — Canvas layout-vertical 3 層分割（本 ADR の前提基盤）
-- [ADR-021](adr-021-phase3-shared-annotation-ir.md) — 共通 AIR（レンダラー間の意味解決統合）
 
 ## コンテキスト
 

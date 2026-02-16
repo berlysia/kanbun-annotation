@@ -1,9 +1,9 @@
 ---
-status: InProgress
+status: Complete
 plan: plan-emphasis-highlight-layout-order-canvas.md
 substatus:
   html: Complete
-  canvas: InProgress
+  canvas: Complete
 ---
 
 # ADR-015: 傍点・傍線レイアウト配置順序の変更

@@ -1,5 +1,6 @@
 import { describe, it, expect, afterEach } from 'vitest';
 import { injectGoogleFontsLink, buildFontStyle } from '../font-loader.js';
+import { expectStyleDeclaration } from './helpers/style-contract.js';
 
 const LINK_SELECTOR = 'link[href*="fonts.googleapis.com"][href*="Noto+Serif+JP"]';
 
@@ -38,15 +39,13 @@ describe('injectGoogleFontsLink', () => {
 describe('buildFontStyle', () => {
   it('generates CSS with default prefix', () => {
     const css = buildFontStyle('skam');
-    expect(css).toContain('--skam-font-family');
-    expect(css).toContain('--skam-font-family-ruby');
-    expect(css).toContain('"Noto Serif JP", serif');
-    expect(css).toContain(':host');
+    expectStyleDeclaration(css, ':host', '--skam-font-family', '"Noto Serif JP", serif');
+    expectStyleDeclaration(css, ':host', '--skam-font-family-ruby', '"Noto Serif JP", serif');
   });
 
   it('generates CSS with custom prefix', () => {
     const css = buildFontStyle('kb');
-    expect(css).toContain('--kb-font-family');
-    expect(css).toContain('--kb-font-family-ruby');
+    expectStyleDeclaration(css, ':host', '--kb-font-family', '"Noto Serif JP", serif');
+    expectStyleDeclaration(css, ':host', '--kb-font-family-ruby', '"Noto Serif JP", serif');
   });
 });

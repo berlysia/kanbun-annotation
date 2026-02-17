@@ -717,15 +717,25 @@ ${
  *
  * 竪点マークと非レ返り点を並置するためのコンパクトグリッドコンテナ。
  * 全要素を同一グリッド領域 (1 / -1) に重ねて配置し、
- * align-self (start / center / end) で位置を分離する。
+ * align-self (start / center / end) で水平位置を分離する。
  *
  * 縦書き (vertical-rl) での物理配置:
+ *   grid-template-rows → 水平方向（本文側↔注記側）のスロット分割
+ *   grid-template-columns: 1fr → 垂直方向の全体をカバー
+ *
  *   ::before (start)      → 右側（本文側余白、ベースライン安定用）
- *   tateten-mark (center)  → 中央
- *   kaeriten (end)         → 左側（注記側）
+ *   tateten-mark (center)  → 中央（水平）/ 中央（垂直: justify-self）
+ *   kaeriten (end)         → 左側（注記側）/ 中央（垂直: justify-self）
  *
  * グリッド総幅 = 4 * ruby-ratio * 0.5em = ruby-ratio * 2em
  * (suffix-row の半分のため、vertical-align で中央揃え補正が必要)
+ *
+ * インラインセンタリング:
+ * inline-grid トークンは letter-spacing (LS) を高さ拡張として吸収する。
+ * そのためトークン間には LS によるギャップが生じない。
+ * sep を margin-inline-start: -LS で前トークンの LS 領域に引き戻し、
+ * height: 1em + LS でグリフ間の全空間をカバーする。
+ * justify-self: center でマークを空間の正確な中央に配置する。
  *
  * vertical-align: Chromium baseline バグ補正 (suffix-row と同形式)
  * fix=0 (仕様準拠ブラウザ): 0
@@ -734,13 +744,14 @@ ${
 :where(.${prefix}-tateten-sep) {
   display: inline-grid;
   grid-template-rows: [sep-spacer-start] ${halfAnnotationRowH} [sep-tateten-start] ${halfAnnotationRowH} [sep-kaeri-start] ${halfAnnotationRowH} [sep-end] ${halfAnnotationRowH};
+  grid-template-columns: 1fr;
   line-height: 1;
   /* letter-spacing の継承を遮断（sep 内部レイアウトへの影響を防止） */
   letter-spacing: 0;
-  /* NOTE: inline-grid トークン間には letter-spacing によるギャップが発生しない
-   * (LS はトークン高さの拡張として吸収される)。
-   * そのため sep にネガティブマージンは不要。sep の固有高さ (4 × halfAnnotationRowH)
-   * がそのまま tateten マークの表示領域となる。 */
+  /* sep を前トークンの LS 領域に引き戻し、グリフ間の空間をカバーする。
+   * 高さはマーク表示に必要な 1em と LS の大きい方を取る。 */
+  margin-inline-start: calc(-1 * var(--${vp}-letter-spacing));
+  height: max(1em, var(--${vp}-letter-spacing));
   vertical-align: calc(var(--${vp}-grid-baseline-fix, 0) * (0.5em - var(--${vp}-ruby-ratio) * 0.5em));
 }
 
@@ -754,6 +765,7 @@ ${
   grid-row: sep-tateten-start / sep-end;
   grid-column: 1;
   align-self: center;
+  justify-self: center;
 }
 
 :where(.${prefix}-tateten-sep) > :where(.${prefix}-kaeriten) {
@@ -761,6 +773,7 @@ ${
   grid-column: 1;
   font-size: ${annotationRowH};
   align-self: center;
+  justify-self: center;
   -webkit-user-select: none;
   user-select: none;
 }

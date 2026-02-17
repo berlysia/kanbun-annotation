@@ -2233,12 +2233,22 @@ describe('spacing (aki-gumi)', () => {
       expect(css).toMatch(/\.skam-tateten-sep\)[\s\S]*?letter-spacing:\s*0/);
     });
 
-    it('does not include negative margins on tateten-sep (inline-grid tokens absorb LS)', () => {
+    it('centers tateten-sep over the inter-glyph gap using margin + height + justify-self', () => {
       const css = getDefaultStyles();
-      // inline-grid トークン間には LS ギャップが発生しないため、
-      // ネガティブマージンは不要（sep の固有高さがそのまま表示領域）
-      expect(css).not.toMatch(/\.skam-tateten-sep\)[\s\S]*?margin-inline-start:\s*calc/);
-      expect(css).not.toMatch(/\.skam-tateten-sep\)[\s\S]*?margin-inline-end:\s*calc/);
+      // sep を前トークンの LS 領域に引き戻す
+      expect(css).toMatch(
+        /\.skam-tateten-sep\)[\s\S]*?margin-inline-start:\s*calc\(-1 \* var\(--skam-letter-spacing\)\)/
+      );
+      // sep の高さ: マーク表示に必要な 1em と LS の大きい方
+      expect(css).toMatch(
+        /\.skam-tateten-sep\)[\s\S]*?height:\s*max\(1em, var\(--skam-letter-spacing\)\)/
+      );
+      // マークを垂直方向の中央に配置
+      expect(css).toMatch(/\.skam-tateten-mark\)[\s\S]*?justify-self:\s*center/);
+      // kaeriten も中央
+      expect(css).toMatch(
+        /\.skam-tateten-sep\)[\s\S]*?\.skam-kaeriten\)[\s\S]*?justify-self:\s*center/
+      );
     });
   });
 });

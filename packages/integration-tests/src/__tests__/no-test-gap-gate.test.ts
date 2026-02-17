@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import { resolve } from 'node:path';
 import { readMatrix } from '../no-test-gap-matrix.js';
 import type { MatrixRow } from '../no-test-gap-matrix.js';
+import { LEGACY_CASE_IDS } from '../legacy-case-registry.js';
 
 describe('No Test-Gap Gate', () => {
   const projectRoot = resolve(import.meta.dirname, '../../../..');
@@ -54,6 +55,16 @@ describe('No Test-Gap Gate', () => {
     for (const required of requiredCases) {
       expect(caseIds, `missing required case: ${required}`).toContain(required);
     }
+  });
+
+  it('legacy_snapshot=yes rows are covered by legacy detector registry', () => {
+    const matrixLegacyCases = rows
+      .filter((row) => row.legacySnapshot === 'yes')
+      .map((row) => row.caseId)
+      .sort();
+    const registryCases = [...LEGACY_CASE_IDS].sort();
+
+    expect(matrixLegacyCases).toEqual(registryCases);
   });
 
   it('owner is not empty', () => {

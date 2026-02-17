@@ -1,6 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import type { SKAMDocument } from '@kanbun/skam';
 import { render, getDefaultStyles } from '../index.js';
+import {
+  expectCSSRule,
+  expectCSSRuleLacksDeclaration,
+  expectNoCSSSelector,
+} from './helpers/css-contract.js';
 
 // ============================================================================
 // Helpers
@@ -197,45 +202,53 @@ describe('line break control in HTML output', () => {
   describe('CSS', () => {
     it('word-break: keep-all が .skam-block に適用されている', () => {
       const css = getDefaultStyles();
-      expect(css).toMatch(/\.skam-block\)[\s\S]*?word-break:\s*keep-all/);
+      expectCSSRule(css, ':where(.skam-block)', [{ property: 'word-break', value: 'keep-all' }]);
     });
 
     it('white-space: nowrap が .skam-token に適用されている', () => {
       const css = getDefaultStyles();
-      expect(css).toContain('white-space: nowrap');
-      // .skam-token ルール内にあることを確認
-      expect(css).toMatch(/\.skam-token\)[\s\S]*?white-space:\s*nowrap/);
+      expectCSSRule(css, ':where(.skam-token)', [{ property: 'white-space', value: 'nowrap' }]);
     });
 
     it('white-space: nowrap が .skam-tateten-group に適用されている', () => {
       const css = getDefaultStyles();
-      expect(css).toMatch(/\.skam-tateten-group\)[\s\S]*?white-space:\s*nowrap/);
+      expectCSSRule(css, ':where(.skam-tateten-group)', [
+        { property: 'white-space', value: 'nowrap' },
+      ]);
     });
 
     it('highlight-content が縦書き時 display: inline', () => {
       const css = getDefaultStyles({ writingMode: 'vertical' });
-      expect(css).toMatch(/\.skam-highlight-content\)[\s\S]*?display:\s*inline/);
-      // inline-block ではないことを確認
-      expect(css).not.toMatch(/\.skam-highlight-content\)[\s\S]*?display:\s*inline-block/);
+      expectCSSRule(css, ':where(.skam-highlight-content)', [
+        { property: 'display', value: 'inline' },
+      ]);
+      expectCSSRuleLacksDeclaration(css, ':where(.skam-highlight-content)', {
+        property: 'display',
+        value: 'inline-block',
+      });
     });
 
     it('highlight double が background-image で描画される（縦書き）', () => {
       const css = getDefaultStyles({ writingMode: 'vertical' });
-      // double スタイルの highlight-content に background-image がある
-      expect(css).toMatch(
-        /data-style="double"[\s\S]*?highlight-content\)[\s\S]*?background-image:\s*linear-gradient/
+      expectCSSRule(
+        css,
+        /\.skam-highlight\[data-style="double"\][\s\S]*?\.skam-highlight-content/,
+        [{ property: 'background-image', value: /linear-gradient/ }]
       );
-      // highlight-content に直接 ::before/::after を適用していない
       // Note: emphasis+highlight 共存時に .highlight（ラッパー）に ::after を使うのは許容
-      expect(css).not.toMatch(/highlight-content\)::before/);
-      expect(css).not.toMatch(/highlight-content\)::after/);
+      expectNoCSSSelector(css, ':where(.skam-highlight-content)::before');
+      expectNoCSSSelector(css, ':where(.skam-highlight-content)::after');
     });
 
     it('highlight double が background-image で描画される（横書き）', () => {
       const css = getDefaultStyles({ writingMode: 'horizontal' });
-      expect(css).toMatch(/data-style="double"[\s\S]*?background-image:\s*linear-gradient/);
-      expect(css).not.toMatch(/data-style="double"[\s\S]*?::before/);
-      expect(css).not.toMatch(/data-style="double"[\s\S]*?::after/);
+      expectCSSRule(
+        css,
+        /\.skam-highlight\[data-style="double"\][\s\S]*?\.skam-highlight-content/,
+        [{ property: 'background-image', value: /linear-gradient/ }]
+      );
+      expectNoCSSSelector(css, /\.skam-highlight\[data-style="double"\][^{}]*::before/);
+      expectNoCSSSelector(css, /\.skam-highlight\[data-style="double"\][^{}]*::after/);
     });
   });
 });

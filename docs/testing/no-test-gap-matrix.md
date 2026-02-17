@@ -4,12 +4,12 @@
 
 ## Case ID マッピング
 
-| case_id             | semantic テスト (cross-renderer-equivalence.test.ts の describe) | legacy テスト参照                                          |
-| ------------------- | ---------------------------------------------------------------- | ---------------------------------------------------------- |
-| ruby-range-core     | `cross-renderer equivalence: range ruby`                         | comprehensive-rendering.test.ts 等の range ruby 関連テスト |
-| tateten-kaeri-split | `cross-renderer equivalence: tateten+kaeri`                      | comprehensive-rendering.test.ts 等の tateten 関連テスト    |
-| highlight-ref-label | `cross-renderer equivalence: highlight+ref`                      | comprehensive-rendering.test.ts 等の highlight 関連テスト  |
-| saidoku-two-stage   | `cross-renderer equivalence: saidoku`                            | comprehensive-rendering.test.ts 等の saidoku 関連テスト    |
+| case_id             | semantic テスト (cross-renderer-equivalence.test.ts の describe) | legacy テスト参照                                                 |
+| ------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------- |
+| ruby-range-core     | `cross-renderer equivalence: range ruby`                         | `legacy-detector.test.ts` の `[legacy][case:ruby-range-core]`     |
+| tateten-kaeri-split | `cross-renderer equivalence: tateten+kaeri`                      | `legacy-detector.test.ts` の `[legacy][case:tateten-kaeri-split]` |
+| highlight-ref-label | `cross-renderer equivalence: highlight+ref`                      | `legacy-detector.test.ts` の `[legacy][case:highlight-ref-label]` |
+| saidoku-two-stage   | `cross-renderer equivalence: saidoku`                            | `legacy-detector.test.ts` の `[legacy][case:saidoku-two-stage]`   |
 
 ## 移行対応表
 

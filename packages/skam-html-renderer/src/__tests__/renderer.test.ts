@@ -2233,14 +2233,12 @@ describe('spacing (aki-gumi)', () => {
       expect(css).toMatch(/\.skam-tateten-sep\)[\s\S]*?letter-spacing:\s*0/);
     });
 
-    it('includes negative margin compensation on tateten-sep', () => {
+    it('does not include negative margins on tateten-sep (inline-grid tokens absorb LS)', () => {
       const css = getDefaultStyles();
-      expect(css).toMatch(
-        /\.skam-tateten-sep\)[\s\S]*?margin-inline-start:\s*calc\(-0\.5 \* var\(--skam-letter-spacing\)\)/
-      );
-      expect(css).toMatch(
-        /\.skam-tateten-sep\)[\s\S]*?margin-inline-end:\s*calc\(-0\.5 \* var\(--skam-letter-spacing\)\)/
-      );
+      // inline-grid トークン間には LS ギャップが発生しないため、
+      // ネガティブマージンは不要（sep の固有高さがそのまま表示領域）
+      expect(css).not.toMatch(/\.skam-tateten-sep\)[\s\S]*?margin-inline-start:\s*calc/);
+      expect(css).not.toMatch(/\.skam-tateten-sep\)[\s\S]*?margin-inline-end:\s*calc/);
     });
   });
 });

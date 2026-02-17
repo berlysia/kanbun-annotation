@@ -283,6 +283,8 @@ function generateCommonStyles(
           user-select: none;
           align-self: end;
           text-align: center;
+          /* letter-spacing の継承を遮断（傍点内部の字間にアキは不要） */
+          letter-spacing: 0;
         }
 
         /*
@@ -397,6 +399,24 @@ function generateCommonStyles(
       `
     : '';
 
+  /* ruby-grid 内の suffix-row: グリッドが配置を制御するためネガティブマージン不要。
+   * letter-spacing による gap は inline flow でのみ発生し、grid item 間では発生しない。
+   * source order で base .suffix-row ルールの後に配置する（return テンプレート内）。 */
+  // inline-grid の直後に配置される suffix-row はグリッドが位置を制御するため、
+  // letter-spacing 補正用のネガティブマージンを打ち消す。
+  // これがないと、読み仮名が suffix-row に食い込む。
+  const gridSuffixMarginReset = includeGrid
+    ? css`
+        :where(.${prefix}-ruby-grid) + :where(.${prefix}-suffix-row),
+        :where(.${prefix}-ruby-grid--emphasis) + :where(.${prefix}-suffix-row),
+        :where(.${prefix}-ruby-grid--emphasis-no-ruby) + :where(.${prefix}-suffix-row),
+        :where(.${prefix}-saidoku-grid) + :where(.${prefix}-suffix-row),
+        :where(.${prefix}-saidoku-grid--emphasis) + :where(.${prefix}-suffix-row) {
+          margin-inline-start: 0;
+        }
+      `
+    : '';
+
   return css`
 /* SKAM Document Container */
 :where(.${prefix}-document) {
@@ -420,13 +440,20 @@ function generateCommonStyles(
   /* 変数を適用 */
   font-family: var(--${vp}-font-family);
   line-height: var(--${vp}-line-height);
-  letter-spacing: var(--${vp}-letter-spacing);
 }
 
-/* Display Layer */
+/* Display Layer
+ *
+ * letter-spacing を document ではなく display に適用する理由:
+ * アキ量はグリフサイズ基準（四分アキ = 0.25 × glyph-size）であり、
+ * letter-spacing の em 単位は要素自身の font-size を基準に解決される。
+ * display の font-size = glyph-size なので、ここに適用することで
+ * em が正しくグリフサイズ基準で解決される。
+ */
 :where(.${prefix}-display) {
   position: relative;
   font-size: var(--${vp}-glyph-size);
+  letter-spacing: var(--${vp}-letter-spacing);
 }
 
 /* Block (論理的なブロック単位、句や段落など) */
@@ -473,6 +500,8 @@ ${rubyStyles}
   color: var(--${vp}-color-ruby);
   /* text-emphasis は継承するため、親要素の傍点がルビに伝播するのを防止 */
   text-emphasis: none;
+  /* letter-spacing の継承を遮断（ルビ仮名内部の字間にアキは不要） */
+  letter-spacing: 0;
   -webkit-user-select: none;
   user-select: none;
 }
@@ -527,8 +556,13 @@ ${gridStyles}
   text-emphasis: none;
   /* letter-spacing の継承を遮断（suffix-row 内部レイアウトへの影響を防止） */
   letter-spacing: 0;
+  /* suffix-row は漢字(base)の直下に密着する。letter-spacing による base→suffix-row 間の
+   * アキを相殺する。ベタ組み時は calc(-1 * 0em) = 0 となり無効化される。 */
+  margin-inline-start: calc(-1 * var(--${vp}-letter-spacing));
   vertical-align: calc(var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 0.5em + 0.5em));
 }
+
+${gridSuffixMarginReset}
 
 /* okuri 行にプレースホルダーを配置してベースラインを安定させる */
 :where(.${prefix}-suffix-row)::before {
@@ -701,11 +735,12 @@ ${
   display: inline-grid;
   grid-template-rows: [sep-spacer-start] ${halfAnnotationRowH} [sep-tateten-start] ${halfAnnotationRowH} [sep-kaeri-start] ${halfAnnotationRowH} [sep-end] ${halfAnnotationRowH};
   line-height: 1;
-  /* letter-spacing の継承を遮断 */
+  /* letter-spacing の継承を遮断（sep 内部レイアウトへの影響を防止） */
   letter-spacing: 0;
-  /* tateten-sep 前後の二重アキを相殺: [token]+アキ/2+[sep]+アキ/2+[token] */
-  margin-inline-start: calc(-0.5 * var(--${vp}-letter-spacing));
-  margin-inline-end: calc(-0.5 * var(--${vp}-letter-spacing));
+  /* NOTE: inline-grid トークン間には letter-spacing によるギャップが発生しない
+   * (LS はトークン高さの拡張として吸収される)。
+   * そのため sep にネガティブマージンは不要。sep の固有高さ (4 × halfAnnotationRowH)
+   * がそのまま tateten マークの表示領域となる。 */
   vertical-align: calc(var(--${vp}-grid-baseline-fix, 0) * (0.5em - var(--${vp}-ruby-ratio) * 0.5em));
 }
 
@@ -736,6 +771,8 @@ ${
   vertical-align: super;
   color: inherit;
   text-spacing-trim: trim-start;
+  /* letter-spacing の継承を遮断（参照ラベル内部の字間にアキは不要） */
+  letter-spacing: 0;
 }
 
 :where(.${prefix}-notes) {

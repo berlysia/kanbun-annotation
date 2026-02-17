@@ -637,6 +637,12 @@ function placeTatetenGroup(
         }
       : lctx;
 
+  // HTML の letter-spacing に相当するスペーシング量
+  const spacingPx = ctx.cellAdvance - ctx.fontSize;
+  // HTML では sep の negative margin で前トークンの LS を潰した上で、
+  // sep 高さ = max(1em, LS) で間隔を確保する
+  const effectiveSepAdvance = Math.max(separatorAdvance, spacingPx);
+
   for (const groupChild of children) {
     if (groupChild.type === 'token') {
       const tokenX = blockColumnX + blockBaseCenterX;
@@ -664,11 +670,17 @@ function placeTatetenGroup(
         sepLayout.kaeri = kaeriLayout;
       }
       result.push(sepLayout);
-      state.yOffset += separatorAdvance + extraAdvancePerElement;
+      state.yOffset += effectiveSepAdvance + extraAdvancePerElement;
     }
   }
   // center モード: 末尾パディング
   state.yOffset += centerBottomPad;
+
+  // tateten グループ後のスペーシング
+  // HTML では最後のトークンの letter-spacing がグループと次の要素の間にギャップを作る
+  if (spacingPx > 0) {
+    state.yOffset += spacingPx;
+  }
 
   return result;
 }

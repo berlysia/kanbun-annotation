@@ -652,8 +652,10 @@ function placeTatetenGroup(
       state.yOffset += Math.max(fontSize, contentHeight) + extraAdvancePerElement;
     } else {
       // tateten-separator
+      // spacing が大きい場合、separator を advance 領域の中央に配置する
+      const sepCenterOffset = (effectiveSepAdvance - rubyFontSize) / 2;
       const sepX = blockColumnX + blockBaseCenterX;
-      const sepY = columnY + state.yOffset;
+      const sepY = columnY + state.yOffset + sepCenterOffset;
       const sepLayout: TatetenSeparatorLayout = {
         type: 'tateten-separator',
         x: sepX,

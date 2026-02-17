@@ -17,7 +17,6 @@ import {
 import type {
   SKAMDocument,
   RefFormat,
-  Mark,
   EmphasisMark,
   HighlightMark,
   SaidokuMark,

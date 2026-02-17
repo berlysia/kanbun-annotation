@@ -3,7 +3,7 @@ import { expect } from 'vitest';
 import type { Token, Mark, RefMark } from '@kanbun/skam';
 import { KAERI } from '@kanbun/skam';
 import { resolveEmphasisCharacter, formatRefIndex, resolveRefValues } from '@kanbun/skam/rendering';
-import { splitKaeriForTateten } from '../helpers.js';
+import { splitKaeriForTateten } from '@kanbun/skam/rendering';
 
 describe('resolveEmphasisCharacter', () => {
   it('returns filled dot for undefined style', () => {

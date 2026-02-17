@@ -1,8 +1,0 @@
-/**
- * Canvas レンダラー固有ヘルパー
- *
- * splitKaeriForTateten は @kanbun/skam/rendering に移動済み。
- * 既存の内部参照との互換性のため re-export する。
- */
-
-export { splitKaeriForTateten } from '@kanbun/skam/rendering';

@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "SKAM-ML/XML parser - SKAM-ML/XMLからSKAM JSONへのパーサー",
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
       "browser": {

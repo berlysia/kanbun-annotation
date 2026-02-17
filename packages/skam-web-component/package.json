@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "SKAM Web Component - <skam-renderer> カスタムエレメント",
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
       "import": "./dist/index.js",

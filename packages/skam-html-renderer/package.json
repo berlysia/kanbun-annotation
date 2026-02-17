@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "SKAM to HTML renderer - SKAMドキュメントから静的HTMLを生成",
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
       "import": "./dist/index.js",

@@ -23,10 +23,6 @@ export interface CaptureFailure {
 
 export type CaptureResult = CaptureSuccess | CaptureFailure;
 
-export function isSuccess(result: CaptureResult): result is CaptureSuccess {
-  return 'screenshot' in result;
-}
-
 export function isFailure(result: CaptureResult): result is CaptureFailure {
   return 'error' in result;
 }

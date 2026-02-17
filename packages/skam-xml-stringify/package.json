@@ -3,6 +3,7 @@
   "version": "0.1.0",
   "description": "SKAM JSON to SKAM-ML/XML stringifier - SKAM JSONからSKAM-ML/XMLへのシリアライザー",
   "type": "module",
+  "sideEffects": false,
   "exports": {
     ".": {
       "import": "./dist/index.js",

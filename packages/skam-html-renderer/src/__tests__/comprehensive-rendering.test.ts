@@ -20,6 +20,7 @@ import { describe, it, expect } from 'vitest';
 import type { SKAMDocument, Mark } from '@kanbun/skam';
 import { KAERI } from '@kanbun/skam';
 import { render, PROFILES } from '../index.js';
+import { expectCSSRule, expectCSSRuleLacksDeclaration } from './helpers/css-contract.js';
 
 // ============================================================================
 // Test Helpers
@@ -1242,7 +1243,9 @@ describe('Writing mode × mark type', () => {
     ]);
     const { html, css } = render(doc, { writingMode: 'vertical' });
     expect(html).toContain('data-writing-mode="vertical"');
-    expect(css).toContain('writing-mode: vertical-rl');
+    expectCSSRule(css, ':where(.skam-document)', [
+      { property: 'writing-mode', value: 'vertical-rl' },
+    ]);
   });
 
   it('horizontal mode: no vertical-rl CSS', () => {
@@ -1251,7 +1254,10 @@ describe('Writing mode × mark type', () => {
     ]);
     const { html, css } = render(doc, { writingMode: 'horizontal' });
     expect(html).toContain('data-writing-mode="horizontal"');
-    expect(css).not.toContain('writing-mode: vertical-rl');
+    expectCSSRuleLacksDeclaration(css, ':where(.skam-document)', {
+      property: 'writing-mode',
+      value: 'vertical-rl',
+    });
   });
 
   it('vertical mode with kaeriten', () => {

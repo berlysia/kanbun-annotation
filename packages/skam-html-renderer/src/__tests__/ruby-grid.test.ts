@@ -3,6 +3,11 @@ import type { SKAMDocument } from '@kanbun/skam';
 import { render, renderHTML, generateCSS, getDefaultStyles } from '../index.js';
 import { resolveEmphasisCharacter } from '@kanbun/skam/rendering';
 import { generateEmphasisMarks } from '../html-utils.js';
+import {
+  expectCSSContains,
+  expectCSSSelector,
+  expectNoCSSSelector,
+} from './helpers/css-contract.js';
 
 /**
  * Helper: create a minimal SKAMDocument
@@ -398,45 +403,45 @@ describe('rubyMethod: grid', () => {
   describe('CSS generation', () => {
     it('should include grid CSS by default', () => {
       const css = generateCSS();
-      expect(css).toContain('skam-ruby-grid');
-      expect(css).toContain('skam-saidoku-grid');
-      expect(css).not.toContain('.skam-token ruby');
-      expect(css).not.toContain('skam-saidoku-outer');
+      expectCSSSelector(css, ':where(.skam-ruby-grid)');
+      expectCSSSelector(css, ':where(.skam-saidoku-grid)');
+      expectNoCSSSelector(css, ':where(.skam-token ruby)');
+      expectNoCSSSelector(css, ':where(.skam-saidoku-outer)');
     });
 
     it('should include ruby CSS when rubyMethod is ruby', () => {
       const css = generateCSS({ rubyMethod: 'ruby' });
-      expect(css).toContain('.skam-token ruby');
-      expect(css).toContain('ruby-align');
-      expect(css).not.toContain('skam-ruby-grid');
+      expectCSSSelector(css, ':where(.skam-token ruby)');
+      expectCSSContains(css, 'ruby-align');
+      expectNoCSSSelector(css, ':where(.skam-ruby-grid)');
     });
 
     it('should include grid CSS when rubyMethod is grid', () => {
       const css = generateCSS({ rubyMethod: 'grid' });
-      expect(css).toContain('skam-ruby-grid');
-      expect(css).toContain('skam-saidoku-grid');
-      expect(css).not.toContain('.skam-token ruby');
-      expect(css).not.toContain('skam-saidoku-outer');
+      expectCSSSelector(css, ':where(.skam-ruby-grid)');
+      expectCSSSelector(css, ':where(.skam-saidoku-grid)');
+      expectNoCSSSelector(css, ':where(.skam-token ruby)');
+      expectNoCSSSelector(css, ':where(.skam-saidoku-outer)');
     });
 
     it('should include emphasis variant CSS when rubyMethod is grid', () => {
       const css = generateCSS({ rubyMethod: 'grid' });
-      expect(css).toContain('skam-ruby-grid--emphasis');
-      expect(css).toContain('skam-saidoku-grid--emphasis');
-      expect(css).toContain('skam-emphasis-row');
+      expectCSSSelector(css, ':where(.skam-ruby-grid--emphasis)');
+      expectCSSSelector(css, ':where(.skam-saidoku-grid--emphasis)');
+      expectCSSSelector(css, ':where(.skam-emphasis-row)');
     });
 
     it('should include both CSS when rubyMethod is both', () => {
       const css = generateCSS({ rubyMethod: 'both' });
-      expect(css).toContain('.skam-token ruby');
-      expect(css).toContain('skam-ruby-grid');
-      expect(css).toContain('skam-saidoku-grid');
-      expect(css).toContain('skam-saidoku-outer');
+      expectCSSSelector(css, ':where(.skam-token ruby)');
+      expectCSSSelector(css, ':where(.skam-ruby-grid)');
+      expectCSSSelector(css, ':where(.skam-saidoku-grid)');
+      expectCSSSelector(css, ':where(.skam-saidoku-outer)');
     });
 
     it('should include grid CSS via getDefaultStyles', () => {
       const css = getDefaultStyles({ rubyMethod: 'grid' });
-      expect(css).toContain('skam-ruby-grid');
+      expectCSSSelector(css, ':where(.skam-ruby-grid)');
     });
   });
 
@@ -477,8 +482,8 @@ describe('rubyMethod: grid', () => {
   describe('horizontal writing mode + grid', () => {
     it('should generate grid CSS for horizontal mode', () => {
       const css = generateCSS({ writingMode: 'horizontal', rubyMethod: 'grid' });
-      expect(css).toContain('skam-ruby-grid');
-      expect(css).toContain('grid-template-rows');
+      expectCSSSelector(css, ':where(.skam-ruby-grid)');
+      expectCSSContains(css, 'grid-template-rows');
     });
 
     it('should render grid HTML in horizontal mode', () => {
@@ -493,7 +498,7 @@ describe('rubyMethod: grid', () => {
       });
       const result = render(doc, { writingMode: 'horizontal', rubyMethod: 'grid' });
       expect(result.html).toContain('skam-ruby-grid');
-      expect(result.css).toContain('grid-template-rows');
+      expectCSSContains(result.css, 'grid-template-rows');
     });
   });
 });

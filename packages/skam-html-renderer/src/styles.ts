@@ -504,6 +504,11 @@ ${rubyStyles}
 }
 ${gridStyles}
 
+/* Base Segment (multi-token range の個別文字を letter-spacing で分離) */
+:where(.${prefix}-base-seg) + :where(.${prefix}-base-seg) {
+  margin-inline-start: var(--${vp}-letter-spacing);
+}
+
 /* Okurigana (送り仮名) */
 :where(.${prefix}-okuri) {
   display: inline;
@@ -554,12 +559,14 @@ ${gridStyles}
   /* letter-spacing の継承を遮断（suffix-row 内部レイアウトへの影響を防止） */
   letter-spacing: 0;
   /* suffix-row は漢字(base)の直下に密着する。margin-inline-start の負マージンで
-   * letter-spacing による base→suffix 間のアキを相殺し、margin-inline-end で
-   * 次のトークンとの inter-token spacing を補完する。
-   * ベタ組み時は calc(-1 * 0em) = 0 / calc(1 * 0em) = 0 となり無効化される。
-   * 効果: [base][suffix][LS][次token] */
+   * letter-spacing による base→suffix 間のアキを相殺する。
+   * min-inline-size で suffix が LS より短い場合も最低 LS を確保し、
+   * max(suffix_content, LS) モデルを実現する（tateten-sep と同等）。
+   * ベタ組み時は calc(-1 * 0em) = 0 / min-inline-size: 0em となり無効化される。
+   * 効果: [base][max(suffix_content, LS)][次token] */
   margin-inline-start: calc(-1 * var(--${vp}-letter-spacing));
-  margin-inline-end: var(--${vp}-letter-spacing);
+  margin-inline-end: 0;
+  min-inline-size: var(--${vp}-letter-spacing);
   vertical-align: calc(var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 0.5em + 0.5em));
 }
 
@@ -747,11 +754,14 @@ ${
   line-height: 1;
   /* letter-spacing の継承を遮断（sep 内部レイアウトへの影響を防止） */
   letter-spacing: 0;
-  /* sep を前トークンの LS 領域に引き戻し、グリフ間の空間をカバーする。
-   * 高さはマーク表示に必要な 1em と LS の大きい方を取る。 */
-  margin-inline-start: calc(-1 * var(--${vp}-letter-spacing));
+  /* 高さはマーク表示に必要な 1em と LS の大きい方を取る。 */
   height: max(1em, var(--${vp}-letter-spacing));
   vertical-align: calc(var(--${vp}-grid-baseline-fix, 0) * (0.5em - var(--${vp}-ruby-ratio) * 0.5em));
+}
+
+/* tateten-group 直後の suffix-row は LS 吸収不要（グループ内で完結済み） */
+:where(.${prefix}-tateten-group) + :where(.${prefix}-suffix-row) {
+  margin-inline-start: 0;
 }
 
 :where(.${prefix}-tateten-sep)::before {

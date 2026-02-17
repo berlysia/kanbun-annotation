@@ -59,7 +59,8 @@ function renderTokenWithRuby(
   rangeInfo?: RangeTokenInfo,
   suppressYomigana?: boolean,
   gridEmphasisStyle?: string,
-  blockHasRuby?: boolean
+  blockHasRuby?: boolean,
+  tokenTexts?: string[]
 ): string {
   const { prefix, profile, tokenMarks, interactive, rubyMethod } = ctx;
 
@@ -97,7 +98,15 @@ function renderTokenWithRuby(
       const emphasisRowHtml = gridEmphasisStyle
         ? `<span class="${prefix}-emphasis-row" aria-hidden="true">${generateEmphasisMarks(displayText, resolveEmphasisCharacter(gridEmphasisStyle))}</span>`
         : '';
-      return `<span class="${gridClass}"${gridDataAttrs}>${emphasisRowHtml}<span class="${prefix}-ruby">${yomigana}</span><span class="${prefix}-base"${baseDataAttrs}>${baseContent}</span></span>`;
+      // multi-token range: 個別 token テキストを <span class="skam-base-seg"> に分割し、
+      // CSS margin で inter-character spacing を確保。letter-spacing: 0 は維持してルビ中央寄せを保護。
+      const segmentedBaseContent =
+        tokenTexts && tokenTexts.length > 1
+          ? tokenTexts
+              .map((t) => `<span class="${prefix}-base-seg">${escapeHtml(t)}</span>`)
+              .join('')
+          : baseContent;
+      return `<span class="${gridClass}"${gridDataAttrs}>${emphasisRowHtml}<span class="${prefix}-ruby">${yomigana}</span><span class="${prefix}-base"${baseDataAttrs}>${segmentedBaseContent}</span></span>`;
     }
     return `<ruby><rb class="${prefix}-base"${dataAttrs}>${baseContent}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>`;
   } else if (gridEmphasisStyle) {
@@ -405,7 +414,8 @@ export function renderToken(
       rangeCtx?.rangeTokenInfo,
       suppressYomigana,
       gridEmphasisStyle,
-      rangeCtx?.blockHasRuby
+      rangeCtx?.blockHasRuby,
+      rangeCtx?.tokenTexts
     );
   }
 

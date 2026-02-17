@@ -120,13 +120,20 @@ function convertTrailingMarks(trailingMarks: AIRTrailingMark[]): Partial<RangeMa
 // AIRRangeInfo → RangeMarkContext 変換
 // ============================================================================
 
-function convertRangeInfo(rangeInfo: AIRRangeInfo): RangeMarkContext {
+function convertRangeInfo(rangeInfo: AIRRangeInfo, tokens: Token[]): RangeMarkContext {
   const rangeTokenInfo: RangeTokenInfo = {
     from: rangeInfo.fromTokenId,
     to: rangeInfo.toTokenId,
   };
 
   let ctx: RangeMarkContext = { rangeTokenInfo };
+
+  // multi-token range の個別 token テキストを設定（2+ tokens のみ）
+  if (rangeInfo.tokenIds.length > 1) {
+    const tokenMap = new Map(tokens.map((t) => [t.id, t]));
+    const tokenTexts = rangeInfo.tokenIds.map((id) => tokenMap.get(id)?.text ?? '');
+    ctx = { ...ctx, tokenTexts };
+  }
 
   if (rangeInfo.yomigana) {
     ctx = { ...ctx, yomiganaBaseText: rangeInfo.yomigana.baseText };
@@ -157,10 +164,10 @@ function convertRangeInfo(rangeInfo: AIRRangeInfo): RangeMarkContext {
 // Token 変換
 // ============================================================================
 
-function convertTokenNode(airToken: AIRTokenNode): TokenItem {
+function convertTokenNode(airToken: AIRTokenNode, tokens: Token[]): TokenItem {
   const item: TokenItem = { type: 'token', token: airToken.token };
   if (airToken.rangeInfo) {
-    item.rangeCtx = convertRangeInfo(airToken.rangeInfo);
+    item.rangeCtx = convertRangeInfo(airToken.rangeInfo, tokens);
   }
   return item;
 }
@@ -169,11 +176,11 @@ function convertTokenNode(airToken: AIRTokenNode): TokenItem {
 // Tateten group 変換
 // ============================================================================
 
-function convertTatetenGroup(airGroup: AIRTatetenGroupNode): TatetenGroupNode {
+function convertTatetenGroup(airGroup: AIRTatetenGroupNode, tokens: Token[]): TatetenGroupNode {
   const items: TokenItem[] = [];
   for (const child of airGroup.children) {
     if (child.type === 'token') {
-      items.push(convertTokenNode(child));
+      items.push(convertTokenNode(child, tokens));
     }
     // tateten-separator は TatetenGroupNode の items には含まれない
     // （HTML Pass2 が独自にセパレータを生成する）
@@ -186,7 +193,7 @@ function convertTatetenGroup(airGroup: AIRTatetenGroupNode): TatetenGroupNode {
   };
 
   if (airGroup.rangeInfo) {
-    node.rangeCtx = convertRangeInfo(airGroup.rangeInfo);
+    node.rangeCtx = convertRangeInfo(airGroup.rangeInfo, tokens);
   }
 
   return node;
@@ -203,7 +210,7 @@ function convertHighlightGroup(
   marks: Mark[]
 ): HighlightGroupNode {
   const items: (TokenItem | TatetenGroupNode)[] = airGroup.children.map((child) =>
-    child.type === 'token' ? convertTokenNode(child) : convertTatetenGroup(child)
+    child.type === 'token' ? convertTokenNode(child, tokens) : convertTatetenGroup(child, tokens)
   );
 
   // hasKana 判定: AIR の hasKana を使用
@@ -348,9 +355,9 @@ export function convertAIRToBlockRenderTrees(
       .map((child): RenderNode => {
         switch (child.type) {
           case 'token':
-            return convertTokenNode(child);
+            return convertTokenNode(child, tokens);
           case 'tateten-group':
-            return convertTatetenGroup(child);
+            return convertTatetenGroup(child, tokens);
           case 'highlight-group':
             return convertHighlightGroup(child, prefix, tokens, marks);
         }

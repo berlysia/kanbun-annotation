@@ -37,6 +37,8 @@ export interface RangeTokenInfo {
 }
 
 export interface RangeMarkContext {
+  /** multi-token range の個別 token テキスト（2+ tokens のみ設定） */
+  tokenTexts?: string[];
   /** 範囲yomiganaのベーステキスト（全トークンのテキストを結合） */
   yomiganaBaseText?: string;
   /** 範囲okuriganaのベーステキスト */

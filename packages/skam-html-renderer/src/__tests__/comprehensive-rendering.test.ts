@@ -114,22 +114,28 @@ function createMultiBlockDoc(marks: Mark[] = []): SKAMDocument {
 
 describe('Multi-token range rendering', () => {
   describe('multi-token yomigana (jukugo ruby)', () => {
-    it('2-token yomigana: concatenates token texts', () => {
+    it('2-token yomigana: segments token texts with base-seg spans', () => {
       const doc = createTwoTokenDoc('朝', '廷', [
         { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'ちょうてい' },
       ]);
       const { html } = render(doc);
-      expect(html).toContain('朝廷');
+      // Multi-token base text is segmented into individual spans
+      expect(html).toContain('skam-base-seg');
+      expect(html).toContain('朝');
+      expect(html).toContain('廷');
       expect(html).toContain('ちょうてい');
       expect(html).toContain('skam-ruby');
     });
 
-    it('3-token yomigana: concatenates all token texts', () => {
+    it('3-token yomigana: segments all token texts with base-seg spans', () => {
       const doc = createThreeTokenDoc('自', '由', '民', [
         { type: 'yomigana', anchor: { from: 't1', to: 't3' }, value: 'じゆうみん' },
       ]);
       const { html } = render(doc);
-      expect(html).toContain('自由民');
+      expect(html).toContain('skam-base-seg');
+      expect(html).toContain('自');
+      expect(html).toContain('由');
+      expect(html).toContain('民');
       expect(html).toContain('じゆうみん');
     });
 

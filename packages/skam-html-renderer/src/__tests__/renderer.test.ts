@@ -1696,8 +1696,10 @@ describe('data-token-id attributes', () => {
     // 範囲マークの場合はdata-token-from/toが使用される
     expect(result.html).toContain('data-token-from="t1"');
     expect(result.html).toContain('data-token-to="t2"');
-    // 熟語全体のテキストが表示される
-    expect(result.html).toContain('朝廷');
+    // 熟語のテキストがセグメント化されて表示される
+    expect(result.html).toContain('skam-base-seg');
+    expect(result.html).toContain('朝');
+    expect(result.html).toContain('廷');
     expect(result.html).toContain('ちょうてい');
   });
 
@@ -1762,8 +1764,10 @@ describe('data-token-id attributes', () => {
 
     expect(result.html).not.toContain('data-token-from');
     expect(result.html).not.toContain('data-token-to');
-    // 熟語全体のテキストは表示される
-    expect(result.html).toContain('朝廷');
+    // 熟語のテキストがセグメント化されて表示される
+    expect(result.html).toContain('skam-base-seg');
+    expect(result.html).toContain('朝');
+    expect(result.html).toContain('廷');
     expect(result.html).toContain('ちょうてい');
   });
 
@@ -2233,12 +2237,8 @@ describe('spacing (aki-gumi)', () => {
       expect(css).toMatch(/\.skam-tateten-sep\)[\s\S]*?letter-spacing:\s*0/);
     });
 
-    it('centers tateten-sep over the inter-glyph gap using margin + height + justify-self', () => {
+    it('centers tateten-sep over the inter-glyph gap using height + justify-self', () => {
       const css = getDefaultStyles();
-      // sep を前トークンの LS 領域に引き戻す
-      expect(css).toMatch(
-        /\.skam-tateten-sep\)[\s\S]*?margin-inline-start:\s*calc\(-1 \* var\(--skam-letter-spacing\)\)/
-      );
       // sep の高さ: マーク表示に必要な 1em と LS の大きい方
       expect(css).toMatch(
         /\.skam-tateten-sep\)[\s\S]*?height:\s*max\(1em, var\(--skam-letter-spacing\)\)/
@@ -2248,6 +2248,90 @@ describe('spacing (aki-gumi)', () => {
       // kaeriten も中央
       expect(css).toMatch(
         /\.skam-tateten-sep\)[\s\S]*?\.skam-kaeriten\)[\s\S]*?justify-self:\s*center/
+      );
+    });
+  });
+
+  describe('multi-token ruby-grid base segmentation', () => {
+    it('should output skam-base-seg spans for multi-token yomigana range', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [
+          { id: 't1', text: '啼' },
+          { id: 't2', text: '鳥' },
+        ],
+        blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
+        marks: [
+          {
+            type: 'yomigana',
+            anchor: { from: 't1', to: 't2' },
+            value: 'ていてう',
+          },
+        ],
+        readings: [],
+      };
+
+      const result = render(doc);
+
+      // Multi-token base text should be segmented into individual spans
+      expect(result.html).toContain('skam-base-seg');
+      expect(result.html).toMatch(
+        /<span class="skam-base-seg">啼<\/span><span class="skam-base-seg">鳥<\/span>/
+      );
+      // Yomigana should still be rendered
+      expect(result.html).toContain('ていてう');
+    });
+
+    it('should NOT output skam-base-seg for single-token yomigana', () => {
+      const doc: SKAMDocument = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '覺' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [
+          {
+            type: 'yomigana',
+            anchor: { from: 't1', to: 't1' },
+            value: 'おぼ',
+          },
+        ],
+        readings: [],
+      };
+
+      const result = render(doc);
+
+      expect(result.html).not.toContain('skam-base-seg');
+      expect(result.html).toContain('おぼ');
+    });
+  });
+
+  describe('suffix-row max model CSS', () => {
+    it('should use min-inline-size instead of margin-inline-end for suffix-row', () => {
+      const css = getDefaultStyles();
+      // suffix-row should have margin-inline-end: 0
+      expect(css).toMatch(/\.skam-suffix-row\)[\s\S]*?margin-inline-end:\s*0/);
+      // suffix-row should have min-inline-size: var(--skam-letter-spacing)
+      expect(css).toMatch(
+        /\.skam-suffix-row\)[\s\S]*?min-inline-size:\s*var\(--skam-letter-spacing\)/
+      );
+    });
+  });
+
+  describe('suffix-row after tateten-group', () => {
+    it('should reset suffix-row margin when preceded by tateten-group', () => {
+      const css = getDefaultStyles();
+      // tateten-group + suffix-row should have margin-inline-start: 0
+      expect(css).toMatch(
+        /\.skam-tateten-group\)[\s\S]*?\+[\s\S]*?\.skam-suffix-row\)[\s\S]*?margin-inline-start:\s*0/
+      );
+    });
+  });
+
+  describe('base-seg CSS', () => {
+    it('should include base-seg margin rule', () => {
+      const css = getDefaultStyles();
+      expect(css).toContain('skam-base-seg');
+      expect(css).toMatch(
+        /\.skam-base-seg\)[\s\S]*?margin-inline-start:\s*var\(--skam-letter-spacing\)/
       );
     });
   });

@@ -3,6 +3,12 @@ import type { SKAMDocument } from '@kanbun/skam';
 import { KAERI } from '@kanbun/skam';
 import { parse } from '@kanbun/skam-xml-parser';
 import { render, PROFILES, getDefaultStyles } from '../index.js';
+import {
+  expectCSSRule,
+  expectCSSRuleLacksDeclaration,
+  expectCSSSelector,
+  expectNoCSSSelector,
+} from './helpers/css-contract.js';
 
 describe('render', () => {
   describe('basic token rendering', () => {
@@ -1377,8 +1383,8 @@ describe('generateCSS', () => {
     const css = generateCSS();
 
     expect(typeof css).toBe('string');
-    expect(css).toContain('.skam-document');
-    expect(css).toContain('.skam-token');
+    expectCSSSelector(css, ':where(.skam-document)');
+    expectCSSRule(css, ':where(.skam-token)', [{ property: 'white-space', value: 'nowrap' }]);
   });
 
   it('should generate vertical-only CSS by default', async () => {
@@ -1386,9 +1392,11 @@ describe('generateCSS', () => {
 
     const css = generateCSS({ writingMode: 'vertical' });
 
-    expect(css).toContain('writing-mode: vertical-rl');
-    expect(css).not.toContain('[data-writing-mode="vertical"]');
-    expect(css).not.toContain('[data-writing-mode="horizontal"]');
+    expectCSSRule(css, ':where(.skam-document)', [
+      { property: 'writing-mode', value: 'vertical-rl' },
+    ]);
+    expectNoCSSSelector(css, ':where(.skam-document[data-writing-mode="vertical"])');
+    expectNoCSSSelector(css, ':where(.skam-document[data-writing-mode="horizontal"])');
   });
 
   it('should generate horizontal-only CSS', async () => {
@@ -1396,8 +1404,11 @@ describe('generateCSS', () => {
 
     const css = generateCSS({ writingMode: 'horizontal' });
 
-    expect(css).not.toContain('writing-mode: vertical-rl');
-    expect(css).not.toContain('[data-writing-mode="vertical"]');
+    expectCSSRuleLacksDeclaration(css, ':where(.skam-document)', {
+      property: 'writing-mode',
+      value: 'vertical-rl',
+    });
+    expectNoCSSSelector(css, ':where(.skam-document[data-writing-mode="vertical"])');
   });
 
   it('should generate both vertical and horizontal CSS with writingMode: both', async () => {
@@ -1405,10 +1416,8 @@ describe('generateCSS', () => {
 
     const css = generateCSS({ writingMode: 'both' });
 
-    // Should contain data-writing-mode selectors for both directions
     expect(css).toContain('[data-writing-mode="vertical"]');
     expect(css).toContain('[data-writing-mode="horizontal"]');
-    // Should contain vertical-specific styles
     expect(css).toContain('writing-mode: vertical-rl');
     expect(css).toContain('text-orientation: mixed');
   });
@@ -1434,9 +1443,9 @@ describe('generateCSS', () => {
 
     const css = generateCSS({ classPrefix: 'custom' });
 
-    expect(css).toContain('.custom-document');
-    expect(css).toContain('.custom-token');
-    expect(css).not.toContain('.skam-');
+    expectCSSSelector(css, ':where(.custom-document)');
+    expectCSSRule(css, ':where(.custom-token)', [{ property: 'white-space', value: 'nowrap' }]);
+    expectNoCSSSelector(css, ':where(.skam-document)');
   });
 
   it('should include inline styles when inline option is true', async () => {
@@ -1445,8 +1454,8 @@ describe('generateCSS', () => {
     const cssWithInline = generateCSS({ inline: true });
     const cssWithoutInline = generateCSS({ inline: false });
 
-    expect(cssWithInline).toContain('.skam-document--inline');
-    expect(cssWithoutInline).not.toContain('.skam-document--inline');
+    expectCSSSelector(cssWithInline, ':where(.skam-document--inline)');
+    expectNoCSSSelector(cssWithoutInline, ':where(.skam-document--inline)');
   });
 });
 
@@ -1475,7 +1484,6 @@ describe('CSS and HTML integration', () => {
     const html1 = renderHTML(doc1, { writingMode: 'vertical' });
     const html2 = renderHTML(doc2, { writingMode: 'horizontal' });
 
-    // Verify CSS contains both writing mode styles
     expect(css).toContain('[data-writing-mode="vertical"]');
     expect(css).toContain('[data-writing-mode="horizontal"]');
 
@@ -1489,13 +1497,13 @@ describe('CSS layer options', () => {
   it('should wrap CSS with @layer by default', () => {
     const css = getDefaultStyles();
     expect(css).toMatch(/^@layer skam-kanbun \{/);
-    expect(css).toContain(':where(.skam-document)');
+    expectCSSSelector(css, ':where(.skam-document)');
   });
 
   it('should not wrap with @layer when useLayer is false', () => {
     const css = getDefaultStyles({ useLayer: false });
     expect(css).not.toContain('@layer');
-    expect(css).toContain(':where(.skam-document)');
+    expectCSSSelector(css, ':where(.skam-document)');
   });
 
   it('should use custom layer name', () => {
@@ -1534,23 +1542,34 @@ describe('CSS layer options', () => {
 describe('CSS variables options', () => {
   it('should use default variable prefix', () => {
     const css = getDefaultStyles();
-    expect(css).toContain('--skam-color-fg');
-    expect(css).toContain('--skam-font-family');
-    expect(css).toContain('--skam-line-height');
+    expectCSSRule(css, ':where(.skam-document)', [
+      { property: '--skam-color-fg', value: 'currentColor' },
+      { property: '--skam-font-family', value: 'inherit' },
+      { property: '--skam-line-height', value: '2' },
+    ]);
   });
 
   it('should use custom variable prefix', () => {
     const css = getDefaultStyles({ variablePrefix: 'kb' });
-    expect(css).toContain('--kb-color-fg');
-    expect(css).toContain('--kb-font-family');
-    expect(css).not.toContain('--skam-color-fg');
+    expectCSSRule(css, ':where(.skam-document)', [
+      { property: '--kb-color-fg', value: 'currentColor' },
+      { property: '--kb-font-family', value: 'inherit' },
+    ]);
+    expectCSSRuleLacksDeclaration(css, ':where(.skam-document)', {
+      property: '--skam-color-fg',
+      value: /.+/,
+    });
   });
 
   it('should use variables for styling', () => {
     const css = getDefaultStyles();
-    expect(css).toContain('font-family: var(--skam-font-family)');
-    expect(css).toContain('line-height: var(--skam-line-height)');
-    expect(css).toContain('color: var(--skam-color-kaeriten)');
+    expectCSSRule(css, ':where(.skam-document)', [
+      { property: 'font-family', value: 'var(--skam-font-family)' },
+      { property: 'line-height', value: 'var(--skam-line-height)' },
+    ]);
+    expectCSSRule(css, ':where(.skam-kaeriten)', [
+      { property: 'color', value: 'var(--skam-color-kaeriten)' },
+    ]);
   });
 
   it('should define all expected CSS variables', () => {
@@ -1579,27 +1598,24 @@ describe('CSS variables options', () => {
   it('should include selection state classes', () => {
     const css = getDefaultStyles();
 
-    // Selection state class
-    expect(css).toContain(':where(.skam-selected)');
+    expectCSSSelector(css, ':where(.skam-selected)');
   });
 });
 
 describe(':where() specificity', () => {
   it('should wrap all selectors with :where()', () => {
     const css = getDefaultStyles({ useLayer: false });
-    // All class selectors should be wrapped with :where()
-    expect(css).toContain(':where(.skam-document)');
-    expect(css).toContain(':where(.skam-token)');
-    expect(css).toContain(':where(.skam-ruby)');
-    expect(css).toContain(':where(.skam-kaeriten)');
-    expect(css).toContain(':where(.skam-emphasis)');
+    expectCSSSelector(css, ':where(.skam-document)');
+    expectCSSSelector(css, ':where(.skam-token)');
+    expectCSSSelector(css, ':where(.skam-ruby)');
+    expectCSSSelector(css, ':where(.skam-kaeriten)');
+    expectCSSSelector(css, ':where(.skam-emphasis)');
   });
 
   it('should wrap attribute selectors with :where()', () => {
     const css = getDefaultStyles({ useLayer: false });
-    // highlight[data-style] selectors now include :not(:has()) for ref handling
-    expect(css).toContain(':where(.skam-highlight[data-style="dotted"]');
-    expect(css).toContain(':where(.skam-okototen[data-shape="dot"])');
+    expectCSSSelector(css, ':where(.skam-highlight[data-style="dotted"]');
+    expectCSSSelector(css, ':where(.skam-okototen[data-shape="dot"])');
   });
 
   it('should not have unwrapped class selectors', () => {
@@ -2228,27 +2244,25 @@ describe('spacing (aki-gumi)', () => {
   describe('CSS structure for spacing', () => {
     it('includes letter-spacing reset on suffix-row', () => {
       const css = getDefaultStyles();
-      // suffix-row should reset letter-spacing to prevent inheritance
-      expect(css).toMatch(/\.skam-suffix-row\)[\s\S]*?letter-spacing:\s*0/);
+      expectCSSRule(css, ':where(.skam-suffix-row)', [{ property: 'letter-spacing', value: '0' }]);
     });
 
     it('includes letter-spacing reset on tateten-sep', () => {
       const css = getDefaultStyles();
-      expect(css).toMatch(/\.skam-tateten-sep\)[\s\S]*?letter-spacing:\s*0/);
+      expectCSSRule(css, ':where(.skam-tateten-sep)', [{ property: 'letter-spacing', value: '0' }]);
     });
 
     it('centers tateten-sep over the inter-glyph gap using height + justify-self', () => {
       const css = getDefaultStyles();
-      // sep の高さ: マーク表示に必要な 1em と LS の大きい方
-      expect(css).toMatch(
-        /\.skam-tateten-sep\)[\s\S]*?height:\s*max\(1em, var\(--skam-letter-spacing\)\)/
-      );
-      // マークを垂直方向の中央に配置
-      expect(css).toMatch(/\.skam-tateten-mark\)[\s\S]*?justify-self:\s*center/);
-      // kaeriten も中央
-      expect(css).toMatch(
-        /\.skam-tateten-sep\)[\s\S]*?\.skam-kaeriten\)[\s\S]*?justify-self:\s*center/
-      );
+      expectCSSRule(css, ':where(.skam-tateten-sep)', [
+        { property: 'height', value: 'max(1em, var(--skam-letter-spacing))' },
+      ]);
+      expectCSSRule(css, ':where(.skam-tateten-sep) > :where(.skam-tateten-mark)', [
+        { property: 'justify-self', value: 'center' },
+      ]);
+      expectCSSRule(css, ':where(.skam-tateten-sep) > :where(.skam-kaeriten)', [
+        { property: 'justify-self', value: 'center' },
+      ]);
     });
   });
 
@@ -2307,32 +2321,28 @@ describe('spacing (aki-gumi)', () => {
   describe('suffix-row max model CSS', () => {
     it('should use min-inline-size instead of margin-inline-end for suffix-row', () => {
       const css = getDefaultStyles();
-      // suffix-row should have margin-inline-end: 0
-      expect(css).toMatch(/\.skam-suffix-row\)[\s\S]*?margin-inline-end:\s*0/);
-      // suffix-row should have min-inline-size: var(--skam-letter-spacing)
-      expect(css).toMatch(
-        /\.skam-suffix-row\)[\s\S]*?min-inline-size:\s*var\(--skam-letter-spacing\)/
-      );
+      expectCSSRule(css, ':where(.skam-suffix-row)', [
+        { property: 'margin-inline-end', value: '0' },
+        { property: 'min-inline-size', value: 'var(--skam-letter-spacing)' },
+      ]);
     });
   });
 
   describe('suffix-row after tateten-group', () => {
     it('should reset suffix-row margin when preceded by tateten-group', () => {
       const css = getDefaultStyles();
-      // tateten-group + suffix-row should have margin-inline-start: 0
-      expect(css).toMatch(
-        /\.skam-tateten-group\)[\s\S]*?\+[\s\S]*?\.skam-suffix-row\)[\s\S]*?margin-inline-start:\s*0/
-      );
+      expectCSSRule(css, ':where(.skam-tateten-group) + :where(.skam-suffix-row)', [
+        { property: 'margin-inline-start', value: '0' },
+      ]);
     });
   });
 
   describe('base-seg CSS', () => {
     it('should include base-seg margin rule', () => {
       const css = getDefaultStyles();
-      expect(css).toContain('skam-base-seg');
-      expect(css).toMatch(
-        /\.skam-base-seg\)[\s\S]*?margin-inline-start:\s*var\(--skam-letter-spacing\)/
-      );
+      expectCSSRule(css, ':where(.skam-base-seg) + :where(.skam-base-seg)', [
+        { property: 'margin-inline-start', value: 'var(--skam-letter-spacing)' },
+      ]);
     });
   });
 });

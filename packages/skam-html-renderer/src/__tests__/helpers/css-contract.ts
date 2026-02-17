@@ -34,6 +34,7 @@ function hasDeclaration(body: string, { property, value }: DeclarationExpectatio
 }
 
 function findMatchingRuleBodies(css: string, selectorMatcher: SelectorMatcher): string[] {
+  const sourceWithoutComments = css.replace(/\/\*[\s\S]*?\*\//g, '');
   const bodies: string[] = [];
 
   const matchesSelector = (selector: string): boolean => {
@@ -72,8 +73,15 @@ function findMatchingRuleBodies(css: string, selectorMatcher: SelectorMatcher): 
     }
   };
 
-  walk(css);
+  walk(sourceWithoutComments);
   return bodies;
+}
+
+export function expectCSSSelector(css: string, selectorMatcher: SelectorMatcher): void {
+  const bodies = findMatchingRuleBodies(css, selectorMatcher);
+  expect(bodies.length, `No CSS rule matched selector: ${String(selectorMatcher)}`).toBeGreaterThan(
+    0
+  );
 }
 
 export function expectCSSRule(
@@ -82,9 +90,7 @@ export function expectCSSRule(
   declarations: DeclarationExpectation[]
 ): void {
   const bodies = findMatchingRuleBodies(css, selectorMatcher);
-  expect(bodies.length, `No CSS rule matched selector: ${String(selectorMatcher)}`).toBeGreaterThan(
-    0
-  );
+  expectCSSSelector(css, selectorMatcher);
 
   const matched = bodies.some((body) =>
     declarations.every((declaration) => hasDeclaration(body, declaration))

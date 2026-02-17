@@ -4,6 +4,8 @@ import { KAERI } from '@kanbun/skam';
 import { parse } from '@kanbun/skam-xml-parser';
 import { render, PROFILES, getDefaultStyles } from '../index.js';
 import {
+  expectCSSContains,
+  expectCSSNotContains,
   expectCSSRule,
   expectCSSRuleLacksDeclaration,
   expectCSSSelector,
@@ -1430,10 +1432,10 @@ describe('generateCSS', () => {
 
     const css = generateCSS({ writingMode: 'both' });
 
-    expect(css).toContain('[data-writing-mode="vertical"]');
-    expect(css).toContain('[data-writing-mode="horizontal"]');
-    expect(css).toContain('writing-mode: vertical-rl');
-    expect(css).toContain('text-orientation: mixed');
+    expectCSSContains(css, '[data-writing-mode="vertical"]');
+    expectCSSContains(css, '[data-writing-mode="horizontal"]');
+    expectCSSContains(css, 'writing-mode: vertical-rl');
+    expectCSSContains(css, 'text-orientation: mixed');
   });
 
   it('should produce same CSS as render() for single writingMode', async () => {
@@ -1498,8 +1500,8 @@ describe('CSS and HTML integration', () => {
     const html1 = renderHTML(doc1, { writingMode: 'vertical' });
     const html2 = renderHTML(doc2, { writingMode: 'horizontal' });
 
-    expect(css).toContain('[data-writing-mode="vertical"]');
-    expect(css).toContain('[data-writing-mode="horizontal"]');
+    expectCSSContains(css, '[data-writing-mode="vertical"]');
+    expectCSSContains(css, '[data-writing-mode="horizontal"]');
 
     // Verify HTML has correct data attributes
     expect(html1).toContain('data-writing-mode="vertical"');
@@ -1510,20 +1512,20 @@ describe('CSS and HTML integration', () => {
 describe('CSS layer options', () => {
   it('should wrap CSS with @layer by default', () => {
     const css = getDefaultStyles();
-    expect(css).toMatch(/^@layer skam-kanbun \{/);
+    expectCSSContains(css, /^@layer skam-kanbun \{/);
     expectCSSSelector(css, ':where(.skam-document)');
   });
 
   it('should not wrap with @layer when useLayer is false', () => {
     const css = getDefaultStyles({ useLayer: false });
-    expect(css).not.toContain('@layer');
+    expectCSSNotContains(css, '@layer');
     expectCSSSelector(css, ':where(.skam-document)');
   });
 
   it('should use custom layer name', () => {
     const css = getDefaultStyles({ layerName: 'my-kanbun' });
-    expect(css).toContain('@layer my-kanbun');
-    expect(css).not.toContain('@layer skam-kanbun');
+    expectCSSContains(css, '@layer my-kanbun');
+    expectCSSNotContains(css, '@layer skam-kanbun');
   });
 
   it('should generate @layer in render() output', () => {
@@ -1536,7 +1538,7 @@ describe('CSS layer options', () => {
     };
 
     const result = render(doc);
-    expect(result.css).toMatch(/^@layer skam-kanbun \{/);
+    expectCSSContains(result.css, /^@layer skam-kanbun \{/);
   });
 
   it('should respect useLayer option in render()', () => {
@@ -1549,7 +1551,7 @@ describe('CSS layer options', () => {
     };
 
     const result = render(doc, { useLayer: false });
-    expect(result.css).not.toContain('@layer');
+    expectCSSNotContains(result.css, '@layer');
   });
 });
 

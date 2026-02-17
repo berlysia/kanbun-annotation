@@ -126,3 +126,21 @@ export function expectNoCSSSelector(css: string, selectorMatcher: SelectorMatche
   const bodies = findMatchingRuleBodies(css, selectorMatcher);
   expect(bodies.length, `Unexpected CSS selector matched: ${String(selectorMatcher)}`).toBe(0);
 }
+
+export function expectCSSContains(css: string, pattern: string | RegExp): void {
+  if (typeof pattern === 'string') {
+    expect(css.includes(pattern), `Expected CSS to contain: ${pattern}`).toBe(true);
+    return;
+  }
+  const normalized = new RegExp(pattern.source, normalizeRegexFlags(pattern.flags));
+  expect(normalized.test(css), `Expected CSS to match: ${String(pattern)}`).toBe(true);
+}
+
+export function expectCSSNotContains(css: string, pattern: string | RegExp): void {
+  if (typeof pattern === 'string') {
+    expect(css.includes(pattern), `Expected CSS not to contain: ${pattern}`).toBe(false);
+    return;
+  }
+  const normalized = new RegExp(pattern.source, normalizeRegexFlags(pattern.flags));
+  expect(normalized.test(css), `Expected CSS not to match: ${String(pattern)}`).toBe(false);
+}

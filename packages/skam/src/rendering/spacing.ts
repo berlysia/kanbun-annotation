@@ -4,7 +4,7 @@
  */
 
 /** アキ組みプリセット名 */
-export type SpacingPreset = 'solid' | 'quarter' | 'half';
+export type SpacingPreset = 'solid' | 'quarter' | 'half' | 'full';
 
 /**
  * アキ組み指定
@@ -12,6 +12,7 @@ export type SpacingPreset = 'solid' | 'quarter' | 'half';
  * - 'solid': ベタ組み（アキなし）
  * - 'quarter': 四分アキ（0.25em）
  * - 'half': 二分アキ（0.5em）
+ * - 'full': 一字アキ（1em）
  * - number: 任意の em 値（0以上、負の値は0にクランプ）
  */
 export type Spacing = SpacingPreset | number;
@@ -21,6 +22,7 @@ const SPACING_EM: Record<SpacingPreset, number> = {
   solid: 0,
   quarter: 0.25,
   half: 0.5,
+  full: 1,
 };
 
 /**

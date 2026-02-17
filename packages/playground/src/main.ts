@@ -368,7 +368,9 @@ function getStateFromURL(): URLState {
 
   const spacingStr = params.get('spacing');
   const spacing: SpacingPreset =
-    spacingStr === 'quarter' || spacingStr === 'half' ? spacingStr : 'solid';
+    spacingStr === 'quarter' || spacingStr === 'half' || spacingStr === 'full'
+      ? spacingStr
+      : 'solid';
 
   return { sample, renderer, mode, inline, profile, rubyMethod, spacing };
 }
@@ -553,7 +555,7 @@ function getRubyMethod(): RubyMethod {
 
 function getSpacing(): Spacing {
   const value = spacingSelect.value;
-  if (value === 'quarter' || value === 'half') {
+  if (value === 'quarter' || value === 'half' || value === 'full') {
     return value;
   }
   return 'solid';

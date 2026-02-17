@@ -167,6 +167,9 @@ function generateCommonStyles(
           grid-template-rows: ${annotationRowH} auto ${annotationRowH};
           grid-template-columns: auto auto;
           line-height: 1;
+          /* アキ分の inline size を padding で確保。base の letter-spacing を遮断しても
+           * grid 全体の inline size は glyph + LS を維持し、spacing absorption を保つ。 */
+          padding-inline-end: var(--${vp}-letter-spacing);
           vertical-align: calc(
             var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 0.5em + 0.5em)
           );
@@ -200,6 +203,10 @@ function generateCommonStyles(
         :where(.${prefix}-ruby-grid) > :where(.${prefix}-base),
         :where(.${prefix}-ruby-grid) > :where(.${prefix}-tateten-group) {
           grid-area: base;
+          /* letter-spacing の継承を遮断: base の LS による grid column 膨張を防止。
+           * LS を含むと ruby/emphasis の text-align:center がアキまで含んだ範囲で
+           * センタリングされ、文字位置からズレる。 */
+          letter-spacing: 0;
         }
 
         /* 熟語訓: suffix-row を ruby-grid 内に配置して改行機会を排除する。
@@ -227,6 +234,7 @@ function generateCommonStyles(
           grid-template-areas: 'ruby-over' 'base' 'ruby-under';
           grid-template-rows: ${annotationRowH} auto ${annotationRowH};
           line-height: 1;
+          padding-inline-end: var(--${vp}-letter-spacing);
           vertical-align: calc(
             var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 0.5em + 0.5em)
           );
@@ -259,6 +267,7 @@ function generateCommonStyles(
 
         :where(.${prefix}-saidoku-grid) > :where(.${prefix}-base) {
           grid-area: base;
+          letter-spacing: 0;
         }
 
         :where(.${prefix}-saidoku-grid) > :where(.${prefix}-saidoku-under) {
@@ -310,6 +319,7 @@ function generateCommonStyles(
           grid-template-rows: ${annotationRowH} ${annotationRowH} auto ${annotationRowH};
           grid-template-columns: auto auto;
           line-height: 1;
+          padding-inline-end: var(--${vp}-letter-spacing);
           vertical-align: calc(
             var(--${vp}-ruby-ratio) * 0.5em + var(--${vp}-grid-baseline-fix, 0) * 1em
           );
@@ -324,6 +334,7 @@ function generateCommonStyles(
         :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-base),
         :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-tateten-group) {
           grid-area: base;
+          letter-spacing: 0;
         }
 
         :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-suffix-row) {
@@ -346,6 +357,7 @@ function generateCommonStyles(
           grid-template-rows: ${annotationRowH} auto ${annotationRowH};
           grid-template-columns: auto auto;
           line-height: 1;
+          padding-inline-end: var(--${vp}-letter-spacing);
           vertical-align: calc(
             var(--${vp}-ruby-ratio) * 0.5em + var(--${vp}-grid-baseline-fix, 0) * 1em
           );
@@ -354,6 +366,7 @@ function generateCommonStyles(
         :where(.${prefix}-ruby-grid--emphasis-no-ruby) > :where(.${prefix}-base),
         :where(.${prefix}-ruby-grid--emphasis-no-ruby) > :where(.${prefix}-tateten-group) {
           grid-area: base;
+          letter-spacing: 0;
         }
 
         :where(.${prefix}-ruby-grid--emphasis-no-ruby) > :where(.${prefix}-suffix-row) {
@@ -375,6 +388,7 @@ function generateCommonStyles(
           grid-template-areas: 'emphasis' 'ruby-over' 'base' 'ruby-under';
           grid-template-rows: ${annotationRowH} ${annotationRowH} auto ${annotationRowH};
           line-height: 1;
+          padding-inline-end: var(--${vp}-letter-spacing);
           vertical-align: calc(
             var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 1em + 0.5em)
           );
@@ -389,30 +403,13 @@ function generateCommonStyles(
 
         :where(.${prefix}-saidoku-grid--emphasis) > :where(.${prefix}-base) {
           grid-area: base;
+          letter-spacing: 0;
         }
 
         :where(.${prefix}-saidoku-grid--emphasis) > :where(.${prefix}-saidoku-under) {
           grid-area: ruby-under;
           align-self: start;
           text-align: center;
-        }
-      `
-    : '';
-
-  /* ruby-grid 内の suffix-row: グリッドが配置を制御するためネガティブマージン不要。
-   * letter-spacing による gap は inline flow でのみ発生し、grid item 間では発生しない。
-   * source order で base .suffix-row ルールの後に配置する（return テンプレート内）。 */
-  // inline-grid の直後に配置される suffix-row はグリッドが位置を制御するため、
-  // letter-spacing 補正用のネガティブマージンを打ち消す。
-  // これがないと、読み仮名が suffix-row に食い込む。
-  const gridSuffixMarginReset = includeGrid
-    ? css`
-        :where(.${prefix}-ruby-grid) + :where(.${prefix}-suffix-row),
-        :where(.${prefix}-ruby-grid--emphasis) + :where(.${prefix}-suffix-row),
-        :where(.${prefix}-ruby-grid--emphasis-no-ruby) + :where(.${prefix}-suffix-row),
-        :where(.${prefix}-saidoku-grid) + :where(.${prefix}-suffix-row),
-        :where(.${prefix}-saidoku-grid--emphasis) + :where(.${prefix}-suffix-row) {
-          margin-inline-start: 0;
         }
       `
     : '';
@@ -556,13 +553,15 @@ ${gridStyles}
   text-emphasis: none;
   /* letter-spacing の継承を遮断（suffix-row 内部レイアウトへの影響を防止） */
   letter-spacing: 0;
-  /* suffix-row は漢字(base)の直下に密着する。letter-spacing による base→suffix-row 間の
-   * アキを相殺する。ベタ組み時は calc(-1 * 0em) = 0 となり無効化される。 */
+  /* suffix-row は漢字(base)の直下に密着する。margin-inline-start の負マージンで
+   * letter-spacing による base→suffix 間のアキを相殺し、margin-inline-end で
+   * 次のトークンとの inter-token spacing を補完する。
+   * ベタ組み時は calc(-1 * 0em) = 0 / calc(1 * 0em) = 0 となり無効化される。
+   * 効果: [base][suffix][LS][次token] */
   margin-inline-start: calc(-1 * var(--${vp}-letter-spacing));
+  margin-inline-end: var(--${vp}-letter-spacing);
   vertical-align: calc(var(--${vp}-grid-baseline-fix, 0) * (var(--${vp}-ruby-ratio) * 0.5em + 0.5em));
 }
-
-${gridSuffixMarginReset}
 
 /* okuri 行にプレースホルダーを配置してベースラインを安定させる */
 :where(.${prefix}-suffix-row)::before {
@@ -817,6 +816,11 @@ ${
  */
 :where(.${prefix}-emphasis) {
   text-emphasis-color: var(--${vp}-color-emphasis);
+  /* letter-spacing の継承を遮断: LS を含むと text-emphasis マークが
+   * 文字＋アキの中央に配置され、文字位置からズレる。
+   * LS=0 にすると trailing spacing も失われるため、margin-inline-end で補完。 */
+  letter-spacing: 0;
+  margin-inline-end: var(--${vp}-letter-spacing);
 }
 
 /*

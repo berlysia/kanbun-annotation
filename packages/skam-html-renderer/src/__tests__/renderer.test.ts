@@ -673,9 +673,13 @@ describe('render', () => {
 
       const result = render(doc);
 
-      expect(result.css).toContain('.skam-document');
-      expect(result.css).toContain('.skam-token');
-      expect(result.css).toContain('writing-mode: vertical-rl');
+      expectCSSSelector(result.css, ':where(.skam-document)');
+      expectCSSRule(result.css, ':where(.skam-token)', [
+        { property: 'white-space', value: 'nowrap' },
+      ]);
+      expectCSSRule(result.css, ':where(.skam-document)', [
+        { property: 'writing-mode', value: 'vertical-rl' },
+      ]);
     });
   });
 
@@ -722,22 +726,27 @@ describe('getDefaultStyles', () => {
   it('should generate vertical CSS by default', () => {
     const css = getDefaultStyles();
 
-    expect(css).toContain('writing-mode: vertical-rl');
-    expect(css).toContain('.skam-document');
+    expectCSSRule(css, ':where(.skam-document)', [
+      { property: 'writing-mode', value: 'vertical-rl' },
+    ]);
+    expectCSSSelector(css, ':where(.skam-document)');
   });
 
   it('should generate horizontal CSS when specified', () => {
     const css = getDefaultStyles({ writingMode: 'horizontal' });
 
-    expect(css).not.toContain('writing-mode: vertical-rl');
+    expectCSSRuleLacksDeclaration(css, ':where(.skam-document)', {
+      property: 'writing-mode',
+      value: 'vertical-rl',
+    });
   });
 
   it('should use custom class prefix', () => {
     const css = getDefaultStyles({ classPrefix: 'kb' });
 
-    expect(css).toContain('.kb-document');
-    expect(css).toContain('.kb-token');
-    expect(css).not.toContain('.skam-');
+    expectCSSSelector(css, ':where(.kb-document)');
+    expectCSSSelector(css, ':where(.kb-token)');
+    expectNoCSSSelector(css, ':where(.skam-document)');
   });
 });
 
@@ -1163,8 +1172,7 @@ describe('「學而時習之」sample rendering', () => {
     // Check reading layer
     expect(result.html).toContain('学びて時に之を習ふ');
 
-    // Check CSS
-    expect(result.css).toContain('.skam-document');
+    expectCSSSelector(result.css, ':where(.skam-document)');
   });
 });
 
@@ -1259,8 +1267,9 @@ describe('inline mode', () => {
 
     const result = render(doc, { inline: true });
 
-    expect(result.css).toContain('.skam-document--inline');
-    expect(result.css).toContain('display: inline-block');
+    expectCSSRule(result.css, ':where(.skam-document--inline)', [
+      { property: 'display', value: 'inline-block' },
+    ]);
   });
 
   it('should work with vertical writing mode', () => {
@@ -1275,7 +1284,9 @@ describe('inline mode', () => {
     const result = render(doc, { inline: true, writingMode: 'vertical' });
 
     expect(result.html).toContain('data-writing-mode="vertical"');
-    expect(result.css).toContain('writing-mode: vertical-rl');
+    expectCSSRule(result.css, ':where(.skam-document)', [
+      { property: 'writing-mode', value: 'vertical-rl' },
+    ]);
   });
 
   it('should work with horizontal writing mode', () => {
@@ -1290,7 +1301,10 @@ describe('inline mode', () => {
     const result = render(doc, { inline: true, writingMode: 'horizontal' });
 
     expect(result.html).toContain('data-writing-mode="horizontal"');
-    expect(result.css).not.toContain('writing-mode: vertical-rl');
+    expectCSSRuleLacksDeclaration(result.css, ':where(.skam-document)', {
+      property: 'writing-mode',
+      value: 'vertical-rl',
+    });
   });
 });
 
@@ -1591,7 +1605,7 @@ describe('CSS variables options', () => {
     ];
 
     for (const variable of expectedVariables) {
-      expect(css).toContain(variable);
+      expectCSSRule(css, ':where(.skam-document)', [{ property: variable, value: /.+/ }]);
     }
   });
 
@@ -2176,32 +2190,44 @@ describe('spacing (aki-gumi)', () => {
 
     it('default (no spacing) outputs 0em letter-spacing', () => {
       const { css } = render(doc);
-      expect(css).toContain('--skam-letter-spacing: 0em');
+      expectCSSRule(css, ':where(.skam-document)', [
+        { property: '--skam-letter-spacing', value: '0em' },
+      ]);
     });
 
     it('spacing: "solid" outputs 0em', () => {
       const { css } = render(doc, { spacing: 'solid' });
-      expect(css).toContain('--skam-letter-spacing: 0em');
+      expectCSSRule(css, ':where(.skam-document)', [
+        { property: '--skam-letter-spacing', value: '0em' },
+      ]);
     });
 
     it('spacing: "quarter" outputs 0.25em', () => {
       const { css } = render(doc, { spacing: 'quarter' });
-      expect(css).toContain('--skam-letter-spacing: 0.25em');
+      expectCSSRule(css, ':where(.skam-document)', [
+        { property: '--skam-letter-spacing', value: '0.25em' },
+      ]);
     });
 
     it('spacing: "half" outputs 0.5em', () => {
       const { css } = render(doc, { spacing: 'half' });
-      expect(css).toContain('--skam-letter-spacing: 0.5em');
+      expectCSSRule(css, ':where(.skam-document)', [
+        { property: '--skam-letter-spacing', value: '0.5em' },
+      ]);
     });
 
     it('spacing: number outputs custom em value', () => {
       const { css } = render(doc, { spacing: 0.3 });
-      expect(css).toContain('--skam-letter-spacing: 0.3em');
+      expectCSSRule(css, ':where(.skam-document)', [
+        { property: '--skam-letter-spacing', value: '0.3em' },
+      ]);
     });
 
     it('negative number is clamped to 0', () => {
       const { css } = render(doc, { spacing: -0.5 });
-      expect(css).toContain('--skam-letter-spacing: 0em');
+      expectCSSRule(css, ':where(.skam-document)', [
+        { property: '--skam-letter-spacing', value: '0em' },
+      ]);
     });
   });
 
@@ -2209,13 +2235,17 @@ describe('spacing (aki-gumi)', () => {
     it('spacing: "quarter" outputs 0.25em', async () => {
       const { generateCSS } = await import('../index.js');
       const css = generateCSS({ spacing: 'quarter' });
-      expect(css).toContain('--skam-letter-spacing: 0.25em');
+      expectCSSRule(css, ':where(.skam-document)', [
+        { property: '--skam-letter-spacing', value: '0.25em' },
+      ]);
     });
 
     it('spacing: "half" outputs 0.5em', async () => {
       const { generateCSS } = await import('../index.js');
       const css = generateCSS({ spacing: 'half' });
-      expect(css).toContain('--skam-letter-spacing: 0.5em');
+      expectCSSRule(css, ':where(.skam-document)', [
+        { property: '--skam-letter-spacing', value: '0.5em' },
+      ]);
     });
 
     it('produces same CSS as render() with same spacing', async () => {
@@ -2237,7 +2267,9 @@ describe('spacing (aki-gumi)', () => {
   describe('getDefaultStyles() with spacing option', () => {
     it('spacing: "quarter" outputs 0.25em', () => {
       const css = getDefaultStyles({ spacing: 'quarter' });
-      expect(css).toContain('--skam-letter-spacing: 0.25em');
+      expectCSSRule(css, ':where(.skam-document)', [
+        { property: '--skam-letter-spacing', value: '0.25em' },
+      ]);
     });
   });
 

@@ -1,0 +1,52 @@
+# shiori configuration
+# See: https://github.com/berlysia/shiori
+
+# Scan options: default glob patterns for source file scanning
+scan:
+  patterns:
+    - '**/*.{js,ts,tsx,jsx}'
+    - '**/*.{css,scss,pcss}'
+  ignore:
+    - '**/node_modules/**'
+    - '**/dist/**'
+    - '**/.git/**'
+    - '**/tests/**'
+    - '**/test/**'
+    - '**/__tests__/**'
+    - '**/*.test.*'
+    - '**/*.spec.*'
+    - '**/.config/**'
+
+# File paths (relative to project root)
+paths:
+  scanResult: '.config/shiori/scan-result.json' # scan result cache
+  registry: '.config/shiori/registry.json' # annotation registry
+
+# Candidate detection: which comment patterns to detect as candidates
+# Built-in tools: eslint, stylelint, typescript, keywords
+candidates:
+  eslint: true # eslint-disable-next-line, eslint-disable-line
+  stylelint: true # stylelint-disable-next-line, stylelint-disable-line
+  typescript: true # @ts-ignore, @ts-expect-error
+  keywords: true # TODO, FIXME, HACK, XXX comments
+#
+# Per-matcher control (advanced):
+#   eslint:
+#     disable-next-line: true
+#     disable-line: false
+#
+# Custom matchers:
+#   my-tool:
+#     _matchers:
+#       my-directive:
+#         pattern: "\bmy-tool-disable\s+(.*)"
+#         rules: csv
+#         separator: "--"
+
+# Pattern-based ref resolution (see docs/decisions/012)
+# refPatterns:
+#   - match: "JIRA-{id}"
+#     urlTemplate: "https://jira.example.com/browse/{id}"
+#     registryFile: ".config/shiori/registry-jira.json"
+#   - match: "ADR-{id}"
+#     urlTemplate: "docs/decisions/{id}.md"

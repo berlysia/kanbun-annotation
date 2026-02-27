@@ -41,3 +41,5 @@ screenshots/
 # Claude Code
 .claude/plans/
 .claude/settings.local.json
+
+.config/shiori/scan-result.json

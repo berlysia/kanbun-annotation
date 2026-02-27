@@ -1288,6 +1288,58 @@ function generateInlineStyles(prefix: string): string {
  * 各ルールのセレクタに親セレクタを付与する
  * 例: `:where(.skam-emphasis) { ... }` → `:where(.skam-document[data-writing-mode="vertical"] .skam-emphasis) { ... }`
  */
+/**
+ * 括弧のネストを考慮して、トップレベルのカンマ位置で文字列を分割する。
+ * `:is(.a, .b)` 内部のカンマでは分割しない。
+ */
+function splitTopLevelCommas(s: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let start = 0;
+
+  for (let i = 0; i < s.length; i++) {
+    if (s[i] === '(') depth++;
+    else if (s[i] === ')') depth--;
+    else if (s[i] === ',' && depth === 0) {
+      parts.push(s.slice(start, i));
+      start = i + 1;
+    }
+  }
+  parts.push(s.slice(start));
+  return parts;
+}
+
+/**
+ * 括弧のネストを考慮して、最外側の `:where(...)` を分解する。
+ * `:where(` の直後から対応する `)` までを innerSelector とし、
+ * それ以降を rest とする。
+ *
+ * @returns `{ indent, inner, rest }` or `null` if not a :where() line
+ */
+function parseWhereLine(line: string): { indent: string; inner: string; rest: string } | null {
+  const leadingMatch = line.match(/^(\s*):where\(/);
+  if (!leadingMatch) return null;
+
+  const indent = leadingMatch[1] ?? '';
+  const contentStart = leadingMatch[0].length; // `:where(` の直後
+
+  // 括弧ネストを追跡して対応する `)` を見つける
+  let depth = 1;
+  let i = contentStart;
+  for (; i < line.length && depth > 0; i++) {
+    if (line[i] === '(') depth++;
+    else if (line[i] === ')') depth--;
+  }
+
+  if (depth !== 0) return null; // 対応する `)` が見つからない
+
+  // i は対応する `)` の直後を指す
+  const inner = line.slice(contentStart, i - 1); // `)` 自体は含まない
+  const rest = line.slice(i - 1); // `)` 以降（')::after {' など）
+
+  return { indent, inner, rest };
+}
+
 function wrapWithSelector(attrSelector: string, prefix: string, css: string): string {
   // CSSルールを解析して各セレクタにプレフィックスを追加
   // :where() でラップされたセレクタを検出
@@ -1295,20 +1347,16 @@ function wrapWithSelector(attrSelector: string, prefix: string, css: string): st
   const result: string[] = [];
 
   for (const line of lines) {
-    // :where() セレクタ行を検出
-    const whereMatch = line.match(/^(\s*)(:where\()(.+?)(\).*)$/);
-    if (whereMatch) {
-      const indent = whereMatch[1] ?? '';
-      const whereOpen = whereMatch[2]; // ':where('
-      const innerSelector = whereMatch[3]; // '.skam-emphasis' など
-      const rest = whereMatch[4]; // ')' 以降（')', ')::before', ') {' など）
+    const parsed = parseWhereLine(line);
+    if (parsed) {
+      const { indent, inner: innerSelector, rest } = parsed;
 
       // セレクタが prefix を含む場合のみ変換
-      if (innerSelector && innerSelector.includes(`.${prefix}-`)) {
-        // 複数セレクタ（カンマ区切り）の場合は分割して処理
-        const selectors = innerSelector.split(',').map((s) => s.trim());
+      if (innerSelector.includes(`.${prefix}-`)) {
+        // 複数セレクタ（トップレベルのカンマ区切り）の場合は分割して処理
+        const selectors = splitTopLevelCommas(innerSelector).map((s) => s.trim());
         const wrappedSelectors = selectors.map(
-          (s) => `${whereOpen}.${prefix}-document${attrSelector} ${s}${rest}`
+          (s) => `:where(.${prefix}-document${attrSelector} ${s}${rest}`
         );
         result.push(`${indent}${wrappedSelectors.join(',\n' + indent)}`);
         continue;

@@ -737,10 +737,9 @@ ${
  * (suffix-row の半分のため、vertical-align で中央揃え補正が必要)
  *
  * インラインセンタリング:
- * inline-grid トークンは letter-spacing (LS) を高さ拡張として吸収する。
- * そのためトークン間には LS によるギャップが生じない。
- * sep を margin-inline-start: -LS で前トークンの LS 領域に引き戻し、
- * height: 1em + LS でグリフ間の全空間をカバーする。
+ * tateten-sep は tateten-group 内のトークン間に配置されるインライン要素。
+ * height: max(annotationRowH, LS) で Canvas の max(rubyFontSize, spacingPx) と等価な
+ * セパレータ advance を確保する。
  * justify-self: center でマークを空間の正確な中央に配置する。
  *
  * vertical-align: Chromium baseline バグ補正 (suffix-row と同形式)
@@ -754,8 +753,8 @@ ${
   line-height: 1;
   /* letter-spacing の継承を遮断（sep 内部レイアウトへの影響を防止） */
   letter-spacing: 0;
-  /* 高さはマーク表示に必要な 1em と LS の大きい方を取る。 */
-  height: max(1em, var(--${vp}-letter-spacing));
+  /* 高さは Canvas の max(rubyFontSize, spacingPx) と等価。 */
+  height: max(${annotationRowH}, var(--${vp}-letter-spacing));
   vertical-align: calc(var(--${vp}-grid-baseline-fix, 0) * (0.5em - var(--${vp}-ruby-ratio) * 0.5em));
 }
 

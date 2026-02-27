@@ -2289,7 +2289,10 @@ describe('spacing (aki-gumi)', () => {
     it('centers tateten-sep over the inter-glyph gap using height + justify-self', () => {
       const css = getDefaultStyles();
       expectCSSRule(css, ':where(.skam-tateten-sep)', [
-        { property: 'height', value: 'max(1em, var(--skam-letter-spacing))' },
+        {
+          property: 'height',
+          value: 'max(calc(var(--skam-ruby-ratio) * 1em), var(--skam-letter-spacing))',
+        },
       ]);
       expectCSSRule(css, ':where(.skam-tateten-sep) > :where(.skam-tateten-mark)', [
         { property: 'justify-self', value: 'center' },

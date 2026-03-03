@@ -136,6 +136,7 @@ function renderTokenWithRuby(
  * </ruby>
  * + suffix（送り仮名）は呼び出し元で別途処理
  */
+// oxlint-disable-next-line eslint/complexity
 function renderSaidokuToken(
   token: Token,
   saidokuMark: SaidokuMark,
@@ -229,6 +230,7 @@ function renderOkototen(okototenMark: OkototenMark, prefix: string): string {
  * @returns TokenRenderResult - html（token本体）とsuffixHtml（抽出されたsuffix-row）を分離して返す
  * @internal
  */
+// oxlint-disable-next-line eslint/complexity
 export function renderToken(
   token: Token,
   marks: Mark[],

@@ -770,6 +770,7 @@ function processSaidoku(element: Element, state: ParserState): string[] {
  *
  * Position-based: ref does not create tokens, just marks a position between tokens
  */
+// oxlint-disable-next-line eslint/complexity
 function processRef(element: Element, state: ParserState, precedingTokenId: string | null): void {
   const labelAttr = getAttr(element, 'label');
   const formatAttr = getAttr(element, 'format');
@@ -860,6 +861,7 @@ interface PendingPositionMark {
   precedingTokenIndex: number;
 }
 
+// oxlint-disable-next-line eslint/complexity
 function processBlockChildren(element: Element, state: ParserState): string[] {
   const allTokenIds: string[] = [];
   const pendingPositionMarks: PendingPositionMark[] = [];

@@ -19,6 +19,7 @@ function createElement(): SkamRendererElement {
   return document.createElement('skam-renderer') as SkamRendererElement;
 }
 
+// oxlint-disable-next-line eslint/no-unused-vars -- kept for future interactive tests
 function appendAndWait(el: SkamRendererElement): Promise<void> {
   document.body.appendChild(el);
   return vi.waitFor(() => {

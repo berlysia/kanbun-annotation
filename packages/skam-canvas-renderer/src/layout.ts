@@ -23,6 +23,7 @@ function normalizePadding(padding: number | PaddingConfig): PaddingConfig {
   return padding;
 }
 
+// oxlint-disable-next-line eslint/complexity
 export function resolveOptions(options?: CanvasRenderOptions): ResolvedOptions {
   const profile: RenderProfile = { ...PROFILES.full, ...options?.profile };
   return {

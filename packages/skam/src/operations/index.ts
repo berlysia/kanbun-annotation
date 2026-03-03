@@ -16,7 +16,6 @@ import type {
   YomiganaMark,
   SoeganaMark,
   KutotenMark,
-  RefMark,
 } from '../index.js';
 
 // ============================================================================

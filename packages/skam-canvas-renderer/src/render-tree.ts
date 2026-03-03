@@ -47,6 +47,7 @@ import type { RenderProfile } from './profiles.js';
 /**
  * Token のスロットを解決する
  */
+// oxlint-disable-next-line eslint/complexity
 function resolveSlots(
   tokenId: string,
   marks: Mark[],
@@ -360,6 +361,7 @@ export function buildRenderTree(doc: SKAMDocument, profile: RenderProfile): Canv
 
   const refMarks = profile.ref ? marks.filter((m): m is RefMark => m.type === 'ref') : [];
 
+  // oxlint-disable-next-line eslint/complexity
   const blockNodes: CanvasBlockNode[] = blockGroups.map((group) => {
     const tokenNodes: CanvasTokenNode[] = group.tokens.map((token) => ({
       type: 'token' as const,

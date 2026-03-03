@@ -44,6 +44,7 @@ function validateFormat(input: string): ImageFormat {
   throw new Error(`Invalid format: "${input}". Supported: png, jpeg`);
 }
 
+// oxlint-disable-next-line eslint/complexity
 async function main(): Promise<void> {
   const { values, positionals } = parseArgs({
     allowPositionals: true,

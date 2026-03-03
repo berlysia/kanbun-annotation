@@ -110,7 +110,7 @@ function buildTatetenGroupInner(node: TatetenGroupNode, ctx: RenderTreeContext):
 
   // Pass 2: 各セパレータ位置への kaeri 割り当て
   const numSeparators = tokenResults.length - 1;
-  const separatorKaeri: string[] = new Array<string>(numSeparators).fill('');
+  const separatorKaeri: string[] = Array.from({ length: numSeparators }, () => '');
 
   for (let i = 0; i < tokenResults.length; i++) {
     const kaeri = tokenResults[i]!.tatetenKaeriHtml;

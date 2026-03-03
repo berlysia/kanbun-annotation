@@ -48,6 +48,7 @@ function createTwoTokenDoc(text1: string, text2: string, marks: Mark[] = []): SK
   };
 }
 
+// oxlint-disable-next-line eslint/no-unused-vars -- kept for future compound mark tests
 function createFiveTokenDoc(marks: Mark[] = []): SKAMDocument {
   return {
     format: 'skam@0.1',
@@ -64,6 +65,7 @@ function createFiveTokenDoc(marks: Mark[] = []): SKAMDocument {
   };
 }
 
+// oxlint-disable-next-line eslint/no-unused-vars -- kept for future compound mark tests
 function createSixTokenDoc(marks: Mark[] = []): SKAMDocument {
   return {
     format: 'skam@0.1',

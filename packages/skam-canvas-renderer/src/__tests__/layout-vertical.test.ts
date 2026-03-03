@@ -22,6 +22,7 @@ function asSep(child: ColumnChild): TatetenSeparatorLayout {
 
 const DEFAULT_FONT_SIZE = 24;
 const DEFAULT_RUBY_RATIO = 0.5;
+// oxlint-disable-next-line eslint/no-unused-vars -- documenting test defaults
 const DEFAULT_LINE_HEIGHT = 2.0;
 const DEFAULT_PADDING = 16;
 
@@ -174,7 +175,6 @@ describe('layoutVertical', () => {
     const tree = buildRenderTree(doc, PROFILES.full);
     const result = layout(tree, ctx);
 
-    const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
     const token = asToken(result.columns[0]!.children[0]!);
     expect(token.slots.ruby).toBeDefined();
     expect(token.slots.okuri).toBeDefined();
@@ -462,7 +462,6 @@ describe('layoutVertical', () => {
     const t3 = asToken(children[3]!);
 
     const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
-    const separatorAdvance = rubyFontSize;
 
     expect(t1.baseChar).toBe('子');
     // separator after t1
@@ -1310,8 +1309,6 @@ describe('layoutVertical', () => {
 
       it('justify fallback: overflow uses center alignment', () => {
         const ctx = new RecordingContext();
-        const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
-        const cellAdvance = DEFAULT_FONT_SIZE;
 
         // 5 chars across 2 tokens: rubyHeight=60 > spanProvided=48 → overflow
         const doc = threeTokenDoc([
@@ -1402,7 +1399,6 @@ describe('layoutVertical', () => {
     it('pushes okuri below range ruby end in tateten overflow', () => {
       const ctx = new RecordingContext();
       const rubyFontSize = Math.round(DEFAULT_FONT_SIZE * DEFAULT_RUBY_RATIO);
-      const cellAdvance = DEFAULT_FONT_SIZE;
 
       // tateten group t1-t2 with long range ruby, t2 has okuri
       const doc: SKAMDocument = {

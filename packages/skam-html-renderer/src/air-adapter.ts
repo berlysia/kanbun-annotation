@@ -22,7 +22,6 @@ import type {
 import type {
   AIRDocument,
   AIRBlock,
-  AIRBlockChild,
   AIRTokenNode,
   AIRTatetenGroupNode,
   AIRHighlightGroupNode,
@@ -207,7 +206,7 @@ function convertHighlightGroup(
   airGroup: AIRHighlightGroupNode,
   prefix: string,
   tokens: Token[],
-  marks: Mark[]
+  _marks: Mark[]
 ): HighlightGroupNode {
   const items: (TokenItem | TatetenGroupNode)[] = airGroup.children.map((child) =>
     child.type === 'token' ? convertTokenNode(child, tokens) : convertTatetenGroup(child, tokens)
@@ -254,6 +253,7 @@ function convertHighlightGroup(
 // blockHasRuby 判定 & 設定
 // ============================================================================
 
+// oxlint-disable-next-line eslint/complexity
 function checkBlockHasRuby(items: RenderNode[], tokens: Token[], marks: Mark[]): boolean {
   for (const item of items) {
     if (item.type === 'token') {

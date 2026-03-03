@@ -678,6 +678,7 @@ function normalizeSelection(
 /**
  * Update selection panel with current selection info
  */
+// oxlint-disable-next-line eslint/complexity
 function updateSelectionPanel(fromId: string, toId: string): void {
   if (!currentDocument) {
     clearSelectionPanel();
@@ -1551,6 +1552,7 @@ function updateSaidokuReread(): void {
  *   If forms[1] has values, confirm with user first.
  * Removal (partial overlap): confirm removal of entire mark.
  */
+// oxlint-disable-next-line eslint/complexity
 function handleSaidokuToggle(): void {
   if (!currentDocument || !currentSelectionFromId || !currentSelectionToId) return;
 

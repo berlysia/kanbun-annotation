@@ -17,6 +17,7 @@ import { isPositionBasedMark } from '../index.js';
  * Position-based marks は position.after の tokenId で紐付け。
  * Anchor-based marks は type に応じて from / to で紐付け。
  */
+// oxlint-disable-next-line eslint/complexity
 export function getMarksForToken(
   tokenId: string,
   marks: Mark[],

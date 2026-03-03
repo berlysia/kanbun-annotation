@@ -112,6 +112,7 @@ interface LayoutContext {
  * 単一トークンのスロットレイアウトを計算。
  * hasSuffix の分岐は GridColumns に吸収済み。
  */
+// oxlint-disable-next-line eslint/complexity
 function layoutSingleToken(
   tokenNode: CanvasTokenNode,
   tokenX: number,

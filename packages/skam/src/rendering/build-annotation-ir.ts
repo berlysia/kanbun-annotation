@@ -51,6 +51,7 @@ import { resolveRefValues } from './ref.js';
 // Token slot 解決
 // ============================================================================
 
+// oxlint-disable-next-line eslint/complexity
 function resolveTokenSlots(
   tokenId: string,
   marks: Mark[],
@@ -204,6 +205,7 @@ interface RangeGroupSet {
   soegana: Map<string, RangeMarkGroup>;
 }
 
+// oxlint-disable-next-line eslint/complexity
 function buildRangeInfo(
   leadTokenId: string,
   blockTokens: Token[],
@@ -509,6 +511,7 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
 
   const refMarks = profile.ref ? marks.filter((m): m is RefMark => m.type === 'ref') : [];
 
+  // oxlint-disable-next-line eslint/complexity
   const airBlocks: AIRBlock[] = blockGroups.map((group) => {
     // Range groups
     const rangeGroups: RangeGroupSet = {
@@ -575,7 +578,7 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
       if (rangeConsumedTokenIds.has(node.token.id)) {
         node.rangeConsumed = true;
         // range 関連スロットをクリア（リードトークンの rangeInfo に集約済み）
-        const { ruby, okuri, soegana, ...rest } = node.slots;
+        const { ruby: _ruby, okuri: _okuri, soegana: _soegana, ...rest } = node.slots;
         node.slots = rest;
       }
     }

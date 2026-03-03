@@ -16,7 +16,7 @@
   "scripts": {
     "build": "tsup",
     "typecheck": "tsgo --noEmit",
-    "lint": "oxlint -c .oxlintrc.json src",
+    "lint": "oxlint -c .oxlintrc.json src && stylelint 'src/**/*.ts'",
     "lint:baseline": "pnpm lint:baseline:css; pnpm lint:baseline:js",
     "lint:baseline:css": "stylelint 'src/**/*.ts'",
     "lint:baseline:js": "eslint -c eslint-baseline.config.js 'src/**/*.ts'",

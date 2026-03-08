@@ -4,8 +4,9 @@
  * <skam-renderer> カスタムエレメントの動作確認ページ
  */
 
-// Import registers the custom element automatically
-import '@kanbun/skam-web-component';
+import { SkamRendererElement } from '@kanbun/skam-web-component';
+
+customElements.define('skam-renderer', SkamRendererElement);
 
 // --- Demo 2: Writing mode toggle ---
 const wmRadios = document.querySelectorAll<HTMLInputElement>('input[name="wm-demo"]');

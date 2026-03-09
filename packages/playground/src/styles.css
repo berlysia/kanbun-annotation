@@ -414,6 +414,7 @@
 
   .render-options {
     display: flex;
+    flex-wrap: wrap;
     gap: 1rem;
     font-size: 0.75rem;
     align-items: center;
@@ -1505,10 +1506,6 @@
     .preview-toolbar {
       flex-direction: column;
       align-items: flex-start;
-    }
-
-    .render-options {
-      flex-wrap: wrap;
     }
 
     /* --- Settings Panel: Fullscreen Modal on SP --- */

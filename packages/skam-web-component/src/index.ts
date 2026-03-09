@@ -9,3 +9,4 @@ import './types.js';
 
 export { SkamRendererElement } from './skam-renderer.js';
 export type { AttributeValues } from './attribute-map.js';
+export { SKAM_XML_MEDIA_TYPE } from './xml-extraction.js';

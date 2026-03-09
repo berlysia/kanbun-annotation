@@ -22,7 +22,7 @@ pnpm add @kanbun/skam-web-component
 </script>
 
 <skam-renderer>
-  <script type="text/skam-ml">
+  <script type="application/vnd.berlysia.skam+xml">
     <?xml version="1.0" encoding="UTF-8"?>
     <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
       <skam:body>
@@ -80,7 +80,7 @@ skam-renderer {
 ### XML ソースの優先順位
 
 1. `xmlContent` プロパティ（プログラマティック設定）
-2. `<script type="text/skam-ml">` 子要素
+2. `<script type="application/vnd.berlysia.skam+xml">` 子要素
 3. Light DOM のテキストコンテンツ
 
 ## 関連パッケージ

@@ -268,7 +268,7 @@
           <div class="demo-row">
             <div class="demo-preview">
               <skam-renderer id="basic-renderer" auto-font>
-                <script type="text/skam-ml">
+                <script type="application/vnd.berlysia.skam+xml">
                   <?xml version="1.0" encoding="UTF-8"?>
                   <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
                     <skam:body>
@@ -288,7 +288,7 @@
             </div>
             <div class="demo-code">
               <pre><code>&lt;skam-renderer&gt;
-  &lt;script type="text/skam-ml"&gt;
+  &lt;script type="application/vnd.berlysia.skam+xml"&gt;
     &lt;?xml version="1.0" encoding="UTF-8"?&gt;
     &lt;skam:doc xmlns:skam="urn:skam:1"
               xml:lang="ja"&gt;
@@ -324,7 +324,7 @@
           <div class="demo-row" style="margin-top: 1rem">
             <div class="demo-preview">
               <skam-renderer id="wm-renderer" auto-font writing-mode="vertical">
-                <script type="text/skam-ml">
+                <script type="application/vnd.berlysia.skam+xml">
                   <?xml version="1.0" encoding="UTF-8"?>
                   <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
                     <skam:body>
@@ -368,7 +368,7 @@ el.setAttribute('writing-mode', 'horizontal');</code></pre>
           <div class="demo-row" style="margin-top: 1rem">
             <div class="demo-preview">
               <skam-renderer id="profile-renderer" auto-font>
-                <script type="text/skam-ml">
+                <script type="application/vnd.berlysia.skam+xml">
                   <?xml version="1.0" encoding="UTF-8"?>
                   <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
                     <skam:body>
@@ -421,7 +421,7 @@ el.setAttribute('profile',
           <div class="demo-row" style="margin-top: 1rem">
             <div class="demo-preview">
               <skam-renderer id="css-vars-renderer" auto-font>
-                <script type="text/skam-ml">
+                <script type="application/vnd.berlysia.skam+xml">
                   <?xml version="1.0" encoding="UTF-8"?>
                   <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
                     <skam:body>
@@ -493,7 +493,7 @@ skam-renderer {
           <div class="demo-row">
             <div class="demo-preview">
               <skam-renderer id="error-renderer" auto-font>
-                <script type="text/skam-ml">
+                <script type="application/vnd.berlysia.skam+xml">
                   <invalid>not valid SKAM-ML
                 </script>
               </skam-renderer>
@@ -501,7 +501,7 @@ skam-renderer {
             <div class="demo-code">
               <pre><code>// 不正な XML を渡すとエラー表示
 &lt;skam-renderer&gt;
-  &lt;script type="text/skam-ml"&gt;
+  &lt;script type="application/vnd.berlysia.skam+xml"&gt;
     &lt;invalid&gt;not valid SKAM-ML
   &lt;/script&gt;
 &lt;/skam-renderer&gt;

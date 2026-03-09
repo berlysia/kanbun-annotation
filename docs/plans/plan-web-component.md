@@ -22,7 +22,7 @@ SKAM の HTML レンダリングパイプラインを Web Component（Custom Ele
 
 ### 設計方針
 
-**XML 埋め込み**: `<script type="text/skam-ml">` で HTML パーサーの干渉を回避。制約: XML 内に `</script>` リテラル不可。
+**XML 埋め込み**: `<script type="application/vnd.berlysia.skam+xml">` で HTML パーサーの干渉を回避。制約: XML 内に `</script>` リテラル不可。
 
 **Shadow DOM と CSS**: `generateCSS({ useLayer: false })` で Shadow DOM 内 `<style>` に注入。CSS Variables は貫通するため外部カスタマイズ可能。
 
@@ -73,7 +73,7 @@ HTML 属性文字列 → RenderOptions の変換ロジック:
 優先順位:
 
 1. `xmlContent` プロパティ（プログラマティック設定値）— 空文字列 `""` も「設定済み」とみなし、フォールバックしない
-2. `<script type="text/skam-ml">` 子要素の `textContent` — 複数存在する場合は最初の要素を使用
+2. `<script type="application/vnd.berlysia.skam+xml">` 子要素の `textContent` — 複数存在する場合は最初の要素を使用
 3. Light DOM の `textContent`（フォールバック）
 
 `xmlContent` が一度も設定されていない（`undefined`）場合のみ 2→3 にフォールバックする。
@@ -119,7 +119,7 @@ class SkamRendererElement extends HTMLElement
    - コンテンツ `<div>` をクリアし、エラーメッセージ表示（`role="alert"`）
    - `CustomEvent('skam-error', { detail, bubbles: true, composed: true })` を dispatch
 
-**MutationObserver**: Light DOM（`this`）を監視。設定: `{ childList: true, subtree: true, characterData: true }`。`<script type="text/skam-ml">` の追加・削除・テキスト変更を検知 → `#scheduleRender()`
+**MutationObserver**: Light DOM（`this`）を監視。設定: `{ childList: true, subtree: true, characterData: true }`。`<script type="application/vnd.berlysia.skam+xml">` の追加・削除・テキスト変更を検知 → `#scheduleRender()`
 
 **イベント**:
 
@@ -173,7 +173,7 @@ class SkamRendererElement extends HTMLElement
 | リスク                                                                            | 影響度 | 軽減策                                                                                                    |
 | --------------------------------------------------------------------------------- | ------ | --------------------------------------------------------------------------------------------------------- |
 | happy-dom の Custom Elements / Shadow DOM / MutationObserver / RAF サポート不完全 | 高     | Step 1 完了後に API サポート検証テストを実行。不足があればテスト戦略を調整（polyfill or mock）            |
-| `<script type="text/skam-ml">` がバンドラーに拾われる                             | 低     | `type="text/skam-ml"` は JS と認識されないため影響なし                                                    |
+| `<script type="application/vnd.berlysia.skam+xml">` がバンドラーに拾われる        | 低     | `type="application/vnd.berlysia.skam+xml"` は JS と認識されないため影響なし                               |
 | XML 内に `</script>` リテラルが含まれると HTML パーサーが破壊                     | 低     | SKAM-ML に script 要素は存在しないため実用上問題なし。制約としてドキュメントに明記                        |
 | interactive ハンドラが Shadow DOM 内で動作しない                                  | 低     | `attachInteractiveHandlers` はコンテナ内のイベントデリゲーションのみ。Shadow DOM 内で完結するため問題なし |
 | xml-parser の browser condition が tsup でバンドル時に解決されない                | 中     | 依存を external にし、利用者のバンドラーに condition resolution を委ねる（既存パッケージと同じ方式）      |
@@ -196,7 +196,7 @@ class SkamRendererElement extends HTMLElement
    - `pnpm test` 全テスト通過
 
 3. **ブラウザ手動検証**（実装後、Playground または standalone HTML で）:
-   - `<script type="text/skam-ml">` 方式の宣言的利用
+   - `<script type="application/vnd.berlysia.skam+xml">` 方式の宣言的利用
    - JS からの `xmlContent` プロパティ設定
    - `writing-mode` / `profile` 属性の動的変更
    - CSS Variables によるスタイルカスタマイズ

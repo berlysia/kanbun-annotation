@@ -70,10 +70,10 @@ describe('SkamRendererElement', () => {
     });
   });
 
-  describe('rendering via <script type="text/skam-ml">', () => {
+  describe('rendering via <script type="application/vnd.berlysia.skam+xml">', () => {
     it('renders from script element', async () => {
       const script = document.createElement('script');
-      script.setAttribute('type', 'text/skam-ml');
+      script.setAttribute('type', 'application/vnd.berlysia.skam+xml');
       script.textContent = SAMPLE_XML;
       el.appendChild(script);
       document.body.appendChild(el);

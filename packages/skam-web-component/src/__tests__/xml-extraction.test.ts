@@ -3,13 +3,14 @@ import {
   extractXml,
   extractXmlFromScriptElement,
   extractXmlFromLightDOM,
+  SKAM_XML_MEDIA_TYPE,
 } from '../xml-extraction.js';
 
 describe('extractXmlFromScriptElement', () => {
-  it('returns textContent of <script type="text/skam-ml">', () => {
+  it('returns textContent of <script type="application/vnd.berlysia.skam+xml">', () => {
     const el = document.createElement('div');
     const script = document.createElement('script');
-    script.setAttribute('type', 'text/skam-ml');
+    script.setAttribute('type', SKAM_XML_MEDIA_TYPE);
     script.textContent = '<skam:doc>test</skam:doc>';
     el.appendChild(script);
     expect(extractXmlFromScriptElement(el)).toBe('<skam:doc>test</skam:doc>');
@@ -18,10 +19,10 @@ describe('extractXmlFromScriptElement', () => {
   it('returns first script when multiple exist', () => {
     const el = document.createElement('div');
     const script1 = document.createElement('script');
-    script1.setAttribute('type', 'text/skam-ml');
+    script1.setAttribute('type', SKAM_XML_MEDIA_TYPE);
     script1.textContent = 'first';
     const script2 = document.createElement('script');
-    script2.setAttribute('type', 'text/skam-ml');
+    script2.setAttribute('type', SKAM_XML_MEDIA_TYPE);
     script2.textContent = 'second';
     el.appendChild(script1);
     el.appendChild(script2);
@@ -66,7 +67,7 @@ describe('extractXml', () => {
   it('returns xmlContent when defined (priority 1)', () => {
     const el = document.createElement('div');
     const script = document.createElement('script');
-    script.setAttribute('type', 'text/skam-ml');
+    script.setAttribute('type', SKAM_XML_MEDIA_TYPE);
     script.textContent = 'from-script';
     el.appendChild(script);
 
@@ -82,7 +83,7 @@ describe('extractXml', () => {
   it('falls back to script element when xmlContent is undefined', () => {
     const el = document.createElement('div');
     const script = document.createElement('script');
-    script.setAttribute('type', 'text/skam-ml');
+    script.setAttribute('type', SKAM_XML_MEDIA_TYPE);
     script.textContent = 'from-script';
     el.appendChild(script);
 

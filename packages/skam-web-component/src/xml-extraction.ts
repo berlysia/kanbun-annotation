@@ -3,17 +3,17 @@
  *
  * 優先順位:
  * 1. xmlContent プロパティ（プログラマティック設定値）
- * 2. <script type="text/skam-ml"> 子要素の textContent
+ * 2. <script type="application/vnd.berlysia.skam+xml"> 子要素の textContent
  * 3. Light DOM の textContent（フォールバック）
  */
 
-const SKAM_ML_TYPE = 'text/skam-ml';
+export const SKAM_XML_MEDIA_TYPE = 'application/vnd.berlysia.skam+xml';
 
 /**
- * <script type="text/skam-ml"> 要素からXMLを取得する
+ * <script type="application/vnd.berlysia.skam+xml"> 要素からXMLを取得する
  */
 export function extractXmlFromScriptElement(host: HTMLElement): string | null {
-  const script = host.querySelector(`script[type="${SKAM_ML_TYPE}"]`);
+  const script = host.querySelector(`script[type="${SKAM_XML_MEDIA_TYPE}"]`);
   if (script) {
     const text = script.textContent?.trim();
     return text || null;
@@ -45,7 +45,7 @@ export function extractXml(xmlContent: string | undefined, host: HTMLElement): s
     return xmlContent || null;
   }
 
-  // 2. <script type="text/skam-ml">
+  // 2. <script type="application/vnd.berlysia.skam+xml">
   const fromScript = extractXmlFromScriptElement(host);
   if (fromScript) {
     return fromScript;

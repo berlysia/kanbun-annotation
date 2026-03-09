@@ -119,7 +119,7 @@ export class SkamRendererElement extends HTMLElement {
 
   /**
    * XML コンテンツをプログラマティックに設定する。
-   * undefined の場合は <script type="text/skam-ml"> や Light DOM にフォールバック。
+   * undefined の場合は <script type="application/vnd.berlysia.skam+xml"> や Light DOM にフォールバック。
    * 空文字列 "" も「設定済み」とみなし、フォールバックしない。
    */
   get xmlContent(): string | undefined {

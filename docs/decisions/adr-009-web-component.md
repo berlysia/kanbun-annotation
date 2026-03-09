@@ -38,11 +38,11 @@ SKAM の HTML レンダリングパイプライン（`parse` → `render`）を�
 
 ### XML 埋め込み方式
 
-`<script type="text/skam-ml">` を使用する。`<script>` の non-JavaScript type はブラウザが raw text として保持するため、XML 名前空間構文が破壊されない。
+`<script type="application/vnd.berlysia.skam+xml">` を使用する。`<script>` の non-JavaScript type はブラウザが raw text として保持するため、XML 名前空間構文が破壊されない。
 
 ```html
 <skam-renderer writing-mode="vertical">
-  <script type="text/skam-ml">
+  <script type="application/vnd.berlysia.skam+xml">
     <skam:doc xmlns:skam="urn:skam">
       子曰<skam:yomigana value="いは">く</skam:yomigana>學而時習之
     </skam:doc>

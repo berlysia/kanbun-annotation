@@ -43,6 +43,7 @@ function updateCssVars(): void {
 }
 
 cssFontSize.addEventListener('input', updateCssVars);
+updateCssVars();
 
 cssKaeriColor.addEventListener('input', () => {
   cssVarsRenderer.style.setProperty('--skam-color-kaeriten', cssKaeriColor.value);

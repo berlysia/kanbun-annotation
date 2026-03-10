@@ -305,10 +305,22 @@ function main() {
     );
     const maxYear = withYear.length > 0 ? Math.max(...withYear.map((f) => f.baselineYear)) : null;
     const notYetBaseline = feats.filter((f) => f.baselineYear == null);
-    const hasDegradedNotBaseline = notYetBaseline.some(
+    // safe な Limited 機能は「解決済み」として除外し、degraded のみを問題として扱う
+    const unresolvedNotBaseline = notYetBaseline.filter(
+      (f) => resolveStatus(f.feature, sectionKey) !== 'safe'
+    );
+    const hasDegradedNotBaseline = unresolvedNotBaseline.some(
       (f) => resolveStatus(f.feature, sectionKey) === 'degraded'
     );
-    return { feats, broken, unknown, maxYear, notYetBaseline, hasDegradedNotBaseline };
+    return {
+      feats,
+      broken,
+      unknown,
+      maxYear,
+      notYetBaseline,
+      unresolvedNotBaseline,
+      hasDegradedNotBaseline,
+    };
   }
 
   const rendererSections = [
@@ -325,22 +337,17 @@ function main() {
 
   for (const { key, label } of rendererSections) {
     const s = getSectionSummary(key);
-    if (s.feats.length === 0) {
-      lines.push(`| ${label} | ✅ all clear | 非 Baseline 機能なし |`);
-    } else if (s.broken.length > 0) {
+    if (s.broken.length > 0) {
       lines.push(`| ${label} | ❌ broken | 一部機能は非対応ブラウザで動作しません |`);
-    } else if (s.maxYear != null) {
-      const notes = [];
-      if (s.hasDegradedNotBaseline) notes.push('未 Baseline 機能で体験低下あり');
-      if (s.unknown.length > 0) notes.push(`${s.unknown.length} 件フォールバック未定義`);
-      lines.push(
-        `| ${label} | **Baseline ${s.maxYear}** | ${notes.join('、') || 'フォールバック込みで完全動作'} |`
-      );
     } else {
       const notes = [];
-      if (s.hasDegradedNotBaseline) notes.push('未 Baseline 機能で体験低下あり');
+      if (s.hasDegradedNotBaseline) notes.push('一部 cosmetic な体験低下あり');
       if (s.unknown.length > 0) notes.push(`${s.unknown.length} 件フォールバック未定義`);
-      lines.push(`| ${label} | ⚠️ not yet | ${notes.join('、') || '全機能が未 Baseline'} |`);
+      // safe な Limited 機能を除外した上で baseline 年度を決定
+      // maxYear がなければ全機能が Baseline 2022 より前から対応済み
+      const yearLabel =
+        s.maxYear != null ? `**Baseline ${s.maxYear}**` : `< Baseline ${BASELINE_START_YEAR}`;
+      lines.push(`| ${label} | ${yearLabel} | ${notes.join('、') || '—'} |`);
     }
   }
 

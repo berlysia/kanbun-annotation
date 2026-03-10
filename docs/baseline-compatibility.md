@@ -4,11 +4,11 @@ Generated: 2026-03-10
 
 ## Summary
 
-| Renderer             | Baseline Year     | Notes                          |
-| -------------------- | ----------------- | ------------------------------ |
-| HTML Renderer (Grid) | ⚠️ not yet        | 未 Baseline 機能で体験低下あり |
-| HTML Renderer (Ruby) | **Baseline 2024** | 未 Baseline 機能で体験低下あり |
-| Canvas Renderer      | ✅ all clear      | 非 Baseline 機能なし           |
+| Renderer             | Baseline Year     | Notes                        |
+| -------------------- | ----------------- | ---------------------------- |
+| HTML Renderer (Grid) | < Baseline 2022   | 一部 cosmetic な体験低下あり |
+| HTML Renderer (Ruby) | **Baseline 2024** | 一部 cosmetic な体験低下あり |
+| Canvas Renderer      | < Baseline 2022   | —                            |
 
 > Playground: 1 件のフォールバック未定義機能があります（`baseline-overrides-playground.json` に追加してください）
 

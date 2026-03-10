@@ -305,12 +305,22 @@ function main() {
     );
     const maxYear = withYear.length > 0 ? Math.max(...withYear.map((f) => f.baselineYear)) : null;
     const notYetBaseline = feats.filter((f) => f.baselineYear == null);
-    // safe な Limited 機能は「解決済み」として除外し、degraded のみを問題として扱う
-    const unresolvedNotBaseline = notYetBaseline.filter(
-      (f) => resolveStatus(f.feature, sectionKey) !== 'safe'
+    // safe/enhanced な Limited 機能は「解決済み」として除外し、degraded のみを問題として扱う
+    const unresolvedNotBaseline = notYetBaseline.filter((f) => {
+      const st = resolveStatus(f.feature, sectionKey);
+      return st !== 'safe' && st !== 'enhanced';
+    });
+    const hasEnhancedNotBaseline = notYetBaseline.some(
+      (f) => resolveStatus(f.feature, sectionKey) === 'enhanced'
     );
     const hasDegradedNotBaseline = unresolvedNotBaseline.some(
       (f) => resolveStatus(f.feature, sectionKey) === 'degraded'
+    );
+    const hasEnhancedBaseline = feats.some(
+      (f) => f.baselineYear != null && resolveStatus(f.feature, sectionKey) === 'enhanced'
+    );
+    const hasDegradedBaseline = feats.some(
+      (f) => f.baselineYear != null && resolveStatus(f.feature, sectionKey) === 'degraded'
     );
     return {
       feats,
@@ -320,6 +330,9 @@ function main() {
       notYetBaseline,
       unresolvedNotBaseline,
       hasDegradedNotBaseline,
+      hasEnhancedNotBaseline,
+      hasEnhancedBaseline,
+      hasDegradedBaseline,
     };
   }
 
@@ -341,7 +354,10 @@ function main() {
       lines.push(`| ${label} | ❌ broken | 一部機能は非対応ブラウザで動作しません |`);
     } else {
       const notes = [];
-      if (s.hasDegradedNotBaseline) notes.push('一部 cosmetic な体験低下あり');
+      if (s.hasEnhancedNotBaseline || s.hasEnhancedBaseline)
+        notes.push('対応ブラウザで追加の体験向上あり');
+      if (s.hasDegradedNotBaseline || s.hasDegradedBaseline)
+        notes.push('一部ブラウザで cosmetic な劣化あり');
       if (s.unknown.length > 0) notes.push(`${s.unknown.length} 件フォールバック未定義`);
       // safe な Limited 機能を除外した上で baseline 年度を決定
       // maxYear がなければ全機能が Baseline 2022 より前から対応済み
@@ -364,6 +380,7 @@ function main() {
   // Section renderers
   const statusIcon = {
     safe: '✅ safe',
+    enhanced: '💡 enhanced',
     degraded: '⚠️ degraded',
     broken: '❌ broken',
     unknown: '❓ unknown',

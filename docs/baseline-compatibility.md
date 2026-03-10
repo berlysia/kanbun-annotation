@@ -4,11 +4,11 @@ Generated: 2026-03-10
 
 ## Summary
 
-| Renderer             | Baseline Year     | Notes                        |
-| -------------------- | ----------------- | ---------------------------- |
-| HTML Renderer (Grid) | < Baseline 2022   | 一部 cosmetic な体験低下あり |
-| HTML Renderer (Ruby) | **Baseline 2024** | 一部 cosmetic な体験低下あり |
-| Canvas Renderer      | < Baseline 2022   | —                            |
+| Renderer             | Baseline Year     | Notes                                                                |
+| -------------------- | ----------------- | -------------------------------------------------------------------- |
+| HTML Renderer (Grid) | < Baseline 2022   | 対応ブラウザで追加の体験向上あり                                     |
+| HTML Renderer (Ruby) | **Baseline 2024** | 対応ブラウザで追加の体験向上あり、一部ブラウザで cosmetic な劣化あり |
+| Canvas Renderer      | < Baseline 2022   | —                                                                    |
 
 ## HTML Renderer (Grid)
 
@@ -17,7 +17,7 @@ Generated: 2026-03-10
 | Feature             | Status      | Fallback                                                                                                                                                        |
 | ------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `user-select`       | ✅ safe     | -webkit-user-select を全箇所で併記済み。Safari 3.1+ (2008)、Chrome 4+ (2010)、Firefox 2+ (-moz-, 2006) から対応しており、実質 2008 年以降の全ブラウザで動作する |
-| `text-spacing-trim` | ⚠️ degraded | Chromium 123+ のみ対応（Firefox・Safari 未実装）。非対応時は約物がデフォルト全角幅で表示される（フォントの halt/chws feature 未適用）                           |
+| `text-spacing-trim` | 💡 enhanced | Chromium 123+ で約物の字間が自動調整される（halt/chws feature 適用）。非対応ブラウザではデフォルトの全角幅で表示され、機能的な問題はない                        |
 
 ## HTML Renderer (Ruby)
 
@@ -25,7 +25,7 @@ Generated: 2026-03-10
 
 | Feature         | Status      | Fallback                                                                                                                                                                                                                                                                     |
 | --------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ruby-align`    | ⚠️ degraded | Baseline Newly available (2024-12)。使用値 center は Safari 18.2+/Chrome 128+/Firefox 38+ で対応。Safari 18.1 以前で center が効かずルビがデフォルト配置になる                                                                                                               |
+| `ruby-align`    | 💡 enhanced | Baseline Newly available (2024-12)。対応ブラウザ（Safari 18.2+/Chrome 128+/Firefox 38+）でルビが中央揃えになる。非対応ブラウザではブラウザデフォルトの配置で表示され、機能的な問題はない                                                                                     |
 | `ruby-position` | ⚠️ degraded | Baseline Newly available (2024-12)。使用値 over/under は Safari 18.2+/Chrome 84+/Firefox 38+ で対応。rubyMethod=ruby で再読文字（saidoku）を描画する場合、Safari 18.1 以前では under が効かず上下ルビが同一位置に重なる。rubyMethod=grid は ruby-position に依存せず影響なし |
 
 ### Limited Availability
@@ -33,7 +33,7 @@ Generated: 2026-03-10
 | Feature             | Status      | Fallback                                                                                                                                                        |
 | ------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `user-select`       | ✅ safe     | -webkit-user-select を全箇所で併記済み。Safari 3.1+ (2008)、Chrome 4+ (2010)、Firefox 2+ (-moz-, 2006) から対応しており、実質 2008 年以降の全ブラウザで動作する |
-| `text-spacing-trim` | ⚠️ degraded | Chromium 123+ のみ対応（Firefox・Safari 未実装）。非対応時は約物がデフォルト全角幅で表示される（フォントの halt/chws feature 未適用）                           |
+| `text-spacing-trim` | 💡 enhanced | Chromium 123+ で約物の字間が自動調整される（halt/chws feature 適用）。非対応ブラウザではデフォルトの全角幅で表示され、機能的な問題はない                        |
 
 ## Canvas Renderer
 

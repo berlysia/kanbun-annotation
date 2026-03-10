@@ -102,6 +102,10 @@ export interface HighlightGroupNode {
   items: (TokenItem | TatetenGroupNode)[];
   /** グループ内にルビ付きトークンが存在するか（傍線位置の調整に使用） */
   hasKana: boolean;
+  /** グループ内に傍点付きトークンが存在するか（emphasis+highlight 共存のスタイル切替に使用） */
+  hasEmphasis: boolean;
+  /** グループに ref ラベルが存在するか（inline-block 切替に使用） */
+  hasRef: boolean;
 }
 
 /** Union of all render tree node types. */

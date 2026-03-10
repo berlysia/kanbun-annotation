@@ -1920,6 +1920,9 @@ describe('highlight with ref association', () => {
     // Ref marker should appear inside highlight span (as direct child)
     const htmlContent = result.html;
     expect(htmlContent).toMatch(/skam-highlight[^>]*>.*skam-ref.*<\/span>/);
+
+    // data-has-ref attribute should be present on highlight element
+    expect(htmlContent).toContain('data-has-ref');
   });
 
   it('should not render ref standalone when associated with highlight', () => {

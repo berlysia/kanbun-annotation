@@ -90,10 +90,40 @@ export const FIXTURE_SAIDOKU: SKAMDocument = {
   readings: [],
 };
 
+/** Case 5: emphasis-highlight — 傍点+傍線共存 + ref ラベル */
+export const FIXTURE_EMPHASIS_HIGHLIGHT: SKAMDocument = {
+  format: 'skam@0.1',
+  tokens: [
+    { id: 't1', text: '重' },
+    { id: 't2', text: '要' },
+    { id: 't3', text: '語' },
+  ],
+  blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
+  marks: [
+    { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'じゅうよう' },
+    { type: 'emphasis', anchor: { from: 't1', to: 't2' }, style: 'filled dot' },
+    {
+      type: 'highlight',
+      id: 'hl1',
+      anchor: { from: 't1', to: 't2' },
+      style: 'solid',
+      ref: 'ref1',
+    },
+    {
+      type: 'ref',
+      id: 'ref1',
+      position: { blockId: 'b1', after: 't2' },
+      format: 'alpha-upper',
+    },
+  ],
+  readings: [],
+};
+
 /** All fixtures keyed by case_id (for iteration) */
 export const FIXTURES = {
   'ruby-range-core': FIXTURE_RANGE_RUBY,
   'tateten-kaeri-split': FIXTURE_TATETEN_KAERI,
   'highlight-ref-label': FIXTURE_HIGHLIGHT_REF,
   'saidoku-two-stage': FIXTURE_SAIDOKU,
+  'emphasis-highlight': FIXTURE_EMPHASIS_HIGHLIGHT,
 } as const;

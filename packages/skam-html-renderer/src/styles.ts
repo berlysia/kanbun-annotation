@@ -1050,93 +1050,82 @@ function generateWritingModeStyles(
              * emphasis+highlight 共存時は highlight-content の傍線描画を無効化し、
              * 代わりに highlight::after で全スタイルを再現する。
              */
-            @supports selector(:has(a)) {
-              /* emphasis 共存時: highlight-content の傍線を無効化 */
-              :where(
-                  .${prefix}-highlight:has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby))
-                )
-                > :where(.${prefix}-highlight-content) {
-                background-image: none !important;
-              }
+            /* emphasis 共存時: highlight-content の傍線を無効化 */
+            :where(.${prefix}-highlight[data-has-emphasis]) > :where(.${prefix}-highlight-content) {
+              background-image: none !important;
+            }
 
-              /* emphasis 共存時: ::after で傍線を描画（共通）
+            /* emphasis 共存時: ::after で傍線を描画（共通）
                * right offset = emphasis-row 幅 (ruby-ratio * 1em) + highlight padding (${highlightColumnGap})
                * ruby 行有無で同じ値（emphasis-row は常に grid 最右列） */
-              :where(
-                .${prefix}-highlight:has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby))
-              )::after {
-                content: '';
-                position: absolute;
-                top: 0;
-                bottom: 0;
-                right: calc(${annotationRowH} + ${highlightColumnGap});
-                width: 0;
-              }
+            :where(.${prefix}-highlight[data-has-emphasis])::after {
+              content: '';
+              position: absolute;
+              top: 0;
+              bottom: 0;
+              right: calc(${annotationRowH} + ${highlightColumnGap});
+              width: 0;
+            }
 
-              /* 仮名なし: padding-right が noKanaReduction 分小さいため right offset も同量削減 */
-              :where(
-                .${prefix}-highlight:not([data-has-kana]):has(
-                    :is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby)
-                  )
-              )::after {
-                right: calc(${annotationRowH} + ${highlightColumnGap} - ${noKanaReduction});
-              }
+            /* 仮名なし: padding-right が noKanaReduction 分小さいため right offset も同量削減 */
+            :where(.${prefix}-highlight[data-has-emphasis]:not([data-has-kana]))::after {
+              right: calc(${annotationRowH} + ${highlightColumnGap} - ${noKanaReduction});
+            }
 
-              /* solid */
-              :where(.${prefix}-highlight[data-style="solid"]:has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby)))::after {
-                border-right: 1px solid currentColor;
-              }
+            /* solid */
+            :where(.${prefix}-highlight[data-style="solid"][data-has-emphasis])::after {
+              border-right: 1px solid currentColor;
+            }
 
-              /* dotted */
-              :where(.${prefix}-highlight[data-style="dotted"]:has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby)))::after {
-                border-right: none;
-                width: 1px;
-                background-image: linear-gradient(to bottom, currentColor 2px, transparent 2px);
-                background-size: 1px 4px;
-                background-repeat: repeat-y;
-              }
+            /* dotted */
+            :where(.${prefix}-highlight[data-style="dotted"][data-has-emphasis])::after {
+              border-right: none;
+              width: 1px;
+              background-image: linear-gradient(to bottom, currentColor 2px, transparent 2px);
+              background-size: 1px 4px;
+              background-repeat: repeat-y;
+            }
 
-              /* dashed */
-              :where(.${prefix}-highlight[data-style="dashed"]:has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby)))::after {
-                border-right: none;
-                width: 1px;
-                background-image: linear-gradient(to bottom, currentColor 4px, transparent 4px);
-                background-size: 1px 8px;
-                background-repeat: repeat-y;
-              }
+            /* dashed */
+            :where(.${prefix}-highlight[data-style="dashed"][data-has-emphasis])::after {
+              border-right: none;
+              width: 1px;
+              background-image: linear-gradient(to bottom, currentColor 4px, transparent 4px);
+              background-size: 1px 8px;
+              background-repeat: repeat-y;
+            }
 
-              /* wavy */
-              :where(.${prefix}-highlight[data-style="wavy"]:has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby)))::after {
-                border-right: none;
-                width: 4px;
-                right: calc(${annotationRowH} + ${highlightColumnGap} - 1.5px);
-                background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='8' viewBox='0 0 4 8'%3E%3Cpath d='M3 0 Q0 4 3 8' stroke='%23333' fill='none' stroke-width='1'/%3E%3C/svg%3E");
-                background-size: 4px 8px;
-                background-repeat: repeat-y;
-              }
+            /* wavy */
+            :where(.${prefix}-highlight[data-style="wavy"][data-has-emphasis])::after {
+              border-right: none;
+              width: 4px;
+              right: calc(${annotationRowH} + ${highlightColumnGap} - 1.5px);
+              background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='4' height='8' viewBox='0 0 4 8'%3E%3Cpath d='M3 0 Q0 4 3 8' stroke='%23333' fill='none' stroke-width='1'/%3E%3C/svg%3E");
+              background-size: 4px 8px;
+              background-repeat: repeat-y;
+            }
 
-              :where(.${prefix}-highlight[data-style="wavy"]:not([data-has-kana]):has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby)))::after {
-                right: calc(${annotationRowH} + ${highlightColumnGap} - ${noKanaReduction} - 1.5px);
-              }
+            :where(.${prefix}-highlight[data-style="wavy"][data-has-emphasis]:not([data-has-kana]))::after {
+              right: calc(${annotationRowH} + ${highlightColumnGap} - ${noKanaReduction} - 1.5px);
+            }
 
-              /* double */
-              :where(.${prefix}-highlight[data-style="double"]:has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby)))::after {
-                border-right: none;
-                width: 3px;
-                right: calc(${annotationRowH} + ${highlightColumnGap} - 1px);
-                background-image: linear-gradient(
-                  to left,
-                  currentColor 1px,
-                  transparent 1px 2px,
-                  currentColor 2px 3px,
-                  transparent 3px
-                );
-                background-repeat: repeat-y;
-              }
+            /* double */
+            :where(.${prefix}-highlight[data-style="double"][data-has-emphasis])::after {
+              border-right: none;
+              width: 3px;
+              right: calc(${annotationRowH} + ${highlightColumnGap} - 1px);
+              background-image: linear-gradient(
+                to left,
+                currentColor 1px,
+                transparent 1px 2px,
+                currentColor 2px 3px,
+                transparent 3px
+              );
+              background-repeat: repeat-y;
+            }
 
-              :where(.${prefix}-highlight[data-style="double"]:not([data-has-kana]):has(:is(.${prefix}-ruby-grid--emphasis, .${prefix}-ruby-grid--emphasis-no-ruby)))::after {
-                right: calc(${annotationRowH} + ${highlightColumnGap} - ${noKanaReduction} - 1px);
-              }
+            :where(.${prefix}-highlight[data-style="double"][data-has-emphasis]:not([data-has-kana]))::after {
+              right: calc(${annotationRowH} + ${highlightColumnGap} - ${noKanaReduction} - 1px);
             }
           `
         : ''}
@@ -1214,10 +1203,8 @@ function generateWritingModeStyles(
       /* Ref ラベルのレイアウト参加:
        * inline 要素の padding-bottom は行ボックスの高さに寄与しないため、
        * ref を持つ highlight を inline-block にして padding を寸法に反映させる。 */
-      @supports selector(:has(a)) {
-        :where(.${prefix}-highlight:has(> .${prefix}-highlight-content > .${prefix}-ref)) {
-          display: inline-block;
-        }
+      :where(.${prefix}-highlight[data-has-ref]) {
+        display: inline-block;
       }
 
       /* 横書きでは縦中横不要 */

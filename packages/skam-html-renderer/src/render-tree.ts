@@ -301,7 +301,9 @@ function renderHighlightGroupNode(node: HighlightGroupNode, ctx: RenderTreeConte
     }
 
     const kanaAttr = node.hasKana ? ' data-has-kana' : '';
-    const highlightHtml = `<span class="${prefix}-highlight${styleClass}" data-style="${style}"${kanaAttr}><span class="${contentClass}">${node.refHtml}${contentParts.join('')}</span></span>`;
+    const emphasisAttr = node.hasEmphasis ? ' data-has-emphasis' : '';
+    const refAttr = node.hasRef ? ' data-has-ref' : '';
+    const highlightHtml = `<span class="${prefix}-highlight${styleClass}" data-style="${style}"${kanaAttr}${emphasisAttr}${refAttr}><span class="${contentClass}">${node.refHtml}${contentParts.join('')}</span></span>`;
 
     // ruby-grid で highlight と suffix をラップ
     // highlight は base row / column 1、suffix は base row / column 2
@@ -332,7 +334,9 @@ function renderHighlightGroupNode(node: HighlightGroupNode, ctx: RenderTreeConte
   }
 
   const kanaAttr = node.hasKana ? ' data-has-kana' : '';
-  return `<span class="${prefix}-highlight${styleClass}" data-style="${style}"${kanaAttr}><span class="${contentClass}">${node.refHtml}${contentParts.join('')}</span></span>`;
+  const emphasisAttr = node.hasEmphasis ? ' data-has-emphasis' : '';
+  const refAttr = node.hasRef ? ' data-has-ref' : '';
+  return `<span class="${prefix}-highlight${styleClass}" data-style="${style}"${kanaAttr}${emphasisAttr}${refAttr}><span class="${contentClass}">${node.refHtml}${contentParts.join('')}</span></span>`;
 }
 
 // ---------------------------------------------------------------------------

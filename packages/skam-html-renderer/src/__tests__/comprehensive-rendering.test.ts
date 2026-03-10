@@ -704,6 +704,9 @@ describe('Highlight style rendering variations', () => {
     ]);
     const { html } = render(doc);
     expect(html).toContain('skam-highlight');
+    // emphasis なし・ref なしの highlight には data-has-emphasis / data-has-ref が付かない
+    expect(html).not.toContain('data-has-emphasis');
+    expect(html).not.toContain('data-has-ref');
   });
 });
 

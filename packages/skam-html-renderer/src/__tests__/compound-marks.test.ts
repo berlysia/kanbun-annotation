@@ -308,6 +308,10 @@ describe('Four-element compound and saidoku compound', () => {
     expect(html).toMatch(/skam-emphasis.*<ruby>/s);
     // 個別トークンに emphasis class がないこと
     expect(html).not.toMatch(/skam-token skam-emphasis/);
+    // data 属性: emphasis+highlight 共存時に data-has-emphasis が付与される
+    expect(html).toContain('data-has-emphasis');
+    // data 属性: ref 付き highlight に data-has-ref が付与される
+    expect(html).toContain('data-has-ref');
   });
 
   it('saidoku + yomigana on same token', () => {

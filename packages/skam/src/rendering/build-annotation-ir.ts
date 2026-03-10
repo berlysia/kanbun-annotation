@@ -472,6 +472,25 @@ function checkHasKana(node: AIRTokenNode | AIRTatetenGroupNode): boolean {
 }
 
 // ============================================================================
+// highlight 内の hasEmphasis 判定
+// ============================================================================
+
+function checkHasEmphasis(node: AIRTokenNode | AIRTatetenGroupNode): boolean {
+  if (node.type === 'token') {
+    return !!node.slots.emphasis;
+  }
+  // tateten-group
+  for (const child of node.children) {
+    if (child.type === 'token') {
+      if (child.slots.emphasis) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+// ============================================================================
 // Public API
 // ============================================================================
 
@@ -684,8 +703,9 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
               }
             }
 
-            // hasKana 判定
+            // hasKana / hasEmphasis 判定
             const hasKana = hlChildren.some(checkHasKana);
+            const hasEmphasis = hlChildren.some(checkHasEmphasis);
 
             const hlGroup: AIRHighlightGroupNode = {
               type: 'highlight-group',
@@ -694,6 +714,7 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
               ...(resolvedRefLabel ? { refLabel: resolvedRefLabel } : {}),
               children: hlChildren,
               hasKana,
+              hasEmphasis,
             };
             grouped.push(hlGroup);
           }

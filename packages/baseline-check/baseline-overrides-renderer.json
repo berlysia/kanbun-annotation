@@ -1,7 +1,7 @@
 {
   "has": {
     "status": "safe",
-    "fallback": "@supports ガード済み。非対応時は ::before プレースホルダーが残るが auto sizing で幅 0 に解決（非 Chromium にはバグなし）"
+    "fallback": "@supports ガード済み（Chromium baseline バグ補正の ::before 制御のみ）。非対応時は ::before プレースホルダーが残るが auto sizing で幅 0 に解決（非 Chromium にはバグなし）。emphasis+highlight 共存・ref 付き highlight の :has() は data 属性に置き換え済み"
   },
   "text-spacing-trim": {
     "status": "enhanced",

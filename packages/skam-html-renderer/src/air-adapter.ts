@@ -246,6 +246,8 @@ function convertHighlightGroup(
     refHtml,
     items,
     hasKana,
+    hasEmphasis: airGroup.hasEmphasis,
+    hasRef: !!airGroup.refLabel,
   };
 }
 

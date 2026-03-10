@@ -140,6 +140,8 @@ export interface AIRHighlightGroupNode {
   children: (AIRTokenNode | AIRTatetenGroupNode)[];
   /** グループ内にルビ付きトークンが存在するか */
   hasKana: boolean;
+  /** グループ内に傍点付きトークンが存在するか */
+  hasEmphasis: boolean;
 }
 
 // ============================================================================

@@ -9,7 +9,7 @@
   },
   "user-select": {
     "status": "safe",
-    "fallback": "Safari が未だ unprefixed 未対応のため -webkit-user-select を併記済み。全使用箇所でプレフィックス付きプロパティを提供しており、全ブラウザで動作する"
+    "fallback": "-webkit-user-select を全箇所で併記済み。Safari 3.1+ (2008)、Chrome 4+ (2010)、Firefox 2+ (-moz-, 2006) から対応しており、実質 2008 年以降の全ブラウザで動作する"
   },
   "outline": {
     "status": "safe",

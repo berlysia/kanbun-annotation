@@ -6,7 +6,7 @@ Generated: 2026-03-10
 
 | Renderer             | Baseline Year     | Notes                          |
 | -------------------- | ----------------- | ------------------------------ |
-| HTML Renderer (Grid) | **Baseline 2023** | 未 Baseline 機能で体験低下あり |
+| HTML Renderer (Grid) | ⚠️ not yet        | 未 Baseline 機能で体験低下あり |
 | HTML Renderer (Ruby) | **Baseline 2024** | 未 Baseline 機能で体験低下あり |
 | Canvas Renderer      | ✅ all clear      | 非 Baseline 機能なし           |
 
@@ -14,26 +14,14 @@ Generated: 2026-03-10
 
 ## HTML Renderer (Grid)
 
-### Baseline 2023
-
-| Feature   | Status  | Fallback                                                                                           |
-| --------- | ------- | -------------------------------------------------------------------------------------------------- |
-| `outline` | ✅ safe | Baseline Widely available (2023)。基本機能は全ブラウザで長期サポート済み。選択ハイライト装飾で使用 |
-
 ### Limited Availability
 
-| Feature             | Status      | Fallback                                                                                                                                           |
-| ------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `user-select`       | ✅ safe     | Safari が未だ unprefixed 未対応のため -webkit-user-select を併記済み。全使用箇所でプレフィックス付きプロパティを提供しており、全ブラウザで動作する |
-| `text-spacing-trim` | ⚠️ degraded | Chromium 123+ のみ対応（Firefox・Safari 未実装）。非対応時は約物がデフォルト全角幅で表示される（フォントの halt/chws feature 未適用）              |
+| Feature             | Status      | Fallback                                                                                                                                                        |
+| ------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `user-select`       | ✅ safe     | -webkit-user-select を全箇所で併記済み。Safari 3.1+ (2008)、Chrome 4+ (2010)、Firefox 2+ (-moz-, 2006) から対応しており、実質 2008 年以降の全ブラウザで動作する |
+| `text-spacing-trim` | ⚠️ degraded | Chromium 123+ のみ対応（Firefox・Safari 未実装）。非対応時は約物がデフォルト全角幅で表示される（フォントの halt/chws feature 未適用）                           |
 
 ## HTML Renderer (Ruby)
-
-### Baseline 2023
-
-| Feature   | Status  | Fallback                                                                                           |
-| --------- | ------- | -------------------------------------------------------------------------------------------------- |
-| `outline` | ✅ safe | Baseline Widely available (2023)。基本機能は全ブラウザで長期サポート済み。選択ハイライト装飾で使用 |
 
 ### Baseline 2024
 
@@ -44,10 +32,10 @@ Generated: 2026-03-10
 
 ### Limited Availability
 
-| Feature             | Status      | Fallback                                                                                                                                           |
-| ------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `user-select`       | ✅ safe     | Safari が未だ unprefixed 未対応のため -webkit-user-select を併記済み。全使用箇所でプレフィックス付きプロパティを提供しており、全ブラウザで動作する |
-| `text-spacing-trim` | ⚠️ degraded | Chromium 123+ のみ対応（Firefox・Safari 未実装）。非対応時は約物がデフォルト全角幅で表示される（フォントの halt/chws feature 未適用）              |
+| Feature             | Status      | Fallback                                                                                                                                                        |
+| ------------------- | ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `user-select`       | ✅ safe     | -webkit-user-select を全箇所で併記済み。Safari 3.1+ (2008)、Chrome 4+ (2010)、Firefox 2+ (-moz-, 2006) から対応しており、実質 2008 年以降の全ブラウザで動作する |
+| `text-spacing-trim` | ⚠️ degraded | Chromium 123+ のみ対応（Firefox・Safari 未実装）。非対応時は約物がデフォルト全角幅で表示される（フォントの halt/chws feature 未適用）                           |
 
 ## Canvas Renderer
 
@@ -78,7 +66,7 @@ Generated: 2026-03-10
 
 | Year | CSS Warnings | JS Warnings | Total |
 | ---- | ------------ | ----------- | ----- |
-| 2022 | 134          | 0           | 134   |
+| 2022 | 128          | 0           | 128   |
 | 2023 | 134          | 0           | 134   |
 | 2024 | 125          | 0           | 125   |
 | 2025 | 125          | 0           | 125   |

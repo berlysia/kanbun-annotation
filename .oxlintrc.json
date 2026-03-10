@@ -1,5 +1,5 @@
 {
   "rules": {
-    "eslint/complexity": ["warn", { "max": 20 }]
+    "eslint/complexity": ["error", { "max": 20 }]
   }
 }

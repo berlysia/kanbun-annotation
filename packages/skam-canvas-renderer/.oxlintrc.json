@@ -1,0 +1,64 @@
+{
+  "rules": {
+    "eslint/complexity": ["error", { "max": 20 }]
+  },
+  "overrides": [
+    {
+      "files": [
+        "src/layout-vertical.analysis.ts",
+        "src/layout-vertical.columns.ts",
+        "src/layout-vertical.placement.ts",
+        "src/layout-vertical.helpers.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "./renderer.js",
+                "message": "Layout sub-layer must not import from API layer. WHY: ADR-018 3-pass pipeline (Analysis/Columns/Placement → layout-vertical → layout → renderer). FIX: Pass needed values as function parameters from layout-vertical.ts."
+              },
+              {
+                "name": "./layout.js",
+                "message": "Layout sub-layer must not import from Pass 2 orchestrator. WHY: ADR-018 3-pass pipeline hierarchy. FIX: Pass needed values as function parameters from layout-vertical.ts."
+              },
+              {
+                "name": "./layout-vertical.js",
+                "message": "Layout sub-layer must not import from its coordinator. WHY: ADR-018 unidirectional dependency (sub-layers → coordinator). FIX: Move shared logic to layout-vertical.helpers.ts or types.ts."
+              },
+              {
+                "name": "./draw.js",
+                "message": "Layout sub-layer must not import from Pass 3 draw orchestrator. WHY: ADR-018 pass isolation (Pass 2 layout ≠ Pass 3 draw). FIX: Use types.ts for shared type definitions."
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["src/draw-text.ts", "src/draw-marks.ts"],
+      "rules": {
+        "no-restricted-imports": [
+          "error",
+          {
+            "paths": [
+              {
+                "name": "./renderer.js",
+                "message": "Draw helper must not import from API layer. WHY: ADR-018 3-pass pipeline (draw helpers → draw → renderer). FIX: Pass needed values as function parameters from draw.ts."
+              },
+              {
+                "name": "./layout.js",
+                "message": "Draw helper must not import from layout orchestrator. WHY: ADR-018 pass isolation (Pass 2 layout ≠ Pass 3 draw). FIX: Use types.ts for shared type definitions."
+              },
+              {
+                "name": "./layout-vertical.js",
+                "message": "Draw helper must not import from layout layer. WHY: ADR-018 pass isolation. FIX: Use types.ts for shared type definitions."
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}

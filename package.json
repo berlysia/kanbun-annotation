@@ -57,6 +57,10 @@
     ]
   },
   "lint-staged": {
-    "*.{ts,tsx,js,jsx,json,md,html,css}": "prettier --write"
+    "*.{ts,tsx,js,jsx}": [
+      "oxlint",
+      "prettier --write"
+    ],
+    "*.{json,md,html,css}": "prettier --write"
   }
 }

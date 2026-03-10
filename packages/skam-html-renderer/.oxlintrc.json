@@ -1,6 +1,6 @@
 {
   "rules": {
-    "eslint/complexity": ["warn", { "max": 20 }]
+    "eslint/complexity": ["error", { "max": 20 }]
   },
   "overrides": [
     {
@@ -19,23 +19,23 @@
             "paths": [
               {
                 "name": "./build-render-tree.js",
-                "message": "Shared layer must not import from Display layer"
+                "message": "Shared layer must not import from Display layer. WHY: ADR-019/020 unidirectional dependency (Shared → Display → API). FIX: Move shared logic to render-config.ts, html-utils.ts, or mark-utils.ts."
               },
               {
                 "name": "./render-tree.js",
-                "message": "Shared layer must not import from Display layer"
+                "message": "Shared layer must not import from Display layer. WHY: ADR-019/020 unidirectional dependency (Shared → Display → API). FIX: Move shared logic to render-config.ts, html-utils.ts, or mark-utils.ts."
               },
               {
                 "name": "./token-renderer.js",
-                "message": "Shared layer must not import from Display layer"
+                "message": "Shared layer must not import from Display layer. WHY: ADR-019/020 unidirectional dependency (Shared → Display → API). FIX: Move shared logic to render-config.ts, html-utils.ts, or mark-utils.ts."
               },
               {
                 "name": "./render-display-layer.js",
-                "message": "Shared layer must not import from Display layer"
+                "message": "Shared layer must not import from Display layer. WHY: ADR-019/020 unidirectional dependency (Shared → Display → API). FIX: Move shared logic to render-config.ts, html-utils.ts, or mark-utils.ts."
               },
               {
                 "name": "./renderer.js",
-                "message": "Shared layer must not import from API layer"
+                "message": "Shared layer must not import from API layer. WHY: ADR-019/020 unidirectional dependency (Shared → Display → API). FIX: Extract needed types/utilities to render-config.ts."
               }
             ]
           }
@@ -56,7 +56,7 @@
             "paths": [
               {
                 "name": "./renderer.js",
-                "message": "Display layer must not import from API layer"
+                "message": "Display layer must not import from API layer. WHY: ADR-019/020 unidirectional dependency (Shared → Display → API). FIX: Extract needed types/utilities to render-config.ts."
               }
             ]
           }

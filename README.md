@@ -102,10 +102,11 @@ const { html, css } = render(doc); // 縦書き（デフォルト）
 
 ## 仕様書
 
-| ドキュメント                           | 説明                                            |
-| -------------------------------------- | ----------------------------------------------- |
-| [SKAM-draft.md](./SKAM-draft.md)       | SKAM v0.1 仕様（JSON 形式）                     |
-| [SKAM-ML-draft.md](./SKAM-ML-draft.md) | SKAM-ML/XML v0.1 仕様（人間編集用マークアップ） |
+| ドキュメント                                                    | 説明                                            |
+| --------------------------------------------------------------- | ----------------------------------------------- |
+| [SKAM-draft.md](./SKAM-draft.md)                                | SKAM v0.1 仕様（JSON 形式）                     |
+| [SKAM-ML-draft.md](./SKAM-ML-draft.md)                          | SKAM-ML/XML v0.1 仕様（人間編集用マークアップ） |
+| [Baseline Report](./packages/baseline-check/baseline-report.md) | Web Platform Baseline 互換性チェック結果        |
 
 ## SKAM v0.1 概要
 

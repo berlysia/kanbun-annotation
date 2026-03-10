@@ -4,13 +4,30 @@ Generated: 2026-03-10
 
 ## Summary
 
-> **Baseline 2024** 以降のブラウザで完全動作（フォールバック込み）
->
-> 一部未 Baseline 機能は体験が低下する場合があります
->
+| Renderer             | Baseline Year     | Notes                          |
+| -------------------- | ----------------- | ------------------------------ |
+| HTML Renderer (Grid) | **Baseline 2023** | 未 Baseline 機能で体験低下あり |
+| HTML Renderer (Ruby) | **Baseline 2024** | 未 Baseline 機能で体験低下あり |
+| Canvas Renderer      | ✅ all clear      | 非 Baseline 機能なし           |
+
 > Playground: 1 件のフォールバック未定義機能があります（`baseline-overrides-playground.json` に追加してください）
 
-## HTML Renderer
+## HTML Renderer (Grid)
+
+### Baseline 2023
+
+| Feature   | Status  | Fallback                                                                                           |
+| --------- | ------- | -------------------------------------------------------------------------------------------------- |
+| `outline` | ✅ safe | Baseline Widely available (2023)。基本機能は全ブラウザで長期サポート済み。選択ハイライト装飾で使用 |
+
+### Not yet Baseline
+
+| Feature             | Status      | Fallback                                                                                                                                           |
+| ------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `user-select`       | ✅ safe     | Safari が未だ unprefixed 未対応のため -webkit-user-select を併記済み。全使用箇所でプレフィックス付きプロパティを提供しており、全ブラウザで動作する |
+| `text-spacing-trim` | ⚠️ degraded | Chromium 123+ のみ対応（Firefox・Safari 未実装）。非対応時は約物がデフォルト全角幅で表示される（フォントの halt/chws feature 未適用）              |
+
+## HTML Renderer (Ruby)
 
 ### Baseline 2023
 

@@ -161,15 +161,19 @@ function collectFeatures(results) {
   return new Set(results.map((r) => r.feature));
 }
 
-/** Classify features into sections based on file name patterns. */
+/** Classify features into sections based on file name patterns.
+ *  Shared files (both-both, no-layer, skam-html-*, skam-xml-*, skam.js) are
+ *  excluded from ruby/grid classification so that only variant-specific files
+ *  determine which section a feature belongs to. */
 function classifySection(files) {
   const sections = new Set();
   for (const f of files) {
-    if (f.startsWith('renderer-')) sections.add('html');
+    if (f.includes('-ruby')) sections.add('html-ruby');
+    else if (f.includes('-grid')) sections.add('html-grid');
     else if (f.startsWith('skam-canvas-')) sections.add('canvas');
     else if (f.startsWith('playground-')) sections.add('playground');
-    else if (f.startsWith('skam-html-')) sections.add('html');
-    else if (f.startsWith('skam-xml-') || f === 'skam.js') sections.add('html');
+    // renderer-both-both, renderer-no-layer, skam-html-*, skam-xml-*, skam.js
+    // are shared — skip them to avoid leaking features across ruby/grid
   }
   return [...sections];
 }
@@ -189,7 +193,8 @@ function main() {
     readFileSync(join(pkgDir, 'baseline-overrides-playground.json'), 'utf-8')
   );
   const sectionOverrides = {
-    html: rendererOverrides,
+    'html-ruby': rendererOverrides,
+    'html-grid': rendererOverrides,
     canvas: rendererOverrides,
     playground: playgroundOverrides,
   };
@@ -276,11 +281,7 @@ function main() {
   lines.push(`Generated: ${now}`);
   lines.push(``);
 
-  // Summary (renderer-based: html + canvas sections only)
   const all = [...features.values()];
-  const rendererFeatures = all.filter(
-    (f) => f.sections.includes('html') || f.sections.includes('canvas')
-  );
 
   /** Resolve status for a feature in a given section */
   function resolveStatus(feature, sectionKey) {
@@ -294,57 +295,60 @@ function main() {
     return ov?.fallback ?? '-';
   }
 
-  /** Get the effective renderer status for a feature (worst of html/canvas) */
-  function getRendererStatus(f) {
-    const statuses = f.sections
-      .filter((s) => s === 'html' || s === 'canvas')
-      .map((s) => resolveStatus(f.feature, s));
-    if (statuses.length === 0) return 'unknown';
-    // Return worst status: broken > degraded > unknown > safe
-    const priority = ['broken', 'degraded', 'unknown', 'safe'];
-    return priority.find((p) => statuses.includes(p)) || 'unknown';
+  /** Compute per-section summary stats */
+  function getSectionSummary(sectionKey) {
+    const feats = all.filter((f) => f.sections.includes(sectionKey));
+    const broken = feats.filter((f) => resolveStatus(f.feature, sectionKey) === 'broken');
+    const unknown = feats.filter((f) => resolveStatus(f.feature, sectionKey) === 'unknown');
+    const withYear = feats.filter(
+      (f) => f.baselineYear != null && resolveStatus(f.feature, sectionKey) !== 'broken'
+    );
+    const maxYear = withYear.length > 0 ? Math.max(...withYear.map((f) => f.baselineYear)) : null;
+    const notYetBaseline = feats.filter((f) => f.baselineYear == null);
+    const hasDegradedNotBaseline = notYetBaseline.some(
+      (f) => resolveStatus(f.feature, sectionKey) === 'degraded'
+    );
+    return { feats, broken, unknown, maxYear, notYetBaseline, hasDegradedNotBaseline };
   }
 
-  const broken = rendererFeatures.filter((f) => getRendererStatus(f) === 'broken');
-  const unknown = rendererFeatures.filter((f) => getRendererStatus(f) === 'unknown');
-  const withYear = rendererFeatures.filter(
-    (f) => f.baselineYear != null && getRendererStatus(f) !== 'broken'
-  );
-  const maxYear = withYear.length > 0 ? Math.max(...withYear.map((f) => f.baselineYear)) : null;
-  const notYetBaseline = rendererFeatures.filter((f) => f.baselineYear == null);
-
-  const playgroundFeatures = all.filter((f) => f.sections.includes('playground'));
-  const playgroundUnknown = playgroundFeatures.filter(
-    (f) => resolveStatus(f.feature, 'playground') === 'unknown'
-  );
+  const rendererSections = [
+    { key: 'html-grid', label: 'HTML Renderer (Grid)' },
+    { key: 'html-ruby', label: 'HTML Renderer (Ruby)' },
+    { key: 'canvas', label: 'Canvas Renderer' },
+  ];
+  const playgroundSummary = getSectionSummary('playground');
 
   lines.push(`## Summary`);
   lines.push(``);
+  lines.push(`| Renderer | Baseline Year | Notes |`);
+  lines.push(`|----------|--------------|-------|`);
 
-  if (rendererFeatures.length === 0) {
-    lines.push(`All features are Baseline compatible.`);
-  } else if (broken.length > 0) {
-    lines.push(`> **Warning**: 一部機能は非対応ブラウザで動作しません`);
-  } else if (maxYear != null) {
-    lines.push(`> **Baseline ${maxYear}** 以降のブラウザで完全動作（フォールバック込み）`);
+  for (const { key, label } of rendererSections) {
+    const s = getSectionSummary(key);
+    if (s.feats.length === 0) {
+      lines.push(`| ${label} | ✅ all clear | 非 Baseline 機能なし |`);
+    } else if (s.broken.length > 0) {
+      lines.push(`| ${label} | ❌ broken | 一部機能は非対応ブラウザで動作しません |`);
+    } else if (s.maxYear != null) {
+      const notes = [];
+      if (s.hasDegradedNotBaseline) notes.push('未 Baseline 機能で体験低下あり');
+      if (s.unknown.length > 0) notes.push(`${s.unknown.length} 件フォールバック未定義`);
+      lines.push(
+        `| ${label} | **Baseline ${s.maxYear}** | ${notes.join('、') || 'フォールバック込みで完全動作'} |`
+      );
+    } else {
+      const notes = [];
+      if (s.hasDegradedNotBaseline) notes.push('未 Baseline 機能で体験低下あり');
+      if (s.unknown.length > 0) notes.push(`${s.unknown.length} 件フォールバック未定義`);
+      lines.push(`| ${label} | ⚠️ not yet | ${notes.join('、') || '全機能が未 Baseline'} |`);
+    }
   }
 
-  if (notYetBaseline.some((f) => getRendererStatus(f) === 'degraded')) {
-    lines.push(`>`);
-    lines.push(`> 一部未 Baseline 機能は体験が低下する場合があります`);
-  }
+  lines.push(``);
 
-  if (unknown.length > 0) {
-    lines.push(`>`);
+  if (playgroundSummary.unknown.length > 0) {
     lines.push(
-      `> Renderer: ${unknown.length} 件のフォールバック未定義機能があります（\`baseline-overrides-renderer.json\` に追加してください）`
-    );
-  }
-
-  if (playgroundUnknown.length > 0) {
-    lines.push(`>`);
-    lines.push(
-      `> Playground: ${playgroundUnknown.length} 件のフォールバック未定義機能があります（\`baseline-overrides-playground.json\` に追加してください）`
+      `> Playground: ${playgroundSummary.unknown.length} 件のフォールバック未定義機能があります（\`baseline-overrides-playground.json\` に追加してください）`
     );
   }
 
@@ -418,7 +422,8 @@ function main() {
     }
   }
 
-  renderSection('HTML Renderer', 'html', false);
+  renderSection('HTML Renderer (Grid)', 'html-grid', false);
+  renderSection('HTML Renderer (Ruby)', 'html-ruby', false);
   renderSection('Canvas Renderer', 'canvas', false);
   renderSection('Playground', 'playground', true);
 

@@ -10,8 +10,6 @@ Generated: 2026-03-10
 | HTML Renderer (Ruby) | **Baseline 2024** | 一部 cosmetic な体験低下あり |
 | Canvas Renderer      | < Baseline 2022   | —                            |
 
-> Playground: 1 件のフォールバック未定義機能があります（`baseline-overrides-playground.json` に追加してください）
-
 ## HTML Renderer (Grid)
 
 ### Limited Availability
@@ -47,11 +45,11 @@ Generated: 2026-03-10
 
 ### Baseline 2023
 
-| Feature     | Status     | Fallback                                                   |
-| ----------- | ---------- | ---------------------------------------------------------- |
-| `outline`   | ✅ safe    | 選択色のカスタマイズ。非対応時はブラウザデフォルト         |
-| `color-mix` | ❓ unknown | -                                                          |
-| `has`       | ✅ safe    | label のレイアウト微調整のみ。非対応時もレイアウト崩れなし |
+| Feature     | Status  | Fallback                                                                                          |
+| ----------- | ------- | ------------------------------------------------------------------------------------------------- |
+| `outline`   | ✅ safe | 選択色のカスタマイズ。非対応時はブラウザデフォルト                                                |
+| `color-mix` | ✅ safe | inline-demo の border 色の半透明化のみ。非対応時は border 宣言が無視され、border なしで表示される |
+| `has`       | ✅ safe | label のレイアウト微調整のみ。非対応時もレイアウト崩れなし                                        |
 
 ### Limited Availability
 

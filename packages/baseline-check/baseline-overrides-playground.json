@@ -22,5 +22,9 @@
   "selection": {
     "status": "safe",
     "fallback": "iOS Safari 未対応（全バージョン）。Playground のテキストエリア選択色のカスタマイズのみで、非対応時はブラウザデフォルトの選択色が使われる"
+  },
+  "color-mix": {
+    "status": "safe",
+    "fallback": "inline-demo の border 色の半透明化のみ。非対応時は border 宣言が無視され、border なしで表示される"
   }
 }

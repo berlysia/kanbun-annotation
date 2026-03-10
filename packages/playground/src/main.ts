@@ -328,7 +328,7 @@ const DEFAULT_CUSTOMIZE_STATE: CustomizeState = {
   colorRuby: '#000000',
   colorEmphasis: '#000000',
   fontFamily: "'Noto Serif JP', serif",
-  glyphSize: '2',
+  glyphSize: '1',
   rubyRatio: '0.5',
   lineHeight: '2',
 };

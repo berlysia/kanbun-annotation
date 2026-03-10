@@ -409,7 +409,7 @@ function main() {
 
     // Not yet baseline
     if (notBaseline.length > 0) {
-      lines.push(`### Not yet Baseline`);
+      lines.push(`### Limited Availability`);
       lines.push(``);
       lines.push(`| Feature | Status | Fallback |`);
       lines.push(`|---------|--------|----------|`);

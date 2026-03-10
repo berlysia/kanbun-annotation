@@ -20,7 +20,7 @@ Generated: 2026-03-10
 | --------- | ------- | -------------------------------------------------------------------------------------------------- |
 | `outline` | ✅ safe | Baseline Widely available (2023)。基本機能は全ブラウザで長期サポート済み。選択ハイライト装飾で使用 |
 
-### Not yet Baseline
+### Limited Availability
 
 | Feature             | Status      | Fallback                                                                                                                                           |
 | ------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -42,7 +42,7 @@ Generated: 2026-03-10
 | `ruby-align`    | ⚠️ degraded | Baseline Newly available (2024-12)。使用値 center は Safari 18.2+/Chrome 128+/Firefox 38+ で対応。Safari 18.1 以前で center が効かずルビがデフォルト配置になる                                                                                                               |
 | `ruby-position` | ⚠️ degraded | Baseline Newly available (2024-12)。使用値 over/under は Safari 18.2+/Chrome 84+/Firefox 38+ で対応。rubyMethod=ruby で再読文字（saidoku）を描画する場合、Safari 18.1 以前では under が効かず上下ルビが同一位置に重なる。rubyMethod=grid は ruby-position に依存せず影響なし |
 
-### Not yet Baseline
+### Limited Availability
 
 | Feature             | Status      | Fallback                                                                                                                                           |
 | ------------------- | ----------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -65,7 +65,7 @@ Generated: 2026-03-10
 | `color-mix` | ❓ unknown | -                                                          |
 | `has`       | ✅ safe    | label のレイアウト微調整のみ。非対応時もレイアウト崩れなし |
 
-### Not yet Baseline
+### Limited Availability
 
 | Feature                  | Status  | Fallback                                                                                                                                 |
 | ------------------------ | ------- | ---------------------------------------------------------------------------------------------------------------------------------------- |

@@ -54,7 +54,7 @@ for (const line of report.split('\n')) {
     currentYear = Number(h3[1]);
     continue;
   }
-  if (line.startsWith('### Not yet Baseline')) {
+  if (line.startsWith('### Limited Availability')) {
     currentYear = null;
     continue;
   }
@@ -97,7 +97,7 @@ console.error(`${unique.length} feature(s) without override definitions:\n`);
 for (const [file, features] of grouped) {
   console.error(`  ${file}:`);
   for (const f of features) {
-    const year = f.baselineYear ? ` (Baseline ${f.baselineYear})` : ' (Not yet Baseline)';
+    const year = f.baselineYear ? ` (Baseline ${f.baselineYear})` : ' (Limited Availability)';
     console.error(`    - ${f.feature}${year}`);
   }
 }

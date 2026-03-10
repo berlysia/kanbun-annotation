@@ -7,13 +7,28 @@ import { stringify } from '@kanbun/skam-xml-stringify';
 import {
   render,
   attachInteractiveHandlers,
-  setSelectionClasses,
-  clearSelection,
+  getTokenElementsInRange,
+  getAllSelectableElements,
   calibrateGridBaseline,
   PROFILES,
   type RenderProfile,
   type RubyMethod,
 } from '@kanbun/skam-html-renderer';
+
+const SELECTED_CLASS = 'skam-selected';
+
+function setSelectionClasses(container: HTMLElement, fromId: string, toId: string): void {
+  clearSelection(container);
+  for (const el of getTokenElementsInRange(container, fromId, toId)) {
+    el.classList.add(SELECTED_CLASS);
+  }
+}
+
+function clearSelection(container: HTMLElement): void {
+  for (const el of getAllSelectableElements(container)) {
+    el.classList.remove(SELECTED_CLASS);
+  }
+}
 import type {
   SKAMDocument,
   RefFormat,
@@ -1903,7 +1918,14 @@ function renderDocument(doc: SKAMDocument): void {
     styleEl.id = styleId;
     document.head.appendChild(styleEl);
   }
-  styleEl.textContent = result.css;
+  styleEl.textContent =
+    result.css +
+    `
+.${SELECTED_CLASS} {
+  background-color: rgba(66, 133, 244, 0.3);
+  outline: 2px solid #4285f4;
+  outline-offset: -1px;
+}`;
 
   // If inline mode, add surrounding text
   if (inline) {
@@ -1938,6 +1960,12 @@ function renderDocument(doc: SKAMDocument): void {
         if (handleTouchEmptyTap()) return;
         // PC: clear selection
         clearSelectionPanel();
+        clearSelection(renderOutput);
+      },
+      onSelectionChange: (fromId, toId) => {
+        setSelectionClasses(renderOutput, fromId, toId);
+      },
+      onSelectionClear: () => {
         clearSelection(renderOutput);
       },
     });

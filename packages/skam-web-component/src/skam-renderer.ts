@@ -6,12 +6,7 @@
  */
 
 import { parse } from '@kanbun/skam-xml-parser';
-import {
-  render,
-  attachInteractiveHandlers,
-  calibrateGridBaseline,
-} from '@kanbun/skam-html-renderer';
-import type { InteractiveCallbacks } from '@kanbun/skam-html-renderer';
+import { render, calibrateGridBaseline } from '@kanbun/skam-html-renderer';
 import { buildRenderOptions, type AttributeValues } from './attribute-map.js';
 import { extractXml } from './xml-extraction.js';
 import { injectGoogleFontsLink, buildFontStyle } from './font-loader.js';
@@ -52,8 +47,6 @@ function generateVarOverrideCss(prefix: string): string {
   --${vp}-ruby-ratio: 0.5;
   --${vp}-line-height: 2;
   --${vp}-letter-spacing: 0;
-  --${vp}-selection-bg: rgba(66, 133, 244, 0.3);
-  --${vp}-selection-border: #4285f4;
 }
 .${vp}-document {
   --${vp}-color-fg: inherit;
@@ -66,8 +59,6 @@ function generateVarOverrideCss(prefix: string): string {
   --${vp}-ruby-ratio: inherit;
   --${vp}-line-height: inherit;
   --${vp}-letter-spacing: inherit;
-  --${vp}-selection-bg: inherit;
-  --${vp}-selection-border: inherit;
 }`;
 }
 
@@ -76,7 +67,6 @@ export class SkamRendererElement extends HTMLElement {
     'writing-mode',
     'profile',
     'inline',
-    'interactive',
     'include-reading-layer',
     'copyable',
     'class-prefix',
@@ -92,7 +82,6 @@ export class SkamRendererElement extends HTMLElement {
   #xmlContent: string | undefined;
   #observer: MutationObserver | null = null;
   #rafId: number | null = null;
-  #interactiveCleanup: (() => void) | null = null;
 
   constructor() {
     super();
@@ -156,9 +145,6 @@ export class SkamRendererElement extends HTMLElement {
       cancelAnimationFrame(this.#rafId);
       this.#rafId = null;
     }
-
-    this.#interactiveCleanup?.();
-    this.#interactiveCleanup = null;
   }
 
   attributeChangedCallback(
@@ -183,8 +169,6 @@ export class SkamRendererElement extends HTMLElement {
     if (!xml) {
       this.#contentDiv.innerHTML = '';
       this.#mainStyle.textContent = '';
-      this.#interactiveCleanup?.();
-      this.#interactiveCleanup = null;
       return;
     }
 
@@ -204,15 +188,6 @@ export class SkamRendererElement extends HTMLElement {
       calibrateGridBaseline(this.#contentDiv, {
         variablePrefix: prefix,
       });
-
-      // Interactive handlers
-      this.#interactiveCleanup?.();
-      this.#interactiveCleanup = null;
-
-      if (options.interactive) {
-        const callbacks: InteractiveCallbacks = {};
-        this.#interactiveCleanup = attachInteractiveHandlers(this.#contentDiv, callbacks);
-      }
 
       this.dispatchEvent(
         new CustomEvent('skam-render', {
@@ -265,7 +240,6 @@ export class SkamRendererElement extends HTMLElement {
       'writing-mode': this.getAttribute('writing-mode'),
       profile: this.getAttribute('profile'),
       inline: this.getAttribute('inline'),
-      interactive: this.getAttribute('interactive'),
       'include-reading-layer': this.getAttribute('include-reading-layer'),
       copyable: this.getAttribute('copyable'),
       'class-prefix': this.getAttribute('class-prefix'),

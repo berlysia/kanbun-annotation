@@ -56,7 +56,6 @@ export interface AttributeValues {
   'writing-mode': string | null;
   profile: string | null;
   inline: string | null;
-  interactive: string | null;
   'include-reading-layer': string | null;
   copyable: string | null;
   'class-prefix': string | null;
@@ -75,10 +74,6 @@ export function buildRenderOptions(attrs: AttributeValues): RenderOptions {
 
   if (parseBooleanAttr(attrs.inline)) {
     options.inline = true;
-  }
-
-  if (parseBooleanAttr(attrs.interactive)) {
-    options.interactive = true;
   }
 
   // include-reading-layer defaults to true when absent

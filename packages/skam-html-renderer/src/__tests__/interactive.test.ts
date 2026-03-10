@@ -1,9 +1,8 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import {
   attachInteractiveHandlers,
-  setSelectionClasses,
-  clearSelection,
-  selectToken,
+  getTokenElementsInRange,
+  getAllSelectableElements,
 } from '../interactive.js';
 
 describe('attachInteractiveHandlers', () => {
@@ -134,53 +133,93 @@ describe('attachInteractiveHandlers', () => {
     });
   });
 
-  describe('selection classes', () => {
-    it('should add skam-selected class during single token click', () => {
-      const cleanup = attachInteractiveHandlers(container, {});
+  describe('onSelectionChange / onSelectionClear', () => {
+    it('should call onSelectionChange on mousedown', () => {
+      const onSelectionChange = vi.fn();
+      const cleanup = attachInteractiveHandlers(container, { onSelectionChange });
 
       const token1 = container.querySelector('[data-token-id="t1"]') as HTMLElement;
-
-      // mousedown時に選択クラスが追加される
       const mousedown = new MouseEvent('mousedown', { bubbles: true, clientX: 10, clientY: 10 });
       token1.dispatchEvent(mousedown);
 
-      expect(token1.classList.contains('skam-selected')).toBe(true);
-
-      // mouseup時にクリアされる
-      const mouseup = new MouseEvent('mouseup', { bubbles: true, clientX: 10, clientY: 10 });
-      token1.dispatchEvent(mouseup);
-
-      expect(token1.classList.contains('skam-selected')).toBe(false);
+      expect(onSelectionChange).toHaveBeenCalledWith('t1', 't1');
 
       cleanup();
     });
 
-    it('should add selection-start, selection-middle, selection-end classes during drag', () => {
-      const cleanup = attachInteractiveHandlers(container, {});
+    it('should call onSelectionClear then onSelectionChange during drag', () => {
+      const onSelectionChange = vi.fn();
+      const onSelectionClear = vi.fn();
+      const cleanup = attachInteractiveHandlers(container, {
+        onSelectionChange,
+        onSelectionClear,
+      });
 
       const token1 = container.querySelector('[data-token-id="t1"]') as HTMLElement;
-      const token2 = container.querySelector('[data-token-id="t2"]') as HTMLElement;
       const token3 = container.querySelector('[data-token-id="t3"]') as HTMLElement;
 
       // ドラッグ開始
-      const mousedown = new MouseEvent('mousedown', { bubbles: true, clientX: 10, clientY: 10 });
-      token1.dispatchEvent(mousedown);
+      token1.dispatchEvent(
+        new MouseEvent('mousedown', { bubbles: true, clientX: 10, clientY: 10 })
+      );
 
       // ドラッグ中
-      const mousemove = new MouseEvent('mousemove', { bubbles: true, clientX: 10, clientY: 100 });
-      token3.dispatchEvent(mousemove);
+      token3.dispatchEvent(
+        new MouseEvent('mousemove', { bubbles: true, clientX: 10, clientY: 100 })
+      );
 
-      expect(token1.classList.contains('skam-selected')).toBe(true);
-      expect(token2.classList.contains('skam-selected')).toBe(true);
-      expect(token3.classList.contains('skam-selected')).toBe(true);
+      // mousemove 時に onSelectionClear → onSelectionChange が呼ばれる
+      expect(onSelectionClear).toHaveBeenCalled();
+      expect(onSelectionChange).toHaveBeenCalledWith('t1', 't3');
 
-      // mouseup時にクリアされる
-      const mouseup = new MouseEvent('mouseup', { bubbles: true, clientX: 10, clientY: 100 });
-      token3.dispatchEvent(mouseup);
+      cleanup();
+    });
 
-      expect(token1.classList.contains('skam-selected')).toBe(false);
-      expect(token2.classList.contains('skam-selected')).toBe(false);
-      expect(token3.classList.contains('skam-selected')).toBe(false);
+    it('should call onSelectionClear on mouseup', () => {
+      const onSelectionClear = vi.fn();
+      const cleanup = attachInteractiveHandlers(container, { onSelectionClear });
+
+      const token1 = container.querySelector('[data-token-id="t1"]') as HTMLElement;
+      token1.dispatchEvent(
+        new MouseEvent('mousedown', { bubbles: true, clientX: 10, clientY: 10 })
+      );
+      token1.dispatchEvent(new MouseEvent('mouseup', { bubbles: true, clientX: 10, clientY: 10 }));
+
+      expect(onSelectionClear).toHaveBeenCalled();
+
+      cleanup();
+    });
+
+    it('should call onSelectionClear when clicking outside tokens', () => {
+      const onSelectionClear = vi.fn();
+      const cleanup = attachInteractiveHandlers(container, { onSelectionClear });
+
+      container.dispatchEvent(
+        new MouseEvent('mousedown', { bubbles: true, clientX: 0, clientY: 0 })
+      );
+
+      expect(onSelectionClear).toHaveBeenCalled();
+
+      cleanup();
+    });
+
+    it('should call onSelectionClear on mouseleave only during drag', () => {
+      const onSelectionClear = vi.fn();
+      const cleanup = attachInteractiveHandlers(container, { onSelectionClear });
+
+      // mouseleave without drag → should NOT call
+      container.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
+      expect(onSelectionClear).not.toHaveBeenCalled();
+
+      // Start drag then mouseleave → should call
+      const token1 = container.querySelector('[data-token-id="t1"]') as HTMLElement;
+      token1.dispatchEvent(
+        new MouseEvent('mousedown', { bubbles: true, clientX: 10, clientY: 10 })
+      );
+      onSelectionClear.mockClear();
+
+      container.dispatchEvent(new MouseEvent('mouseleave', { bubbles: false }));
+      expect(onSelectionClear).toHaveBeenCalled();
 
       cleanup();
     });
@@ -316,7 +355,7 @@ describe('attachInteractiveHandlers', () => {
   });
 });
 
-describe('setSelectionClasses', () => {
+describe('getTokenElementsInRange', () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
@@ -333,64 +372,35 @@ describe('setSelectionClasses', () => {
     document.body.removeChild(container);
   });
 
-  it('should set selection classes for single token', () => {
-    setSelectionClasses(container, 't1', 't1');
-
-    const token1 = container.querySelector('[data-token-id="t1"]') as HTMLElement;
-    expect(token1.classList.contains('skam-selected')).toBe(true);
+  it('should return single token element', () => {
+    const elements = getTokenElementsInRange(container, 't1', 't1');
+    expect(elements).toHaveLength(1);
+    expect(elements[0]?.getAttribute('data-token-id')).toBe('t1');
   });
 
-  it('should set selection classes for range', () => {
-    setSelectionClasses(container, 't1', 't3');
+  it('should return range of token elements', () => {
+    const elements = getTokenElementsInRange(container, 't1', 't3');
+    expect(elements).toHaveLength(3);
+    expect(elements.map((el) => el.getAttribute('data-token-id'))).toEqual(['t1', 't2', 't3']);
+  });
 
-    const token1 = container.querySelector('[data-token-id="t1"]') as HTMLElement;
-    const token2 = container.querySelector('[data-token-id="t2"]') as HTMLElement;
-    const token3 = container.querySelector('[data-token-id="t3"]') as HTMLElement;
-
-    expect(token1.classList.contains('skam-selected')).toBe(true);
-    expect(token2.classList.contains('skam-selected')).toBe(true);
-    expect(token3.classList.contains('skam-selected')).toBe(true);
+  it('should return empty array for non-existent token', () => {
+    const elements = getTokenElementsInRange(container, 'nonexistent', 'nonexistent');
+    expect(elements).toHaveLength(0);
   });
 });
 
-describe('clearSelection', () => {
-  let container: HTMLDivElement;
-
-  beforeEach(() => {
-    container = document.createElement('div');
-    container.innerHTML = `
-      <span class="skam-token skam-selected" data-token-id="t1"><span class="skam-base">學</span></span>
-      <span class="skam-token skam-selected" data-token-id="t2"><span class="skam-base">而</span></span>
-      <span class="skam-token skam-selected" data-token-id="t3"><span class="skam-base">時</span></span>
-    `;
-    document.body.appendChild(container);
-  });
-
-  afterEach(() => {
-    document.body.removeChild(container);
-  });
-
-  it('should clear all selection classes', () => {
-    clearSelection(container);
-
-    const token1 = container.querySelector('[data-token-id="t1"]') as HTMLElement;
-    const token2 = container.querySelector('[data-token-id="t2"]') as HTMLElement;
-    const token3 = container.querySelector('[data-token-id="t3"]') as HTMLElement;
-
-    expect(token1.classList.contains('skam-selected')).toBe(false);
-    expect(token2.classList.contains('skam-selected')).toBe(false);
-    expect(token3.classList.contains('skam-selected')).toBe(false);
-  });
-});
-
-describe('selectToken', () => {
+describe('getAllSelectableElements', () => {
   let container: HTMLDivElement;
 
   beforeEach(() => {
     container = document.createElement('div');
     container.innerHTML = `
       <span class="skam-token" data-token-id="t1"><span class="skam-base">學</span></span>
-      <span class="skam-token" data-token-id="t2"><span class="skam-base">而</span></span>
+      <ruby>
+        <rb data-token-from="t2" data-token-to="t3">朝廷</rb>
+        <rt>ちょうてい</rt>
+      </ruby>
     `;
     document.body.appendChild(container);
   });
@@ -399,22 +409,22 @@ describe('selectToken', () => {
     document.body.removeChild(container);
   });
 
-  it('should select single token', () => {
-    selectToken(container, 't1');
-
-    const token1 = container.querySelector('[data-token-id="t1"]') as HTMLElement;
-    expect(token1.classList.contains('skam-selected')).toBe(true);
+  it('should return both token and range mark elements', () => {
+    const elements = getAllSelectableElements(container);
+    // 1 token element + 1 range mark element
+    expect(elements).toHaveLength(2);
   });
 
-  it('should clear previous selection', () => {
-    selectToken(container, 't1');
-    selectToken(container, 't2');
+  it('should include .skam-token[data-token-id] elements', () => {
+    const elements = getAllSelectableElements(container);
+    const tokenEl = elements.find((el) => el.getAttribute('data-token-id') === 't1');
+    expect(tokenEl).toBeDefined();
+  });
 
-    const token1 = container.querySelector('[data-token-id="t1"]') as HTMLElement;
-    const token2 = container.querySelector('[data-token-id="t2"]') as HTMLElement;
-
-    expect(token1.classList.contains('skam-selected')).toBe(false);
-    expect(token2.classList.contains('skam-selected')).toBe(true);
+  it('should include [data-token-from][data-token-to] elements', () => {
+    const elements = getAllSelectableElements(container);
+    const rangeEl = elements.find((el) => el.getAttribute('data-token-from') === 't2');
+    expect(rangeEl).toBeDefined();
   });
 });
 

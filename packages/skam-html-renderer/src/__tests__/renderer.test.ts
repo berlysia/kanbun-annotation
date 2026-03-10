@@ -1601,20 +1601,11 @@ describe('CSS variables options', () => {
       '--skam-ruby-font-size',
       '--skam-line-height',
       '--skam-letter-spacing',
-      // Selection CSS variables
-      '--skam-selection-bg',
-      '--skam-selection-border',
     ];
 
     for (const variable of expectedVariables) {
       expectCSSRule(css, ':where(.skam-document)', [{ property: variable, value: /.+/ }]);
     }
-  });
-
-  it('should include selection state classes', () => {
-    const css = getDefaultStyles();
-
-    expectCSSSelector(css, ':where(.skam-selected)');
   });
 });
 

@@ -139,10 +139,6 @@ function generateCommonStyles(
   const noteItemSpacing = '0.5em';
   const noteMarkerGap = '0.5em';
 
-  // Selection
-  const selectionOutlineWidth = '2px';
-  const selectionOutlineOffset = '-1px';
-
   const rubyStyles = includeRuby
     ? css`
         /* Ruby styling */
@@ -430,10 +426,6 @@ function generateCommonStyles(
   --${vp}-line-height: 2;
   --${vp}-letter-spacing: ${letterSpacingValue};
 
-  /* Selection CSS Variables */
-  --${vp}-selection-bg: rgba(66, 133, 244, 0.3);
-  --${vp}-selection-border: #4285f4;
-
   /* 変数を適用 */
   font-family: var(--${vp}-font-family);
   line-height: var(--${vp}-line-height);
@@ -682,19 +674,6 @@ ${
 
 :where(.${prefix}-okototen[data-shape="line"])::before {
   content: "—";
-}
-
-/*
- * Selection States (選択状態)
- *
- * token選択状態を視覚的に表示するためのクラス。
- */
-
-/* 選択状態 */
-:where(.${prefix}-selected) {
-  background-color: var(--${vp}-selection-bg);
-  outline: ${selectionOutlineWidth} solid var(--${vp}-selection-border);
-  outline-offset: ${selectionOutlineOffset};
 }
 
 /* Tateten (たて点) - 共通部分 */

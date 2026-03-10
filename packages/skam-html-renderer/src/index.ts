@@ -35,9 +35,8 @@ export { getDefaultStyles, type StyleOptions } from './styles.js';
  */
 export {
   attachInteractiveHandlers,
-  setSelectionClasses,
-  clearSelection,
-  selectToken,
+  getTokenElementsInRange,
+  getAllSelectableElements,
   type InteractiveCallbacks,
 } from './interactive.js';
 

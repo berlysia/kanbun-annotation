@@ -44,6 +44,18 @@ export interface InteractiveCallbacks {
    * @param event マウスイベント
    */
   onEmptyClick?: (event: MouseEvent) => void;
+
+  /**
+   * ドラッグ中の選択範囲が変更された時のコールバック（視覚フィードバック用）
+   * @param fromTokenId 選択開始トークンのID
+   * @param toTokenId 選択終了トークンのID
+   */
+  onSelectionChange?: (fromTokenId: string, toTokenId: string) => void;
+
+  /**
+   * 選択状態がクリアされた時のコールバック（視覚フィードバック用）
+   */
+  onSelectionClear?: () => void;
 }
 
 /**
@@ -61,14 +73,6 @@ interface SelectionState {
   /** 最後に選択されたトークンID（Shift+クリック用） */
   lastSelectedTokenId: string | null;
 }
-
-// ============================================================================
-// CSS Class Constants
-// ============================================================================
-
-const SELECTION_CLASSES = {
-  selected: 'skam-selected',
-} as const;
 
 // ============================================================================
 // Helper Functions
@@ -225,12 +229,14 @@ function getTokenIdsInRange(container: HTMLElement, fromId: string, toId: string
 }
 
 /**
- * 選択されたトークン要素を取得（トークンIDベース）
+ * 指定範囲内のトークン要素を取得（DOM構造の知識をrenderer内に閉じ込める）
  *
  * 対象: .skam-token[data-token-id] のみ
- * 熟語の場合、親の.skam-token要素にのみ選択クラスをつける
+ *
+ * @remarks
+ * ブラウザ環境専用API
  */
-function getTokenElementsInRange(
+export function getTokenElementsInRange(
   container: HTMLElement,
   fromId: string,
   toId: string
@@ -243,7 +249,6 @@ function getTokenElementsInRange(
 
   const result: HTMLElement[] = [];
 
-  // .skam-token[data-token-id] を持つ要素のみを対象
   const tokenElements = Array.from(
     container.querySelectorAll<HTMLElement>('.skam-token[data-token-id]')
   );
@@ -258,34 +263,23 @@ function getTokenElementsInRange(
 }
 
 /**
- * 選択状態のCSSクラスをすべて削除
+ * 選択可能な全トークン要素を取得（クリア操作用）
+ *
+ * .skam-token[data-token-id] と [data-token-from][data-token-to] の両方を返す。
+ * getTokenElementsInRange が .skam-token のみを対象にするのに対し、
+ * こちらは範囲マーク要素も含む（防衛的クリア）。
+ *
+ * @remarks
+ * ブラウザ環境専用API
  */
-function clearSelectionClasses(container: HTMLElement): void {
-  // .skam-token[data-token-id] と [data-token-from][data-token-to] を対象にする
+export function getAllSelectableElements(container: HTMLElement): HTMLElement[] {
   const tokenElements = Array.from(
     container.querySelectorAll<HTMLElement>('.skam-token[data-token-id]')
   );
   const rangeElements = Array.from(
     container.querySelectorAll<HTMLElement>('[data-token-from][data-token-to]')
   );
-
-  for (const el of tokenElements) {
-    el.classList.remove(SELECTION_CLASSES.selected);
-  }
-  for (const el of rangeElements) {
-    el.classList.remove(SELECTION_CLASSES.selected);
-  }
-}
-
-/**
- * 選択状態のCSSクラスを適用
- */
-function applySelectionClasses(container: HTMLElement, fromId: string, toId: string): void {
-  const elements = getTokenElementsInRange(container, fromId, toId);
-
-  for (const el of elements) {
-    el.classList.add(SELECTION_CLASSES.selected);
-  }
+  return [...tokenElements, ...rangeElements];
 }
 
 /**
@@ -398,7 +392,7 @@ export function attachInteractiveHandlers(
 
     if (!tokenId) {
       // トークン以外の場所をクリックした場合は選択をクリア
-      clearSelectionClasses(container);
+      callbacks.onSelectionClear?.();
       state.lastSelectedTokenId = null;
       callbacks.onEmptyClick?.(event);
       return;
@@ -407,7 +401,7 @@ export function attachInteractiveHandlers(
     // Shift+クリック: 前回選択したトークンからの範囲選択
     if (event.shiftKey && state.lastSelectedTokenId) {
       event.preventDefault();
-      clearSelectionClasses(container);
+      callbacks.onSelectionClear?.();
 
       // 選択範囲を正規化（熟語が部分的に含まれる場合は熟語全体を含める）
       const [normalizedFrom, normalizedTo] = normalizeSelectionRange(
@@ -423,16 +417,14 @@ export function attachInteractiveHandlers(
       return;
     }
 
-    // 選択クラスをクリア
-    clearSelectionClasses(container);
+    callbacks.onSelectionClear?.();
 
     state.isDragging = true;
     state.startTokenId = tokenId;
     state.startPosition = { x: event.clientX, y: event.clientY };
     state.currentEndTokenId = tokenId;
 
-    // 開始点に選択クラスを追加
-    applySelectionClasses(container, tokenId, tokenId);
+    callbacks.onSelectionChange?.(tokenId, tokenId);
   };
 
   /**
@@ -449,9 +441,8 @@ export function attachInteractiveHandlers(
 
     state.currentEndTokenId = currentTokenId;
 
-    // 選択クラスを更新
-    clearSelectionClasses(container);
-    applySelectionClasses(container, state.startTokenId, currentTokenId);
+    callbacks.onSelectionClear?.();
+    callbacks.onSelectionChange?.(state.startTokenId, currentTokenId);
   };
 
   /**
@@ -480,8 +471,7 @@ export function attachInteractiveHandlers(
 
     // コールバックが例外を投げても必ず状態をリセットする
     try {
-      // 選択クラスをクリア（コールバック側で制御するため）
-      clearSelectionClasses(container);
+      callbacks.onSelectionClear?.();
 
       // ドラッグ方向を判定して正規化
       let fromId = state.startTokenId;
@@ -524,8 +514,7 @@ export function attachInteractiveHandlers(
    */
   const handleMouseLeave = (_event: MouseEvent): void => {
     if (state.isDragging) {
-      // ドラッグ中にコンテナ外に出た場合は選択状態をクリア
-      clearSelectionClasses(container);
+      callbacks.onSelectionClear?.();
     }
   };
 
@@ -620,42 +609,4 @@ export function attachInteractiveHandlers(
     container.removeEventListener('touchmove', handleTouchMove);
     container.removeEventListener('touchend', handleTouchEnd);
   };
-}
-
-/**
- * 選択状態のCSSクラスを手動で設定するユーティリティ
- *
- * コールバック側で選択状態を維持したい場合に使用
- *
- * @remarks
- * ブラウザ環境専用API
- */
-export function setSelectionClasses(
-  container: HTMLElement,
-  fromTokenId: string,
-  toTokenId: string
-): void {
-  clearSelectionClasses(container);
-  applySelectionClasses(container, fromTokenId, toTokenId);
-}
-
-/**
- * 選択状態のCSSクラスをすべてクリアするユーティリティ
- *
- * @remarks
- * ブラウザ環境専用API
- */
-export function clearSelection(container: HTMLElement): void {
-  clearSelectionClasses(container);
-}
-
-/**
- * 単一トークンを選択状態にするユーティリティ
- *
- * @remarks
- * ブラウザ環境専用API
- */
-export function selectToken(container: HTMLElement, tokenId: string): void {
-  clearSelectionClasses(container);
-  applySelectionClasses(container, tokenId, tokenId);
 }

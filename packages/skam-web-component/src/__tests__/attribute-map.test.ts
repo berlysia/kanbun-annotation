@@ -101,7 +101,6 @@ describe('buildRenderOptions', () => {
     'writing-mode': null,
     profile: null,
     inline: null,
-    interactive: null,
     'include-reading-layer': null,
     copyable: null,
     'class-prefix': null,
@@ -113,7 +112,6 @@ describe('buildRenderOptions', () => {
     expect(options.useLayer).toBe(false);
     expect(options.includeReadingLayer).toBe(true);
     expect(options.inline).toBeUndefined();
-    expect(options.interactive).toBeUndefined();
   });
 
   it('maps writing-mode attribute', () => {
@@ -130,14 +128,6 @@ describe('buildRenderOptions', () => {
       inline: '',
     });
     expect(options.inline).toBe(true);
-  });
-
-  it('maps interactive boolean attribute', () => {
-    const options = buildRenderOptions({
-      ...defaultAttrs,
-      interactive: '',
-    });
-    expect(options.interactive).toBe(true);
   });
 
   it('maps include-reading-layer="false"', () => {

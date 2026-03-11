@@ -63,7 +63,6 @@ el.xmlContent = xmlString;
 | `writing-mode`          | `vertical` \| `horizontal`                          | `vertical` | 書字方向                  |
 | `profile`               | `full` \| `learningBasic` \| `learningHint` \| JSON | `full`     | 表示プロファイル          |
 | `inline`                | (boolean)                                           | false      | インラインモード          |
-| `interactive`           | (boolean)                                           | false      | インタラクティブ操作      |
 | `include-reading-layer` | `true` \| `false`                                   | `true`     | 読み層の表示              |
 | `copyable`              | `all` \| スペース区切りの要素名                     | (なし)     | コピー可能な注記要素      |
 | `class-prefix`          | 文字列                                              | `skam`     | CSS クラス名の接頭辞      |

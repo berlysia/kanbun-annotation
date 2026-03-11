@@ -2,7 +2,7 @@
 
 **`<skam-renderer>`** カスタムエレメント。
 
-SKAM-ML/XML を Shadow DOM 内で HTML レンダリングする Web Component。インポートするだけで自動登録。
+SKAM-ML/XML を Shadow DOM 内で HTML レンダリングする Web Component。
 
 ## インストール
 
@@ -14,11 +14,13 @@ pnpm add @kanbun-skam/skam-web-component
 
 ## 使い方
 
-### 基本的な使い方
+### 自動登録（かんたん）
+
+`/auto` エンドポイントをインポートすると `<skam-renderer>` が自動登録される。
 
 ```html
 <script type="module">
-  import '@kanbun-skam/skam-web-component';
+  import '@kanbun-skam/skam-web-component/auto';
 </script>
 
 <skam-renderer>
@@ -33,6 +35,16 @@ pnpm add @kanbun-skam/skam-web-component
     </skam:doc>
   </script>
 </skam-renderer>
+```
+
+### 手動登録
+
+メインエントリからは自動登録されない。利用側で `customElements.define()` を呼ぶ。
+
+```typescript
+import { SkamRendererElement } from '@kanbun-skam/skam-web-component';
+
+customElements.define('skam-renderer', SkamRendererElement);
 ```
 
 ### プログラマティックに XML を設定
@@ -91,4 +103,4 @@ skam-renderer {
 
 ## ライセンス
 
-UNLICENSED
+MIT

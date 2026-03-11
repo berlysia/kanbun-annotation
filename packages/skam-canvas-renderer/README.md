@@ -118,4 +118,4 @@ render(doc, canvas, { fontFamily: DEFAULT_FONT_FAMILY, fontSize: 24 });
 
 ## ライセンス
 
-UNLICENSED
+MIT

@@ -172,4 +172,4 @@ pnpm format
 
 ## ライセンス
 
-UNLICENSED
+MIT

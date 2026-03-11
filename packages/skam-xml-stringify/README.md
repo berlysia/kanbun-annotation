@@ -92,4 +92,4 @@ const xml = stringify(doc, { indent: 4 });
 
 ## ライセンス
 
-UNLICENSED
+MIT

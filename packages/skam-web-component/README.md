@@ -58,15 +58,19 @@ el.xmlContent = xmlString;
 
 ### 属性
 
-| 属性                    | 値                                                  | デフォルト | 説明                      |
-| ----------------------- | --------------------------------------------------- | ---------- | ------------------------- |
-| `writing-mode`          | `vertical` \| `horizontal`                          | `vertical` | 書字方向                  |
-| `profile`               | `full` \| `learningBasic` \| `learningHint` \| JSON | `full`     | 表示プロファイル          |
-| `inline`                | (boolean)                                           | false      | インラインモード          |
-| `include-reading-layer` | `true` \| `false`                                   | `true`     | 読み層の表示              |
-| `copyable`              | `all` \| スペース区切りの要素名                     | (なし)     | コピー可能な注記要素      |
-| `class-prefix`          | 文字列                                              | `skam`     | CSS クラス名の接頭辞      |
-| `auto-font`             | (boolean)                                           | false      | Google Fonts 自動読み込み |
+| 属性                    | 値                                                  | デフォルト | 説明                                              |
+| ----------------------- | --------------------------------------------------- | ---------- | ------------------------------------------------- |
+| `writing-mode`          | `vertical` \| `horizontal`                          | `vertical` | 書字方向                                          |
+| `profile`               | `full` \| `learningBasic` \| `learningHint` \| JSON | `full`     | 表示プロファイル                                  |
+| `inline`                | (boolean)                                           | false      | インラインモード                                  |
+| `include-reading-layer` | `true` \| `false`                                   | `true`     | 読み層の表示                                      |
+| `copyable`              | `all` \| スペース区切りの要素名                     | (なし)     | コピー可能な注記要素                              |
+| `class-prefix`          | 文字列                                              | `skam`     | CSS クラス名の接頭辞                              |
+| `auto-font`             | (boolean)                                           | false      | Google Fonts 自動読み込み（Noto Serif JP, serif） |
+
+`auto-font` を有効にすると、Google Fonts から **Noto Serif JP** を読み込み、`--{class-prefix}-font-family` と `--{class-prefix}-font-family-ruby` を自動設定する。無効時はフォントを継承する。
+
+各属性の詳細（`profile` の種類、`copyable` の指定可能な値など）は [@kanbun-skam/skam-html-renderer の README](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-html-renderer#readme) を参照。
 
 ### イベント
 
@@ -77,7 +81,7 @@ el.xmlContent = xmlString;
 
 ### CSS Variables によるカスタマイズ
 
-Shadow DOM 内のスタイルはホスト要素の CSS Variables で制御可能:
+Shadow DOM 内のスタイルはホスト要素の CSS Variables で制御可能。変数一覧は [skam-html-renderer の CSS Variables セクション](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-html-renderer#css-variables-によるカスタマイズ)を参照。
 
 ```css
 skam-renderer {

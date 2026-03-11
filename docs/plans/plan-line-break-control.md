@@ -4,7 +4,7 @@
 
 ## 概要
 
-漢文の組版規則に従った改行位置制御を HTML レンダラーに実装する。不可分単位（漢字トークン + 付随マーク、tateten グループ、position ベースマーク吸着）を `white-space: nowrap` で保護し、不可分単位間に `<wbr>` を挿入して改行許可位置を明示する。共通の改行判定ロジックは `@kanbun/skam/rendering` に配置する。
+漢文の組版規則に従った改行位置制御を HTML レンダラーに実装する。不可分単位（漢字トークン + 付随マーク、tateten グループ、position ベースマーク吸着）を `white-space: nowrap` で保護し、不可分単位間に `<wbr>` を挿入して改行許可位置を明示する。共通の改行判定ロジックは `@kanbun-skam/skam/rendering` に配置する。
 
 関連 ADR: [ADR-014](../decisions/adr-014-line-break-control.md)
 
@@ -42,7 +42,7 @@ HighlightGroupNode: { type: 'highlight-group', highlight, refHtml, items: (Token
 - `.skam-highlight`: `position: relative` + padding
 - `.skam-highlight-content`: 縦書き時 `display: inline-block`（傍線描画のため）
 
-### 共通 rendering (`@kanbun/skam/rendering`)
+### 共通 rendering (`@kanbun-skam/skam/rendering`)
 
 - `mark-groups.ts`: `getTatetenGroups()`, `getHighlightGroups()`, `getRangeMarkGroups()`
 - `mark-lookup.ts`: `getMarksForToken()` - token ごとのマーク検索
@@ -76,7 +76,7 @@ ADR の決定: 「okototen, emphasis, highlight はトークン境界で分割�
 
 ## 実装計画
 
-### Step 1: 共通ユーティリティ `canBreakBefore` を `@kanbun/skam/rendering` に追加
+### Step 1: 共通ユーティリティ `canBreakBefore` を `@kanbun-skam/skam/rendering` に追加
 
 **対象ファイル**:
 
@@ -138,7 +138,7 @@ export function renderBlockTree(tree: BlockRenderTree, ctx: RenderTreeContext): 
 変更後:
 
 ```typescript
-import { canBreakBefore } from '@kanbun/skam/rendering';
+import { canBreakBefore } from '@kanbun-skam/skam/rendering';
 
 export function renderBlockTree(tree: BlockRenderTree, ctx: RenderTreeContext): string {
   const hasBlockStartContent = tree.blockStartHtml.length > 0;

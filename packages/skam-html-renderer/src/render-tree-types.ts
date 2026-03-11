@@ -14,7 +14,7 @@ import type {
   OkimojiMark,
   JojiMark,
   EmphasisMark,
-} from '@kanbun/skam';
+} from '@kanbun-skam/skam';
 
 // ---------------------------------------------------------------------------
 // Moved from renderer.ts

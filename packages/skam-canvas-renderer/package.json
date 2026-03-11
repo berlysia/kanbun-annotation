@@ -1,5 +1,5 @@
 {
-  "name": "@kanbun/skam-canvas-renderer",
+  "name": "@kanbun-skam/skam-canvas-renderer",
   "version": "0.1.0",
   "description": "SKAM to Canvas renderer - SKAMドキュメントからCanvas APIで描画",
   "type": "module",
@@ -30,7 +30,7 @@
     "renderer"
   ],
   "author": "berlysia",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/berlysia/kanbun-annotation.git",
@@ -47,6 +47,6 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@kanbun/skam": "workspace:*"
+    "@kanbun-skam/skam": "workspace:*"
   }
 }

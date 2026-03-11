@@ -148,7 +148,7 @@ P0 完了後の知見を元に、以下の方向を検討する:
 - `validateMark()` が型判定 + dispatch のみに縮退している
 - 各型別バリデーター関数が独立してテスト可能
 - 既存テストが全件パスする
-- `pnpm --filter @kanbun/skam test` 成功
+- `pnpm --filter @kanbun-skam/skam test` 成功
 - `pnpm typecheck` 成功
 
 ## 影響

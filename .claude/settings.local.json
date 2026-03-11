@@ -3,9 +3,9 @@
     "allow": [
       "Skill(clarify)",
       "Skill(decompose)",
-      "Bash(pnpm --filter @kanbun/skam-canvas-renderer typecheck:*)",
-      "Bash(pnpm --filter @kanbun/skam-canvas-renderer test:*)",
-      "Bash(pnpm --filter @kanbun/skam-canvas-renderer build:*)",
+      "Bash(pnpm --filter @kanbun-skam/skam-canvas-renderer typecheck:*)",
+      "Bash(pnpm --filter @kanbun-skam/skam-canvas-renderer test:*)",
+      "Bash(pnpm --filter @kanbun-skam/skam-canvas-renderer build:*)",
       "Bash(pnpm build:*)",
       "Bash(git -C /Users/berlysia/workspace/kanbun-annotation log --oneline -5)"
     ]

@@ -3,6 +3,14 @@
   "version": "0.1.0",
   "private": true,
   "description": "Stand-off Kanbun Annotation Model - 漢文アノテーションの仕様定義・構文定義・レンダラー",
+  "keywords": [
+    "annotation",
+    "classical-chinese",
+    "kanbun",
+    "漢文"
+  ],
+  "license": "MIT",
+  "author": "berlysia",
   "type": "module",
   "scripts": {
     "build": "turbo build",
@@ -12,31 +20,22 @@
     "format:check": "prettier --check .",
     "test": "turbo test",
     "test:run": "turbo test:run",
-    "test:semantic": "pnpm --filter @kanbun/integration-tests test:semantic",
-    "test:visual": "pnpm --filter @kanbun/integration-tests test:visual",
+    "test:semantic": "pnpm --filter @kanbun-skam/integration-tests test:semantic",
+    "test:visual": "pnpm --filter @kanbun-skam/integration-tests test:visual",
     "clean": "knip",
-    "playground:dev": "pnpm --filter @kanbun/playground dev",
-    "playground:build": "turbo build --filter=@kanbun/playground",
-    "playground:preview": "pnpm --filter @kanbun/playground preview",
-    "baseline": "pnpm --filter @kanbun/baseline-check check",
-    "baseline:report": "pnpm --filter @kanbun/baseline-check report",
+    "playground:dev": "pnpm --filter @kanbun-skam/playground dev",
+    "playground:build": "turbo build --filter=@kanbun-skam/playground",
+    "playground:preview": "pnpm --filter @kanbun-skam/playground preview",
+    "baseline": "pnpm --filter @kanbun-skam/baseline-check check",
+    "baseline:report": "pnpm --filter @kanbun-skam/baseline-check report",
     "changeset": "changeset",
     "changeset:version": "changeset version",
     "changeset:publish": "changeset publish",
-    "screenshot": "turbo build --filter=@kanbun/skam-screenshot && node packages/skam-screenshot/dist/cli.js",
+    "screenshot": "turbo build --filter=@kanbun-skam/skam-screenshot && node packages/skam-screenshot/dist/cli.js",
     "adr:status": "node scripts/adr-status.ts",
     "adr:deps": "node scripts/adr-deps.ts",
     "prepare": "husky"
   },
-  "keywords": [
-    "kanbun",
-    "漢文",
-    "annotation",
-    "classical-chinese"
-  ],
-  "author": "berlysia",
-  "license": "UNLICENSED",
-  "packageManager": "pnpm@10.27.0",
   "devDependencies": {
     "@changesets/cli": "2.29.8",
     "@types/node": "25.0.10",
@@ -51,16 +50,17 @@
     "turbo": "2.8.1",
     "vitest": "4.0.18"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "@anthropic-ai/tokenizer-wasm"
-    ]
-  },
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [
       "oxlint",
       "prettier --write"
     ],
     "*.{json,md,html,css}": "prettier --write"
+  },
+  "packageManager": "pnpm@10.27.0",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "@anthropic-ai/tokenizer-wasm"
+    ]
   }
 }

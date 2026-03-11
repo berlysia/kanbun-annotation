@@ -2,7 +2,7 @@
 
 ## 概要
 
-Web Platform Baseline に基づく CSS/JS 互換性チェック環境を構築する。プライベートパッケージ `@kanbun/baseline-check` として実装。
+Web Platform Baseline に基づく CSS/JS 互換性チェック環境を構築する。プライベートパッケージ `@kanbun-skam/baseline-check` として実装。
 
 関連 ADR: [ADR-013](../decisions/adr-013-baseline-compatibility-check.md)
 
@@ -42,7 +42,7 @@ Web Platform Baseline に基づく CSS/JS 互換性チェック環境を構築�
 
 ## 検証方法
 
-- `pnpm --filter @kanbun/baseline-check check` が実行でき、Baseline 違反が報告される
+- `pnpm --filter @kanbun-skam/baseline-check check` が実行でき、Baseline 違反が報告される
 - override 設定で既知の違反を管理できる
 
 ## 注記

@@ -18,7 +18,7 @@ import {
   type AIRTokenNode,
   type AIRTatetenGroupNode,
   type AIRHighlightGroupNode,
-} from '@kanbun/skam/rendering';
+} from '@kanbun-skam/skam/rendering';
 import {
   FIXTURE_RANGE_RUBY,
   FIXTURE_TATETEN_KAERI,

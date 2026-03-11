@@ -60,7 +60,7 @@ SKAM の HTML レンダリングパイプライン（`parse` → `render`）を�
 
 ### パッケージ構成
 
-`@kanbun/skam-web-component` を新規パッケージとして `packages/skam-web-component/` に配置。`@kanbun/skam-xml-parser` と `@kanbun/skam-html-renderer` に依存する。
+`@kanbun-skam/skam-web-component` を新規パッケージとして `packages/skam-web-component/` に配置。`@kanbun-skam/skam-xml-parser` と `@kanbun-skam/skam-html-renderer` に依存する。
 
 ### 属性設計
 

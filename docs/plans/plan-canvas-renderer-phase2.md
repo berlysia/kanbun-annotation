@@ -256,7 +256,7 @@ Commit 4: tateten グルーピングロジック
 
 ## 検証
 
-1. `pnpm --filter @kanbun/skam-canvas-renderer test` — 全テストパス
+1. `pnpm --filter @kanbun-skam/skam-canvas-renderer test` — 全テストパス
 2. `pnpm typecheck` — 型チェック成功
 3. `pnpm build` — 全パッケージビルド成功
 4. Playground screenshot で視覚確認:

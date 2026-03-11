@@ -60,7 +60,7 @@ SKAM の型システムを改善し、Mark の配置方式を対等化、型マ�
 
 **`packages/skam/src/operations/index.ts`**: `isPositionBasedMark` を export
 **`packages/skam/src/index.ts`**: re-export に追加
-**`packages/skam-xml-stringify/src/stringify.ts`**: ローカル `isAnchorBasedMark` (L183-186) を削除し、`@kanbun/skam` からの import に統一
+**`packages/skam-xml-stringify/src/stringify.ts`**: ローカル `isAnchorBasedMark` (L183-186) を削除し、`@kanbun-skam/skam` からの import に統一
 
 **検証**: `pnpm typecheck && pnpm test`
 

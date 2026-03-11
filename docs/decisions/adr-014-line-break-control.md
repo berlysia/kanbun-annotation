@@ -86,7 +86,7 @@ SKAM データモデルの block を「1 行分」として再定義し、デー
 
 #### Render tree の変更
 
-共通の render tree ユーティリティ（`@kanbun/skam/rendering` または各レンダラー）に改行許可判定ロジックを追加:
+共通の render tree ユーティリティ（`@kanbun-skam/skam/rendering` または各レンダラー）に改行許可判定ロジックを追加:
 
 ```
 canBreakBefore(node, index, siblings): boolean

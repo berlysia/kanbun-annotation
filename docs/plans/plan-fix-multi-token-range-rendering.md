@@ -2,7 +2,7 @@
 
 ## 概要
 
-`@kanbun/skam-html-renderer` の `comprehensive-rendering.test.ts` で失敗している12件のテストを修正する。2つの根本原因に対し3つの独立した修正を段階的に適用する。
+`@kanbun-skam/skam-html-renderer` の `comprehensive-rendering.test.ts` で失敗している12件のテストを修正する。2つの根本原因に対し3つの独立した修正を段階的に適用する。
 
 関連 ADR: [ADR-002](../decisions/adr-002-fix-multi-token-range-rendering.md)
 
@@ -379,7 +379,7 @@ baseHtml = renderTokenWithRuby(
 
 ```bash
 # 対象パッケージのテスト（12件の失敗が0件になること）
-pnpm --filter @kanbun/skam-html-renderer test
+pnpm --filter @kanbun-skam/skam-html-renderer test
 # 期待: 153 tests passed (12 fixed + 141 existing)
 
 # 全パッケージテスト（リグレッションなし）

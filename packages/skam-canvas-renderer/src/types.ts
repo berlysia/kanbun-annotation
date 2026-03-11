@@ -2,8 +2,8 @@
  * Canvas Renderer 型定義
  */
 
-import type { Token, HighlightStyle } from '@kanbun/skam';
-import type { Spacing } from '@kanbun/skam/rendering';
+import type { Token, HighlightStyle } from '@kanbun-skam/skam';
+import type { Spacing } from '@kanbun-skam/skam/rendering';
 import type { RenderProfile } from './profiles.js';
 
 // ============================================================================

@@ -29,8 +29,8 @@ import type {
   HighlightStyle,
   RefMark,
   RefFormat,
-} from '@kanbun/skam';
-import { createRandomIdGenerator, KAERI } from '@kanbun/skam';
+} from '@kanbun-skam/skam';
+import { createRandomIdGenerator, KAERI } from '@kanbun-skam/skam';
 
 // ============================================================================
 // Constants

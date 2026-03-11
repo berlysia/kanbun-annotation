@@ -11,7 +11,7 @@ export default defineConfig([
     entry: ['src/index.ts'],
     format: ['iife'],
     globalName: 'SKAMCanvasRenderer',
-    noExternal: ['@kanbun/skam'],
+    noExternal: ['@kanbun-skam/skam'],
     outExtension: () => ({ js: '.iife.js' }),
   },
 ]);

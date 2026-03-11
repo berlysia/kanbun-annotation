@@ -1,4 +1,4 @@
-# @kanbun/skam-html-renderer
+# @kanbun-skam/skam-html-renderer
 
 ## 0.1.0
 

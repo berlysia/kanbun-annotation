@@ -2,8 +2,12 @@
  * HTML属性 → RenderOptions 変換ユーティリティ
  */
 
-import { PROFILES } from '@kanbun/skam-html-renderer';
-import type { RenderOptions, RenderProfile, CopyableElement } from '@kanbun/skam-html-renderer';
+import { PROFILES } from '@kanbun-skam/skam-html-renderer';
+import type {
+  RenderOptions,
+  RenderProfile,
+  CopyableElement,
+} from '@kanbun-skam/skam-html-renderer';
 
 const VALID_WRITING_MODES = ['vertical', 'horizontal'] as const;
 const VALID_COPYABLE_ELEMENTS = ['ruby', 'okurigana', 'soegana', 'kaeriten', 'okototen'] as const;

@@ -50,8 +50,8 @@ contentNodeToXml(node)
 
 ## 検証方法
 
-- `pnpm --filter @kanbun/skam-xml-stringify test` 成功
-- `pnpm --filter @kanbun/integration-tests test` 成功（roundtrip テスト）
+- `pnpm --filter @kanbun-skam/skam-xml-stringify test` 成功
+- `pnpm --filter @kanbun-skam/integration-tests test` 成功（roundtrip テスト）
 - `pnpm typecheck` 成功
 - `pnpm lint` で `contentNodeToXml` の complexity warning が消えることを確認
 

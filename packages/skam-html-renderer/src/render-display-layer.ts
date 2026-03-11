@@ -8,8 +8,8 @@
  * Reading layer and ref notes remain in the API layer (renderer.ts).
  */
 
-import type { SKAMDocument, HighlightMark } from '@kanbun/skam';
-import { buildAnnotationIR, resolveRefValues } from '@kanbun/skam/rendering';
+import type { SKAMDocument, HighlightMark } from '@kanbun-skam/skam';
+import { buildAnnotationIR, resolveRefValues } from '@kanbun-skam/skam/rendering';
 import type { RenderProfile, RubyMethod } from './render-config.js';
 import { escapeHtml } from './html-utils.js';
 import { convertAIRToBlockRenderTrees } from './air-adapter.js';

@@ -53,13 +53,13 @@ Playwright Test のスナップショットテスト機能（`expect(page).toHav
 
 ### パッケージ構成
 
-`@kanbun/skam-screenshot` を `packages/skam-screenshot/` に配置。モノレポ内の private な開発ツールであり、npm publish は想定しない。
+`@kanbun-skam/skam-screenshot` を `packages/skam-screenshot/` に配置。モノレポ内の private な開発ツールであり、npm publish は想定しない。
 
 **依存関係** (すべて devDependencies):
 
-- `@kanbun/skam` - 型定義
-- `@kanbun/skam-xml-parser` - XML 入力のパース
-- `@kanbun/skam-html-renderer` - HTML レンダリング
+- `@kanbun-skam/skam` - 型定義
+- `@kanbun-skam/skam-xml-parser` - XML 入力のパース
+- `@kanbun-skam/skam-html-renderer` - HTML レンダリング
 - `playwright` - ブラウザ自動操作
 
 private パッケージのため devDependencies で十分。他パッケージの `pnpm install` に Playwright が波及しない。
@@ -143,7 +143,7 @@ pnpm screenshot input.xml --render-options '{"rubyMethod":"grid","profile":"lear
 ### プログラマティック API
 
 ```typescript
-import { capture, generateCompareHTML } from '@kanbun/skam-screenshot';
+import { capture, generateCompareHTML } from '@kanbun-skam/skam-screenshot';
 
 type Browser = 'chromium' | 'firefox' | 'webkit';
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { SKAMDocument, Mark } from '@kanbun/skam';
+import type { SKAMDocument, Mark } from '@kanbun-skam/skam';
 import { render } from '../index.js';
 
 function createThreeTokenDoc(

@@ -1,5 +1,5 @@
 {
-  "name": "@kanbun/skam-html-renderer",
+  "name": "@kanbun-skam/skam-html-renderer",
   "version": "0.1.0",
   "description": "SKAM to HTML renderer - SKAMドキュメントから静的HTMLを生成",
   "type": "module",
@@ -32,7 +32,7 @@
     "renderer"
   ],
   "author": "berlysia",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/berlysia/kanbun-annotation.git",
@@ -49,10 +49,10 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@kanbun/skam": "workspace:*"
+    "@kanbun-skam/skam": "workspace:*"
   },
   "devDependencies": {
-    "@kanbun/skam-xml-parser": "workspace:*",
+    "@kanbun-skam/skam-xml-parser": "workspace:*",
     "eslint": "^9.39.2",
     "eslint-plugin-baseline-js": "^0.5.0",
     "postcss-styled-syntax": "^0.7.1",

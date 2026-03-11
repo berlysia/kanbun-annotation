@@ -3,7 +3,7 @@
  * Used by both cross-renderer-equivalence (semantic) and visual-regression tests.
  */
 
-import type { SKAMDocument } from '@kanbun/skam';
+import type { SKAMDocument } from '@kanbun-skam/skam';
 
 /** Case 1: ruby-range-core — 複数トークン集約 + span */
 export const FIXTURE_RANGE_RUBY: SKAMDocument = {

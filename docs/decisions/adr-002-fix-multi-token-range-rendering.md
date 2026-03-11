@@ -7,7 +7,7 @@ plan: plan-fix-multi-token-range-rendering.md
 
 ## コンテキスト
 
-`@kanbun/skam-html-renderer` の `comprehensive-rendering.test.ts` で12件のテストが失敗している。これらは `2811abc` コミットで追加された包括テストスイートで、マルチトークン範囲や複合マークのレンダリングに関する既知の実装ギャップを検出している。
+`@kanbun-skam/skam-html-renderer` の `comprehensive-rendering.test.ts` で12件のテストが失敗している。これらは `2811abc` コミットで追加された包括テストスイートで、マルチトークン範囲や複合マークのレンダリングに関する既知の実装ギャップを検出している。
 
 ### 問題の構造
 

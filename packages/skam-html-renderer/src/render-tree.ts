@@ -3,7 +3,7 @@
  *
  * Simple recursive rendering replaces the flush/accumulator state machine.
  */
-import type { Token, Mark, RefMark } from '@kanbun/skam';
+import type { Token, Mark, RefMark } from '@kanbun-skam/skam';
 import type {
   TokenRenderResult,
   TokenItem,
@@ -13,7 +13,7 @@ import type {
   RenderNode,
 } from './render-tree-types.js';
 import type { RenderProfile, RubyMethod } from './render-config.js';
-import { resolveEmphasisCharacter, canBreakBefore } from '@kanbun/skam/rendering';
+import { resolveEmphasisCharacter, canBreakBefore } from '@kanbun-skam/skam/rendering';
 import { escapeHtml, generateEmphasisMarks } from './html-utils.js';
 import { renderToken } from './token-renderer.js';
 

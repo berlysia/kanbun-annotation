@@ -1,4 +1,4 @@
-# @kanbun/skam-xml-stringify
+# @kanbun-skam/skam-xml-stringify
 
 **SKAM JSON** から **SKAM-ML/XML** へのシリアライザー。
 
@@ -7,9 +7,9 @@
 ## インストール
 
 ```bash
-npm install @kanbun/skam-xml-stringify
+npm install @kanbun-skam/skam-xml-stringify
 # or
-pnpm add @kanbun/skam-xml-stringify
+pnpm add @kanbun-skam/skam-xml-stringify
 ```
 
 ## 使い方
@@ -17,8 +17,8 @@ pnpm add @kanbun/skam-xml-stringify
 ### 基本的なシリアライズ
 
 ```typescript
-import { stringify } from '@kanbun/skam-xml-stringify';
-import type { SKAMDocument } from '@kanbun/skam';
+import { stringify } from '@kanbun-skam/skam-xml-stringify';
+import type { SKAMDocument } from '@kanbun-skam/skam';
 
 const doc: SKAMDocument = {
   format: 'skam@0.1',
@@ -51,7 +51,7 @@ const xml = stringify(doc);
 ### オプション
 
 ```typescript
-import { stringify } from '@kanbun/skam-xml-stringify';
+import { stringify } from '@kanbun-skam/skam-xml-stringify';
 
 // XML 宣言なし
 const xml = stringify(doc, { xmlDeclaration: false });
@@ -82,9 +82,9 @@ const xml = stringify(doc, { indent: 4 });
 
 ## 関連パッケージ
 
-- [@kanbun/skam](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam) - 型定義・バリデーター
-- [@kanbun/skam-xml-parser](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-xml-parser) - SKAM-ML/XML パーサー（逆方向の変換）
-- [@kanbun/skam-html-renderer](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-html-renderer) - HTML レンダラー
+- [@kanbun-skam/skam](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam) - 型定義・バリデーター
+- [@kanbun-skam/skam-xml-parser](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-xml-parser) - SKAM-ML/XML パーサー（逆方向の変換）
+- [@kanbun-skam/skam-html-renderer](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-html-renderer) - HTML レンダラー
 
 ## 仕様書
 

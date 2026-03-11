@@ -140,8 +140,8 @@ Parser (`parser-core.ts`) と Serializer (`stringify.ts`) の両方で、マー�
 - `contentNodeToXml()` の CC が 15 以下に削減されている
 - trailing marks の save/suppress/restore が専用関数に閉じ込められている
 - 既存の roundtrip テストが全件パスする
-- `pnpm --filter @kanbun/skam-xml-stringify test` 成功
-- `pnpm --filter @kanbun/integration-tests test` 成功
+- `pnpm --filter @kanbun-skam/skam-xml-stringify test` 成功
+- `pnpm --filter @kanbun-skam/integration-tests test` 成功
 - `pnpm typecheck` 成功
 
 ## 影響

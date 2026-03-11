@@ -7,7 +7,7 @@ plan: plan-canvas-renderer.md
 
 ## コンテキスト
 
-既存の `@kanbun/skam-html-renderer` は HTML+CSS による漢文レンダリングを提供するが、以下の用途には対応できない:
+既存の `@kanbun-skam/skam-html-renderer` は HTML+CSS による漢文レンダリングを提供するが、以下の用途には対応できない:
 
 - **画像エクスポート**: PNG/JPEG として共有・印刷・教材生成
 - **高パフォーマンス表示**: 大量のトークン・マークがある文書を DOM 操作なしで高速描画
@@ -24,7 +24,7 @@ plan: plan-canvas-renderer.md
 
 ### Option B: 完全独立パッケージ（採用）
 
-- 利点: 依存は `@kanbun/skam` 型のみ。Canvas に最適化したデータ構造を設計可能。HTML renderer の変更に影響されない
+- 利点: 依存は `@kanbun-skam/skam` 型のみ。Canvas に最適化したデータ構造を設計可能。HTML renderer の変更に影響されない
 - 欠点: render tree 構築のセマンティクス（tateten/highlight グルーピング、range mark マージ等）を再実装する必要がある（約 200-300 行）
 
 ### Option C: HTML → Canvas 変換（html2canvas 的アプローチ）
@@ -34,13 +34,13 @@ plan: plan-canvas-renderer.md
 
 ## 決定
 
-**Option B: 完全独立パッケージ** `@kanbun/skam-canvas-renderer` を新設する。
+**Option B: 完全独立パッケージ** `@kanbun-skam/skam-canvas-renderer` を新設する。
 
 ### アーキテクチャ
 
 3-Pass レンダリングパイプライン:
 
-1. **Pass 1 (Resolve & Group)**: `@kanbun/skam` ユーティリティで mark をトークンに解決し、tateten/highlight/range mark をグルーピング → CanvasRenderTree
+1. **Pass 1 (Resolve & Group)**: `@kanbun-skam/skam` ユーティリティで mark をトークンに解決し、tateten/highlight/range mark をグルーピング → CanvasRenderTree
 2. **Pass 2 (Measure & Layout)**: `ctx.measureText()` でテキスト計測し、各要素に絶対座標を割り当て → DocumentLayout
 3. **Pass 3 (Draw)**: DocumentLayout を走査して canvas draw calls を発行
 
@@ -68,7 +68,7 @@ plan: plan-canvas-renderer.md
 
 ### ネガティブ
 
-- ~~render tree 構築ロジックの重複（約 200-300 行）~~ → `@kanbun/skam/rendering` サブパスに共有ユーティリティを集約して解消済み
+- ~~render tree 構築ロジックの重複（約 200-300 行）~~ → `@kanbun-skam/skam/rendering` サブパスに共有ユーティリティを集約して解消済み
 - Canvas API にはネイティブの縦書きサポートがないため、1 文字ずつの描画が必要
 - フォントメトリクスの環境差（ブラウザ vs node-canvas）への対応が必要
 - 新パッケージのメンテナンスコスト

@@ -62,19 +62,19 @@ importers:
 
   packages/integration-tests:
     devDependencies:
-      '@kanbun/skam':
+      '@kanbun-skam/skam':
         specifier: workspace:*
         version: link:../skam
-      '@kanbun/skam-html-renderer':
+      '@kanbun-skam/skam-html-renderer':
         specifier: workspace:*
         version: link:../skam-html-renderer
-      '@kanbun/skam-screenshot':
+      '@kanbun-skam/skam-screenshot':
         specifier: workspace:*
         version: link:../skam-screenshot
-      '@kanbun/skam-xml-parser':
+      '@kanbun-skam/skam-xml-parser':
         specifier: workspace:*
         version: link:../skam-xml-parser
-      '@kanbun/skam-xml-stringify':
+      '@kanbun-skam/skam-xml-stringify':
         specifier: workspace:*
         version: link:../skam-xml-stringify
       '@playwright/test':
@@ -83,22 +83,22 @@ importers:
 
   packages/playground:
     dependencies:
-      '@kanbun/skam':
+      '@kanbun-skam/skam':
         specifier: workspace:*
         version: link:../skam
-      '@kanbun/skam-canvas-renderer':
+      '@kanbun-skam/skam-canvas-renderer':
         specifier: workspace:*
         version: link:../skam-canvas-renderer
-      '@kanbun/skam-html-renderer':
+      '@kanbun-skam/skam-html-renderer':
         specifier: workspace:*
         version: link:../skam-html-renderer
-      '@kanbun/skam-web-component':
+      '@kanbun-skam/skam-web-component':
         specifier: workspace:*
         version: link:../skam-web-component
-      '@kanbun/skam-xml-parser':
+      '@kanbun-skam/skam-xml-parser':
         specifier: workspace:*
         version: link:../skam-xml-parser
-      '@kanbun/skam-xml-stringify':
+      '@kanbun-skam/skam-xml-stringify':
         specifier: workspace:*
         version: link:../skam-xml-stringify
       prismjs:
@@ -125,17 +125,17 @@ importers:
 
   packages/skam-canvas-renderer:
     dependencies:
-      '@kanbun/skam':
+      '@kanbun-skam/skam':
         specifier: workspace:*
         version: link:../skam
 
   packages/skam-html-renderer:
     dependencies:
-      '@kanbun/skam':
+      '@kanbun-skam/skam':
         specifier: workspace:*
         version: link:../skam
     devDependencies:
-      '@kanbun/skam-xml-parser':
+      '@kanbun-skam/skam-xml-parser':
         specifier: workspace:*
         version: link:../skam-xml-parser
       eslint:
@@ -159,16 +159,16 @@ importers:
 
   packages/skam-screenshot:
     devDependencies:
-      '@kanbun/skam':
+      '@kanbun-skam/skam':
         specifier: workspace:*
         version: link:../skam
-      '@kanbun/skam-canvas-renderer':
+      '@kanbun-skam/skam-canvas-renderer':
         specifier: workspace:*
         version: link:../skam-canvas-renderer
-      '@kanbun/skam-html-renderer':
+      '@kanbun-skam/skam-html-renderer':
         specifier: workspace:*
         version: link:../skam-html-renderer
-      '@kanbun/skam-xml-parser':
+      '@kanbun-skam/skam-xml-parser':
         specifier: workspace:*
         version: link:../skam-xml-parser
       playwright:
@@ -177,16 +177,16 @@ importers:
 
   packages/skam-web-component:
     dependencies:
-      '@kanbun/skam-html-renderer':
+      '@kanbun-skam/skam-html-renderer':
         specifier: workspace:*
         version: link:../skam-html-renderer
-      '@kanbun/skam-xml-parser':
+      '@kanbun-skam/skam-xml-parser':
         specifier: workspace:*
         version: link:../skam-xml-parser
 
   packages/skam-xml-parser:
     dependencies:
-      '@kanbun/skam':
+      '@kanbun-skam/skam':
         specifier: workspace:*
         version: link:../skam
       '@xmldom/xmldom':
@@ -195,7 +195,7 @@ importers:
 
   packages/skam-xml-stringify:
     dependencies:
-      '@kanbun/skam':
+      '@kanbun-skam/skam':
         specifier: workspace:*
         version: link:../skam
 

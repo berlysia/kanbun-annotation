@@ -10,7 +10,7 @@ Detect features without override definitions and add/update fallback description
 
 ## Workflow
 
-1. **Regenerate report**: Run `pnpm --filter @kanbun/baseline-check report`
+1. **Regenerate report**: Run `pnpm --filter @kanbun-skam/baseline-check report`
 2. **Detect unknowns**: Run `node packages/baseline-check/scripts/check-overrides.js`
    - stdout: JSON array of unknown features
    - stderr: human-readable summary
@@ -29,7 +29,7 @@ Detect features without override definitions and add/update fallback description
 6. **Update override files**:
    - `packages/baseline-check/baseline-overrides-renderer.json` for html/canvas features
    - `packages/baseline-check/baseline-overrides-playground.json` for playground features
-7. **Regenerate report**: Run `pnpm --filter @kanbun/baseline-check report` to verify
+7. **Regenerate report**: Run `pnpm --filter @kanbun-skam/baseline-check report` to verify
 
 ## Status Criteria
 

@@ -1,5 +1,5 @@
 /**
- * @kanbun/skam-html
+ * @kanbun-skam/skam-html
  *
  * SKAM to HTML renderer - SKAMドキュメントから静的HTMLを生成
  */
@@ -21,7 +21,7 @@ export {
   type RubyMethod,
 } from './render-config.js';
 
-export type { Spacing, SpacingPreset } from '@kanbun/skam/rendering';
+export type { Spacing, SpacingPreset } from '@kanbun-skam/skam/rendering';
 
 export { getDefaultStyles, type StyleOptions } from './styles.js';
 

@@ -300,7 +300,7 @@ CSS Text Module Level 4 Section 8.2:
 
 ### 対象外（将来の拡張）
 
-- **Canvas レンダラー対応**: 共有型 `Spacing` と `resolveSpacingEm()` は `@kanbun/skam/rendering` に定義済み。Canvas 側では `resolveSpacingEm(spacing) * fontSize` でピクセル値に変換し、`layoutVertical` の `cellAdvance` に加算する形で実装可能
+- **Canvas レンダラー対応**: 共有型 `Spacing` と `resolveSpacingEm()` は `@kanbun-skam/skam/rendering` に定義済み。Canvas 側では `resolveSpacingEm(spacing) * fontSize` でピクセル値に変換し、`layoutVertical` の `cellAdvance` に加算する形で実装可能
 - 句読点前後のアキ調整（句読点の詰め組み）: 漢文では頻度が低く、現時点では scope 外
 - `text-spacing-trim` CSS プロパティとの統合: ブラウザ対応状況を見て将来対応。ただし `text-spacing-trim` が atomic inline（inline-block）に適用されるかは未確認であり、行末アキの解消手段として期待しすぎないこと
 - token 単位のアキ量オーバーライド: 需要が確認されてから検討

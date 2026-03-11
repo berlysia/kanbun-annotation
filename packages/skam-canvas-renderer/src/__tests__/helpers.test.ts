@@ -1,9 +1,13 @@
 import { describe, it } from 'vitest';
 import { expect } from 'vitest';
-import type { Token, Mark, RefMark } from '@kanbun/skam';
-import { KAERI } from '@kanbun/skam';
-import { resolveEmphasisCharacter, formatRefIndex, resolveRefValues } from '@kanbun/skam/rendering';
-import { splitKaeriForTateten } from '@kanbun/skam/rendering';
+import type { Token, Mark, RefMark } from '@kanbun-skam/skam';
+import { KAERI } from '@kanbun-skam/skam';
+import {
+  resolveEmphasisCharacter,
+  formatRefIndex,
+  resolveRefValues,
+} from '@kanbun-skam/skam/rendering';
+import { splitKaeriForTateten } from '@kanbun-skam/skam/rendering';
 
 describe('resolveEmphasisCharacter', () => {
   it('returns filled dot for undefined style', () => {

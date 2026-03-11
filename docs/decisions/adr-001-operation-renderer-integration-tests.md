@@ -9,8 +9,8 @@ plan: plan-operation-renderer-integration-tests.md
 
 SKAM プロジェクトには2つの独立したテスト層が存在する:
 
-1. **モデルオペレーションテスト** (`@kanbun/skam`): CRUD操作（addMark, removeMark, updateMark, replaceMark）後のドキュメントモデルの妥当性を `assertValidDocument` で検証
-2. **レンダラーテスト** (`@kanbun/skam-html-renderer`): 固定ドキュメントを入力としたHTML出力の正しさを検証
+1. **モデルオペレーションテスト** (`@kanbun-skam/skam`): CRUD操作（addMark, removeMark, updateMark, replaceMark）後のドキュメントモデルの妥当性を `assertValidDocument` で検証
+2. **レンダラーテスト** (`@kanbun-skam/skam-html-renderer`): 固定ドキュメントを入力としたHTML出力の正しさを検証
 
 しかし、両者の間に**統合テスト層が欠落**している。具体的には:
 
@@ -24,11 +24,11 @@ Playground のシナリオテスト（`scenarios.test.ts`）はモデル層で�
 
 ### テスト配置
 
-**`@kanbun/skam-html-renderer` パッケージ内**に統合テストファイルを新設する。
+**`@kanbun-skam/skam-html-renderer` パッケージ内**に統合テストファイルを新設する。
 
 理由:
 
-- `@kanbun/skam-html-renderer` は既に `@kanbun/skam` を依存として持っている
+- `@kanbun-skam/skam-html-renderer` は既に `@kanbun-skam/skam` を依存として持っている
 - オペレーション関数を `devDependencies` 経由ではなく直接 import 可能
 - レンダラーのテストインフラ（Vitest, happy-dom）をそのまま利用可能
 - 新パッケージ作成の必要がない

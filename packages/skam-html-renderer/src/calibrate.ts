@@ -40,7 +40,7 @@
  *
  * @example
  * ```typescript
- * import { calibrateGridBaseline } from '@kanbun/skam-html-renderer';
+ * import { calibrateGridBaseline } from '@kanbun-skam/skam-html-renderer';
  *
  * const container = document.getElementById('render-output')!;
  * calibrateGridBaseline(container);

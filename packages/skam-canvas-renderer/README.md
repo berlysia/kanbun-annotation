@@ -1,4 +1,4 @@
-# @kanbun/skam-canvas-renderer
+# @kanbun-skam/skam-canvas-renderer
 
 **SKAM ドキュメント**から **Canvas API** で描画するレンダラー。
 
@@ -7,9 +7,9 @@
 ## インストール
 
 ```bash
-npm install @kanbun/skam-canvas-renderer
+npm install @kanbun-skam/skam-canvas-renderer
 # or
-pnpm add @kanbun/skam-canvas-renderer
+pnpm add @kanbun-skam/skam-canvas-renderer
 ```
 
 ## 使い方
@@ -17,8 +17,8 @@ pnpm add @kanbun/skam-canvas-renderer
 ### 基本的なレンダリング
 
 ```typescript
-import { render } from '@kanbun/skam-canvas-renderer';
-import type { SKAMDocument } from '@kanbun/skam';
+import { render } from '@kanbun-skam/skam-canvas-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
 
 const doc: SKAMDocument = {
   format: 'skam@0.1',
@@ -38,7 +38,7 @@ render(doc, canvas, { fontSize: 24 });
 ### サイズ計測
 
 ```typescript
-import { measure } from '@kanbun/skam-canvas-renderer';
+import { measure } from '@kanbun-skam/skam-canvas-renderer';
 
 const ctx = canvas.getContext('2d')!;
 const { width, height } = measure(doc, ctx, { fontSize: 24 });
@@ -49,7 +49,7 @@ canvas.height = height;
 ### 表示プロファイル
 
 ```typescript
-import { render, PROFILES } from '@kanbun/skam-canvas-renderer';
+import { render, PROFILES } from '@kanbun-skam/skam-canvas-renderer';
 
 // フルプロファイル（すべての要素を表示、デフォルト）
 render(doc, canvas, { profile: PROFILES.full });
@@ -64,7 +64,7 @@ render(doc, canvas, { profile: PROFILES.learningHint });
 ### フォントの読み込み
 
 ```typescript
-import { loadDefaultFont, DEFAULT_FONT_FAMILY } from '@kanbun/skam-canvas-renderer';
+import { loadDefaultFont, DEFAULT_FONT_FAMILY } from '@kanbun-skam/skam-canvas-renderer';
 
 // デフォルトフォント（Noto Serif JP）を読み込み
 await loadDefaultFont();
@@ -76,7 +76,7 @@ render(doc, canvas, { fontFamily: DEFAULT_FONT_FAMILY, fontSize: 24 });
 `<script>` タグで直接読み込み可能な IIFE バンドルも提供:
 
 ```html
-<script src="node_modules/@kanbun/skam-canvas-renderer/dist/index.iife.js"></script>
+<script src="node_modules/@kanbun-skam/skam-canvas-renderer/dist/index.iife.js"></script>
 <script>
   const { render, measure, PROFILES } = SkamCanvasRenderer;
 </script>
@@ -112,9 +112,9 @@ render(doc, canvas, { fontFamily: DEFAULT_FONT_FAMILY, fontSize: 24 });
 
 ## 関連パッケージ
 
-- [@kanbun/skam](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam) - 型定義・バリデーター
-- [@kanbun/skam-html-renderer](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-html-renderer) - HTML レンダラー
-- [@kanbun/skam-web-component](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-web-component) - Web Component ラッパー
+- [@kanbun-skam/skam](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam) - 型定義・バリデーター
+- [@kanbun-skam/skam-html-renderer](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-html-renderer) - HTML レンダラー
+- [@kanbun-skam/skam-web-component](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-web-component) - Web Component ラッパー
 
 ## ライセンス
 

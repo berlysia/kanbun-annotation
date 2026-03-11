@@ -196,9 +196,9 @@ Phase3 では AIR（意味解決）の統合に合わせて、テストの主眼
    合格条件: No Test-Gap ゲート実装が存在する
 4. `test -f docs/testing/no-test-gap-matrix.md`  
    合格条件: 対応表ファイルが存在する
-5. `pnpm --filter @kanbun/skam-html-renderer test:run`  
+5. `pnpm --filter @kanbun-skam/skam-html-renderer test:run`  
    合格条件: 失敗 0 件
-6. `pnpm --filter @kanbun/skam-canvas-renderer test:run`  
+6. `pnpm --filter @kanbun-skam/skam-canvas-renderer test:run`  
    合格条件: 失敗 0 件
 7. `pnpm typecheck`  
    合格条件: 失敗 0 件

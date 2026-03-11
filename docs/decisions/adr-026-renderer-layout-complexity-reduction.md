@@ -123,7 +123,7 @@ P0 完了後の知見を元に以下を検討:
 
 #### Range mark overlap resolver の抽出
 
-HTML renderer (`buildFlatTokenList`, CC 32) と Canvas renderer の両方で range mark の重複解決が必要。`@kanbun/skam/rendering` に共通化する可能性を検討（ADR-021 の AIR 方向性と関連）。
+HTML renderer (`buildFlatTokenList`, CC 32) と Canvas renderer の両方で range mark の重複解決が必要。`@kanbun-skam/skam/rendering` に共通化する可能性を検討（ADR-021 の AIR 方向性と関連）。
 
 #### Canvas renderer Layout Pipeline の Context 集約
 
@@ -168,7 +168,7 @@ P0 の `BlockLayoutState` を基盤に、`LayoutContext` の設計を見直す�
 - 可変状態が `BlockLayoutState` に集約されている
 - 内部クロージャ関数がモジュールレベル関数に昇格している
 - 既存テストが全件パスする
-- `pnpm --filter @kanbun/skam-canvas-renderer test` 成功
+- `pnpm --filter @kanbun-skam/skam-canvas-renderer test` 成功
 - `pnpm typecheck` 成功
 
 ## 影響

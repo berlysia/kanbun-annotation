@@ -37,8 +37,8 @@ import type {
   HighlightMark,
   RefMark,
   TatetenMark,
-} from '@kanbun/skam';
-import { isAnchorBasedMark, KAERI } from '@kanbun/skam';
+} from '@kanbun-skam/skam';
+import { isAnchorBasedMark, KAERI } from '@kanbun-skam/skam';
 
 // ============================================================================
 // Constants

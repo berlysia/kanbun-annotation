@@ -13,10 +13,10 @@ deps: [19, 20]
 
 - 依存逆流チェック: `build-render-tree.ts` / `render-tree.ts` / `token-renderer.ts` から `renderer.ts` import は 0 件
 - `tateten-sep` 命名行: `sep-spacer-start`, `sep-tateten-start`, `sep-kaeri-start`, `sep-end` が配置定義に存在
-- 依存方向機械検証: `pnpm --filter @kanbun/skam-html-renderer run check:deps` 成功
+- 依存方向機械検証: `pnpm --filter @kanbun-skam/skam-html-renderer run check:deps` 成功
 - CI 連携: `.github/workflows/ci.yml` に `check:deps` 実行が存在
 - 回帰安全性:
-  - `pnpm --filter @kanbun/skam-html-renderer test:run` 成功（431 tests passed）
+  - `pnpm --filter @kanbun-skam/skam-html-renderer test:run` 成功（431 tests passed）
   - `pnpm typecheck` 成功
 
 Phase2 は完了と判定できる。
@@ -107,12 +107,12 @@ Phase2 までで構造安定化は達成したが、次の根本課題は残る�
 
 ### 目標アーキテクチャ（Phase3 完了時）
 
-- 共通 Resolver 層（`@kanbun/skam/rendering`）:
+- 共通 Resolver 層（`@kanbun-skam/skam/rendering`）:
   - `buildAnnotationIR(doc, profile)` を提供
   - range/tateten/highlight/block-start/ref 解決をここに集約
-- HTML Adapter 層（`@kanbun/skam-html-renderer`）:
+- HTML Adapter 層（`@kanbun-skam/skam-html-renderer`）:
   - AIR -> HTML display tree
-- Canvas Adapter 層（`@kanbun/skam-canvas-renderer`）:
+- Canvas Adapter 層（`@kanbun-skam/skam-canvas-renderer`）:
   - AIR -> Canvas render tree/layout input
 - 公開 API 層:
   - 既存 `render` / `renderHTML` / `generateCSS` / Canvas `render` / `measure` を維持
@@ -157,8 +157,8 @@ Step 2-3 は並行しない。片方を安定化してから次へ進む。
 - HTML/Canvas それぞれの既存主要テストが回帰しない
 - クロスレンダラー同値テスト（固定4ケース）が追加される
 - テスト運用は ADR-022（二層戦略 + No Test-Gap）に準拠する
-- `pnpm --filter @kanbun/skam-html-renderer test:run`
-- `pnpm --filter @kanbun/skam-canvas-renderer test:run`
+- `pnpm --filter @kanbun-skam/skam-html-renderer test:run`
+- `pnpm --filter @kanbun-skam/skam-canvas-renderer test:run`
 - `pnpm typecheck`
 
 ### 固定4ケース（同値テスト必須）
@@ -202,7 +202,7 @@ ADR-021 の同値テスト規約は AIR 統合の設計要件に限定し、運�
 | 意味整合性       | `rg -n "buildAnnotationIR" packages/skam-html-renderer/src packages/skam-canvas-renderer/src packages/skam/src/rendering` | Resolver 実装 + 両 renderer 利用を確認 |
 | 変更局所性       | `rg -n "getRangeMarkGroups                                                                                                | getTatetenGroups                       | getHighlightGroups | groupTokensByBlock" packages/skam-html-renderer/src packages/skam-canvas-renderer/src -g '!**/**tests**/**'` | 直接呼び出し 0 件               |
 | 回帰検出力       | `rg -n "range ruby                                                                                                        | tateten\\+kaeri                        | highlight\\+ref    | saidoku" packages -g "*cross-renderer*test.ts"`                                                              | 固定4ケースが test 名として存在 |
-| 移行安全性       | `pnpm --filter @kanbun/skam-html-renderer test:run && pnpm --filter @kanbun/skam-canvas-renderer test:run`                | 両テスト成功                           |
+| 移行安全性       | `pnpm --filter @kanbun-skam/skam-html-renderer test:run && pnpm --filter @kanbun-skam/skam-canvas-renderer test:run`      | 両テスト成功                           |
 | 実装コスト妥当性 | `pnpm typecheck`                                                                                                          | 成功                                   |
 
 ## 完了判定手順（再現可能）
@@ -213,10 +213,10 @@ ADR-021 の同値テスト規約は AIR 統合の設計要件に限定し、運�
 2. `rg -n "getRangeMarkGroups|getTatetenGroups|getHighlightGroups|groupTokensByBlock" packages/skam-html-renderer/src packages/skam-canvas-renderer/src -g '!**/__tests__/**'`
    合格条件: renderer 個別実装で上記呼び出し 0 件
 
-3. `pnpm --filter @kanbun/skam-html-renderer test:run`
+3. `pnpm --filter @kanbun-skam/skam-html-renderer test:run`
    合格条件: 失敗 0 件
 
-4. `pnpm --filter @kanbun/skam-canvas-renderer test:run`
+4. `pnpm --filter @kanbun-skam/skam-canvas-renderer test:run`
    合格条件: 失敗 0 件
 
 5. `pnpm typecheck`

@@ -1,4 +1,4 @@
-# Plan: @kanbun/skam-canvas-renderer
+# Plan: @kanbun-skam/skam-canvas-renderer
 
 <!-- validated -->
 
@@ -7,17 +7,17 @@ Phase 2 Plan: [Phase 2](plan-canvas-renderer-phase2.md)
 
 ## Context
 
-既存の `@kanbun/skam-html-renderer` は HTML+CSS による漢文レンダリングを提供するが、以下の用途には不向き:
+既存の `@kanbun-skam/skam-html-renderer` は HTML+CSS による漢文レンダリングを提供するが、以下の用途には不向き:
 
 - **画像エクスポート**: PNG/JPEG として共有・印刷・教材生成
 - **高パフォーマンス表示**: DOM操作なしの高速描画
 - **カスタム描画制御**: HTML/CSSでは困難な精密座標制御
 
-Canvas API を使った独立パッケージとして `@kanbun/skam-canvas-renderer` を新設する。
+Canvas API を使った独立パッケージとして `@kanbun-skam/skam-canvas-renderer` を新設する。
 
 **対象環境**: ブラウザ + Node.js (node-canvas)
 **インタラクティブ機能**: 不要（静的描画のみ）
-**既存 HTML renderer との関係**: 当初は完全独立で設計。Phase 3 完了後のリファクタリングで `@kanbun/skam/rendering` サブパスに共有ユーティリティを集約し、両レンダラーが共通の mark 解決・グルーピングロジックを使用する形に移行。render tree 設計は HTML renderer の反省を活かした改善版（スロットモデル）。
+**既存 HTML renderer との関係**: 当初は完全独立で設計。Phase 3 完了後のリファクタリングで `@kanbun-skam/skam/rendering` サブパスに共有ユーティリティを集約し、両レンダラーが共通の mark 解決・グルーピングロジックを使用する形に移行。render tree 設計は HTML renderer の反省を活かした改善版（スロットモデル）。
 
 ---
 
@@ -29,7 +29,7 @@ Canvas API を使った独立パッケージとして `@kanbun/skam-canvas-rende
 SKAMDocument + CanvasRenderOptions
        |
   Pass 1: Resolve & Group (render-tree.ts)
-       - @kanbun/skam ユーティリティで mark をトークンに解決
+       - @kanbun-skam/skam ユーティリティで mark をトークンに解決
        - 全マークを解決済みスロットに格納（後段で再解決不要）
        - tateten/highlight/range mark のグルーピング (Phase 2-3)
        -> CanvasRenderTree（純粋データ、出力形式に依存しない）
@@ -136,7 +136,7 @@ interface CanvasRenderingContext2DLike {
 `node-canvas` はオプション依存。ユーザーが `createCanvas` ファクトリを提供する方式:
 
 ```typescript
-import { renderToBuffer } from '@kanbun/skam-canvas-renderer';
+import { renderToBuffer } from '@kanbun-skam/skam-canvas-renderer';
 import { createCanvas } from 'canvas';
 const buffer = renderToBuffer(doc, { createCanvas, format: 'png' });
 ```
@@ -227,7 +227,7 @@ packages/skam-canvas-renderer/
 
 # 共有ユーティリティ（リファクタリング後）
 packages/skam/src/rendering/
-  index.ts                  # Public exports (サブパス @kanbun/skam/rendering)
+  index.ts                  # Public exports (サブパス @kanbun-skam/skam/rendering)
   types.ts                  # RangeMarkGroup
   constants.ts              # KAERI_UNICODE, IROHA_SEQUENCE, CIRCLED_NUMBERS 等
   kaeri.ts                  # convertKaeriToUnicode
@@ -346,7 +346,7 @@ packages/skam/src/rendering/
 | ルビ配置の精度                        | `measureText()` で幅計算 → ベース文字中央にセンタリング                                                               |
 | node-canvas 依存問題                  | ハード依存なし。ユーザーが `createCanvas` を提供。フォント登録 (`registerFont`) はドキュメントで案内                  |
 | node-canvas の TextMetrics 互換性     | Phase 0.5 で検証。必要なら Adapter パターンで環境差を吸収                                                             |
-| HTML renderer との render tree 乖離   | 同じ `@kanbun/skam` 型を消費。共通テストフィクスチャで検証                                                            |
+| HTML renderer との render tree 乖離   | 同じ `@kanbun-skam/skam` 型を消費。共通テストフィクスチャで検証                                                       |
 | 長文での1文字ずつ描画のパフォーマンス | Phase 1 で100文字規模のベンチマーク実施。問題あればバッチ描画を検討                                                   |
 
 ---
@@ -364,7 +364,7 @@ packages/skam/src/rendering/
 ## Verification
 
 1. `pnpm build` - 全パッケージビルド成功
-2. `pnpm --filter @kanbun/skam-canvas-renderer test` - テスト全パス
+2. `pnpm --filter @kanbun-skam/skam-canvas-renderer test` - テスト全パス
 3. `pnpm typecheck` - 型チェック成功
 4. RecordingContext テストで基本的な SKAM ドキュメント描画を検証
 5. ブラウザで実際の Canvas に描画して視覚確認（playground 統合は将来）

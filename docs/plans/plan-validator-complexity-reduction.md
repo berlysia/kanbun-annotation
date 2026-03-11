@@ -53,7 +53,7 @@ switch-case の各ケースを独立関数に抽出。共通パターンの型�
 
 ## 検証方法
 
-- `pnpm --filter @kanbun/skam test` 成功
+- `pnpm --filter @kanbun-skam/skam test` 成功
 - `pnpm typecheck` 成功
 - `pnpm lint` で `validateMark` の complexity warning が消えることを確認
 

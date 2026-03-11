@@ -7,7 +7,7 @@ plan: plan-html-renderer-colocation-and-named-grid-areas.md
 
 ## コンテキスト
 
-`@kanbun/skam-html-renderer` は 2-pass 構成（Pass 1: `build-render-tree.ts`, Pass 2: `render-tree.ts`）へ移行済みだが、次の構造課題が残っている。
+`@kanbun-skam/skam-html-renderer` は 2-pass 構成（Pass 1: `build-render-tree.ts`, Pass 2: `render-tree.ts`）へ移行済みだが、次の構造課題が残っている。
 
 - `renderer.ts` に API、補助関数、token 描画、display オーケストレーションが同居
 - Pass 1 / Pass 2 が `renderer.ts` を参照し、依存が「下位 -> 上位」に逆流
@@ -128,7 +128,7 @@ plan: plan-html-renderer-colocation-and-named-grid-areas.md
 - 公開 API テストが回帰していない
 - 対象 grid（`suffix-row`, `ruby-grid`, `ruby-grid--emphasis`, `ruby-grid--emphasis-no-ruby`, `saidoku-grid`, `saidoku-grid--emphasis`）が名前参照中心で配置されている
 - `calibrateGridBaseline` の補正経路（`--*-grid-baseline-fix` 参照）が維持されている
-- `pnpm --filter @kanbun/skam-html-renderer test` と `pnpm typecheck` が成功する
+- `pnpm --filter @kanbun-skam/skam-html-renderer test` と `pnpm typecheck` が成功する
 
 ## 確認事項（判定証跡）
 
@@ -138,7 +138,7 @@ plan: plan-html-renderer-colocation-and-named-grid-areas.md
 | ------------------ | ------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------- |
 | 逆依存なし         | `rg -n "from './renderer\\.js'" packages/skam-html-renderer/src/build-render-tree.ts packages/skam-html-renderer/src/render-tree.ts` | 出力 0 件                                                  |
 | テスト import 整合 | `rg -n "from '../renderer\\.js'" packages/skam-html-renderer/src/__tests__`                                                          | `renderer.ts` 由来の内部 helper 依存が解消されている diff  |
-| API 互換           | 既存 API テスト実行                                                                                                                  | `@kanbun/skam-html-renderer` のテストログ                  |
+| API 互換           | 既存 API テスト実行                                                                                                                  | `@kanbun-skam/skam-html-renderer` のテストログ             |
 | CSS 名前参照化     | `styles.ts` の対象コンテナ定義確認                                                                                                   | `grid-template-areas` または named lines が確認できる diff |
 | baseline 補正契約  | `styles.ts` と `calibrate.ts` を確認                                                                                                 | `--*-grid-baseline-fix` の参照と設定が維持される diff      |
 | 型整合             | `pnpm typecheck`                                                                                                                     | typecheck 成功ログ                                         |

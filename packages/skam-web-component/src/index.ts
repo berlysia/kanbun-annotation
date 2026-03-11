@@ -1,5 +1,5 @@
 /**
- * @kanbun/skam-web-component
+ * @kanbun-skam/skam-web-component
  *
  * <skam-renderer> カスタムエレメント
  * 利用側で customElements.define('skam-renderer', SkamRendererElement) を呼ぶこと。

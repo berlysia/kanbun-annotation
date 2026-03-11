@@ -63,7 +63,7 @@ State 初期化 + ループ（overflow 検出 → child 配置 → ruby 消費�
 
 ## 検証方法
 
-- `pnpm --filter @kanbun/skam-canvas-renderer test` 成功
+- `pnpm --filter @kanbun-skam/skam-canvas-renderer test` 成功
 - `pnpm typecheck` 成功
 - `pnpm lint` で `placeBlock` の complexity warning が消えることを確認
 - ADR-018 の 3 レイヤ境界が維持されていることを確認

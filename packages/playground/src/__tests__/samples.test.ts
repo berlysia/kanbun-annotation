@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { parse } from '@kanbun/skam-xml-parser';
+import { parse } from '@kanbun-skam/skam-xml-parser';
 import { SAMPLES } from '../samples';
 
 describe('SAMPLES', () => {

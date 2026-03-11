@@ -5,8 +5,8 @@
  * 共通の Y 進行・token 配置ルーチンを提供する。
  */
 
-import type { HighlightStyle } from '@kanbun/skam';
-import { resolveSpacingEm } from '@kanbun/skam/rendering';
+import type { HighlightStyle } from '@kanbun-skam/skam';
+import { resolveSpacingEm } from '@kanbun-skam/skam/rendering';
 import type {
   CanvasTokenNode,
   CanvasTatetenSeparator,

@@ -4,7 +4,7 @@
  * Reads the generated report (docs/baseline-compatibility.md) and identifies
  * features with ❓ unknown status per section.
  *
- * Prerequisites: Run `pnpm --filter @kanbun/baseline-check report` first.
+ * Prerequisites: Run `pnpm --filter @kanbun-skam/baseline-check report` first.
  *
  * Output: Human-readable summary to stderr, JSON array to stdout.
  * When all features have overrides, exits with code 0 and empty JSON array.
@@ -23,7 +23,7 @@ try {
   report = readFileSync(reportPath, 'utf-8');
 } catch {
   console.error(`Report not found: ${reportPath}`);
-  console.error('Run `pnpm --filter @kanbun/baseline-check report` first.');
+  console.error('Run `pnpm --filter @kanbun-skam/baseline-check report` first.');
   process.exit(1);
 }
 

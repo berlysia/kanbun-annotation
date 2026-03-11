@@ -1,5 +1,5 @@
-import type { RenderOptions } from '@kanbun/skam-html-renderer';
-import type { CanvasRenderOptions } from '@kanbun/skam-canvas-renderer';
+import type { RenderOptions } from '@kanbun-skam/skam-html-renderer';
+import type { CanvasRenderOptions } from '@kanbun-skam/skam-canvas-renderer';
 
 /** Playwright supported browser engines */
 export type Browser = 'chromium' | 'firefox' | 'webkit';

@@ -19,30 +19,30 @@ SKAM-ML/XML を試せるインタラクティブなデモ: https://berlysia.gith
 
 ## パッケージ構成
 
-| パッケージ                                                       | 説明                                                   | 状態    |
-| ---------------------------------------------------------------- | ------------------------------------------------------ | ------- |
-| [@kanbun/skam](./packages/skam/)                                 | SKAM 型定義・バリデーター・操作                        | v0.1.0  |
-| [@kanbun/skam-xml-parser](./packages/skam-xml-parser/)           | SKAM-ML/XML パーサー                                   | v0.1.0  |
-| [@kanbun/skam-xml-stringify](./packages/skam-xml-stringify/)     | SKAM JSON → SKAM-ML/XML シリアライザー                 | v0.1.0  |
-| [@kanbun/skam-html-renderer](./packages/skam-html-renderer/)     | SKAM → HTML レンダラー                                 | v0.1.0  |
-| [@kanbun/skam-canvas-renderer](./packages/skam-canvas-renderer/) | SKAM → Canvas レンダラー（画像エクスポート用）         | v0.1.0  |
-| [@kanbun/skam-web-component](./packages/skam-web-component/)     | Web Component ラッパー                                 | v0.1.0  |
-| [@kanbun/skam-screenshot](./packages/skam-screenshot/)           | スクリーンショット用ユーティリティ                     | private |
-| [@kanbun/baseline-check](./packages/baseline-check/)             | ベースライン互換性チェック                             | private |
-| [@kanbun/integration-tests](./packages/integration-tests/)       | パッケージ間統合テスト（parse/stringify roundtrip 等） | private |
-| [@kanbun/playground](./packages/playground/)                     | インタラクティブデモ                                   | -       |
+| パッケージ                                                            | 説明                                                   | 状態    |
+| --------------------------------------------------------------------- | ------------------------------------------------------ | ------- |
+| [@kanbun-skam/skam](./packages/skam/)                                 | SKAM 型定義・バリデーター・操作                        | v0.1.0  |
+| [@kanbun-skam/skam-xml-parser](./packages/skam-xml-parser/)           | SKAM-ML/XML パーサー                                   | v0.1.0  |
+| [@kanbun-skam/skam-xml-stringify](./packages/skam-xml-stringify/)     | SKAM JSON → SKAM-ML/XML シリアライザー                 | v0.1.0  |
+| [@kanbun-skam/skam-html-renderer](./packages/skam-html-renderer/)     | SKAM → HTML レンダラー                                 | v0.1.0  |
+| [@kanbun-skam/skam-canvas-renderer](./packages/skam-canvas-renderer/) | SKAM → Canvas レンダラー（画像エクスポート用）         | v0.1.0  |
+| [@kanbun-skam/skam-web-component](./packages/skam-web-component/)     | Web Component ラッパー                                 | v0.1.0  |
+| [@kanbun-skam/skam-screenshot](./packages/skam-screenshot/)           | スクリーンショット用ユーティリティ                     | private |
+| [@kanbun-skam/baseline-check](./packages/baseline-check/)             | ベースライン互換性チェック                             | private |
+| [@kanbun-skam/integration-tests](./packages/integration-tests/)       | パッケージ間統合テスト（parse/stringify roundtrip 等） | private |
+| [@kanbun-skam/playground](./packages/playground/)                     | インタラクティブデモ                                   | -       |
 
 ## インストール
 
 ```bash
 # 型定義のみ
-pnpm add @kanbun/skam
+pnpm add @kanbun-skam/skam
 
-# XML パーサー（@kanbun/skam を含む）
-pnpm add @kanbun/skam-xml-parser
+# XML パーサー（@kanbun-skam/skam を含む）
+pnpm add @kanbun-skam/skam-xml-parser
 
-# HTML レンダラー（@kanbun/skam を含む）
-pnpm add @kanbun/skam-html-renderer
+# HTML レンダラー（@kanbun-skam/skam を含む）
+pnpm add @kanbun-skam/skam-html-renderer
 ```
 
 ## 使い方
@@ -50,7 +50,7 @@ pnpm add @kanbun/skam-html-renderer
 ### SKAM ドキュメントを直接作成
 
 ```typescript
-import type { SKAMDocument } from '@kanbun/skam';
+import type { SKAMDocument } from '@kanbun-skam/skam';
 
 const doc: SKAMDocument = {
   format: 'skam@0.1',
@@ -77,7 +77,7 @@ const doc: SKAMDocument = {
 ### SKAM-ML/XML からパース
 
 ```typescript
-import { parse } from '@kanbun/skam-xml-parser';
+import { parse } from '@kanbun-skam/skam-xml-parser';
 
 const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
@@ -94,7 +94,7 @@ const doc = parse(xml);
 ### HTML へレンダリング
 
 ```typescript
-import { render, getDefaultStyles } from '@kanbun/skam-html-renderer';
+import { render, getDefaultStyles } from '@kanbun-skam/skam-html-renderer';
 
 const { html, css } = render(doc); // 縦書き（デフォルト）
 // または横書き: render(doc, { writingMode: 'horizontal' })

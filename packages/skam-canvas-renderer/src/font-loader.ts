@@ -21,7 +21,7 @@ let loaded = false;
  *
  * @example
  * ```ts
- * import { loadDefaultFont, render } from '@kanbun/skam-canvas-renderer';
+ * import { loadDefaultFont, render } from '@kanbun-skam/skam-canvas-renderer';
  *
  * await loadDefaultFont();
  * render(doc, canvas);

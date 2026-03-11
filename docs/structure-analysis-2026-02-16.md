@@ -22,7 +22,7 @@
 
 | パッケージ           | 複雑度  | 境界 |  結合   | 凝集 |  総合   |
 | -------------------- | :-----: | :--: | :-----: | :--: | :-----: |
-| @kanbun/skam         |   2.0   | 1.5  |   1.5   | 2.0  | **1.8** |
+| @kanbun-skam/skam    |   2.0   | 1.5  |   1.5   | 2.0  | **1.8** |
 | skam/rendering       |   1.5   | 1.0  |   1.8   | 2.0  | **1.6** |
 | skam-xml-parser      |   2.0   | 1.0  |   2.0   | 1.0  | **1.5** |
 | skam-xml-stringify   |   2.5   | 1.0  |   2.0   | 1.0  | **1.6** |
@@ -41,7 +41,7 @@
 
 1. **模範的なアーキテクチャ階層**: Core -> Serialization -> Rendering -> Application の4層が完全な単方向依存
 2. **パッケージ間循環依存ゼロ**: `madge` で検証済み
-3. **共有化の成功**: `@kanbun/skam/rendering` サブパスにより ~960行の重複削減
+3. **共有化の成功**: `@kanbun-skam/skam/rendering` サブパスにより ~960行の重複削減
 4. **データ結合中心**: 全体の80%がデータ結合（理想的な疎結合）
 5. **高い凝集度**: 9/10パッケージが Functional Cohesion
 
@@ -92,7 +92,7 @@ Serialization Layer (I=0.33)
   xml-parser, xml-stringify
         |
 Core Layer (I=0.00-0.33)
-  @kanbun/skam (types, validator, operations)
+  @kanbun-skam/skam (types, validator, operations)
     +-- /rendering (shared utilities)
 ```
 
@@ -104,7 +104,7 @@ Core Layer (I=0.00-0.33)
 
 | パッケージ           | Ca  | Ce  |  I   | 結合タイプ    |
 | -------------------- | :-: | :-: | :--: | ------------- |
-| @kanbun/skam         |  8  |  0  | 0.00 | Data          |
+| @kanbun-skam/skam    |  8  |  0  | 0.00 | Data          |
 | skam/rendering       |  2  |  1  | 0.33 | Data          |
 | skam-xml-parser      |  4  |  2  | 0.33 | Data          |
 | skam-xml-stringify   |  2  |  1  | 0.33 | Data          |
@@ -123,7 +123,7 @@ Ca=Afferent Coupling, Ce=Efferent Coupling, I=Instability
 
 | パッケージ           | スコア | 凝集度レベル          |
 | -------------------- | :----: | --------------------- |
-| @kanbun/skam         |  2/5   | Sequential-Functional |
+| @kanbun-skam/skam    |  2/5   | Sequential-Functional |
 | skam-xml-parser      |  1/5   | Functional            |
 | skam-xml-stringify   |  1/5   | Functional            |
 | skam-canvas-renderer |  2/5   | Sequential            |

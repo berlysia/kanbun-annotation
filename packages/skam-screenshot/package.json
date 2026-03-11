@@ -1,5 +1,5 @@
 {
-  "name": "@kanbun/skam-screenshot",
+  "name": "@kanbun-skam/skam-screenshot",
   "version": "0.1.0",
   "private": true,
   "description": "Cross-browser screenshot tool for SKAM HTML Renderer output",
@@ -29,7 +29,7 @@
     "playwright"
   ],
   "author": "berlysia",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/berlysia/kanbun-annotation.git",
@@ -43,10 +43,10 @@
     "node": ">=18.0.0"
   },
   "devDependencies": {
-    "@kanbun/skam": "workspace:*",
-    "@kanbun/skam-canvas-renderer": "workspace:*",
-    "@kanbun/skam-html-renderer": "workspace:*",
-    "@kanbun/skam-xml-parser": "workspace:*",
+    "@kanbun-skam/skam": "workspace:*",
+    "@kanbun-skam/skam-canvas-renderer": "workspace:*",
+    "@kanbun-skam/skam-html-renderer": "workspace:*",
+    "@kanbun-skam/skam-xml-parser": "workspace:*",
     "playwright": "1.52.0"
   }
 }

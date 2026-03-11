@@ -4,7 +4,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse, SKAMXMLParseError } from '../index.js';
 import type { ParseOptions } from '../index.js';
-import { validateSKAMDocument, createSequentialIdGenerator, KAERI } from '@kanbun/skam';
+import { validateSKAMDocument, createSequentialIdGenerator, KAERI } from '@kanbun-skam/skam';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const VALID_FIXTURES = join(__dirname, 'fixtures', 'valid');

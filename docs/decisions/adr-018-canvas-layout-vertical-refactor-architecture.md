@@ -195,7 +195,7 @@ interface ColumnPlan {
 - 既存の `packages/skam-canvas-renderer/src/__tests__/layout-vertical.test.ts` が全件パスする
 - 回帰テストとして `highlight + emphasis`、`tateten in highlight-group`、`range ruby + emphasis` を含むケースが保持または追加されている
 - `rangeRubyAlignment`（`distribute` / `center`）の既存ケースが回帰しない
-- `pnpm --filter @kanbun/skam-canvas-renderer test` と `pnpm typecheck` が成功する
+- `pnpm --filter @kanbun-skam/skam-canvas-renderer test` と `pnpm typecheck` が成功する
 
 ## 実装前提
 

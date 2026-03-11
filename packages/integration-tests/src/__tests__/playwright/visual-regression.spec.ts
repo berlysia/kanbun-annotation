@@ -4,13 +4,13 @@
  * ADR-022 fixed representative cases: threshold-based comparison
  * with automatic baseline management by Playwright Test.
  *
- * Run: pnpm --filter @kanbun/integration-tests test:visual
- * Update baselines: UPDATE_SNAPSHOTS=1 pnpm --filter @kanbun/integration-tests test:visual
+ * Run: pnpm --filter @kanbun-skam/integration-tests test:visual
+ * Update baselines: UPDATE_SNAPSHOTS=1 pnpm --filter @kanbun-skam/integration-tests test:visual
  */
 
 import { test, expect } from '@playwright/test';
-import { render } from '@kanbun/skam-html-renderer';
-import { buildHTMLPage } from '@kanbun/skam-screenshot';
+import { render } from '@kanbun-skam/skam-html-renderer';
+import { buildHTMLPage } from '@kanbun-skam/skam-screenshot';
 import { FIXTURES } from '../../fixtures/test-documents.js';
 
 test.describe('visual regression', () => {

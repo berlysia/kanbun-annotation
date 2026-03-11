@@ -2,7 +2,7 @@
 
 ## 概要
 
-`@kanbun/skam-screenshot` パッケージを新規作成し、SKAM HTML Renderer の出力を Playwright で複数ブラウザに撮影、比較ギャラリー HTML を生成する開発ツールを実装する。
+`@kanbun-skam/skam-screenshot` パッケージを新規作成し、SKAM HTML Renderer の出力を Playwright で複数ブラウザに撮影、比較ギャラリー HTML を生成する開発ツールを実装する。
 
 関連 ADR: [ADR-011](../decisions/adr-011-cross-browser-screenshot.md)
 
@@ -27,10 +27,10 @@
 
 ### 利用する既存 API
 
-- `parse(xml)` → `SKAMDocument` (`@kanbun/skam-xml-parser`)
-- `render(doc, options?)` → `{ html, css }` (`@kanbun/skam-html-renderer`)
-- `isSKAMDocument(input)` (`@kanbun/skam`)
-- `RenderOptions` 型 (`@kanbun/skam-html-renderer`)
+- `parse(xml)` → `SKAMDocument` (`@kanbun-skam/skam-xml-parser`)
+- `render(doc, options?)` → `{ html, css }` (`@kanbun-skam/skam-html-renderer`)
+- `isSKAMDocument(input)` (`@kanbun-skam/skam`)
+- `RenderOptions` 型 (`@kanbun-skam/skam-html-renderer`)
 
 ### CLI 実行方式
 
@@ -74,7 +74,7 @@ packages/skam-screenshot/
 package.json のポイント:
 
 - `"private": true`（publish しない）
-- 全依存を devDependencies（`@kanbun/skam`, `@kanbun/skam-xml-parser`, `@kanbun/skam-html-renderer`, `playwright`）
+- 全依存を devDependencies（`@kanbun-skam/skam`, `@kanbun-skam/skam-xml-parser`, `@kanbun-skam/skam-html-renderer`, `playwright`）
   - private パッケージのため devDependencies で問題なし（他パッケージの install に波及しない）
 - 標準 scripts（build, typecheck, lint, test, test:run）
 
@@ -97,7 +97,7 @@ types.ts で定義する型:
 node --experimental-strip-types packages/skam-screenshot/src/types.ts
 ```
 
-失敗時のフォールバック: `"screenshot": "pnpm --filter @kanbun/skam-screenshot build && node packages/skam-screenshot/dist/cli.js"`
+失敗時のフォールバック: `"screenshot": "pnpm --filter @kanbun-skam/skam-screenshot build && node packages/skam-screenshot/dist/cli.js"`
 
 ### Step 2: プラットフォームユーティリティ + HTML ページビルダー
 
@@ -155,10 +155,10 @@ node --experimental-strip-types packages/skam-screenshot/src/types.ts
 
 ### Step 6: 検証
 
-- `pnpm --filter @kanbun/skam-screenshot test:run`（ユニットテスト）
-- `pnpm --filter @kanbun/skam-screenshot typecheck`
-- `pnpm --filter @kanbun/skam-screenshot build`
-- `pnpm --filter @kanbun/skam-screenshot lint`
+- `pnpm --filter @kanbun-skam/skam-screenshot test:run`（ユニットテスト）
+- `pnpm --filter @kanbun-skam/skam-screenshot typecheck`
+- `pnpm --filter @kanbun-skam/skam-screenshot build`
+- `pnpm --filter @kanbun-skam/skam-screenshot lint`
 - `pnpm build && pnpm typecheck`（モノレポ全体）
 - CLI スモークテスト: `pnpm screenshot packages/skam-xml-parser/src/__tests__/fixtures/valid/kaeri-basic.xml --browsers chromium`
 
@@ -184,7 +184,7 @@ node --experimental-strip-types packages/skam-screenshot/src/types.ts
 
 ## 検証方法
 
-1. ユニットテスト: `pnpm --filter @kanbun/skam-screenshot test:run`（Playwright 不要の3ファイル）
+1. ユニットテスト: `pnpm --filter @kanbun-skam/skam-screenshot test:run`（Playwright 不要の3ファイル）
 2. ビルド検証: `pnpm build && pnpm typecheck`（モノレポ全体）
 3. CLI スモークテスト（Playwright chromium 必要）:
    - `npx playwright install chromium`（packages/skam-screenshot ディレクトリで実行）

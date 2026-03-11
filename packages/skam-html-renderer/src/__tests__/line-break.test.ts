@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import type { SKAMDocument } from '@kanbun/skam';
+import type { SKAMDocument } from '@kanbun-skam/skam';
 import { render, getDefaultStyles } from '../index.js';
 import {
   expectCSSRule,

@@ -4,11 +4,11 @@
  * SKAMドキュメントのXML形式デシリアライズ
  */
 
-import type { SKAMDocument } from '@kanbun/skam';
+import type { SKAMDocument } from '@kanbun-skam/skam';
 import { parseFromDocument, SKAMXMLParseError, type ParseOptions } from './parser-core.js';
 import { parseXML } from './xml-parser.js';
 
-export type { SKAMDocument } from '@kanbun/skam';
+export type { SKAMDocument } from '@kanbun-skam/skam';
 export {
   SKAMXMLParseError,
   type ParseOptions,

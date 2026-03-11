@@ -9,7 +9,7 @@ plan: plan-baseline-compatibility-check.md
 
 ## コンテキスト
 
-SKAM の HTML レンダラー (`@kanbun/skam-html-renderer`) と Playground は、モダンブラウザ向けの CSS・JS を出力する。現在、ブラウザ互換性の体系的なチェック手段がなく、どの CSS/JS 機能がどのブラウザで利用可能かを把握していない。
+SKAM の HTML レンダラー (`@kanbun-skam/skam-html-renderer`) と Playground は、モダンブラウザ向けの CSS・JS を出力する。現在、ブラウザ互換性の体系的なチェック手段がなく、どの CSS/JS 機能がどのブラウザで利用可能かを把握していない。
 
 [Web Platform Baseline](https://web-platform-dx.github.io/web-features/) は W3C WebDX Community Group が策定した、ブラウザ間の機能サポート状況を分類する枠組みである:
 

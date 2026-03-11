@@ -1,4 +1,4 @@
-# @kanbun/skam-html-renderer
+# @kanbun-skam/skam-html-renderer
 
 **SKAM ドキュメント**から**静的 HTML** を生成するレンダラー。
 
@@ -7,9 +7,9 @@
 ## インストール
 
 ```bash
-npm install @kanbun/skam-html-renderer
+npm install @kanbun-skam/skam-html-renderer
 # or
-pnpm add @kanbun/skam-html-renderer
+pnpm add @kanbun-skam/skam-html-renderer
 ```
 
 ## 使い方
@@ -17,8 +17,8 @@ pnpm add @kanbun/skam-html-renderer
 ### 基本的なレンダリング
 
 ```typescript
-import { render } from '@kanbun/skam-html-renderer';
-import type { SKAMDocument } from '@kanbun/skam';
+import { render } from '@kanbun-skam/skam-html-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
 
 const doc: SKAMDocument = {
   format: 'skam@0.1',
@@ -38,7 +38,7 @@ const result = render(doc);
 ### 書字方向の指定
 
 ```typescript
-import { render } from '@kanbun/skam-html-renderer';
+import { render } from '@kanbun-skam/skam-html-renderer';
 
 // 縦書き（デフォルト）
 const vertical = render(doc, { writingMode: 'vertical' });
@@ -50,7 +50,7 @@ const horizontal = render(doc, { writingMode: 'horizontal' });
 ### 表示プロファイル
 
 ```typescript
-import { render, PROFILES } from '@kanbun/skam-html-renderer';
+import { render, PROFILES } from '@kanbun-skam/skam-html-renderer';
 
 // フルプロファイル（すべての要素を表示、デフォルト）
 const full = render(doc, { profile: PROFILES.full });
@@ -65,7 +65,7 @@ const hint = render(doc, { profile: PROFILES.learningHint });
 ### スタイルのカスタマイズ
 
 ```typescript
-import { render, getDefaultStyles, generateCSS } from '@kanbun/skam-html-renderer';
+import { render, getDefaultStyles, generateCSS } from '@kanbun-skam/skam-html-renderer';
 
 // CSS 生成オプション
 const css = generateCSS({
@@ -115,7 +115,7 @@ const result = render(doc, { writingMode: 'vertical' });
 #### API での指定
 
 ```typescript
-import { render, renderHTML } from '@kanbun/skam-html-renderer';
+import { render, renderHTML } from '@kanbun-skam/skam-html-renderer';
 
 // デフォルト: 本文のみコピー可能
 const result = render(doc);
@@ -288,8 +288,8 @@ display 実装層
 
 ## 関連パッケージ
 
-- [@kanbun/skam](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam) - 型定義・バリデーター
-- [@kanbun/skam-xml-parser](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-xml-parser) - SKAM-ML/XML パーサー
+- [@kanbun-skam/skam](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam) - 型定義・バリデーター
+- [@kanbun-skam/skam-xml-parser](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-xml-parser) - SKAM-ML/XML パーサー
 
 ## Playground
 

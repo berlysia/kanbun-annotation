@@ -17,7 +17,7 @@ import type {
   EmphasisMark,
   Token,
   Mark,
-} from '@kanbun/skam';
+} from '@kanbun-skam/skam';
 
 import type {
   AIRDocument,
@@ -27,7 +27,7 @@ import type {
   AIRHighlightGroupNode,
   AIRRangeInfo,
   AIRTrailingMark,
-} from '@kanbun/skam/rendering';
+} from '@kanbun-skam/skam/rendering';
 
 import type {
   BlockRenderTree,
@@ -39,7 +39,7 @@ import type {
   RangeTokenInfo,
 } from './render-tree-types.js';
 import { escapeHtml, shouldApplyTateChuYoko } from './html-utils.js';
-import { getMarksForToken } from '@kanbun/skam/rendering';
+import { getMarksForToken } from '@kanbun-skam/skam/rendering';
 
 // ============================================================================
 // Block-start HTML 生成

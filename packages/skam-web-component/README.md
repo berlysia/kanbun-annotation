@@ -1,4 +1,4 @@
-# @kanbun/skam-web-component
+# @kanbun-skam/skam-web-component
 
 **`<skam-renderer>`** カスタムエレメント。
 
@@ -7,9 +7,9 @@ SKAM-ML/XML を Shadow DOM 内で HTML レンダリングする Web Component。
 ## インストール
 
 ```bash
-npm install @kanbun/skam-web-component
+npm install @kanbun-skam/skam-web-component
 # or
-pnpm add @kanbun/skam-web-component
+pnpm add @kanbun-skam/skam-web-component
 ```
 
 ## 使い方
@@ -18,7 +18,7 @@ pnpm add @kanbun/skam-web-component
 
 ```html
 <script type="module">
-  import '@kanbun/skam-web-component';
+  import '@kanbun-skam/skam-web-component';
 </script>
 
 <skam-renderer>
@@ -38,7 +38,7 @@ pnpm add @kanbun/skam-web-component
 ### プログラマティックに XML を設定
 
 ```typescript
-import { SkamRendererElement } from '@kanbun/skam-web-component';
+import { SkamRendererElement } from '@kanbun-skam/skam-web-component';
 
 const el = document.querySelector('skam-renderer') as SkamRendererElement;
 el.xmlContent = xmlString;
@@ -85,9 +85,9 @@ skam-renderer {
 
 ## 関連パッケージ
 
-- [@kanbun/skam](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam) - 型定義・バリデーター
-- [@kanbun/skam-xml-parser](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-xml-parser) - SKAM-ML/XML パーサー
-- [@kanbun/skam-html-renderer](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-html-renderer) - HTML レンダラー
+- [@kanbun-skam/skam](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam) - 型定義・バリデーター
+- [@kanbun-skam/skam-xml-parser](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-xml-parser) - SKAM-ML/XML パーサー
+- [@kanbun-skam/skam-html-renderer](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-html-renderer) - HTML レンダラー
 
 ## ライセンス
 

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import type { SKAMDocument, Mark } from '@kanbun/skam';
-import { KAERI } from '@kanbun/skam';
-import { addMark, removeMark, getMarksForToken, getMarksForRange } from '@kanbun/skam';
+import type { SKAMDocument, Mark } from '@kanbun-skam/skam';
+import { KAERI } from '@kanbun-skam/skam';
+import { addMark, removeMark, getMarksForToken, getMarksForRange } from '@kanbun-skam/skam';
 
 // ============================================================================
 // Test Helpers

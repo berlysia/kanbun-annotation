@@ -14,7 +14,7 @@ SKAM JSON の `KaeriMark.value` を慣用漢字/カタカナ（「一」「レ�
 
 ## 実装計画
 
-### Step 1: KAERI 定数の追加（@kanbun/skam）
+### Step 1: KAERI 定数の追加（@kanbun-skam/skam）
 
 `packages/skam/src/index.ts` に `KAERI` 定数オブジェクトを追加・エクスポート。
 
@@ -38,7 +38,7 @@ export const KAERI = {
 } as const;
 ```
 
-### Step 2: バリデータの強化（@kanbun/skam）
+### Step 2: バリデータの強化（@kanbun-skam/skam）
 
 `validator.ts` の kaeri 検証に Kanbun ブロック文字範囲チェックを追加。
 
@@ -48,15 +48,15 @@ if (!/^[\u3191-\u319F]+$/.test(kaeriValue)) {
 }
 ```
 
-### Step 3: Parser のマッピング更新（@kanbun/skam-xml-parser）
+### Step 3: Parser のマッピング更新（@kanbun-skam/skam-xml-parser）
 
 `parser-core.ts` の `KAERI_VALUE_MAP` の値を Unicode Kanbun ブロック文字に変更。
 
-### Step 4: Stringify のマッピング更新（@kanbun/skam-xml-stringify）
+### Step 4: Stringify のマッピング更新（@kanbun-skam/skam-xml-stringify）
 
 `stringify.ts` の `KAERI_KIND_MAP` のキーを Unicode Kanbun ブロック文字に変更。
 
-### Step 5: rendering 共有ユーティリティの更新（@kanbun/skam/rendering）
+### Step 5: rendering 共有ユーティリティの更新（@kanbun-skam/skam/rendering）
 
 - `KAERI_UNICODE` マップと `convertKaeriToUnicode()` を削除（変換不要に）
 - `splitKaeriForTateten()` のレ判定を `'\u3191'` に更新

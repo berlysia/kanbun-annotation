@@ -1,5 +1,5 @@
 {
-  "name": "@kanbun/integration-tests",
+  "name": "@kanbun-skam/integration-tests",
   "version": "0.1.0",
   "private": true,
   "description": "Integration tests for SKAM packages (round-trip parse/stringify)",
@@ -11,13 +11,13 @@
     "test:visual": "playwright test",
     "typecheck": "tsgo --noEmit"
   },
-  "license": "UNLICENSED",
+  "license": "MIT",
   "devDependencies": {
-    "@kanbun/skam": "workspace:*",
-    "@kanbun/skam-html-renderer": "workspace:*",
-    "@kanbun/skam-screenshot": "workspace:*",
-    "@kanbun/skam-xml-parser": "workspace:*",
-    "@kanbun/skam-xml-stringify": "workspace:*",
+    "@kanbun-skam/skam": "workspace:*",
+    "@kanbun-skam/skam-html-renderer": "workspace:*",
+    "@kanbun-skam/skam-screenshot": "workspace:*",
+    "@kanbun-skam/skam-xml-parser": "workspace:*",
+    "@kanbun-skam/skam-xml-stringify": "workspace:*",
     "@playwright/test": "1.58.0"
   }
 }

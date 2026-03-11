@@ -18,7 +18,7 @@ import type {
   SaidokuMark,
   HighlightMark,
   RefMark,
-} from '@kanbun/skam';
+} from '@kanbun-skam/skam';
 
 import {
   resolveEmphasisCharacter,
@@ -29,8 +29,8 @@ import {
   getHighlightGroups,
   groupTokensByBlock,
   splitKaeriForTateten,
-} from '@kanbun/skam/rendering';
-import type { RangeMarkGroup } from '@kanbun/skam/rendering';
+} from '@kanbun-skam/skam/rendering';
+import type { RangeMarkGroup } from '@kanbun-skam/skam/rendering';
 
 import type {
   CanvasRenderTree,

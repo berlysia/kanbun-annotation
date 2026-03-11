@@ -1,4 +1,4 @@
-# @kanbun/skam-xml-stringify
+# @kanbun-skam/skam-xml-stringify
 
 ## 0.1.0
 

@@ -4,7 +4,7 @@
  * <skam-renderer> カスタムエレメントの動作確認ページ
  */
 
-import { SkamRendererElement } from '@kanbun/skam-web-component';
+import { SkamRendererElement } from '@kanbun-skam/skam-web-component';
 
 customElements.define('skam-renderer', SkamRendererElement);
 

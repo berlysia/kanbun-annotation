@@ -10,7 +10,7 @@ Playground の SP 対応として、タブ切替レイアウト、設定モー�
 
 - Playground は `packages/playground/` にあり、Vite で開発
 - `main.ts` がメインロジック、`styles.css` がスタイル、`index.html` が HTML
-- `interactive.ts` は `@kanbun/skam-html-renderer` に属し、マウスイベントでトークン選択を処理
+- `interactive.ts` は `@kanbun-skam/skam-html-renderer` に属し、マウスイベントでトークン選択を処理
 - 768px ブレークポイントで既存のレスポンシブ対応あり（縦スタックのみ）
 - `parseAndRender()` がエディタの XML をパース→レンダリング
 - `updateSelectionPanel()` / `clearSelectionPanel()` が選択パネルの状態管理
@@ -69,8 +69,8 @@ Playground の SP 対応として、タブ切替レイアウト、設定モー�
 ## 検証方法
 
 1. 各 Phase 後にビルド (`pnpm build`) + 型チェック (`pnpm typecheck`)
-2. 既存の Playwright E2E テスト (`pnpm --filter @kanbun/playground test:e2e`) がパス
-3. interactive.ts 変更後、HTML レンダラーのテスト (`pnpm --filter @kanbun/skam-html-renderer test`) がパス
+2. 既存の Playwright E2E テスト (`pnpm --filter @kanbun-skam/playground test:e2e`) がパス
+3. interactive.ts 変更後、HTML レンダラーのテスト (`pnpm --filter @kanbun-skam/skam-html-renderer test`) がパス
 4. Chrome DevTools のデバイスエミュレーションで SP 動作確認
 
 <!-- validated -->

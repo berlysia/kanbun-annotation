@@ -92,16 +92,16 @@ export function generateId(doc: SKAMDocument, prefix = 'm'): string;
 
 ### 影響を受けるパッケージ
 
-| パッケージ                | 変更内容                                                      |
-| ------------------------- | ------------------------------------------------------------- |
-| `@kanbun/skam`            | `IdGenerator` 型追加、`generateId` API変更                    |
-| `@kanbun/skam-xml-parser` | `ParseOptions` 拡張、`ParserState` 変更、`hasExplicitId` 修正 |
-| `@kanbun/playground`      | `generateId` 呼び出し修正（1箇所）                            |
+| パッケージ                     | 変更内容                                                      |
+| ------------------------------ | ------------------------------------------------------------- |
+| `@kanbun-skam/skam`            | `IdGenerator` 型追加、`generateId` API変更                    |
+| `@kanbun-skam/skam-xml-parser` | `ParseOptions` 拡張、`ParserState` 変更、`hasExplicitId` 修正 |
+| `@kanbun-skam/playground`      | `generateId` 呼び出し修正（1箇所）                            |
 
 ### 影響を受けないパッケージ
 
-- `@kanbun/skam-html-renderer` — IDは不透明な文字列として扱っている
-- `@kanbun/skam-xml-stringify` — IDをそのまま出力している
+- `@kanbun-skam/skam-html-renderer` — IDは不透明な文字列として扱っている
+- `@kanbun-skam/skam-xml-stringify` — IDをそのまま出力している
 
 ### テスト影響
 

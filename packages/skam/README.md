@@ -1,4 +1,4 @@
-# @kanbun/skam
+# @kanbun-skam/skam
 
 **SKAM (Stand-off Kanbun Annotation Model)** の型定義とバリデーター。
 
@@ -7,9 +7,9 @@
 ## インストール
 
 ```bash
-npm install @kanbun/skam
+npm install @kanbun-skam/skam
 # or
-pnpm add @kanbun/skam
+pnpm add @kanbun-skam/skam
 ```
 
 ## 使い方
@@ -17,7 +17,7 @@ pnpm add @kanbun/skam
 ### 型定義
 
 ```typescript
-import type { SKAMDocument, Token, Mark, Reading } from '@kanbun/skam';
+import type { SKAMDocument, Token, Mark, Reading } from '@kanbun-skam/skam';
 
 const doc: SKAMDocument = {
   format: 'skam@0.1',
@@ -33,7 +33,7 @@ const doc: SKAMDocument = {
 ### バリデーション
 
 ```typescript
-import { validateSKAMDocument, isSKAMDocument, assertSKAMDocument } from '@kanbun/skam';
+import { validateSKAMDocument, isSKAMDocument, assertSKAMDocument } from '@kanbun-skam/skam';
 
 // 結果オブジェクトを返す
 const result = validateSKAMDocument(input);
@@ -80,8 +80,8 @@ assertSKAMDocument(input);
 
 ## 関連パッケージ
 
-- [@kanbun/skam-xml-parser](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-xml-parser) - SKAM-ML/XML パーサー
-- [@kanbun/skam-html-renderer](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-html-renderer) - HTML レンダラー
+- [@kanbun-skam/skam-xml-parser](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-xml-parser) - SKAM-ML/XML パーサー
+- [@kanbun-skam/skam-html-renderer](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-html-renderer) - HTML レンダラー
 
 ## 仕様書
 

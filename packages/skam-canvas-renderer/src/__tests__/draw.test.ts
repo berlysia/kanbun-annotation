@@ -9,7 +9,7 @@ import type {
   HighlightLineLayout,
   ResolvedSlotLayouts,
 } from '../types.js';
-import { KAERI } from '@kanbun/skam';
+import { KAERI } from '@kanbun-skam/skam';
 
 function createSimpleLayout(tokens: Partial<TokenLayout>[]): DocumentLayout {
   return {

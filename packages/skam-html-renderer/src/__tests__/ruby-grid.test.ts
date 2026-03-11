@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import type { SKAMDocument } from '@kanbun/skam';
+import type { SKAMDocument } from '@kanbun-skam/skam';
 import { render, renderHTML, generateCSS, getDefaultStyles } from '../index.js';
-import { resolveEmphasisCharacter } from '@kanbun/skam/rendering';
+import { resolveEmphasisCharacter } from '@kanbun-skam/skam/rendering';
 import { generateEmphasisMarks } from '../html-utils.js';
 import {
   expectCSSContains,

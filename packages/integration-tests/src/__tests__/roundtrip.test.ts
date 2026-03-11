@@ -2,12 +2,12 @@
  * Round-trip integration tests: parse → stringify → parse
  *
  * These tests verify that SKAM documents survive the XML round-trip
- * by using both @kanbun/skam-xml-parser and @kanbun/skam-xml-stringify.
+ * by using both @kanbun-skam/skam-xml-parser and @kanbun-skam/skam-xml-stringify.
  */
 
 import { describe, it, expect } from 'vitest';
-import { parse } from '@kanbun/skam-xml-parser';
-import { stringify } from '@kanbun/skam-xml-stringify';
+import { parse } from '@kanbun-skam/skam-xml-parser';
+import { stringify } from '@kanbun-skam/skam-xml-stringify';
 import type {
   SKAMDocument,
   KaeriMark,
@@ -23,7 +23,7 @@ import type {
   TatetenMark,
   HighlightMark,
   RefMark,
-} from '@kanbun/skam';
+} from '@kanbun-skam/skam';
 
 // ============================================================================
 // Basic Round-trip Tests

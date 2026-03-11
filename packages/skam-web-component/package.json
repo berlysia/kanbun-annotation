@@ -1,5 +1,5 @@
 {
-  "name": "@kanbun/skam-web-component",
+  "name": "@kanbun-skam/skam-web-component",
   "version": "0.1.0",
   "description": "SKAM Web Component - <skam-renderer> カスタムエレメント",
   "type": "module",
@@ -35,7 +35,7 @@
     "custom-element"
   ],
   "author": "berlysia",
-  "license": "UNLICENSED",
+  "license": "MIT",
   "repository": {
     "type": "git",
     "url": "git+https://github.com/berlysia/kanbun-annotation.git",
@@ -52,7 +52,7 @@
     "node": ">=18.0.0"
   },
   "dependencies": {
-    "@kanbun/skam-xml-parser": "workspace:*",
-    "@kanbun/skam-html-renderer": "workspace:*"
+    "@kanbun-skam/skam-xml-parser": "workspace:*",
+    "@kanbun-skam/skam-html-renderer": "workspace:*"
   }
 }

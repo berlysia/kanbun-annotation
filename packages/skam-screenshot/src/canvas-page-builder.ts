@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
-import type { SKAMDocument } from '@kanbun/skam';
-import type { CanvasRenderOptions } from '@kanbun/skam-canvas-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+import type { CanvasRenderOptions } from '@kanbun-skam/skam-canvas-renderer';
 
 const GOOGLE_FONTS_URL =
   'https://fonts.googleapis.com/css2?family=Noto+Serif+JP:wght@400;700&display=swap';
@@ -13,7 +13,7 @@ let bundleCache: string | undefined;
 async function loadBundle(): Promise<string> {
   if (bundleCache) return bundleCache;
   const require = createRequire(import.meta.url);
-  const bundlePath = require.resolve('@kanbun/skam-canvas-renderer/browser-bundle');
+  const bundlePath = require.resolve('@kanbun-skam/skam-canvas-renderer/browser-bundle');
   bundleCache = await readFile(bundlePath, 'utf-8');
   return bundleCache;
 }

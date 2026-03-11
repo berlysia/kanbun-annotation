@@ -1,8 +1,8 @@
 import { parseArgs } from 'node:util';
 import { readFile, mkdir, writeFile } from 'node:fs/promises';
 import { resolve, extname } from 'node:path';
-import type { RenderOptions } from '@kanbun/skam-html-renderer';
-import type { CanvasRenderOptions } from '@kanbun/skam-canvas-renderer';
+import type { RenderOptions } from '@kanbun-skam/skam-html-renderer';
+import type { CanvasRenderOptions } from '@kanbun-skam/skam-canvas-renderer';
 import type { Browser, ImageFormat, RendererType, Viewport } from './types.js';
 import { parseBrowserList, getDefaultBrowsers } from './platform.js';
 
@@ -104,12 +104,12 @@ async function main(): Promise<void> {
   const content = await readFile(inputPath, 'utf-8');
   const ext = extname(inputPath).toLowerCase();
 
-  const { isSKAMDocument } = await import('@kanbun/skam');
+  const { isSKAMDocument } = await import('@kanbun-skam/skam');
   const { generateCompareHTML } = await import('./compare-html.js');
 
-  let doc: import('@kanbun/skam').SKAMDocument;
+  let doc: import('@kanbun-skam/skam').SKAMDocument;
   if (ext === '.xml') {
-    const { parse } = await import('@kanbun/skam-xml-parser');
+    const { parse } = await import('@kanbun-skam/skam-xml-parser');
     doc = parse(content);
   } else if (ext === '.json') {
     const data: unknown = JSON.parse(content);
@@ -169,7 +169,7 @@ async function main(): Promise<void> {
       renderOptions.writingMode = wm;
     }
 
-    const { render } = await import('@kanbun/skam-html-renderer');
+    const { render } = await import('@kanbun-skam/skam-html-renderer');
     const { captureHTML } = await import('./capture.js');
     const result = render(doc, renderOptions);
     log(`Capturing screenshots with ${browsers.join(', ')}...`);

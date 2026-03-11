@@ -11,7 +11,7 @@ plan: plan-restructure-display-layer-rendering.md
 
 ### 問題
 
-`@kanbun/skam-html-renderer` の `renderDisplayLayer` 関数（renderer.ts:~1195-1631）は、トークンを逐次処理するステートマシンにより HTML を生成している。このステートマシンはネストされた3つのアキュムレータを管理する:
+`@kanbun-skam/skam-html-renderer` の `renderDisplayLayer` 関数（renderer.ts:~1195-1631）は、トークンを逐次処理するステートマシンにより HTML を生成している。このステートマシンはネストされた3つのアキュムレータを管理する:
 
 1. `groupTokens[]` - たて点グループのアキュムレータ
 2. `highlightTokens[]` - 傍線グループのアキュムレータ

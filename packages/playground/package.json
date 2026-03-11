@@ -1,5 +1,5 @@
 {
-  "name": "@kanbun/playground",
+  "name": "@kanbun-skam/playground",
   "version": "0.1.0",
   "private": true,
   "description": "SKAM Playground - SKAM-ML/XMLを試すインタラクティブなデモ",
@@ -22,14 +22,14 @@
     "playground",
     "demo"
   ],
-  "license": "UNLICENSED",
+  "license": "MIT",
   "dependencies": {
-    "@kanbun/skam": "workspace:*",
-    "@kanbun/skam-canvas-renderer": "workspace:*",
-    "@kanbun/skam-html-renderer": "workspace:*",
-    "@kanbun/skam-xml-parser": "workspace:*",
-    "@kanbun/skam-web-component": "workspace:*",
-    "@kanbun/skam-xml-stringify": "workspace:*",
+    "@kanbun-skam/skam": "workspace:*",
+    "@kanbun-skam/skam-canvas-renderer": "workspace:*",
+    "@kanbun-skam/skam-html-renderer": "workspace:*",
+    "@kanbun-skam/skam-xml-parser": "workspace:*",
+    "@kanbun-skam/skam-web-component": "workspace:*",
+    "@kanbun-skam/skam-xml-stringify": "workspace:*",
     "prismjs": "1.30.0"
   },
   "devDependencies": {

@@ -55,7 +55,7 @@ HTML レンダラーの `renderDisplayLayer` を逐次ステートマシンか�
 
 - 全既存テスト（compound-marks.test.ts 含む）が変更なしで pass
 - `FlushState` 関連コードが完全に削除されている
-- `pnpm --filter @kanbun/skam-html-renderer test` 成功
+- `pnpm --filter @kanbun-skam/skam-html-renderer test` 成功
 - `pnpm typecheck` 成功
 
 <!-- validated -->

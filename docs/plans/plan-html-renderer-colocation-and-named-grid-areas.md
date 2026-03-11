@@ -4,7 +4,7 @@
 
 ## 概要
 
-`@kanbun/skam-html-renderer` を「単方向依存 + 責務コロケーション」の構造へ再編し、`styles.ts` の grid 配置を数値 index 依存から名前参照へ移行する。  
+`@kanbun-skam/skam-html-renderer` を「単方向依存 + 責務コロケーション」の構造へ再編し、`styles.ts` の grid 配置を数値 index 依存から名前参照へ移行する。  
 公開 API と表示仕様は維持し、担当者が変わっても同じ判断に収束する実装手順を定義する。
 
 関連 ADR: [ADR-019](../decisions/adr-019-html-renderer-colocation-and-named-grid-areas.md)
@@ -92,7 +92,7 @@
 
 確認コマンド:
 
-- `pnpm --filter @kanbun/skam-html-renderer test`
+- `pnpm --filter @kanbun-skam/skam-html-renderer test`
 
 完了条件:
 
@@ -208,7 +208,7 @@
 
 確認コマンド:
 
-- `pnpm --filter @kanbun/skam-html-renderer test -- ruby-grid.test.ts line-break.test.ts`
+- `pnpm --filter @kanbun-skam/skam-html-renderer test -- ruby-grid.test.ts line-break.test.ts`
 
 完了条件:
 
@@ -230,7 +230,7 @@
 
 確認コマンド:
 
-- `pnpm --filter @kanbun/skam-html-renderer test`
+- `pnpm --filter @kanbun-skam/skam-html-renderer test`
 - `pnpm typecheck`
 
 完了条件:
@@ -251,12 +251,12 @@
 
 ### 自動テスト
 
-1. `pnpm --filter @kanbun/skam-html-renderer test`
+1. `pnpm --filter @kanbun-skam/skam-html-renderer test`
 2. `pnpm typecheck`
 
 ### 手動確認
 
-1. `pnpm --filter @kanbun/playground dev`
+1. `pnpm --filter @kanbun-skam/playground dev`
 2. 縦書き・横書きで確認:
    - ruby / saidoku / suffix-row の整列
    - highlight + emphasis 共存時の線位置
@@ -272,7 +272,7 @@
 | 3   | token 責務分離        | `rg -n "function renderToken" packages/skam-html-renderer/src/renderer.ts && rg -n "function renderTokenWithRuby" packages/skam-html-renderer/src/renderer.ts && rg -n "function renderSaidokuToken" packages/skam-html-renderer/src/renderer.ts` | 出力 0 件                                                      |
 | 4   | display 分離          | `rg -n "function renderDisplayLayer" packages/skam-html-renderer/src`                                                                                                                                                                             | display 実装が `renderer.ts` から分離されている                |
 | 5   | CSS 名前参照化        | `styles.ts` の対象6コンテナを確認                                                                                                                                                                                                                 | 対象コンテナが `grid-template-areas` または named lines で配置 |
-| 6   | API 回帰なし          | `pnpm --filter @kanbun/skam-html-renderer test`                                                                                                                                                                                                   | 成功                                                           |
+| 6   | API 回帰なし          | `pnpm --filter @kanbun-skam/skam-html-renderer test`                                                                                                                                                                                              | 成功                                                           |
 | 7   | 型整合                | `pnpm typecheck`                                                                                                                                                                                                                                  | 成功                                                           |
 | 8   | baseline 補正契約維持 | `styles.ts` + `calibrate.ts` を確認                                                                                                                                                                                                               | `--*-grid-baseline-fix` の設定/参照経路が維持される            |
 | 9   | 手動確認              | Playground で縦横確認                                                                                                                                                                                                                             | 主要4観点で回帰なし                                            |

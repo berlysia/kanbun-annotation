@@ -4,9 +4,9 @@
  * SKAMドキュメントから静的HTMLを生成する
  */
 
-import type { SKAMDocument, Mark, RefMark, Reading } from '@kanbun/skam';
-import type { Spacing } from '@kanbun/skam/rendering';
-import { resolveRefValues } from '@kanbun/skam/rendering';
+import type { SKAMDocument, Mark, RefMark, Reading } from '@kanbun-skam/skam';
+import type { Spacing } from '@kanbun-skam/skam/rendering';
+import { resolveRefValues } from '@kanbun-skam/skam/rendering';
 import { getDefaultStyles } from './styles.js';
 import type { RenderProfile, RubyMethod, CopyableElement } from './render-config.js';
 import { PROFILES } from './render-config.js';

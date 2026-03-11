@@ -18,7 +18,7 @@ const config: KnipConfig = {
     },
     'packages/skam-html-renderer': {
       project: ['src/**/*.ts'],
-      ignoreDependencies: ['@kanbun/skam-xml-parser'], // used in test files only
+      ignoreDependencies: ['@kanbun-skam/skam-xml-parser'], // used in test files only
     },
     'packages/playground': {
       entry: ['src/main.ts', 'src/web-component.ts', 'index.html', 'web-component.html'],

@@ -4,7 +4,7 @@
 
 ## 概要
 
-`@kanbun/skam` のオペレーション（CRUD）適用後のドキュメントを `@kanbun/skam-html-renderer` の `render()` に通した結果が、操作内容を正しく反映しているかを検証する統合テストを追加する。
+`@kanbun-skam/skam` のオペレーション（CRUD）適用後のドキュメントを `@kanbun-skam/skam-html-renderer` の `render()` に通した結果が、操作内容を正しく反映しているかを検証する統合テストを追加する。
 
 関連 ADR: [ADR-001](../decisions/adr-001-operation-renderer-integration-tests.md)
 
@@ -19,9 +19,9 @@ packages/skam-html-renderer/src/__tests__/
 
 ## テストヘルパー
 
-既存のテストヘルパー（`@kanbun/skam` の `createTestDocument` 等）は **直接使用しない**。理由:
+既存のテストヘルパー（`@kanbun-skam/skam` の `createTestDocument` 等）は **直接使用しない**。理由:
 
-- `createTestDocument` は `@kanbun/skam` の公開APIに含まれない内部テストヘルパー（`__tests__/operations/helpers.ts`）であり、パッケージ外からの利用は想定されていない
+- `createTestDocument` は `@kanbun-skam/skam` の公開APIに含まれない内部テストヘルパー（`__tests__/operations/helpers.ts`）であり、パッケージ外からの利用は想定されていない
 - 統合テストではオペレーション関数を import して使用するが、テストデータは自前で構築する
 - 既存 `renderer.test.ts` と同様に、各テスト内で `SKAMDocument` リテラルを定義する
 
@@ -153,12 +153,18 @@ function createBaseDocument(marks: Mark[] = []): SKAMDocument {
 
 ```typescript
 import { describe, it, expect } from 'vitest';
-import type { SKAMDocument } from '@kanbun/skam';
-import { addMark, removeMark, updateMark, replaceMark, removeHighlightWithRef } from '@kanbun/skam';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+import {
+  addMark,
+  removeMark,
+  updateMark,
+  replaceMark,
+  removeHighlightWithRef,
+} from '@kanbun-skam/skam';
 import { render, PROFILES } from '../index.js';
 ```
 
-`@kanbun/skam` のオペレーション関数は `devDependencies` に `@kanbun/skam-xml-parser` が既にある前例に倣い、テストコードからのみ使用する。ただし `@kanbun/skam` は `dependencies` に含まれているため追加設定は不要。
+`@kanbun-skam/skam` のオペレーション関数は `devDependencies` に `@kanbun-skam/skam-xml-parser` が既にある前例に倣い、テストコードからのみ使用する。ただし `@kanbun-skam/skam` は `dependencies` に含まれているため追加設定は不要。
 
 ### 既存テストとの棲み分け
 

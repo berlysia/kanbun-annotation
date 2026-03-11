@@ -1,6 +1,6 @@
 # SKAM API Reference
 
-## @kanbun/skam
+## @kanbun-skam/skam
 
 ### 型定義
 
@@ -21,19 +21,19 @@ import type {
   MarkInput,
   MarkUpdates,
   AddMarkResult,
-} from '@kanbun/skam';
+} from '@kanbun-skam/skam';
 ```
 
 ### バリデーション
 
 ```typescript
-import { validateSKAMDocument, isSKAMDocument, assertSKAMDocument } from '@kanbun/skam';
+import { validateSKAMDocument, isSKAMDocument, assertSKAMDocument } from '@kanbun-skam/skam';
 ```
 
 ### 返り点定数（Unicode Kanbun ブロック U+3191〜U+319F）
 
 ```typescript
-import { KAERI } from '@kanbun/skam';
+import { KAERI } from '@kanbun-skam/skam';
 // KAERI.RE, KAERI.ICHI, KAERI.NI, KAERI.SAN, KAERI.SHI,
 // KAERI.JO, KAERI.CHU, KAERI.GE, KAERI.KO, KAERI.OTSU,
 // KAERI.HEI, KAERI.TEI, KAERI.TEN, KAERI.CHI, KAERI.JIN
@@ -42,23 +42,23 @@ import { KAERI } from '@kanbun/skam';
 ### ID 生成
 
 ```typescript
-import { createRandomIdGenerator, createSequentialIdGenerator } from '@kanbun/skam';
-import { generateId, generateMarkId } from '@kanbun/skam';
+import { createRandomIdGenerator, createSequentialIdGenerator } from '@kanbun-skam/skam';
+import { generateId, generateMarkId } from '@kanbun-skam/skam';
 ```
 
 ### CRUD 操作
 
 ```typescript
-import { addMark, addMarkWithResult, updateMark, replaceMark, removeMark } from '@kanbun/skam';
+import { addMark, addMarkWithResult, updateMark, replaceMark, removeMark } from '@kanbun-skam/skam';
 
 // 複合操作
-import { removeHighlightWithRef } from '@kanbun/skam';
+import { removeHighlightWithRef } from '@kanbun-skam/skam';
 ```
 
 ### Token ユーティリティ
 
 ```typescript
-import { buildTokenIndexMap, getTokenIndex, getTokenByIndex } from '@kanbun/skam';
+import { buildTokenIndexMap, getTokenIndex, getTokenByIndex } from '@kanbun-skam/skam';
 ```
 
 ### Mark 検索・クエリ
@@ -72,7 +72,7 @@ import {
   getMarksExactRange,
   getAnchoredMarksExactRange,
   getPositionedMarksInRange,
-} from '@kanbun/skam';
+} from '@kanbun-skam/skam';
 ```
 
 ### Mark 表示ユーティリティ
@@ -83,7 +83,7 @@ import {
   getAnchorRangeLabel,
   getMarkSortIndex,
   sortMarksByPosition,
-} from '@kanbun/skam';
+} from '@kanbun-skam/skam';
 ```
 
 ### Mark 型ガード
@@ -96,10 +96,10 @@ import {
   filterMarksByType,
   hasMarkValue,
   isExactAnchorMatch,
-} from '@kanbun/skam';
+} from '@kanbun-skam/skam';
 ```
 
-## @kanbun/skam/rendering
+## @kanbun-skam/skam/rendering
 
 Canvas/HTML 両レンダラーで共有するマーク解決・変換ユーティリティ。
 
@@ -133,7 +133,7 @@ import {
   buildAnnotationIR,
   // 改行制御
   canBreakBefore,
-} from '@kanbun/skam/rendering';
+} from '@kanbun-skam/skam/rendering';
 import type {
   RangeMarkGroup,
   AIRRenderProfile,
@@ -149,15 +149,15 @@ import type {
   AIRBlock,
   AIRBlockChild,
   AIRDocument,
-} from '@kanbun/skam/rendering';
+} from '@kanbun-skam/skam/rendering';
 ```
 
-## @kanbun/skam-canvas-renderer
+## @kanbun-skam/skam-canvas-renderer
 
 3-Pass パイプラインで SKAM ドキュメントを Canvas に描画。
 
 ```typescript
-import { render, measure, PROFILES } from '@kanbun/skam-canvas-renderer';
+import { render, measure, PROFILES } from '@kanbun-skam/skam-canvas-renderer';
 
 // Canvas に描画
 render(doc, canvas, { writingMode: 'vertical', fontSize: 24 });
@@ -168,25 +168,25 @@ const { width, height } = measure(doc, ctx);
 // プロファイル: PROFILES.full | PROFILES.learningBasic | PROFILES.learningHint
 ```
 
-## @kanbun/skam-xml-parser
+## @kanbun-skam/skam-xml-parser
 
 ```typescript
-import { parse } from '@kanbun/skam-xml-parser';
+import { parse } from '@kanbun-skam/skam-xml-parser';
 
 // XML → SKAM JSON
 const doc = parse(xmlString);
 ```
 
-## @kanbun/skam-xml-stringify
+## @kanbun-skam/skam-xml-stringify
 
 ```typescript
-import { stringify } from '@kanbun/skam-xml-stringify';
+import { stringify } from '@kanbun-skam/skam-xml-stringify';
 
 // SKAM JSON → XML
 const xml = stringify(doc);
 ```
 
-## @kanbun/skam-html-renderer
+## @kanbun-skam/skam-html-renderer
 
 ```typescript
 import {
@@ -195,7 +195,7 @@ import {
   generateCSS,
   getDefaultStyles,
   PROFILES,
-} from '@kanbun/skam-html-renderer';
+} from '@kanbun-skam/skam-html-renderer';
 
 // SKAM → HTML + CSS（縦書きがデフォルト）
 const { html, css } = render(doc);
@@ -203,8 +203,8 @@ const { html, css } = render(doc);
 // プロファイル: PROFILES.full | PROFILES.learningBasic | PROFILES.learningHint
 
 // ブラウザ環境: インタラクティブイベントハンドラ
-import { attachInteractiveHandlers } from '@kanbun/skam-html-renderer';
+import { attachInteractiveHandlers } from '@kanbun-skam/skam-html-renderer';
 
 // ブラウザ環境: inline-grid baseline 補正
-import { calibrateGridBaseline } from '@kanbun/skam-html-renderer';
+import { calibrateGridBaseline } from '@kanbun-skam/skam-html-renderer';
 ```

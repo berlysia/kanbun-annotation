@@ -5,8 +5,8 @@
  * Shadow DOM でスタイルをカプセル化し、CSS Variables による外部カスタマイズを可能にする。
  */
 
-import { parse } from '@kanbun/skam-xml-parser';
-import { render, calibrateGridBaseline } from '@kanbun/skam-html-renderer';
+import { parse } from '@kanbun-skam/skam-xml-parser';
+import { render, calibrateGridBaseline } from '@kanbun-skam/skam-html-renderer';
 import { buildRenderOptions, type AttributeValues } from './attribute-map.js';
 import { extractXml } from './xml-extraction.js';
 import { injectGoogleFontsLink, buildFontStyle } from './font-loader.js';

@@ -218,11 +218,11 @@ SKAM-ML仕様には2つのトークン配列方式がある:
 
 ### 影響のあるパッケージ
 
-- `@kanbun/skam-xml-parser` — フィクスチャ + テスト
-- `@kanbun/skam-xml-stringify` — テスト
+- `@kanbun-skam/skam-xml-parser` — フィクスチャ + テスト
+- `@kanbun-skam/skam-xml-stringify` — テスト
 - `integration-tests` — roundtripテスト
 - `SKAM-ML-draft.md` — 仕様書
-- （間接的に）`@kanbun/skam-html-renderer`, `@kanbun/playground` — Tier 2テスト
+- （間接的に）`@kanbun-skam/skam-html-renderer`, `@kanbun-skam/playground` — Tier 2テスト
 
 ### 変更しないコンポーネント
 

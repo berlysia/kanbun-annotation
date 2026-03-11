@@ -1,5 +1,5 @@
-import type { SKAMDocument } from '@kanbun/skam';
-import { render } from '@kanbun/skam-html-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+import { render } from '@kanbun-skam/skam-html-renderer';
 import type { Browser, CaptureOptions, CaptureHTMLOptions, CaptureCanvasOptions } from './types.js';
 import { getDefaultBrowsers } from './platform.js';
 import { buildHTMLPage } from './page-builder.js';

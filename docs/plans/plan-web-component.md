@@ -10,8 +10,8 @@ SKAM の HTML レンダリングパイプラインを Web Component（Custom Ele
 
 ### レンダリングパイプライン
 
-- `parse(xml)` → `SKAMDocument`（`@kanbun/skam-xml-parser`、browser exports condition あり）
-- `render(doc, options)` → `{ html, css }`（`@kanbun/skam-html-renderer`）
+- `parse(xml)` → `SKAMDocument`（`@kanbun-skam/skam-xml-parser`、browser exports condition あり）
+- `render(doc, options)` → `{ html, css }`（`@kanbun-skam/skam-html-renderer`）
 - `generateCSS(options)` → `string`（`useLayer: false` 対応済み）
 - `attachInteractiveHandlers(container, callbacks)` → cleanup fn
 
@@ -44,7 +44,7 @@ SKAM の HTML レンダリングパイプラインを Web Component（Custom Ele
 
 **新規作成**: `packages/skam-web-component/`
 
-- `package.json` — `@kanbun/skam-web-component`、依存: `@kanbun/skam-xml-parser` + `@kanbun/skam-html-renderer`
+- `package.json` — `@kanbun-skam/skam-web-component`、依存: `@kanbun-skam/skam-xml-parser` + `@kanbun-skam/skam-html-renderer`
 - `tsconfig.json` — `tsconfig.base.json` extends、`lib: ["ESNext", "DOM"]`
 - `tsup.config.ts` — ESM only, dts: true
 - `vitest.config.ts` — happy-dom 環境

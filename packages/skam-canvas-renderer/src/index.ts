@@ -1,5 +1,5 @@
 /**
- * @kanbun/skam-canvas-renderer
+ * @kanbun-skam/skam-canvas-renderer
  *
  * SKAM to Canvas renderer - SKAMドキュメントからCanvas描画を生成
  */

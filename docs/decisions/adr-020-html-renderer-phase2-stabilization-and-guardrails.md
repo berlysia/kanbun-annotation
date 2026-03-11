@@ -21,8 +21,8 @@ deps: [19]
 - CSS 名前参照化（Phase1 対象 6 コンテナ）:
   - `suffix-row`, `ruby-grid`, `ruby-grid--emphasis`, `ruby-grid--emphasis-no-ruby`, `saidoku-grid`, `saidoku-grid--emphasis`
 - 回帰安全性:
-  - `pnpm --filter @kanbun/skam-html-renderer test:run` 成功（423 tests passed）
-  - `pnpm --filter @kanbun/skam-html-renderer typecheck` 成功
+  - `pnpm --filter @kanbun-skam/skam-html-renderer test:run` 成功（423 tests passed）
+  - `pnpm --filter @kanbun-skam/skam-html-renderer typecheck` 成功
 
 この結果から、Phase1 は「構造再編の主目標」を達成済みと判定できる。
 
@@ -130,7 +130,7 @@ Step 3 または Step 4 が未達なら Step 5 で完了判定しない。
 - CI が `pnpm lint` を実行し、依存方向違反時に失敗する
 - 対象 7 コンテナの slot 対応を検証するテストが存在する
 - `calibrateGridBaseline` 補正経路（変数設定/参照）が回帰しない
-- `pnpm --filter @kanbun/skam-html-renderer test:run` と `pnpm typecheck` が成功する
+- `pnpm --filter @kanbun-skam/skam-html-renderer test:run` と `pnpm typecheck` が成功する
 
 ## 完了判定手順（誰がやっても同じ判定にする）
 
@@ -139,7 +139,7 @@ Step 3 または Step 4 が未達なら Step 5 で完了判定しない。
 1. `rg -n "from './renderer\\.js'" packages/skam-html-renderer/src/build-render-tree.ts packages/skam-html-renderer/src/render-tree.ts packages/skam-html-renderer/src/token-renderer.ts`
    合格条件: 出力 0 件
 
-2. `pnpm --filter @kanbun/skam-html-renderer test:run`
+2. `pnpm --filter @kanbun-skam/skam-html-renderer test:run`
    合格条件: 失敗 0 件
 
 3. `pnpm typecheck`
@@ -148,7 +148,7 @@ Step 3 または Step 4 が未達なら Step 5 で完了判定しない。
 4. `rg -n "sep-spacer-start|sep-tateten-start|sep-kaeri-start|sep-end" packages/skam-html-renderer/src/styles.ts`
    合格条件: 上記4つの行名が `tateten-sep` 配置定義に出現する
 
-5. `pnpm --filter @kanbun/skam-html-renderer lint`
+5. `pnpm --filter @kanbun-skam/skam-html-renderer lint`
    合格条件: oxlint の `no-restricted-imports` ルールで依存方向違反が 0 件
 
 6. `rg -n "pnpm lint" .github/workflows`

@@ -8,9 +8,9 @@ export default defineConfig({
   // Playwright cannot be bundled (native binaries); workspace deps resolved at runtime
   external: [
     'playwright',
-    '@kanbun/skam',
-    '@kanbun/skam-canvas-renderer',
-    '@kanbun/skam-html-renderer',
-    '@kanbun/skam-xml-parser',
+    '@kanbun-skam/skam',
+    '@kanbun-skam/skam-canvas-renderer',
+    '@kanbun-skam/skam-html-renderer',
+    '@kanbun-skam/skam-xml-parser',
   ],
 });

@@ -15,7 +15,7 @@ import type {
   TatetenMark,
   HighlightMark,
   RefMark,
-} from '@kanbun/skam';
+} from '@kanbun-skam/skam';
 
 // ============================================================================
 // Basic Stringify Tests

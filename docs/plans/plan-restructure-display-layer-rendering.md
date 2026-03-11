@@ -363,11 +363,11 @@ pnpm typecheck
 # 期待: エラーなし
 
 # highlight + tateten 複合テスト（特に重要）
-pnpm --filter @kanbun/skam-html-renderer test -- highlight-tateten-kun.test.ts
+pnpm --filter @kanbun-skam/skam-html-renderer test -- highlight-tateten-kun.test.ts
 # 期待: 全テスト pass
 
 # 包括レンダリングテスト
-pnpm --filter @kanbun/skam-html-renderer test -- comprehensive-rendering.test.ts
+pnpm --filter @kanbun-skam/skam-html-renderer test -- comprehensive-rendering.test.ts
 # 期待: 全テスト pass
 
 # リント

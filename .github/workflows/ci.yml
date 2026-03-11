@@ -121,10 +121,10 @@ jobs:
         run: pnpm build
 
       - name: Install Playwright browsers
-        run: pnpm --filter @kanbun/integration-tests exec playwright install --with-deps chromium
+        run: pnpm --filter @kanbun-skam/integration-tests exec playwright install --with-deps chromium
 
       - name: Run visual tests
-        run: pnpm --filter @kanbun/integration-tests test:visual
+        run: pnpm --filter @kanbun-skam/integration-tests test:visual
 
   build:
     name: Build

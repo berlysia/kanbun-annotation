@@ -14,7 +14,7 @@ import type {
   AIRTatetenSeparator,
   AIRHighlightGroupNode,
   AIRRangeInfo,
-} from '@kanbun/skam/rendering';
+} from '@kanbun-skam/skam/rendering';
 
 import type {
   CanvasRenderTree,

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { SKAMDocument, Mark } from '@kanbun/skam';
-import { KAERI } from '@kanbun/skam';
+import type { SKAMDocument, Mark } from '@kanbun-skam/skam';
+import { KAERI } from '@kanbun-skam/skam';
 import { buildRenderTree } from '../render-tree.js';
 import { layout } from '../layout.js';
 import { PROFILES } from '../profiles.js';

@@ -122,7 +122,7 @@
   - `rangeRubyAlignment` の仕様・算式・期待値を変更しない
 - 完了ゲート:
   - 自動検証:
-    - `pnpm --filter @kanbun/skam-canvas-renderer test` 全パス（既存期待値に変更なし）
+    - `pnpm --filter @kanbun-skam/skam-canvas-renderer test` 全パス（既存期待値に変更なし）
     - `pnpm typecheck` 成功
     - `DocumentAnalysis` 型が `layout-vertical.analysis.ts` に定義されている（`grep -c 'interface DocumentAnalysis' layout-vertical.analysis.ts`）
   - レビュー項目:
@@ -141,7 +141,7 @@
   - `rangeRubyAlignment` の分岐ロジックを変更しない
 - 完了ゲート:
   - 自動検証:
-    - `pnpm --filter @kanbun/skam-canvas-renderer test` 全パス
+    - `pnpm --filter @kanbun-skam/skam-canvas-renderer test` 全パス
     - `pnpm typecheck` 成功
     - `layout-vertical.ts` に `uniform` / `adaptive` / `columnSizing` キーワードが出現しない（`grep -c 'uniform\|adaptive\|columnSizing' layout-vertical.ts` → 0）
     - `layout-vertical.columns.ts` に `computeColumnDimensions` が定義されている
@@ -161,7 +161,7 @@
   - `emphasisOverrideX` の優先順位を変更しない
 - 完了ゲート:
   - 自動検証:
-    - `pnpm --filter @kanbun/skam-canvas-renderer test` 全パス
+    - `pnpm --filter @kanbun-skam/skam-canvas-renderer test` 全パス
     - `pnpm typecheck` 成功
     - `layoutSingleToken` の呼び出しが `layout-vertical.placement.ts` 内のみに存在（`grep -rl 'layoutSingleToken' src/layout-vertical*.ts` で確認）
   - レビュー項目:
@@ -191,7 +191,7 @@
     - `range ruby + emphasis` 共存ケース
 - 完了ゲート:
   - 自動検証:
-    - `pnpm --filter @kanbun/skam-canvas-renderer test` 全パス
+    - `pnpm --filter @kanbun-skam/skam-canvas-renderer test` 全パス
     - 上記3つの統合テストケースが存在する（`grep -c` で確認）
   - レビュー項目:
     - 新規ケースが既存ケースと異なる複合シナリオをカバーしている
@@ -221,7 +221,7 @@
 
 ## 検証コマンド
 
-- `pnpm --filter @kanbun/skam-canvas-renderer test`
+- `pnpm --filter @kanbun-skam/skam-canvas-renderer test`
 - `pnpm typecheck`
 
 ## 関数マッピング
@@ -246,7 +246,7 @@ ADR-018 §6 の関数マッピングに従う:
 
 自動検証:
 
-- `pnpm --filter @kanbun/skam-canvas-renderer test` 全パス
+- `pnpm --filter @kanbun-skam/skam-canvas-renderer test` 全パス
 - `pnpm typecheck` 全パス
 - `layout-vertical.ts` に `uniform` / `adaptive` / `columnSizing` キーワードが出現しない
 - 統合テスト（multi-block+adaptive+highlight, tateten in highlight-group, range ruby+emphasis）が追加・パスしている

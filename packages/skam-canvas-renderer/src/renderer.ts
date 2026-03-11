@@ -4,8 +4,8 @@
  * 3-Pass パイプラインのオーケストレータ。
  */
 
-import type { SKAMDocument } from '@kanbun/skam';
-import { buildAnnotationIR } from '@kanbun/skam/rendering';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+import { buildAnnotationIR } from '@kanbun-skam/skam/rendering';
 import type { CanvasLike } from './canvas-context.js';
 import type { CanvasRenderingContext2DLike } from './canvas-context.js';
 import type { CanvasRenderOptions, MeasureOptions, DocumentDimensions } from './types.js';

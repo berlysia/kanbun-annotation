@@ -60,7 +60,7 @@ interface PositionedMark extends MarkBase {
 
 - `packages/skam/src/index.ts`: 型定義の変更
 - `packages/skam/src/operations/index.ts`: 型ガード戻り型の更新（`mark is AnchoredMark` 等）
-- `packages/skam-xml-stringify/src/stringify.ts`: 独自定義の `isAnchorBasedMark` を削除し、@kanbun/skam の export を使用
+- `packages/skam-xml-stringify/src/stringify.ts`: 独自定義の `isAnchorBasedMark` を削除し、@kanbun-skam/skam の export を使用
 - 各パッケージの import 修正
 
 ### Phase 2: MarkTypeMap + PersistedMark（型基盤整備）
@@ -355,7 +355,7 @@ type _TestMarkUpdates = MarkUpdates<Mark>;
 #### 中リスク
 
 - **PersistedMark と Mark[] の境界**: operations API は PersistedMark を返すが、SKAMDocument.marks は Mark[]。`doc.marks.find()` の戻り値は Mark であり、operations 関数を通さないとPersistedMark にならない。
-- **skam-xml-stringify の重複定義**: `isAnchorBasedMark` を独自定義している。リネーム時に合わせて @kanbun/skam の export に統一すべき。
+- **skam-xml-stringify の重複定義**: `isAnchorBasedMark` を独自定義している。リネーム時に合わせて @kanbun-skam/skam の export に統一すべき。
 - **テストデータの更新**: `__tests__/operations/helpers.ts` 等で id なし mark を使用するケースがある。
 
 #### 低リスク

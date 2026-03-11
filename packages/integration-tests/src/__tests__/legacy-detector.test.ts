@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render } from '@kanbun/skam-html-renderer';
+import { render } from '@kanbun-skam/skam-html-renderer';
 import { FIXTURES } from '../fixtures/test-documents.js';
 import { LEGACY_CASE_IDS, type LegacyCaseId } from '../legacy-case-registry.js';
 

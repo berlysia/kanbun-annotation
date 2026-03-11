@@ -2,8 +2,8 @@
  * SKAM Playground
  */
 
-import { parse, SKAMXMLParseError } from '@kanbun/skam-xml-parser';
-import { stringify } from '@kanbun/skam-xml-stringify';
+import { parse, SKAMXMLParseError } from '@kanbun-skam/skam-xml-parser';
+import { stringify } from '@kanbun-skam/skam-xml-stringify';
 import {
   render,
   attachInteractiveHandlers,
@@ -13,7 +13,7 @@ import {
   PROFILES,
   type RenderProfile,
   type RubyMethod,
-} from '@kanbun/skam-html-renderer';
+} from '@kanbun-skam/skam-html-renderer';
 
 const SELECTED_CLASS = 'skam-selected';
 
@@ -35,7 +35,7 @@ import type {
   EmphasisMark,
   HighlightMark,
   SaidokuMark,
-} from '@kanbun/skam';
+} from '@kanbun-skam/skam';
 import {
   addMark,
   addMarkWithResult,
@@ -56,15 +56,15 @@ import {
   hasMarkValue,
   isExactAnchorMatch,
   KAERI,
-} from '@kanbun/skam';
+} from '@kanbun-skam/skam';
 import {
   render as canvasRender,
   measure as canvasMeasure,
   loadDefaultFont,
   type CanvasRenderingContext2DLike,
   type CanvasLike,
-} from '@kanbun/skam-canvas-renderer';
-import type { Spacing, SpacingPreset } from '@kanbun/skam/rendering';
+} from '@kanbun-skam/skam-canvas-renderer';
+import type { Spacing, SpacingPreset } from '@kanbun-skam/skam/rendering';
 import { SAMPLES } from './samples.js';
 import { ErrorPanel, type ParseError } from './editor/error-panel.js';
 import { XmlEditor } from './editor/xml-editor.js';

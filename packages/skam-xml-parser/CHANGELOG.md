@@ -1,4 +1,4 @@
-# @kanbun/skam-xml-parser
+# @kanbun-skam/skam-xml-parser
 
 ## 0.1.0
 

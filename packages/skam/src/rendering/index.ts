@@ -1,5 +1,5 @@
 /**
- * @kanbun/skam/rendering
+ * @kanbun-skam/skam/rendering
  *
  * レンダラー共有ユーティリティ。
  * HTML / Canvas 両レンダラーで使用するマーク解決・変換ロジック。

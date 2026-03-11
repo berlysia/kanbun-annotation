@@ -1,4 +1,4 @@
-# @kanbun/skam-xml-parser
+# @kanbun-skam/skam-xml-parser
 
 **SKAM-ML/XML** から **SKAM JSON** へのパーサー。
 
@@ -7,15 +7,15 @@
 ## インストール
 
 ```bash
-npm install @kanbun/skam-xml-parser
+npm install @kanbun-skam/skam-xml-parser
 # or
-pnpm add @kanbun/skam-xml-parser
+pnpm add @kanbun-skam/skam-xml-parser
 ```
 
 ## 使い方
 
 ```typescript
-import { parse } from '@kanbun/skam-xml-parser';
+import { parse } from '@kanbun-skam/skam-xml-parser';
 
 const xml = `
 <?xml version="1.0" encoding="UTF-8"?>
@@ -139,7 +139,7 @@ const doc = parse(xml);
 ## エラーハンドリング
 
 ```typescript
-import { parse, SKAMXMLParseError } from '@kanbun/skam-xml-parser';
+import { parse, SKAMXMLParseError } from '@kanbun-skam/skam-xml-parser';
 
 try {
   const doc = parse(xmlString);
@@ -152,8 +152,8 @@ try {
 
 ## 関連パッケージ
 
-- [@kanbun/skam](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam) - 型定義・バリデーター
-- [@kanbun/skam-html-renderer](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-html-renderer) - HTML レンダラー
+- [@kanbun-skam/skam](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam) - 型定義・バリデーター
+- [@kanbun-skam/skam-html-renderer](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-html-renderer) - HTML レンダラー
 
 ## 仕様書
 

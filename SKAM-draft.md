@@ -1,3 +1,12 @@
+<!--
+SPDX-License-Identifier: CC-BY-4.0
+Copyright (c) 2024-present berlysia
+
+This specification is licensed under the Creative Commons Attribution 4.0
+International License. To view a copy of this license, visit
+https://creativecommons.org/licenses/by/4.0/
+-->
+
 # Stand-off Kanbun Annotation Model（SKAM）
 
 ## Specification v0.1

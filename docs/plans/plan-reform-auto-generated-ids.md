@@ -71,7 +71,7 @@ export interface ParseOptions {
 
 ### 公開API
 
-`@kanbun/skam` から以下がexportされている（`packages/skam/src/index.ts:470-471`）:
+`@kanbun-skam/skam` から以下がexportされている（`packages/skam/src/index.ts:470-471`）:
 
 - `generateId(doc, prefix = 'm', delimiter = '')` — mark ID生成（汎用）
 - `generateMarkId(doc)` — `generateId(doc, 'm')` のエイリアス
@@ -181,8 +181,8 @@ export function generateMarkId(doc: SKAMDocument): string {
 **4a. import追加と ParseOptions 拡張:**
 
 ```typescript
-import type { IdGenerator } from '@kanbun/skam';
-import { createRandomIdGenerator } from '@kanbun/skam';
+import type { IdGenerator } from '@kanbun-skam/skam';
+import { createRandomIdGenerator } from '@kanbun-skam/skam';
 
 export interface ParseOptions {
   validate?: boolean;
@@ -301,7 +301,7 @@ const effectiveRefId = refInputValue || generateId(newDoc, 'ref');
 **parser.test.ts — sequential generator注入:**
 
 ```typescript
-import { createSequentialIdGenerator } from '@kanbun/skam';
+import { createSequentialIdGenerator } from '@kanbun-skam/skam';
 
 // テスト用ヘルパー
 function parseSeq(xml: string, opts: Partial<ParseOptions> = {}) {
@@ -356,7 +356,7 @@ pnpm lint                     # リント
 pnpm build                    # ビルド
 
 # highlight-ref ロジック個別検証
-pnpm --filter @kanbun/skam-xml-parser test -- parser.test.ts -t "highlight"
+pnpm --filter @kanbun-skam/skam-xml-parser test -- parser.test.ts -t "highlight"
 ```
 
 ## 注意事項

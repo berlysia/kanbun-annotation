@@ -1,16 +1,16 @@
 /**
  * オペレーション→レンダリング統合テスト
  *
- * @kanbun/skam のオペレーション（CRUD）適用後のドキュメントを
- * @kanbun/skam-html-renderer の render() に通した結果が、
+ * @kanbun-skam/skam のオペレーション（CRUD）適用後のドキュメントを
+ * @kanbun-skam/skam-html-renderer の render() に通した結果が、
  * 操作内容を正しく反映しているかを検証する。
  *
  * 関連: docs/decisions/adr-001-operation-renderer-integration-tests.md
  * 計画: docs/plans/plan-operation-renderer-integration-tests.md
  */
 import { describe, it, expect } from 'vitest';
-import type { SKAMDocument, Mark } from '@kanbun/skam';
-import { KAERI } from '@kanbun/skam';
+import type { SKAMDocument, Mark } from '@kanbun-skam/skam';
+import { KAERI } from '@kanbun-skam/skam';
 import {
   addMark,
   addMarkWithResult,
@@ -18,7 +18,7 @@ import {
   updateMark,
   replaceMark,
   removeHighlightWithRef,
-} from '@kanbun/skam';
+} from '@kanbun-skam/skam';
 import { render, PROFILES } from '../index.js';
 
 // ============================================================================

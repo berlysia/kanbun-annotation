@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
-import type { SKAMDocument } from '@kanbun/skam';
-import { KAERI } from '@kanbun/skam';
-import { parse } from '@kanbun/skam-xml-parser';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+import { KAERI } from '@kanbun-skam/skam';
+import { parse } from '@kanbun-skam/skam-xml-parser';
 import { render, PROFILES, getDefaultStyles } from '../index.js';
 import {
   expectCSSContains,

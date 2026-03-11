@@ -2,7 +2,7 @@
  * SKAM HTML Renderer - Token Rendering
  *
  * Display実装層: 単一トークンのHTML生成。
- * 依存: 基盤層（render-config, html-utils）+ @kanbun/skam + @kanbun/skam/rendering
+ * 依存: 基盤層（render-config, html-utils）+ @kanbun-skam/skam + @kanbun-skam/skam/rendering
  * renderer.ts (API層) を参照しない。
  */
 
@@ -20,9 +20,9 @@ import type {
   SaidokuMark,
   OkototenMark,
   RefMark,
-} from '@kanbun/skam';
-import { KAERI } from '@kanbun/skam';
-import { resolveEmphasisCharacter, getMarksForToken } from '@kanbun/skam/rendering';
+} from '@kanbun-skam/skam';
+import { KAERI } from '@kanbun-skam/skam';
+import { resolveEmphasisCharacter, getMarksForToken } from '@kanbun-skam/skam/rendering';
 import type { RenderProfile, RubyMethod } from './render-config.js';
 import { escapeHtml, generateEmphasisMarks, shouldApplyTateChuYoko } from './html-utils.js';
 import type { RangeMarkContext, RangeTokenInfo, TokenRenderResult } from './render-tree-types.js';

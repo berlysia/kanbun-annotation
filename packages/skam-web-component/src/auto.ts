@@ -1,8 +1,8 @@
 /**
  * 自動登録エンドポイント
  *
- * import '@kanbun/skam-web-component/auto' で <skam-renderer> を自動登録する。
- * 明示的に define したい場合は '@kanbun/skam-web-component' から SkamRendererElement をインポートすること。
+ * import '@kanbun-skam/skam-web-component/auto' で <skam-renderer> を自動登録する。
+ * 明示的に define したい場合は '@kanbun-skam/skam-web-component' から SkamRendererElement をインポートすること。
  */
 
 import { SkamRendererElement } from './skam-renderer.js';

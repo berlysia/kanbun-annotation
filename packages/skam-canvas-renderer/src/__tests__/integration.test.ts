@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import type { SKAMDocument } from '@kanbun/skam';
-import { KAERI } from '@kanbun/skam';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+import { KAERI } from '@kanbun-skam/skam';
 import { render, measure, PROFILES } from '../index.js';
 import { RecordingCanvas, RecordingContext } from './recording-context.js';
 

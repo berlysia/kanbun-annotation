@@ -1,6 +1,6 @@
 {
   "name": "@kanbun-skam/skam-xml-parser",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "SKAM-ML/XML parser - SKAM-ML/XMLからSKAM JSONへのパーサー",
   "type": "module",
   "sideEffects": false,

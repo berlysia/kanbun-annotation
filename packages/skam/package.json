@@ -1,6 +1,6 @@
 {
   "name": "@kanbun-skam/skam",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Stand-off Kanbun Annotation Model - 漢文アノテーションの意味モデル型定義",
   "type": "module",
   "sideEffects": false,

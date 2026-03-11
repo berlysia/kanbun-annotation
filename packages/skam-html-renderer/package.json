@@ -1,6 +1,6 @@
 {
   "name": "@kanbun-skam/skam-html-renderer",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "SKAM to HTML renderer - SKAMドキュメントから静的HTMLを生成",
   "type": "module",
   "sideEffects": false,

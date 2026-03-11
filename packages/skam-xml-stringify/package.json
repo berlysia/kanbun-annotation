@@ -1,6 +1,6 @@
 {
   "name": "@kanbun-skam/skam-xml-stringify",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "SKAM JSON to SKAM-ML/XML stringifier - SKAM JSONからSKAM-ML/XMLへのシリアライザー",
   "type": "module",
   "sideEffects": false,

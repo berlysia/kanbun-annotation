@@ -417,4 +417,20 @@ describe('content model in stringify (K2b)', () => {
       ]);
     }
   });
+  it('nests okototen marks on the same anchor without loss (SKAM-draft §6.1 allows stacking)', () => {
+    const second = { ...oto, position: { system: 'glyph-grid', grid: '5x5', x: 2, y: 3 } } as const;
+    for (const anchor of [
+      { from: 't1', to: 't1' },
+      { from: 't1', to: 't2' },
+    ]) {
+      const d = doc({
+        marks: [
+          { ...oto, anchor },
+          { ...second, anchor },
+        ],
+      });
+      expect(lossCodes(d)).toEqual([]);
+      expect(stringify(d)).toMatch(/<skam:okototen [^>]*x="1"[^>]*><skam:okototen [^>]*x="2"/);
+    }
+  });
 });

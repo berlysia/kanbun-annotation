@@ -365,6 +365,8 @@ function reportConflictingMark(ctx: StringifyContext, mark: Mark): void {
 }
 
 const WRAPPER_TYPES: ReadonlySet<string> = new Set(['okimoji', 'joji', 'okototen', 'saidoku']);
+/** 同じ anchor に重ねられない包む要素 (SKAM-draft §6.1)。okototen は重ねて付けてよい */
+const UNIQUE_WRAPPER_TYPES: ReadonlySet<string> = new Set(['okimoji', 'joji', 'saidoku']);
 
 /** 単字の包む要素を追加する。入れ子順 (外側から) に並べ、同じ種類は 2 件目以降を落とす */
 function addSingleTokenWrapper(
@@ -373,7 +375,7 @@ function addSingleTokenWrapper(
   ctx: StringifyContext
 ): void {
   const wrappers = (annotation.wrappers ??= []);
-  if (wrappers.some((w) => w.type === mark.type)) {
+  if (UNIQUE_WRAPPER_TYPES.has(mark.type) && wrappers.some((w) => w.type === mark.type)) {
     reportConflictingMark(ctx, mark);
     return;
   }
@@ -601,7 +603,7 @@ function collectWrapperRanges(
     const range = resolveAnchorRange(mark, tokenIndexMap, ctx);
     if (!range) continue;
     const key = `${mark.type}:${mark.anchor.from}:${mark.anchor.to}`;
-    if (seen.has(key)) {
+    if (UNIQUE_WRAPPER_TYPES.has(mark.type) && seen.has(key)) {
       reportConflictingMark(ctx, mark);
       continue;
     }

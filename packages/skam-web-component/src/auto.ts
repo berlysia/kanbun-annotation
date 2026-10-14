@@ -7,6 +7,7 @@
 
 import { SkamRendererElement } from './skam-renderer.js';
 
-if (!customElements.get('skam-renderer')) {
+// SSR (customElements が無い環境) では何もしない
+if (typeof customElements !== 'undefined' && !customElements.get('skam-renderer')) {
   customElements.define('skam-renderer', SkamRendererElement);
 }

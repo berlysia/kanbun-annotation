@@ -66,6 +66,7 @@ el.xmlContent = xmlString;
 | `include-reading-layer` | `true` \| `false`                                   | `true`     | 読み層の表示                                      |
 | `copyable`              | `all` \| スペース区切りの要素名                     | (なし)     | コピー可能な注記要素                              |
 | `class-prefix`          | 文字列                                              | `skam`     | CSS クラス名の接頭辞                              |
+| `display-lang`          | BCP 47 言語タグ                                     | (なし)     | 表示層 `.skam-display` の `lang`                  |
 | `auto-font`             | (boolean)                                           | false      | Google Fonts 自動読み込み（Noto Serif JP, serif） |
 
 `auto-font` を有効にすると、Google Fonts から **Noto Serif JP** を読み込み、`--{class-prefix}-font-family` と `--{class-prefix}-font-family-ruby` を自動設定する。無効時はフォントを継承する。
@@ -74,10 +75,21 @@ el.xmlContent = xmlString;
 
 ### イベント
 
-| イベント      | detail                       | 説明               |
-| ------------- | ---------------------------- | ------------------ |
-| `skam-render` | `{ document: SKAMDocument }` | レンダリング成功時 |
-| `skam-error`  | `{ error: Error }`           | エラー発生時       |
+| イベント      | detail                                                       | 説明               |
+| ------------- | ------------------------------------------------------------ | ------------------ |
+| `skam-render` | `{ document: SKAMDocument }`                                 | レンダリング成功時 |
+| `skam-error`  | `{ error: Error, recoverable: boolean, attribute?: string }` | エラー発生時       |
+
+`skam-error` には 2 種類ある。
+
+- `recoverable: false`: 描画に失敗した。内容を消して `role="alert"` を表示する。再描画のたびに発火する。
+- `recoverable: true`: `class-prefix` / `display-lang` の値が不正だったため、その属性だけ既定値に戻して描画を続けた。`attribute` に属性名が入る。`skam-render` より前に、`class-prefix` → `display-lang` の順で発火する。`error.message` に属性の値は含まれない。
+
+回復可能なエラーは、同じ属性に同じ不正値が残っている間は再描画しても再び発火しない。値が変わったときだけ発火する。値が有効になった場合と、要素を DOM から外した場合は、記録が消える。ハンドラが属性を毎回違う不正値に書き換えると、エラー → 再描画 → エラーの連鎖は止まらない。これはハンドラ側の誤りとして扱う。
+
+### SSR
+
+`@kanbun-skam/skam-web-component` と `/auto` は、`HTMLElement` や `customElements` が無い環境でも import できる。`/auto` はその環境では何もしない。ただし `SkamRendererElement` をサーバー側で `new` することはできない (constructor が `document` を使うため)。
 
 ### CSS Variables によるカスタマイズ
 

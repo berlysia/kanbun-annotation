@@ -7,7 +7,11 @@
 
 import { parse } from '@kanbun-skam/skam-xml-parser';
 import { render, calibrateGridBaseline } from '@kanbun-skam/skam-html-renderer';
-import { buildRenderOptions, type AttributeValues } from './attribute-map.js';
+import {
+  buildRenderOptions,
+  type AttributeValues,
+  type InvalidAttribute,
+} from './attribute-map.js';
 import { extractXml } from './xml-extraction.js';
 import { injectGoogleFontsLink, buildFontStyle } from './font-loader.js';
 
@@ -62,7 +66,13 @@ function generateVarOverrideCss(prefix: string): string {
 }`;
 }
 
-export class SkamRendererElement extends HTMLElement {
+// SSR で import できるよう、HTMLElement が無い環境ではダミーの基底クラスを使う。
+// その環境では要素を生成できない (constructor は document を使う)。
+const BaseElement = (
+  typeof HTMLElement === 'undefined' ? class {} : HTMLElement
+) as typeof HTMLElement;
+
+export class SkamRendererElement extends BaseElement {
   static observedAttributes = [
     'writing-mode',
     'profile',
@@ -70,6 +80,7 @@ export class SkamRendererElement extends HTMLElement {
     'include-reading-layer',
     'copyable',
     'class-prefix',
+    'display-lang',
     'auto-font',
   ];
 
@@ -82,6 +93,8 @@ export class SkamRendererElement extends HTMLElement {
   #xmlContent: string | undefined;
   #observer: MutationObserver | null = null;
   #rafId: number | null = null;
+  /** 最後に skam-error で通知した不正値 (属性名 → 値)。同じ値では再通知しない */
+  #reportedInvalid = new Map<string, string>();
 
   constructor() {
     super();
@@ -145,6 +158,8 @@ export class SkamRendererElement extends HTMLElement {
       cancelAnimationFrame(this.#rafId);
       this.#rafId = null;
     }
+
+    this.#reportedInvalid.clear();
   }
 
   attributeChangedCallback(
@@ -175,9 +190,10 @@ export class SkamRendererElement extends HTMLElement {
     try {
       const doc = parse(xml);
       const attrs = this.#getAttributeValues();
-      const options = buildRenderOptions(attrs);
+      const { options, invalid } = buildRenderOptions(attrs);
       const { html, css } = render(doc, options);
 
+      // 検証を通った値だけから prefix を決める
       const prefix = options.classPrefix ?? 'skam';
       this.#mainStyle.textContent = css + generateVarOverrideCss(prefix);
       this.#ensureFont();
@@ -189,6 +205,8 @@ export class SkamRendererElement extends HTMLElement {
         variablePrefix: prefix,
       });
 
+      this.#reportInvalid(invalid, attrs);
+
       this.dispatchEvent(
         new CustomEvent('skam-render', {
           detail: { document: doc },
@@ -198,6 +216,31 @@ export class SkamRendererElement extends HTMLElement {
       );
     } catch (error) {
       this.#handleError(error);
+    }
+  }
+
+  /**
+   * 既定値に戻した属性を回復可能なエラーとして通知する (内容は消さない)。
+   * 同じ不正値が残っている間は再描画しても再通知しない。ハンドラが属性や内容を
+   * 書き換えたときに、エラー → 再描画 → エラーの連鎖が起きるのを避けるため。
+   */
+  #reportInvalid(invalid: InvalidAttribute[], attrs: AttributeValues): void {
+    const invalidNames = new Set(invalid.map((i) => i.attribute));
+    for (const name of [...this.#reportedInvalid.keys()]) {
+      if (!invalidNames.has(name)) this.#reportedInvalid.delete(name);
+    }
+    for (const { attribute, error } of invalid) {
+      const value =
+        (attrs as unknown as Record<string, string | null | undefined>)[attribute] ?? '';
+      if (this.#reportedInvalid.get(attribute) === value) continue;
+      this.#reportedInvalid.set(attribute, value);
+      this.dispatchEvent(
+        new CustomEvent('skam-error', {
+          detail: { error, recoverable: true, attribute },
+          bubbles: true,
+          composed: true,
+        })
+      );
     }
   }
 
@@ -212,7 +255,7 @@ export class SkamRendererElement extends HTMLElement {
 
     this.dispatchEvent(
       new CustomEvent('skam-error', {
-        detail: { error },
+        detail: { error, recoverable: false },
         bubbles: true,
         composed: true,
       })
@@ -243,6 +286,7 @@ export class SkamRendererElement extends HTMLElement {
       'include-reading-layer': this.getAttribute('include-reading-layer'),
       copyable: this.getAttribute('copyable'),
       'class-prefix': this.getAttribute('class-prefix'),
+      'display-lang': this.getAttribute('display-lang'),
     };
   }
 }

@@ -2,7 +2,7 @@
  * HTML属性 → RenderOptions 変換ユーティリティ
  */
 
-import { PROFILES } from '@kanbun-skam/skam-html-renderer';
+import { PROFILES, validateRenderOptions } from '@kanbun-skam/skam-html-renderer';
 import type {
   RenderOptions,
   RenderProfile,
@@ -63,9 +63,35 @@ export interface AttributeValues {
   'include-reading-layer': string | null;
   copyable: string | null;
   'class-prefix': string | null;
+  /** 任意。省略は null と同じ (export 済みの型なので既存の利用者を壊さない) */
+  'display-lang'?: string | null;
 }
 
-export function buildRenderOptions(attrs: AttributeValues): RenderOptions {
+export interface InvalidAttribute {
+  attribute: string;
+  error: TypeError;
+}
+
+export interface BuiltRenderOptions {
+  options: RenderOptions;
+  /** 検証を通らず既定値に戻した属性。class-prefix → display-lang の固定順 */
+  invalid: InvalidAttribute[];
+}
+
+/** html-renderer の検証規則をそのまま使い、1 つの属性だけを検査する */
+function checkAttribute(attribute: string, probe: RenderOptions): InvalidAttribute | undefined {
+  try {
+    validateRenderOptions(probe);
+    return undefined;
+  } catch (error) {
+    return {
+      attribute,
+      error: error instanceof TypeError ? error : new TypeError(String(error)),
+    };
+  }
+}
+
+export function buildRenderOptions(attrs: AttributeValues): BuiltRenderOptions {
   const options: RenderOptions = {
     writingMode: parseWritingMode(attrs['writing-mode']),
     useLayer: false, // Shadow DOM doesn't need @layer
@@ -93,9 +119,21 @@ export function buildRenderOptions(attrs: AttributeValues): RenderOptions {
     options.copyable = copyable;
   }
 
-  if (attrs['class-prefix'] != null) {
-    options.classPrefix = attrs['class-prefix'];
+  const invalid: InvalidAttribute[] = [];
+
+  const classPrefix = attrs['class-prefix'];
+  if (classPrefix != null) {
+    const problem = checkAttribute('class-prefix', { classPrefix });
+    if (problem) invalid.push(problem);
+    else options.classPrefix = classPrefix;
   }
 
-  return options;
+  const displayLang = attrs['display-lang'];
+  if (displayLang != null) {
+    const problem = checkAttribute('display-lang', { displayLang });
+    if (problem) invalid.push(problem);
+    else options.displayLang = displayLang;
+  }
+
+  return { options, invalid };
 }

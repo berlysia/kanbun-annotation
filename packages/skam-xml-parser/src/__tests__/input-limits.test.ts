@@ -4,7 +4,8 @@ import { parse, SKAMXMLParseError } from '../index.js';
 
 const L = { maxInputLength: 1_000_000, maxDepth: 64 };
 const nest = (n: number) => '<a>'.repeat(n) + '</a>'.repeat(n);
-const rejects = (xml: string, re: RegExp, limits = L) => expect(() => checkInputLimits(xml, limits)).toThrow(re);
+const rejects = (xml: string, re: RegExp, limits = L) =>
+  expect(() => checkInputLimits(xml, limits)).toThrow(re);
 
 describe('checkInputLimits (fail-closed pre-scan)', () => {
   it('rejects input longer than maxInputLength (UTF-16 code units)', () =>
@@ -16,7 +17,12 @@ describe('checkInputLimits (fail-closed pre-scan)', () => {
     rejects('<r><!ELEMENT r ANY></r>', /declaration/);
   });
   it('ignores markup-like text inside comment / CDATA / PI / attribute values', () => {
-    expect(() => checkInputLimits('<r><!-- <!DOCTYPE <a> --><![CDATA[<!DOCTYPE <a>]]><?pi <a> ?><c x="a>b" y=\'<z>\'/></r>', L)).not.toThrow();
+    expect(() =>
+      checkInputLimits(
+        '<r><!-- <!DOCTYPE <a> --><![CDATA[<!DOCTYPE <a>]]><?pi <a> ?><c x="a>b" y=\'<z>\'/></r>',
+        L
+      )
+    ).not.toThrow();
   });
   it('counts depth; self-closing tags do not add depth', () => {
     expect(() => checkInputLimits(nest(64), L)).not.toThrow();
@@ -38,8 +44,12 @@ describe('checkInputLimits (fail-closed pre-scan)', () => {
     rejects('<a "x">', /unexpected quote/);
   });
   it('attaches line/column to pre-scan errors', () => {
-    try { checkInputLimits('<r>\n  <k kind=re/></r>', L); expect.unreachable(); }
-    catch (e) { expect(e).toMatchObject({ line: 2, column: 11 }); }
+    try {
+      checkInputLimits('<r>\n  <k kind=re/></r>', L);
+      expect.unreachable();
+    } catch (e) {
+      expect(e).toMatchObject({ line: 2, column: 11 });
+    }
   });
   it('does not treat <!--> or <?> as complete constructs', () => {
     rejects('<r><!--> ' + nest(3), /unterminated comment/);

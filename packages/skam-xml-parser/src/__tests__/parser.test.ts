@@ -669,7 +669,6 @@ describe('parse - invalid fixtures', () => {
       expect(() => parse(xml)).toThrow(SKAMXMLParseError);
     });
   });
-
 });
 
 // ============================================================================

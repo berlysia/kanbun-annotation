@@ -86,7 +86,10 @@ export function checkInputLimits(xml: string, limits: InputLimits): void {
       continue;
     }
     if (xml.startsWith('<!', i)) {
-      fail('XML declarations (<!DOCTYPE>, <!ENTITY>, <!ELEMENT>, ...) are not allowed in SKAM-ML', start);
+      fail(
+        'XML declarations (<!DOCTYPE>, <!ENTITY>, <!ELEMENT>, ...) are not allowed in SKAM-ML',
+        start
+      );
     }
     if (xml.startsWith('<?', i)) {
       i += 2;
@@ -101,7 +104,8 @@ export function checkInputLimits(xml: string, limits: InputLimits): void {
       if (depth < 0) fail('unbalanced end tag', start);
     } else if (!selfClosing) {
       depth++;
-      if (depth > limits.maxDepth) fail(`Element nesting exceeds maxDepth ${limits.maxDepth}`, start);
+      if (depth > limits.maxDepth)
+        fail(`Element nesting exceeds maxDepth ${limits.maxDepth}`, start);
     }
     i = j + 1;
   }

@@ -1342,7 +1342,13 @@ function validateUniqueIds(
   const check = (id: string, path: string, label: string) => {
     if (seen.has(id)) {
       errors.push(
-        createValidationError('DUPLICATE_ID', path, `Duplicate ${label} ID "${id}"`, 'unique ID', id)
+        createValidationError(
+          'DUPLICATE_ID',
+          path,
+          `Duplicate ${label} ID "${id}"`,
+          'unique ID',
+          id
+        )
       );
     } else {
       seen.add(id);

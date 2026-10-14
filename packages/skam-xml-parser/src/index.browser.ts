@@ -11,6 +11,7 @@ import { parseXML } from './xml-parser.browser.js';
 export type { SKAMDocument } from '@kanbun-skam/skam';
 export { SKAMValidationError } from '@kanbun-skam/skam';
 export {
+  SKAM_ML_CONTENT_MODEL,
   SKAMXMLParseError,
   type ParseOptions,
   type ParseWarning,

@@ -8,6 +8,7 @@
  */
 
 import Prism from 'prismjs';
+import { escapeHtml } from '../html-escape.js';
 import 'prismjs/components/prism-markup';
 
 export interface XmlEditorOptions {
@@ -139,7 +140,7 @@ export class XmlEditor {
 
     // Prism requires escaping for safety, but we use textContent first
     // then apply Prism highlighting
-    const escapedValue = this.escapeHtml(value);
+    const escapedValue = escapeHtml(value);
 
     // Apply Prism highlighting
     const highlighted = Prism.highlight(value, Prism.languages['markup']!, 'markup');
@@ -153,15 +154,6 @@ export class XmlEditor {
 
     // Update line numbers
     this.updateLineNumbers();
-  }
-
-  private escapeHtml(text: string): string {
-    return text
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;');
   }
 
   private updateLineNumbers(): void {

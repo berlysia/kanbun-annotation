@@ -18,7 +18,8 @@ export interface PaddingConfig {
 }
 
 export interface CanvasRenderOptions {
-  writingMode?: 'vertical' | 'horizontal';
+  /** 縦書き専用。横書きは未実装 */
+  writingMode?: 'vertical';
   profile?: Partial<RenderProfile>;
   fontSize?: number;
   fontFamily?: string;
@@ -60,7 +61,8 @@ export interface CanvasRenderOptions {
 }
 
 export interface MeasureOptions {
-  writingMode?: 'vertical' | 'horizontal';
+  /** 縦書き専用。横書きは未実装 */
+  writingMode?: 'vertical';
   profile?: Partial<RenderProfile>;
   fontSize?: number;
   fontFamily?: string;
@@ -101,6 +103,8 @@ export interface TokenSlots {
   saidokuUnder?: string;
   saidokuOkuri2?: string;
   ref?: string;
+  /** ヲコト点。AIR の `AIRTokenSlots.okototen` をそのまま写す */
+  okototen?: { x: number; y: number; cols: number; rows: number; shape: string }[];
 }
 
 export interface CanvasTokenNode {
@@ -198,6 +202,15 @@ export interface TokenLayout {
   y: number;
   baseChar: string;
   slots: ResolvedSlotLayouts;
+  /** ヲコト点の中心 (cx, cy) と半径 r。論理ピクセル座標 */
+  okototen?: OkototenLayout[];
+}
+
+export interface OkototenLayout {
+  cx: number;
+  cy: number;
+  r: number;
+  shape: string;
 }
 
 export interface TatetenSeparatorLayout {

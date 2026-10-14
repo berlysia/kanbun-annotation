@@ -5,7 +5,7 @@
  */
 
 import type { CanvasRenderingContext2DLike } from './canvas-context.js';
-import type { HighlightLineLayout } from './types.js';
+import type { HighlightLineLayout, OkototenLayout } from './types.js';
 
 /**
  * highlight 線を描画する。
@@ -123,4 +123,35 @@ function drawDouble(
   ctx.moveTo(x + offset, yStart);
   ctx.lineTo(x + offset, yEnd);
   ctx.stroke();
+}
+
+/**
+ * ヲコト点を描画する。shape ごとの見た目は HTML の ::before (・ / ○ / —) に対応させる。
+ * 未知の shape は dot として塗りつぶす。
+ */
+export function drawOkototen(
+  ctx: CanvasRenderingContext2DLike,
+  dot: OkototenLayout,
+  color: string
+): void {
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.strokeStyle = color;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  switch (dot.shape) {
+    case 'circle':
+      ctx.arc(dot.cx, dot.cy, dot.r, 0, Math.PI * 2);
+      ctx.stroke();
+      break;
+    case 'line':
+      ctx.moveTo(dot.cx - dot.r, dot.cy);
+      ctx.lineTo(dot.cx + dot.r, dot.cy);
+      ctx.stroke();
+      break;
+    default:
+      ctx.arc(dot.cx, dot.cy, dot.r, 0, Math.PI * 2);
+      ctx.fill();
+  }
+  ctx.restore();
 }

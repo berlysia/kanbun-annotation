@@ -7,7 +7,7 @@
 import type { CanvasRenderingContext2DLike } from './canvas-context.js';
 import type { DocumentLayout, SlotLayout, ResolvedOptions } from './types.js';
 import { drawChar, drawVerticalText, drawTateChuYokoText, drawKutotenText } from './draw-text.js';
-import { drawHighlightLine } from './draw-marks.js';
+import { drawHighlightLine, drawOkototen } from './draw-marks.js';
 
 /**
  * Pass 3: DocumentLayout を Canvas に描画する
@@ -67,6 +67,9 @@ export function draw(
       drawSlotIfPresent(ctx, child.slots.saidokuUnder, options);
       drawSlotIfPresent(ctx, child.slots.saidokuOkuri2, options);
       drawSlotIfPresent(ctx, child.slots.ref, options);
+      for (const dot of child.okototen ?? []) {
+        drawOkototen(ctx, dot, options.textColor);
+      }
     }
 
     // 3. Highlight lines + highlight-ref labels

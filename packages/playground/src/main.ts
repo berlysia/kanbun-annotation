@@ -1835,7 +1835,7 @@ function renderCanvasDocument(doc: SKAMDocument): void {
 
   // Measure dimensions
   const dims = canvasMeasure(doc, ctxLike, {
-    writingMode,
+    writingMode: 'vertical',
     profile: canvasProfile,
     fontSize,
     fontFamily,
@@ -1852,7 +1852,7 @@ function renderCanvasDocument(doc: SKAMDocument): void {
 
   // Render (cast to CanvasLike for type compatibility)
   canvasRender(doc, canvas as unknown as CanvasLike, {
-    writingMode,
+    writingMode: 'vertical',
     profile: canvasProfile,
     fontSize,
     fontFamily,

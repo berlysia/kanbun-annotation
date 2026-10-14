@@ -39,9 +39,23 @@ export function render(doc: SKAMDocument, canvas: CanvasLike, options?: CanvasRe
   // Pass 2 (論理ピクセル座標で計算)
   const documentLayout = layout(tree, ctx, options);
 
+  // autoSize: canvas のサイズ設定は context の状態 (変換・font 等) をリセットするので、save / scale より前に行う。
+  // maxExtent はデバイスピクセルで表した長い辺の上限 (canvas.width / height そのものの上限)。
+  let drawScale = resolved.pixelRatio;
+  if (resolved.autoSize) {
+    const { width, height } = documentLayout;
+    const shrink =
+      resolved.maxExtent === undefined
+        ? 1
+        : Math.min(1, resolved.maxExtent / (Math.max(width, height, 1) * resolved.pixelRatio));
+    drawScale = resolved.pixelRatio * shrink;
+    canvas.width = Math.ceil(width * drawScale);
+    canvas.height = Math.ceil(height * drawScale);
+  }
+
   // HiDPI: コンテキストをスケーリングして論理座標→デバイスピクセルに変換
   ctx.save();
-  ctx.scale(resolved.pixelRatio, resolved.pixelRatio);
+  ctx.scale(drawScale, drawScale);
 
   // Pass 3
   draw(ctx, documentLayout, resolved);

@@ -23,8 +23,16 @@ function normalizePadding(padding: number | PaddingConfig): PaddingConfig {
   return padding;
 }
 
+function assertPositiveFinite(name: string, value: number): void {
+  if (typeof value !== 'number' || !Number.isFinite(value) || value <= 0) {
+    throw new TypeError(`${name} must be a positive finite number, got ${String(value)}`);
+  }
+}
+
 // oxlint-disable-next-line eslint/complexity
 export function resolveOptions(options?: CanvasRenderOptions): ResolvedOptions {
+  if (options?.pixelRatio !== undefined) assertPositiveFinite('pixelRatio', options.pixelRatio);
+  if (options?.maxExtent !== undefined) assertPositiveFinite('maxExtent', options.maxExtent);
   const profile: RenderProfile = { ...PROFILES.full, ...options?.profile };
   return {
     writingMode: options?.writingMode ?? 'vertical',

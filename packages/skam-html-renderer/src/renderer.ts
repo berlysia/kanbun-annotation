@@ -10,7 +10,7 @@ import { resolveRefValues } from '@kanbun-skam/skam/rendering';
 import { getDefaultStyles } from './styles.js';
 import type { RenderProfile, RubyMethod, CopyableElement } from './render-config.js';
 import { PROFILES } from './render-config.js';
-import { escapeHtml, shouldApplyTateChuYoko } from './html-utils.js';
+import { escapeHtml, getSourceOrderedTokens, shouldApplyTateChuYoko } from './html-utils.js';
 import { renderDisplayLayer } from './render-display-layer.js';
 import { validateCSSOptions, validateRenderOptions } from './render-options.js';
 
@@ -120,6 +120,8 @@ export interface RenderHTMLOptions {
    * Ruby要素のレンダリング方式（default: 'ruby'）
    */
   rubyMethod?: RubyMethod;
+  /** 表示層の言語タグ (BCP 47) */
+  displayLang?: string;
 }
 
 /**
@@ -177,18 +179,26 @@ export interface CSSOptions {
 /**
  * 読み層のHTMLを生成
  */
-function renderReadingLayer(readings: Reading[], prefix: string, inline: boolean): string {
-  const yomiage = readings.find((r) => r.kind === 'yomiage');
-  const kakikudashi = readings.find((r) => r.kind === 'kakikudashi');
+function renderReadingLayer(doc: SKAMDocument, prefix: string, inline: boolean): string {
+  const usable = (kind: Reading['kind']): string | undefined => {
+    const text = doc.readings.find((r) => r.kind === kind)?.text;
+    return text !== undefined && text.trim() !== '' ? text : undefined;
+  };
 
-  const text = yomiage?.text ?? kakikudashi?.text ?? '';
+  // 読みがなければ白文 (原文順の本文) を読み上げ用に出す
+  const text =
+    usable('yomiage') ??
+    usable('kakikudashi') ??
+    getSourceOrderedTokens(doc)
+      .map((t) => t.text)
+      .join('');
 
   if (!text) {
     return '';
   }
 
   const tag = inline ? 'span' : 'div';
-  return `<${tag} class="${prefix}-reading" aria-label="読み上げテキスト">${escapeHtml(text)}</${tag}>`;
+  return `<${tag} class="${prefix}-reading">${escapeHtml(text)}</${tag}>`;
 }
 
 /**
@@ -240,14 +250,15 @@ export function render(doc: SKAMDocument, options: RenderOptions = {}): RenderRe
   const copyable = options.copyable;
   const interactive = options.interactive ?? false;
   const rubyMethod = options.rubyMethod ?? 'grid';
+  const displayLang = options.displayLang ?? 'ja';
 
   // Display層
   const displayResult = renderDisplayLayer(doc, prefix, profile, inline, interactive, rubyMethod);
   const displayTag = inline ? 'span' : 'div';
-  const displayHtml = `<${displayTag} class="${prefix}-display" aria-hidden="true">${displayResult.tokens}</${displayTag}>`;
+  const displayHtml = `<${displayTag} class="${prefix}-display" lang="${displayLang}" aria-hidden="true">${displayResult.tokens}</${displayTag}>`;
 
   // 読み層
-  const readingHtml = includeReadingLayer ? renderReadingLayer(doc.readings, prefix, inline) : '';
+  const readingHtml = includeReadingLayer ? renderReadingLayer(doc, prefix, inline) : '';
 
   // refマークの値を事前計算（注釈出力用）
   const refValueMap = profile.ref ? resolveRefValues(doc.tokens, doc.marks) : new Map();
@@ -315,14 +326,15 @@ export function renderHTML(doc: SKAMDocument, options: RenderHTMLOptions = {}): 
   const copyable = options.copyable;
   const interactive = options.interactive ?? false;
   const rubyMethod = options.rubyMethod ?? 'grid';
+  const displayLang = options.displayLang ?? 'ja';
 
   // Display層
   const displayResult = renderDisplayLayer(doc, prefix, profile, inline, interactive, rubyMethod);
   const displayTag = inline ? 'span' : 'div';
-  const displayHtml = `<${displayTag} class="${prefix}-display" aria-hidden="true">${displayResult.tokens}</${displayTag}>`;
+  const displayHtml = `<${displayTag} class="${prefix}-display" lang="${displayLang}" aria-hidden="true">${displayResult.tokens}</${displayTag}>`;
 
   // 読み層
-  const readingHtml = includeReadingLayer ? renderReadingLayer(doc.readings, prefix, inline) : '';
+  const readingHtml = includeReadingLayer ? renderReadingLayer(doc, prefix, inline) : '';
 
   // refマークの値を事前計算（注釈出力用）
   const refValueMap = profile.ref ? resolveRefValues(doc.tokens, doc.marks) : new Map();

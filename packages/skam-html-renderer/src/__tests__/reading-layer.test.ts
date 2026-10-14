@@ -35,9 +35,7 @@ describe('reading layer fallback and lang (K5)', () => {
   });
   it('has no aria-label on the reading layer', () => {
     expect(
-      dom(render(base()).html)
-        .querySelector('.skam-reading')
-        ?.hasAttribute('aria-label')
+      dom(render(base()).html).querySelector('.skam-reading')?.hasAttribute('aria-label')
     ).toBe(false);
   });
   it('keeps root lang=ja, display layer aria-hidden, and puts displayLang only on the display layer', () => {
@@ -78,5 +76,18 @@ describe('reading layer fallback and lang (K5)', () => {
       ).html
     );
     expect(r.querySelector('.skam-reading')?.textContent).toBe('K');
+  });
+  it('numbers refs in source order even when tokens array is reversed (K6)', () => {
+    const d = base({
+      marks: [
+        { type: 'ref', format: 'numeric-paren', position: { blockId: 'b1', after: 't2' } },
+        { type: 'ref', format: 'numeric-paren', position: { blockId: 'b1', after: 't1' } },
+      ],
+    });
+    const html = render(d).html;
+    const labels = Array.from(dom(html).querySelectorAll('.skam-display .skam-ref')).map(
+      (e) => e.textContent
+    );
+    expect(labels).toEqual(['(1)', '(2)']);
   });
 });

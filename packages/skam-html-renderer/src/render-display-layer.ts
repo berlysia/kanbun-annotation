@@ -11,7 +11,7 @@
 import type { SKAMDocument, HighlightMark } from '@kanbun-skam/skam';
 import { buildAnnotationIR, resolveRefValues } from '@kanbun-skam/skam/rendering';
 import type { RenderProfile, RubyMethod } from './render-config.js';
-import { escapeHtml } from './html-utils.js';
+import { escapeHtml, getSourceOrderedTokens } from './html-utils.js';
 import { convertAIRToBlockRenderTrees } from './air-adapter.js';
 import { renderBlockTree, type RenderTreeContext } from './render-tree.js';
 
@@ -35,7 +35,9 @@ export function renderDisplayLayer(
   const blockRenderTrees = convertAIRToBlockRenderTrees(air, prefix, tokens, marks);
 
   // Pass 2 用のコンテキスト
-  const refValueMap = profile.ref ? resolveRefValues(tokens, marks) : new Map();
+  const refValueMap = profile.ref
+    ? resolveRefValues(getSourceOrderedTokens(doc), marks)
+    : new Map();
   const highlightRefIds = new Set<string>();
   if (profile.highlight) {
     const highlightMarks = marks.filter((m): m is HighlightMark => m.type === 'highlight');

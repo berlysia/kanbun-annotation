@@ -5,7 +5,7 @@
  */
 
 import type { SKAMDocument } from '@kanbun-skam/skam';
-import { parseFromDocument, SKAMXMLParseError, type ParseOptions } from './parser-core.js';
+import { parseWith, SKAMXMLParseError, type ParseOptions } from './parser-core.js';
 import { parseXML } from './xml-parser.js';
 
 export type { SKAMDocument } from '@kanbun-skam/skam';
@@ -24,6 +24,5 @@ export {
  * @throws SKAMXMLParseError if parsing fails
  */
 export function parse(xml: string, options: ParseOptions = {}): SKAMDocument {
-  const doc = parseXML(xml);
-  return parseFromDocument(doc, options, xml);
+  return parseWith(parseXML, xml, options);
 }

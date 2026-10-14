@@ -5,7 +5,7 @@
  */
 
 import { DOMParser } from '@xmldom/xmldom';
-import { SKAMXMLParseError } from './parser-core.js';
+import { SKAMXMLParseError } from './parse-error.js';
 
 /**
  * Parse XML string to Document (Node.js implementation)

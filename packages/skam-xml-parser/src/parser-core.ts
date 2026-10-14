@@ -31,6 +31,10 @@ import type {
   RefFormat,
 } from '@kanbun-skam/skam';
 import { createRandomIdGenerator, KAERI } from '@kanbun-skam/skam';
+import { SKAMXMLParseError, type PositionInfo } from './parse-error.js';
+import { checkInputLimits, DEFAULT_INPUT_LIMITS } from './input-limits.js';
+
+export { SKAMXMLParseError, type PositionInfo } from './parse-error.js';
 
 // ============================================================================
 // Constants
@@ -94,18 +98,6 @@ const VALID_REF_FORMATS = [
 // ============================================================================
 
 /**
- * Position information in the source XML
- */
-export interface PositionInfo {
-  /** 1-based line number */
-  line: number;
-  /** 1-based column number */
-  column: number;
-  /** 0-based byte offset from the start of the source */
-  offset: number;
-}
-
-/**
  * Token position range in the source XML
  */
 export interface TokenPosition {
@@ -113,21 +105,6 @@ export interface TokenPosition {
   start: PositionInfo;
   /** End position (exclusive) */
   end: PositionInfo;
-}
-
-// ============================================================================
-// Error Types
-// ============================================================================
-
-export class SKAMXMLParseError extends Error {
-  constructor(
-    message: string,
-    public readonly line?: number,
-    public readonly column?: number
-  ) {
-    super(message);
-    this.name = 'SKAMXMLParseError';
-  }
 }
 
 // ============================================================================
@@ -1089,6 +1066,26 @@ export interface ParseOptions {
   trackPositions?: boolean;
   /** Custom ID generator for token/mark/block IDs */
   idGenerator?: IdGenerator;
+  /** Maximum input length in UTF-16 code units (default: 5,000,000) */
+  maxInputLength?: number;
+  /** Maximum element nesting depth (default: 64) */
+  maxDepth?: number;
+}
+
+/**
+ * Pre-scan the source, then parse it with the environment-specific XML parser.
+ * Both entry points (Node / browser) go through here so the pre-scan cannot be skipped by one of them.
+ */
+export function parseWith(
+  parseXML: (xml: string) => Document,
+  xml: string,
+  options: ParseOptions = {}
+): SKAMDocument {
+  checkInputLimits(xml, {
+    maxInputLength: options.maxInputLength ?? DEFAULT_INPUT_LIMITS.maxInputLength,
+    maxDepth: options.maxDepth ?? DEFAULT_INPUT_LIMITS.maxDepth,
+  });
+  return parseFromDocument(parseXML(xml), options, xml);
 }
 
 /**

@@ -4,7 +4,7 @@
  * Uses native DOMParser
  */
 
-import { SKAMXMLParseError } from './parser-core.js';
+import { SKAMXMLParseError } from './parse-error.js';
 
 /**
  * Parse XML string to Document (Browser implementation)

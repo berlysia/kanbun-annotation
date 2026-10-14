@@ -12,6 +12,7 @@ export type StringifyLossCode =
   | 'CROSS_BLOCK_ANCHOR'
   | 'PARTIAL_OVERLAP'
   | 'UNNESTABLE_OVERLAP'
+  | 'CONFLICTING_MARKS'
   | 'EXT'
   | 'PLACEMENT_HINT'
   // Codes may be added later, so exhaustive switches need a default branch.

@@ -234,3 +234,187 @@ describe('implementation gaps fixed (K1) — output shape', () => {
     expect(stringify(doc())).toContain('<skam:meta tokenization="char"/>');
   });
 });
+
+describe('content model in stringify (K2b)', () => {
+  const oto = {
+    type: 'okototen',
+    anchor: { from: 't1', to: 't1' },
+    shape: 'dot',
+    position: { system: 'glyph-grid', grid: '5x5', x: 1, y: 1 },
+  } as const;
+  it('emits multi-token okimoji / okototen / joji / saidoku as wrapping elements', () => {
+    expect(
+      stringify(doc({ marks: [{ type: 'okimoji', anchor: { from: 't1', to: 't2' } }] }))
+    ).toContain('<skam:okimoji>甲乙</skam:okimoji>丙');
+    expect(stringify(doc({ marks: [{ ...oto, anchor: { from: 't1', to: 't2' } }] }))).toMatch(
+      /<skam:okototen [^>]*>甲乙<\/skam:okototen>/
+    );
+    expect(
+      stringify(doc({ marks: [{ type: 'joji', anchor: { from: 't2', to: 't3' } }] }))
+    ).toContain('甲<skam:joji>乙丙</skam:joji>');
+    expect(
+      stringify(
+        doc({
+          marks: [{ type: 'saidoku', anchor: { from: 't1', to: 't2' }, forms: [{ yomi: 'a' }] }],
+        })
+      )
+    ).toContain('<skam:saidoku><skam:base>甲乙</skam:base>');
+  });
+  it('keeps saidoku outermost when several wrappers share a token', () => {
+    const xml = stringify(
+      doc({
+        marks: [
+          { type: 'okimoji', anchor: { from: 't1', to: 't1' } },
+          { type: 'saidoku', anchor: { from: 't1', to: 't1' }, forms: [{ yomi: 'a' }] },
+        ],
+      })
+    );
+    expect(xml).toContain('<skam:saidoku><skam:base><skam:okimoji>甲</skam:okimoji></skam:base>');
+  });
+  it('nests same-range marks in the table order (okimoji outside kun) without loss', () => {
+    expect(
+      stringify(
+        doc({
+          marks: [
+            { type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'て' },
+            { type: 'okimoji', anchor: { from: 't1', to: 't2' } },
+          ],
+        })
+      )
+    ).toContain('<skam:okimoji><skam:kun okuri="て">甲乙</skam:kun></skam:okimoji>');
+  });
+  it('reports UNNESTABLE_OVERLAP (outer dropped) for table violations', () => {
+    const cases: unknown[][] = [
+      [{ type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'て' }, { ...oto }], // kun の範囲 > 包む要素
+      [
+        { type: 'okurigana', anchor: { from: 't1', to: 't3' }, value: 'a' },
+        { type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'b' },
+      ], // kun の範囲 > kun の範囲
+      [
+        { type: 'okimoji', anchor: { from: 't1', to: 't3' } },
+        { type: 'emphasis', anchor: { from: 't1', to: 't2' } },
+      ], // 包む要素 > span
+      [
+        { type: 'okimoji', anchor: { from: 't1', to: 't2' } },
+        { type: 'saidoku', anchor: { from: 't1', to: 't1' }, forms: [{ yomi: 'a' }] },
+      ], // 包む要素 > saidoku
+    ];
+    for (const marks of cases) {
+      expect(lossCodes(doc({ marks: marks as never }))).toEqual([
+        'unsupported:UNNESTABLE_OVERLAP@/marks/0',
+      ]);
+    }
+  });
+  it('allows kun inside a multi-token saidoku base without loss', () => {
+    expect(
+      lossCodes(
+        doc({
+          marks: [
+            { type: 'saidoku', anchor: { from: 't1', to: 't2' }, forms: [{ yomi: 'a' }] },
+            { type: 'soegana', anchor: { from: 't1', to: 't1' }, value: 'ヲ' },
+          ],
+        })
+      )
+    ).toEqual([]);
+  });
+  it('reports UNNESTABLE_OVERLAP for yomigana and a wrapper on the same range', () => {
+    expect(
+      lossCodes(
+        doc({
+          marks: [
+            { type: 'okimoji', anchor: { from: 't1', to: 't2' } },
+            { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'x' },
+            { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'y' },
+          ],
+        })
+      )
+    ).toEqual(['unsupported:UNNESTABLE_OVERLAP@/marks/0']);
+  });
+  it('reports UNNESTABLE_OVERLAP when a position mark sits inside a wrapper or kun range', () => {
+    expect(
+      lossCodes(
+        doc({
+          marks: [
+            { type: 'okimoji', anchor: { from: 't1', to: 't2' } },
+            { type: 'kutoten', kind: 'ten', value: '、', position: { blockId: 'b1', after: 't1' } },
+          ],
+        })
+      )
+    ).toEqual(['unsupported:UNNESTABLE_OVERLAP@/marks/0']);
+    expect(
+      lossCodes(
+        doc({
+          marks: [
+            { type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'て' },
+            { type: 'kaeri', value: '㆑', position: { blockId: 'b1', after: 't1' } },
+          ],
+        })
+      )
+    ).toEqual(['unsupported:UNNESTABLE_OVERLAP@/marks/0']);
+  });
+  it('hoists a trailing position mark out of every range that ends on the same token', () => {
+    expect(
+      stringify(
+        doc({
+          marks: [
+            { type: 'okimoji', anchor: { from: 't1', to: 't2' } },
+            { ...oto, anchor: { from: 't1', to: 't2' } },
+            { type: 'kutoten', kind: 'ku', value: '。', position: { blockId: 'b1', after: 't2' } },
+          ],
+        })
+      )
+    ).toMatch(/<\/skam:okototen><\/skam:okimoji><skam:kutoten[^>]*\/>丙/);
+  });
+  it('upgrades a yomi-only range containing an inner range kun to <skam:yomigana> without loss', () => {
+    const d: SKAMDocument = {
+      ...doc(),
+      tokens: [
+        { id: 't1', text: '甲' },
+        { id: 't2', text: '乙' },
+        { id: 't3', text: '丙' },
+        { id: 't4', text: '丁' },
+      ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3', 't4'] }],
+      marks: [
+        { type: 'yomigana', anchor: { from: 't1', to: 't4' }, value: 'x' },
+        { type: 'okurigana', anchor: { from: 't3', to: 't4' }, value: 'y' },
+      ],
+    };
+    expect(lossCodes(d)).toEqual([]);
+    expect(stringify(d)).toContain(
+      '<skam:yomigana value="x">甲乙<skam:kun okuri="y">丙丁</skam:kun></skam:yomigana>'
+    );
+  });
+  it('reports CONFLICTING_MARKS for duplicate same-type multi-token wrappers on the same range', () => {
+    expect(
+      lossCodes(
+        doc({
+          marks: [
+            { type: 'okimoji', anchor: { from: 't1', to: 't2' } },
+            { type: 'okimoji', anchor: { from: 't1', to: 't2' } },
+          ],
+        })
+      )
+    ).toEqual(['unrepresentable:CONFLICTING_MARKS@/marks/1']);
+  });
+  it('reports CONFLICTING_MARKS for duplicate same-type marks on one anchor (unvalidated input)', () => {
+    for (const marks of [
+      [
+        { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'a' },
+        { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'b' },
+      ],
+      [
+        { type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'a' },
+        { type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'b' },
+      ],
+      [
+        { type: 'okimoji', anchor: { from: 't1', to: 't1' } },
+        { type: 'okimoji', anchor: { from: 't1', to: 't1' } },
+      ],
+    ]) {
+      expect(lossCodes(doc({ marks: marks as never }))).toEqual([
+        'unrepresentable:CONFLICTING_MARKS@/marks/1',
+      ]);
+    }
+  });
+});

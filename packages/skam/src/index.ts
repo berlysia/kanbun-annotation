@@ -483,7 +483,12 @@ export {
   BLOCK_START_KAERI_HINT,
 } from './errors.js';
 
-export { validateSKAMDocument, isSKAMDocument, assertSKAMDocument } from './validator.js';
+export {
+  validateSKAMDocument,
+  isSKAMDocument,
+  assertSKAMDocument,
+  isValidEmphasisStyle,
+} from './validator.js';
 
 // ============================================================================
 // ID Generator

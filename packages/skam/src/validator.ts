@@ -26,6 +26,7 @@ import {
   type ValidationResult,
   createValidationError,
   SKAMValidationError,
+  BLOCK_START_KAERI_HINT,
 } from './errors.js';
 import { isPositionBasedMark } from './operations/index.js';
 
@@ -120,6 +121,18 @@ function validateToken(token: unknown, index: number, errors: ValidationError[])
         'Token text is required and must be a string',
         'string',
         typeof token['text']
+      )
+    );
+    valid = false;
+  } else if (token['text'] === '') {
+    // 空 token は block の原文順序に何も寄与せず、stringify で空白と区別できなくなる
+    errors.push(
+      createValidationError(
+        'INVALID_VALUE',
+        `${path}.text`,
+        'Token text must not be empty',
+        'non-empty string',
+        token['text']
       )
     );
     valid = false;
@@ -237,6 +250,11 @@ function validatePosition(
   return valid;
 }
 
+function validateGridAxis(value: unknown, size: number | undefined): boolean {
+  if (!isNumber(value) || !Number.isInteger(value) || value < 0) return false;
+  return size === undefined || value < size;
+}
+
 function validateGlyphGridCoord(
   position: unknown,
   path: string,
@@ -283,26 +301,31 @@ function validateGlyphGridCoord(
     valid = false;
   }
 
-  if (!isNumber(position['x']) || position['x'] < 0) {
+  // grid が "NxM" として読めるときだけ範囲を検査する (形式エラーは上で報告済み)
+  const gridMatch = isString(position['grid']) ? /^(\d+)x(\d+)$/.exec(position['grid']) : null;
+  const gridCols = gridMatch ? Number(gridMatch[1]) : undefined;
+  const gridRows = gridMatch ? Number(gridMatch[2]) : undefined;
+
+  if (!validateGridAxis(position['x'], gridCols)) {
     errors.push(
       createValidationError(
         'INVALID_VALUE',
         `${path}.x`,
-        'X coordinate must be a non-negative number',
-        'number >= 0',
+        'X coordinate must be an integer within the grid (0 <= x < columns)',
+        gridCols === undefined ? 'integer >= 0' : `integer in [0, ${gridCols})`,
         position['x']
       )
     );
     valid = false;
   }
 
-  if (!isNumber(position['y']) || position['y'] < 0) {
+  if (!validateGridAxis(position['y'], gridRows)) {
     errors.push(
       createValidationError(
         'INVALID_VALUE',
         `${path}.y`,
-        'Y coordinate must be a non-negative number',
-        'number >= 0',
+        'Y coordinate must be an integer within the grid (0 <= y < rows)',
+        gridRows === undefined ? 'integer >= 0' : `integer in [0, ${gridRows})`,
         position['y']
       )
     );
@@ -448,6 +471,22 @@ function validateKutotenMark(
   return valid;
 }
 
+const EMPHASIS_KEYWORD = /^(?:(?:filled|open) )?(?:dot|circle|double-circle|triangle|sesame)$/;
+/** カスタムの 1 文字として許す文字クラス: 文字・数字・記号・句読点。制御・書式・結合文字・空白は含まない */
+const CUSTOM_EMPHASIS_CHAR = /^[\p{L}\p{N}\p{S}\p{P}]$/u;
+/** style は CSS の値として出力されうるため、文字列リテラルや宣言を壊せる文字を除く */
+const CSS_UNSAFE = new Set(['\\', '"', "'", ';', '{', '}', '<', '>', '&']);
+
+/**
+ * emphasis.style の許容値かどうか。
+ * CSS text-emphasis-style のキーワード (`[filled|open] dot|circle|double-circle|triangle|sesame`) か、
+ * 1 文字のカスタム記号のみを許す。
+ */
+export function isValidEmphasisStyle(style: string): boolean {
+  if (EMPHASIS_KEYWORD.test(style)) return true;
+  return CUSTOM_EMPHASIS_CHAR.test(style) && !CSS_UNSAFE.has(style);
+}
+
 function validateEmphasisMark(
   mark: Record<string, unknown>,
   path: string,
@@ -461,6 +500,18 @@ function validateEmphasisMark(
         'emphasis style must be a string if provided',
         'string',
         typeof mark['style']
+      )
+    );
+    return false;
+  }
+  if (isString(mark['style']) && !isValidEmphasisStyle(mark['style'])) {
+    errors.push(
+      createValidationError(
+        'INVALID_VALUE',
+        `${path}.style`,
+        'emphasis style must be a CSS emphasis keyword (e.g. "filled sesame") or a single symbol character',
+        'keyword | single character',
+        mark['style']
       )
     );
     return false;
@@ -481,6 +532,18 @@ function validateSaidokuMark(
         'saidoku requires a forms array',
         'array',
         typeof mark['forms']
+      )
+    );
+    return false;
+  }
+  if (mark['forms'].length === 0) {
+    errors.push(
+      createValidationError(
+        'INVALID_VALUE',
+        `${path}.forms`,
+        'saidoku requires at least one form',
+        'non-empty array',
+        'empty array'
       )
     );
     return false;
@@ -701,6 +764,27 @@ function validateMark(mark: unknown, index: number, errors: ValidationError[]): 
       )
     );
     valid = false;
+  }
+
+  // 共通の任意フィールドの型 (id / ext / placementHint)
+  const optionalFieldChecks: [string, (value: unknown) => boolean, string][] = [
+    ['id', isString, 'string'],
+    ['ext', isObject, 'object'],
+    ['placementHint', isString, 'string'],
+  ];
+  for (const [field, check, expected] of optionalFieldChecks) {
+    if (field in mark && mark[field] !== undefined && !check(mark[field])) {
+      errors.push(
+        createValidationError(
+          'INVALID_TYPE',
+          `${path}.${field}`,
+          `${field} must be a ${expected} if provided`,
+          expected,
+          typeof mark[field]
+        )
+      );
+      valid = false;
+    }
   }
 
   // Position-based marks (kaeri, kutoten, ref) require position instead of anchor
@@ -941,7 +1025,7 @@ function validateBlock(block: unknown, index: number, errors: ValidationError[])
  *
  * - 全 token がちょうど1回 blocks に出現
  * - tokenIds の各要素は tokens に存在
- * - Block ID は一意
+ * (ID の一意性は validateUniqueIds が blocks / tokens / marks をまとめて検査する)
  */
 function validateBlockTokenIntegrity(
   tokens: Token[],
@@ -949,24 +1033,6 @@ function validateBlockTokenIntegrity(
   errors: ValidationError[]
 ): void {
   const tokenIdSet = new Set(tokens.map((t) => t.id));
-
-  // Block ID uniqueness
-  const blockIdCounts = new Map<string, number>();
-  blocks.forEach((block, index) => {
-    const count = (blockIdCounts.get(block.id) ?? 0) + 1;
-    blockIdCounts.set(block.id, count);
-    if (count > 1) {
-      errors.push(
-        createValidationError(
-          'DUPLICATE_ID',
-          `blocks[${index}].id`,
-          `Duplicate block ID "${block.id}"`,
-          'unique ID',
-          block.id
-        )
-      );
-    }
-  });
 
   // Track which tokens are referenced by blocks
   const tokenToBlock = new Map<string, string>();
@@ -1059,6 +1125,19 @@ function validateAnchorBlockConstraints(
             `Block "${position.blockId}" not found`,
             'valid block ID',
             position.blockId
+          )
+        );
+      }
+
+      // 返り点は直前の字に付くため、ブロック先頭 (after なし) には置けない
+      if (mark.type === 'kaeri' && position.after === undefined) {
+        errors.push(
+          createValidationError(
+            'BLOCK_START_KAERI',
+            path,
+            `kaeri must follow a token in the same block. ${BLOCK_START_KAERI_HINT}`,
+            'position.after',
+            'block start'
           )
         );
       }
@@ -1248,43 +1327,33 @@ function validateMarkConflicts(marks: Mark[], errors: ValidationError[]): void {
   }
 }
 
-function validateUniqueIds(tokens: Token[], marks: Mark[], errors: ValidationError[]): void {
-  // Token IDs
-  const tokenIdCounts = new Map<string, number>();
-  tokens.forEach((token, index) => {
-    const count = (tokenIdCounts.get(token.id) ?? 0) + 1;
-    tokenIdCounts.set(token.id, count);
-    if (count > 1) {
+/**
+ * blocks / tokens / marks の ID を 1 つの名前空間として一意性を検査する。
+ * XML の xml:id は文書全体で一意なので、種別をまたいだ衝突も許さない。
+ * 検査順は blocks → tokens → marks で、2 回目以降の出現を報告する。
+ */
+function validateUniqueIds(
+  blocks: Block[],
+  tokens: Token[],
+  marks: Mark[],
+  errors: ValidationError[]
+): void {
+  const seen = new Set<string>();
+  const check = (id: string, path: string, label: string) => {
+    if (seen.has(id)) {
       errors.push(
-        createValidationError(
-          'DUPLICATE_ID',
-          `tokens[${index}].id`,
-          `Duplicate token ID "${token.id}"`,
-          'unique ID',
-          token.id
-        )
+        createValidationError('DUPLICATE_ID', path, `Duplicate ${label} ID "${id}"`, 'unique ID', id)
       );
+    } else {
+      seen.add(id);
     }
-  });
+  };
 
-  // Mark IDs (optional but should be unique if present)
-  const markIdCounts = new Map<string, number>();
+  blocks.forEach((block, index) => check(block.id, `blocks[${index}].id`, 'block'));
+  tokens.forEach((token, index) => check(token.id, `tokens[${index}].id`, 'token'));
+  // Mark IDs are optional
   marks.forEach((mark, index) => {
-    if (mark.id !== undefined) {
-      const count = (markIdCounts.get(mark.id) ?? 0) + 1;
-      markIdCounts.set(mark.id, count);
-      if (count > 1) {
-        errors.push(
-          createValidationError(
-            'DUPLICATE_ID',
-            `marks[${index}].id`,
-            `Duplicate mark ID "${mark.id}"`,
-            'unique ID',
-            mark.id
-          )
-        );
-      }
-    }
+    if (mark.id !== undefined) check(mark.id, `marks[${index}].id`, 'mark');
   });
 }
 
@@ -1389,6 +1458,8 @@ function validateDocumentFields(input: Record<string, unknown>, errors: Validati
 /**
  * SKAMDocument を検証する
  *
+ * 同じ位置に重複した kaeri は検査しない。
+ *
  * @param input 検証対象のオブジェクト
  * @returns 検証結果
  */
@@ -1412,7 +1483,7 @@ export function validateSKAMDocument(input: unknown): ValidationResult<SKAMDocum
   const marks = input['marks'];
   const derivations = input['derivations'];
   if (errors.length === 0 && isArray(tokens) && isArray(marks) && isArray(blocks)) {
-    validateUniqueIds(tokens as Token[], marks as Mark[], errors);
+    validateUniqueIds(blocks as Block[], tokens as Token[], marks as Mark[], errors);
     validateBlockTokenIntegrity(tokens as Token[], blocks as Block[], errors);
     validateTokenReferences(
       tokens as Token[],
@@ -1450,6 +1521,8 @@ export function validateSKAMDocument(input: unknown): ValidationResult<SKAMDocum
 
 /**
  * 型ガード: SKAMDocument かどうか判定
+ *
+ * 同じ位置に重複した kaeri は検査しない。
  *
  * @param input 判定対象
  * @returns SKAMDocument の場合 true

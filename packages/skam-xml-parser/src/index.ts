@@ -9,6 +9,7 @@ import { parseWith, SKAMXMLParseError, type ParseOptions } from './parser-core.j
 import { parseXML } from './xml-parser.js';
 
 export type { SKAMDocument } from '@kanbun-skam/skam';
+export { SKAMValidationError } from '@kanbun-skam/skam';
 export {
   SKAMXMLParseError,
   type ParseOptions,

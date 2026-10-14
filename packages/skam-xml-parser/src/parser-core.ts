@@ -30,7 +30,13 @@ import type {
   RefMark,
   RefFormat,
 } from '@kanbun-skam/skam';
-import { createRandomIdGenerator, KAERI, BLOCK_START_KAERI_HINT } from '@kanbun-skam/skam';
+import {
+  createRandomIdGenerator,
+  KAERI,
+  BLOCK_START_KAERI_HINT,
+  validateSKAMDocument,
+  SKAMValidationError,
+} from '@kanbun-skam/skam';
 import { SKAMXMLParseError, type PositionInfo } from './parse-error.js';
 import { checkInputLimits, DEFAULT_INPUT_LIMITS } from './input-limits.js';
 
@@ -1215,7 +1221,7 @@ export function parseFromDocument(
   options: ParseOptions = {},
   source?: string
 ): SKAMDocument {
-  const { validate: _validate = true, trackPositions = false, idGenerator, onWarning } = options;
+  const { validate = true, trackPositions = false, idGenerator, onWarning } = options;
 
   // Get root element
   const root = doc.documentElement;
@@ -1274,6 +1280,13 @@ export function parseFromDocument(
     marks: state.marks,
     readings: state.readings,
   };
+
+  if (validate) {
+    const result = validateSKAMDocument(skamDoc);
+    if (!result.valid) {
+      throw new SKAMValidationError(result.errors);
+    }
+  }
 
   return skamDoc;
 }

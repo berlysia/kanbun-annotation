@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { parse, SKAMXMLParseError } from '../index.js';
+import { parse, SKAMXMLParseError, SKAMValidationError } from '../index.js';
+import { SKAMValidationError as CoreError } from '@kanbun-skam/skam';
 import { createSequentialIdGenerator, BLOCK_START_KAERI_HINT } from '@kanbun-skam/skam';
 
 const wrap = (inner: string, ns = 'urn:skam:1') =>
@@ -95,5 +96,14 @@ describe('block-start kaeri and empty block', () => {
   });
   it('accepts an empty block', () => {
     expect(parse(wrap('<skam:block xml:id="b1"/>')).blocks).toEqual([{ id: 'b1', tokenIds: [] }]);
+  });
+});
+
+describe('validate option (K2)', () => {
+  it('re-exports the same SKAMValidationError class', () => { expect(SKAMValidationError).toBe(CoreError); });
+  it('validates by default (unknown reading kind is rejected)', () => {
+    const xml = '<skam:doc xmlns:skam="urn:skam:1"><skam:body><skam:block>甲</skam:block></skam:body><skam:readings><skam:reading kind="bogus">x</skam:reading></skam:readings></skam:doc>';
+    expect(() => parse(xml)).toThrow(SKAMValidationError);
+    expect(() => parse(xml, { validate: false })).not.toThrow();
   });
 });

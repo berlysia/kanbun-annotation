@@ -127,3 +127,63 @@ describe('validator strictness (K3)', () => {
     expect(errs(d)).toContain('INVALID_VALUE@marks[0].style');
   });
 });
+
+describe('duplicate same-type marks on the same anchor (K3)', () => {
+  for (const type of ['yomigana', 'okurigana', 'soegana'] as const) {
+    it(`rejects two ${type} on the same anchor`, () => {
+      const d = base();
+      d.marks = [
+        { type, anchor: { from: 't1', to: 't1' }, value: 'a' },
+        { type, anchor: { from: 't1', to: 't1' }, value: 'b' },
+      ];
+      expect(errs(d)).toContain('MARK_CONFLICT@marks[1]');
+    });
+  }
+  for (const type of ['okimoji', 'joji'] as const) {
+    it(`rejects two ${type} on the same anchor`, () => {
+      const d = base();
+      d.marks = [
+        { type, anchor: { from: 't1', to: 't1' } },
+        { type, anchor: { from: 't1', to: 't1' } },
+      ];
+      expect(errs(d)).toContain('MARK_CONFLICT@marks[1]');
+    });
+  }
+  it('rejects two saidoku on the same anchor', () => {
+    const d = base();
+    const s = { type: 'saidoku', anchor: { from: 't1', to: 't1' }, forms: [{ yomi: 'a' }] };
+    d.marks = [s, { ...s }];
+    expect(errs(d)).toContain('MARK_CONFLICT@marks[1]');
+  });
+  it('reports the existing saidoku conflict and the new duplicate check independently', () => {
+    const d = base();
+    d.marks = [
+      { type: 'saidoku', anchor: { from: 't1', to: 't1' }, forms: [{ yomi: 'a' }] },
+      { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'x' }, // 既存: saidoku との衝突
+      { type: 'yomigana', anchor: { from: 't2', to: 't2' }, value: 'p' },
+      { type: 'yomigana', anchor: { from: 't2', to: 't2' }, value: 'q' }, // 新規: 同型の重複
+    ];
+    const conflicts = errs(d).filter((e) => e.startsWith('MARK_CONFLICT@'));
+    expect(conflicts).toEqual(
+      expect.arrayContaining(['MARK_CONFLICT@marks[1]', 'MARK_CONFLICT@marks[3]'])
+    );
+  });
+  it('allows multiple okototen / emphasis on the same anchor and same type on different anchors', () => {
+    const d = base();
+    const oto = (x: number) => ({
+      type: 'okototen',
+      anchor: { from: 't1', to: 't1' },
+      shape: 'dot',
+      position: { system: 'glyph-grid', grid: '5x5', x, y: 0 },
+    });
+    d.marks = [
+      oto(0),
+      oto(1),
+      { type: 'emphasis', anchor: { from: 't1', to: 't1' } },
+      { type: 'emphasis', anchor: { from: 't1', to: 't1' } },
+      { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'a' },
+      { type: 'yomigana', anchor: { from: 't2', to: 't2' }, value: 'b' },
+    ];
+    expect(errs(d)).toEqual([]);
+  });
+});

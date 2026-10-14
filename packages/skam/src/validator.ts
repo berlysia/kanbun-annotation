@@ -1279,7 +1279,43 @@ function validateTokenReferences(
  * 同一 anchor 上で saidoku と yomigana/okurigana が共存する場合エラー
  * （saidoku は forms[].yomi / forms[].okuri で読み仮名・送り仮名を内包するため）
  */
+/**
+ * 同じ anchor に同じ種類を 2 つ以上置けない種類。okototen / emphasis / highlight / tateten は
+ * 重ねて付ける運用があるため含めない (SKAM-draft §6.1)。
+ */
+const UNIQUE_PER_ANCHOR: ReadonlySet<string> = new Set([
+  'yomigana',
+  'okurigana',
+  'soegana',
+  'okimoji',
+  'joji',
+  'saidoku',
+]);
+
+/** 配列順で 2 件目以降を報告する。saidoku との衝突検査とは独立に判定する */
+function validateDuplicateMarks(marks: Mark[], errors: ValidationError[]): void {
+  const counts = new Map<string, number>();
+  marks.forEach((mark, index) => {
+    if (isPositionBasedMark(mark) || !UNIQUE_PER_ANCHOR.has(mark.type)) return;
+    const key = `${mark.type}:${mark.anchor.from}:${mark.anchor.to}`;
+    const count = (counts.get(key) ?? 0) + 1;
+    counts.set(key, count);
+    if (count >= 2) {
+      errors.push(
+        createValidationError(
+          'MARK_CONFLICT',
+          `marks[${index}]`,
+          `Duplicate ${mark.type} on the same anchor (${mark.anchor.from}..${mark.anchor.to})`,
+          `at most one ${mark.type} per anchor`,
+          mark.type
+        )
+      );
+    }
+  });
+}
+
 function validateMarkConflicts(marks: Mark[], errors: ValidationError[]): void {
+  validateDuplicateMarks(marks, errors);
   // anchor-based marks を anchor key でグループ化
   const anchorGroups = new Map<string, { type: string; index: number }[]>();
 

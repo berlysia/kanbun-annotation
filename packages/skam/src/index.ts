@@ -266,8 +266,9 @@ export type RefFormat =
   | 'gojuon-hiragana'
   | 'kanji-numeric';
 
-/** 傍線スタイル（CSS text-decoration-style 準拠） */
-export type HighlightStyle = 'solid' | 'dotted' | 'dashed' | 'wavy' | 'double';
+export type { HighlightStyle } from './highlight-styles.js';
+export { HIGHLIGHT_STYLES, isValidHighlightStyle } from './highlight-styles.js';
+import type { HighlightStyle } from './highlight-styles.js';
 
 /** 傍線・ハイライト（後世の記述、refを参照） */
 export interface HighlightMark extends AnchoredMark {

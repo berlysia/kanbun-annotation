@@ -35,6 +35,18 @@ const result = render(doc);
 // result.css: 適用すべき CSS
 ```
 
+### 検証とエスケープ
+
+`render()` は文書を検証しない。意味の正しさは、利用者が `validateSKAMDocument` で確かめる。不正な文書の値は、エスケープするか、許可リストで既定値に置き換える。
+
+不正なオプションは `TypeError` になる (`validateRenderOptions` / `validateCSSOptions`)。
+
+### 読み層とアクセシビリティ
+
+読み層 (支援技術向けの層) は、`readings` に読みがない場合、白文 (原文) になる。`includeReadingLayer: false` にすると、読み層を出さない。この場合、表示層が `aria-hidden` であるため、支援技術には何も読まれない。内容がない読み層は出力から省く。
+
+`displayLang` は、表示層の `lang` だけを変える。
+
 ### 書字方向の指定
 
 ```typescript
@@ -204,21 +216,23 @@ const css = generateCSS({ useLayer: false });
 
 ## レンダリング対応
 
-| Mark Type   | 対応状況 |
-| ----------- | -------- |
-| `kaeri`     | ✅       |
-| `okurigana` | ✅       |
-| `yomigana`  | ✅       |
-| `soegana`   | ✅       |
-| `okimoji`   | ✅       |
-| `joji`      | ✅       |
-| `kutoten`   | ✅       |
-| `emphasis`  | ✅       |
-| `saidoku`   | ✅       |
-| `tateten`   | ✅       |
-| `highlight` | ✅       |
-| `ref`       | ✅       |
-| `okototen`  | 🚧       |
+| Mark Type   | 対応状況                    |
+| ----------- | --------------------------- |
+| `kaeri`     | ✅                          |
+| `okurigana` | ✅                          |
+| `yomigana`  | ✅                          |
+| `soegana`   | ✅                          |
+| `okimoji`   | 分類のみ (既定の見た目なし) |
+| `joji`      | 分類のみ (既定の見た目なし) |
+| `kutoten`   | ✅                          |
+| `emphasis`  | ✅                          |
+| `saidoku`   | ✅                          |
+| `tateten`   | ✅                          |
+| `highlight` | ✅                          |
+| `ref`       | ✅                          |
+| `okototen`  | ✅                          |
+
+okototen は格子の外 (座標が範囲外) の場合は描画しない。
 
 ## 出力形式
 

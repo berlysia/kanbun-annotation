@@ -39,6 +39,12 @@ import type {
   TatetenMark,
 } from '@kanbun-skam/skam';
 import { isAnchorBasedMark, KAERI } from '@kanbun-skam/skam';
+import {
+  LossCollector,
+  SKAMXMLStringifyError,
+  type LossSortKey,
+  type StringifyLoss,
+} from './losses.js';
 
 // ============================================================================
 // Constants
@@ -74,7 +80,27 @@ export interface StringifyOptions {
   indent?: number;
   /** Include XML declaration (default: true) */
   xmlDeclaration?: boolean;
+  /**
+   * Drop what SKAM-ML cannot represent instead of throwing (default: false).
+   * With `lossy: true` the return value is the XML only; `onLoss` is the sole way to learn what was dropped.
+   */
+  lossy?: boolean;
+  /** Called synchronously, once per loss in document order, only when `lossy` is true. Exceptions propagate. */
+  onLoss?: (loss: StringifyLoss) => void;
 }
+
+/** Per-call state threaded through the conversion so losses are recorded where output is dropped */
+interface StringifyContext {
+  collector: LossCollector;
+  /** Mark → index in doc.marks (for JSON Pointer paths) */
+  markIndexMap: Map<Mark, number>;
+  /** Token ID → block index and index within that block (for sort keys) */
+  tokenPosition: Map<string, { blockIndex: number; tokenIndex: number }>;
+  /** Block ID → block index (for position marks at a block start) */
+  blockIndexById: Map<string, number>;
+}
+
+const UNPLACED = Number.MAX_SAFE_INTEGER;
 
 // Token に付随する mark 情報（単一トークン用）
 interface TokenAnnotation {
@@ -108,6 +134,8 @@ interface KunRangeSyntheticMark {
   okuri?: string;
   soe?: string;
   anchor: { from: string; to: string };
+  /** 合成元の mark。欠落を元の mark ごとに報告するために保持する */
+  sources: Mark[];
 }
 
 // 範囲マーク情報
@@ -293,6 +321,7 @@ interface KunGroup {
   to: string;
   startIndex: number;
   endIndex: number;
+  sources: Mark[];
 }
 
 /** 複数トークンにまたがる kun 系マークをグループ化して合成マークを生成 */
@@ -310,10 +339,11 @@ function collectKunRangeGroups(marks: Mark[], tokenIndexMap: Map<string, number>
     const key = `${mark.anchor.from}:${mark.anchor.to}`;
     let group = kunGroups.get(key);
     if (!group) {
-      group = { from: mark.anchor.from, to: mark.anchor.to, startIndex, endIndex };
+      group = { from: mark.anchor.from, to: mark.anchor.to, startIndex, endIndex, sources: [] };
       kunGroups.set(key, group);
     }
 
+    group.sources.push(mark);
     switch (mark.type) {
       case 'yomigana':
         group.yomi = (mark as YomiganaMark).value;
@@ -332,6 +362,7 @@ function collectKunRangeGroups(marks: Mark[], tokenIndexMap: Map<string, number>
     const syntheticMark: KunRangeSyntheticMark = {
       type: '__kun_range',
       anchor: { from: group.from, to: group.to },
+      sources: group.sources,
     };
     if (group.yomi) syntheticMark.yomi = group.yomi;
     if (group.okuri) syntheticMark.okuri = group.okuri;
@@ -369,10 +400,51 @@ function collectRangeMarks(marks: Mark[], tokenIndexMap: Map<string, number>): R
   return rangeMarks;
 }
 
+/** mark 起点の並べ替え鍵。anchor の開始 token か position.after の token で位置を決める */
+function markSortKey(ctx: StringifyContext, mark: Mark): LossSortKey {
+  const markIndex = ctx.markIndexMap.get(mark) ?? UNPLACED;
+  let refTokenId: string | undefined;
+  if (isAnchorBasedMark(mark)) {
+    refTokenId = mark.anchor.from;
+  } else {
+    refTokenId = getPositionAfterTokenId((mark as KaeriMark | KutotenMark | RefMark).position);
+  }
+  if (refTokenId === undefined) {
+    // after のない position mark はブロック先頭 (t = -1)。blockId が解決できなければ末尾へ回す
+    const blockId = isAnchorBasedMark(mark)
+      ? undefined
+      : (mark as KaeriMark | KutotenMark | RefMark).position.blockId;
+    const blockIndex =
+      (blockId === undefined ? undefined : ctx.blockIndexById.get(blockId)) ?? UNPLACED;
+    return { blockIndex, tokenIndex: -1, markIndex, fieldOrder: 0 };
+  }
+  const pos = ctx.tokenPosition.get(refTokenId);
+  if (!pos) return { blockIndex: UNPLACED, tokenIndex: UNPLACED, markIndex, fieldOrder: 0 };
+  return { blockIndex: pos.blockIndex, tokenIndex: pos.tokenIndex, markIndex, fieldOrder: 0 };
+}
+
+/** mark 由来の欠落を記録する。`field` を渡すとその mark のフィールドを指す */
+function addMarkLoss(
+  ctx: StringifyContext,
+  mark: Mark,
+  loss: Pick<StringifyLoss, 'category' | 'code' | 'message'>,
+  field?: string
+): void {
+  const index = ctx.markIndexMap.get(mark);
+  const path = `/marks/${index ?? -1}${field ? `/${field}` : ''}`;
+  const entry: StringifyLoss = { ...loss, path };
+  if (mark.id) entry.markId = mark.id;
+  ctx.collector.add(entry, markSortKey(ctx, mark));
+}
+
+function describeRangeMark(rm: RangeMark): string {
+  return 'id' in rm.mark ? (rm.mark.id ?? rm.mark.type) : rm.mark.type;
+}
+
 /**
  * 部分重複するマークを検出してフィルタリング
  */
-function filterPartialOverlaps(rangeMarks: RangeMark[]): RangeMark[] {
+function filterPartialOverlaps(rangeMarks: RangeMark[], ctx: StringifyContext): RangeMark[] {
   const valid: RangeMark[] = [];
 
   for (const mark of rangeMarks) {
@@ -395,10 +467,22 @@ function filterPartialOverlaps(rangeMarks: RangeMark[]): RangeMark[] {
       if (!contained && !contains && !disjoint) {
         // 部分重複
         hasPartialOverlap = true;
-        const markLabel = 'id' in mark.mark ? (mark.mark.id ?? mark.mark.type) : mark.mark.type;
-        const existLabel =
-          'id' in existing.mark ? (existing.mark.id ?? existing.mark.type) : existing.mark.type;
-        console.warn(`Skipping mark ${markLabel} due to partial overlap with ${existLabel}`);
+        const message = `Mark ${describeRangeMark(mark)} partially overlaps ${describeRangeMark(existing)}; SKAM-ML ranges must nest`;
+        if (mark.mark.type === '__kun_range') {
+          for (const source of (mark.mark as KunRangeSyntheticMark).sources) {
+            addMarkLoss(ctx, source, {
+              category: 'unsupported',
+              code: 'UNNESTABLE_OVERLAP',
+              message,
+            });
+          }
+        } else {
+          addMarkLoss(ctx, mark.mark as Mark, {
+            category: 'unsupported',
+            code: 'PARTIAL_OVERLAP',
+            message,
+          });
+        }
         break;
       }
     }
@@ -423,7 +507,8 @@ function buildContentTree(
   annotations: Map<string, TokenAnnotation>,
   allRangeMarks: RangeMark[],
   blockStartIndex: number,
-  blockEndIndex: number
+  blockEndIndex: number,
+  ctx: StringifyContext
 ): ContentNode[] {
   // このブロックに関係する範囲マークをフィルタ
   const blockRangeMarks = allRangeMarks.filter(
@@ -431,7 +516,7 @@ function buildContentTree(
   );
 
   // 部分重複をフィルタリング
-  const validRangeMarks = filterPartialOverlaps(blockRangeMarks);
+  const validRangeMarks = filterPartialOverlaps(blockRangeMarks, ctx);
 
   const result: ContentNode[] = [];
   const activeRanges: {
@@ -777,7 +862,8 @@ function blockToXml(
   rangeMarks: RangeMark[],
   blockStartIndex: number,
   indentLevel: number,
-  indentSize: number
+  indentSize: number,
+  ctx: StringifyContext
 ): string {
   const ind = indentStr(indentLevel, indentSize);
 
@@ -787,7 +873,8 @@ function blockToXml(
     annotations,
     rangeMarks,
     blockStartIndex,
-    blockStartIndex + blockTokens.length - 1
+    blockStartIndex + blockTokens.length - 1,
+    ctx
   );
 
   // XML に変換
@@ -825,6 +912,113 @@ function stringifyNotes(marks: Mark[], indentSize: number): string[] {
 }
 
 // ============================================================================
+// Loss Recording
+// ============================================================================
+
+function createContext(doc: SKAMDocument): StringifyContext {
+  const markIndexMap = new Map<Mark, number>();
+  doc.marks.forEach((mark, i) => markIndexMap.set(mark, i));
+
+  const tokenPosition = new Map<string, { blockIndex: number; tokenIndex: number }>();
+  doc.blocks.forEach((block, blockIndex) => {
+    block.tokenIds.forEach((id, tokenIndex) => tokenPosition.set(id, { blockIndex, tokenIndex }));
+  });
+
+  const blockIndexById = new Map(doc.blocks.map((block, i) => [block.id, i] as const));
+
+  return { collector: new LossCollector(), markIndexMap, tokenPosition, blockIndexById };
+}
+
+function hasKeys(value: Record<string, unknown> | undefined): value is Record<string, unknown> {
+  return value !== undefined && Object.keys(value).length > 0;
+}
+
+/**
+ * XML に書き場所のないフィールド (ext / derivations / placementHint) の欠落を記録する。
+ * これらは変換経路のどこにも出力されないので、ここで一括して積む
+ */
+function recordFieldLosses(doc: SKAMDocument, ctx: StringifyContext): void {
+  const extLoss = (path: string): StringifyLoss => ({
+    category: 'unsupported',
+    code: 'EXT',
+    path,
+    message: `SKAM-ML has no notation for ext (${path})`,
+  });
+
+  if (hasKeys(doc.ext)) {
+    ctx.collector.add(extLoss('/ext'), {
+      blockIndex: -1,
+      tokenIndex: -1,
+      markIndex: -1,
+      fieldOrder: 0,
+    });
+  }
+  if (doc.derivations && doc.derivations.length > 0) {
+    ctx.collector.add(
+      {
+        category: 'unrepresentable',
+        code: 'DERIVATIONS',
+        path: '/derivations',
+        message: 'SKAM-ML does not describe derivations (SKAM-ML §4.2)',
+      },
+      { blockIndex: -1, tokenIndex: -1, markIndex: -1, fieldOrder: 1 }
+    );
+  }
+  doc.readings.forEach((reading, i) => {
+    if (hasKeys(reading.ext)) {
+      ctx.collector.add(extLoss(`/readings/${i}/ext`), {
+        blockIndex: UNPLACED,
+        tokenIndex: UNPLACED,
+        markIndex: i,
+        fieldOrder: 0,
+      });
+    }
+  });
+  doc.blocks.forEach((block, blockIndex) => {
+    if (hasKeys(block.ext)) {
+      ctx.collector.add(extLoss(`/blocks/${blockIndex}/ext`), {
+        blockIndex,
+        tokenIndex: -1,
+        markIndex: -1,
+        fieldOrder: 0,
+      });
+    }
+  });
+  doc.tokens.forEach((token, i) => {
+    if (!hasKeys(token.ext)) return;
+    const pos = ctx.tokenPosition.get(token.id);
+    ctx.collector.add(extLoss(`/tokens/${i}/ext`), {
+      blockIndex: pos?.blockIndex ?? UNPLACED,
+      tokenIndex: pos?.tokenIndex ?? UNPLACED,
+      markIndex: -1,
+      fieldOrder: 0,
+    });
+  });
+  for (const mark of doc.marks) {
+    if (hasKeys(mark.ext)) {
+      addMarkLoss(
+        ctx,
+        mark,
+        { category: 'unsupported', code: 'EXT', message: 'SKAM-ML has no notation for ext' },
+        'ext'
+      );
+    }
+    if (mark.placementHint !== undefined) {
+      addMarkLoss(
+        ctx,
+        mark,
+        {
+          category: 'unsupported',
+          code: 'PLACEMENT_HINT',
+          message: 'SKAM-ML has no notation for placementHint',
+        },
+        'placementHint'
+      );
+    }
+  }
+}
+
+// ============================================================================
 // Main Stringify Function
 // ============================================================================
 
@@ -836,7 +1030,10 @@ function stringifyNotes(marks: Mark[], indentSize: number): string[] {
  * @returns XML string
  */
 export function stringify(doc: SKAMDocument, options: StringifyOptions = {}): string {
-  const { indent: indentSize = 2, xmlDeclaration = true } = options;
+  const { indent: indentSize = 2, xmlDeclaration = true, lossy = false, onLoss } = options;
+
+  const ctx = createContext(doc);
+  recordFieldLosses(doc, ctx);
 
   // トークンID → Token のマップを構築
   const tokenMap = new Map<string, Token>();
@@ -892,7 +1089,16 @@ export function stringify(doc: SKAMDocument, options: StringifyOptions = {}): st
     }
 
     lines.push(
-      blockToXml(block.id, blockTokens, annotations, rangeMarks, blockStartIndex, 2, indentSize)
+      blockToXml(
+        block.id,
+        blockTokens,
+        annotations,
+        rangeMarks,
+        blockStartIndex,
+        2,
+        indentSize,
+        ctx
+      )
     );
     blockStartIndex += block.tokenIds.length;
   }
@@ -920,6 +1126,12 @@ export function stringify(doc: SKAMDocument, options: StringifyOptions = {}): st
 
   // ルート要素終了
   lines.push('</skam:doc>');
+
+  const losses = ctx.collector.sorted();
+  if (losses.length > 0) {
+    if (!lossy) throw new SKAMXMLStringifyError(losses);
+    if (onLoss) for (const loss of losses) onLoss(loss);
+  }
 
   return lines.join('\n');
 }

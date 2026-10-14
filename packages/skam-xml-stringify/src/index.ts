@@ -5,3 +5,4 @@
  */
 
 export { stringify, type StringifyOptions } from './stringify.js';
+export { SKAMXMLStringifyError, type StringifyLoss, type StringifyLossCode } from './losses.js';

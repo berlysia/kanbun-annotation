@@ -152,6 +152,31 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 
 ## 7. 注記要素（本文内）
 
+### 7.0 内容モデル（規範）
+
+各要素が子に持てるものの正本である。§7.3 以降の各節は、この表を参照する。
+
+| 親要素                                                                   | 子に持てるもの                                                       |
+| ------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| `skam:block`、`skam:span`、`skam:tateten`                                | テキスト、§7 のすべての注記要素、位置マーク（kaeri / kutoten / ref） |
+| `skam:yomigana`                                                          | テキスト、`skam:kun`                                                 |
+| `skam:okimoji`、`skam:joji`、`skam:okototen`、`skam:base`（saidokuの中） | テキスト、`skam:kun`、`skam:okimoji`、`skam:joji`、`skam:okototen`   |
+| `skam:kun`、`skam:soegana`                                               | テキストのみ                                                         |
+| `skam:saidoku`                                                           | `skam:base`、`skam:kunform`                                          |
+
+- **位置マーク**: kaeri / kutoten / ref は、`skam:block` / `skam:span` / `skam:tateten` の子にだけ置ける。
+- **入れ子の意味**: 内側の要素の範囲は、外側の範囲に含まれる。
+- **範囲が同じ要素どうしの入れ子順**: 外側から次の順に並べる。
+  1. `skam:span` / `skam:tateten`
+  2. `skam:saidoku`
+  3. `skam:okimoji`
+  4. `skam:joji`
+  5. `skam:okototen`
+  6. `skam:yomigana`
+  7. `skam:kun`
+- `skam:yomigana` と、字を包む要素（`skam:okimoji` / `skam:joji` / `skam:okototen` / `skam:base`）とは、互いを入れ子にできない。
+- **parser の扱い**: 表にない既知の子要素は誤りである。未知の `skam:*` は無視し、通知してよい（§10）。
+
 ### 7.1 アンカー規則（規範）
 
 注記要素は SKAM JSON の Mark に変換される際、**anchor** または **position** で参照先を指定する。
@@ -258,9 +283,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 
 #### 内容モデル
 
-- テキストノードのみ（漢字1文字を推奨）
-- 他の既知の `skam:*` 要素を子として含んでいれば誤りである（未知の `skam:*` 要素は §10 に従って無視する）
-- `skam:yomigana`、`skam:span` 等の子要素として使用可能（内側の範囲は外側の範囲に含まれる）
+§7.0 を参照。
 
 ---
 
@@ -282,8 +305,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 
 #### 内容モデル
 
-- テキストと `skam:kun` を子に持てる。`skam:kun` の範囲は `skam:yomigana` の範囲に含まれる
-- `skam:kun` 以外の既知の `skam:*` 要素を子として含んでいれば誤りである
+§7.0 を参照。
 
 ```xml
 <skam:yomigana value="がく"><skam:kun okuri="ぶ">學</skam:kun>而</skam:yomigana>
@@ -346,6 +368,10 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 
 ※ グリッド座標の詳細は SKAM 仕様 6.6節を参照。
 
+#### 内容モデル
+
+§7.0 を参照。
+
 #### 正規化
 
 - `marks.type = "okototen"`
@@ -394,6 +420,10 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 </skam:block>
 ```
 
+#### 内容モデル
+
+§7.0 を参照。
+
 ---
 
 ### 7.9 `skam:joji`（助字）
@@ -405,6 +435,10 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
   學而時習<skam:joji>之</skam:joji>
 </skam:block>
 ```
+
+#### 内容モデル
+
+§7.0 を参照。
 
 ---
 
@@ -428,7 +462,7 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 
 #### 内容モデル
 
-- テキストと `skam:kun` を子に持てる。`skam:kun` の範囲は `skam:span` の範囲に含まれる
+§7.0 の表のとおり（子に制約なし）。
 
 #### 属性
 
@@ -532,6 +566,8 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 | `okuri` | 任意 | 送り仮名                 |
 
 ※ `kunform` は `kun` の1回分に相当する。
+
+※ `skam:base` の内容モデルは §7.0 を参照。
 
 ※ 主な再読文字の一覧は SKAM 仕様 6.7節を参照。
 
@@ -880,3 +916,7 @@ SKAM-ML/XMLはHTMLに依存しない純XML語彙とし、本文構造は`skam:bl
 - §7.3 / §7.4 / §7.10: `skam:yomigana` と `skam:span` はテキストと `skam:kun` を子に持てることを明記した。`skam:kun` の中に既知の要素があれば誤り
 - §7.10: カスタム傍点の 1 文字に許す文字クラスを定めた
 - §10: SKAM 以外の名前空間の要素を誤りとした。未知の `skam:*` は無視し、通知してよい
+- §7.0: 内容モデル表（規範）を新設した。字を包む要素（`skam:okimoji` / `skam:joji` / `skam:okototen` / `skam:base`）は `skam:kun` と、入れ子の包む要素を子に持てる。範囲が同じ要素どうしの入れ子順を定めた
+- §7.10: `skam:span` の内容モデルの誤記を訂正した（§7.0 のとおり、子に制約なし）。§7.3 / §7.4 / §7.6 / §7.8 / §7.9 / §7.12 の内容モデルの記述は §7.0 への参照に置き換えた
+- SKAM-draft §6.1: 同じ anchor に同じ種類の注記を 2 つ以上置くことを禁じた（yomigana / okurigana / soegana / okimoji / joji / saidoku）
+- 互換性の注意: 0.1.x の parser は、字を包む要素の中の `skam:kun` と、入れ子になった包む要素を黙って捨てる。この改訂以降の出力は、改訂以降の parser で読むこと

@@ -194,6 +194,14 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 
 ※ 順序に依存しない実装を推奨するが、round-trip の安定性のため上記順序を推奨。
 
+#### 同じ種類の注記の重複
+
+次の 6 種類は、同じ anchor（`from` と `to` が両方とも一致するもの）に同じ種類を 2 つ以上置いてはならない（MUST）。違反は `MARK_CONFLICT` とする。
+
+- `yomigana` / `okurigana` / `soegana` / `okimoji` / `joji` / `saidoku`
+
+`okototen` / `emphasis` / `highlight` / `tateten` は、重複してよい。
+
 #### placementHint の値例
 
 `placementHint` は実装依存の任意文字列である。以下は参考例：
@@ -1175,4 +1183,6 @@ SKAM データは常に完全な情報を保持し、用途に応じた情報の
 - ID は文書全体（blocks・tokens・marks）で一意でなければならない（§4.2 / §5.2 / §6.1）
 - token の `text` は空にしてはならない（§5.2）
 - saidoku の `forms` は 1 つ以上なければならない（§6.7）
+- §6.1: 同じ anchor に同じ種類の注記（yomigana / okurigana / soegana / okimoji / joji / saidoku）を 2 つ以上置くことを禁じた（`MARK_CONFLICT`）
+- 互換性の注意: 0.1.x の SKAM-ML parser は、字を包む要素の中の kun と、入れ子になった包む要素を黙って捨てる。内容モデルは SKAM-ML-draft §7.0 で定めた
 - kaeri の position には `after` が必須とした。ブロック先頭への kaeri は不正（`BLOCK_START_KAERI`）。kutoten と ref は従来どおり先頭に置ける。Position 型は変えない（§6.4）

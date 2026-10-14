@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { parse, SKAMXMLParseError } from '../index.js';
-import { createSequentialIdGenerator } from '@kanbun-skam/skam';
+import { createSequentialIdGenerator, BLOCK_START_KAERI_HINT } from '@kanbun-skam/skam';
 
 const wrap = (inner: string, ns = 'urn:skam:1') =>
   `<skam:doc xmlns:skam="${ns}"><skam:body>${inner}</skam:body></skam:doc>`;
@@ -79,4 +79,21 @@ describe('namespace and content model (K2)', () => {
       ]));
     });
   }
+});
+
+describe('block-start kaeri and empty block', () => {
+  const twoBlocks = '<skam:doc xmlns:skam="urn:skam:1"><skam:body>\n<skam:block>甲</skam:block>\n<skam:block><skam:kaeri kind="re"/>乙</skam:block>\n</skam:body></skam:doc>';
+  it('rejects kaeri at the start of the 2nd block with hint and position', () => {
+    try { parse(twoBlocks); expect.unreachable(); }
+    catch (e) {
+      expect((e as Error).message).toContain(BLOCK_START_KAERI_HINT);
+      expect((e as SKAMXMLParseError).line).toBe(3);
+    }
+  });
+  it('rejects it even with validate:false', () => {
+    expect(() => parse(twoBlocks, { validate: false })).toThrow(SKAMXMLParseError);
+  });
+  it('accepts an empty block', () => {
+    expect(parse(wrap('<skam:block xml:id="b1"/>')).blocks).toEqual([{ id: 'b1', tokenIds: [] }]);
+  });
 });

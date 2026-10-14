@@ -603,6 +603,7 @@ describe('parse - valid fixtures', () => {
       'highlight-ref-combined.xml',
       'readme-example.xml',
       'ref-at-block-start.xml',
+      'empty-block.xml',
     ];
 
     for (const fixture of validFixtures) {
@@ -669,12 +670,6 @@ describe('parse - invalid fixtures', () => {
     });
   });
 
-  describe('empty-block.xml', () => {
-    it('should throw on empty block', () => {
-      const xml = readFixture('invalid', 'empty-block.xml');
-      expect(() => parse(xml)).toThrow(SKAMXMLParseError);
-    });
-  });
 });
 
 // ============================================================================

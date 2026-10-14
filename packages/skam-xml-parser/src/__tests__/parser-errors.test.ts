@@ -42,14 +42,15 @@ describe('parse - error handling', () => {
       expect(() => parse(xml)).toThrow(SKAMXMLParseError);
     });
 
-    it('should throw on empty block', () => {
+    it('should accept an empty block', () => {
       const xml = `<?xml version="1.0"?>
 <skam:doc xmlns:skam="urn:skam:1">
   <skam:body>
     <skam:block></skam:block>
   </skam:body>
 </skam:doc>`;
-      expect(() => parse(xml)).toThrow(SKAMXMLParseError);
+      expect(parse(xml).blocks).toHaveLength(1);
+      expect(parse(xml).blocks[0]!.tokenIds).toEqual([]);
     });
 
     it('should throw when saidoku has no base element', () => {

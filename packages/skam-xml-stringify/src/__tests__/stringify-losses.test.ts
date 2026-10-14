@@ -96,3 +96,141 @@ describe('stringify loss contract (K1)', () => {
     spy.mockRestore();
   });
 });
+
+const lossCodes = (d: SKAMDocument) => {
+  const out: string[] = [];
+  stringify(d, { lossy: true, onLoss: (l) => out.push(`${l.category}:${l.code}@${l.path}`) });
+  return out;
+};
+
+describe('each loss code is produced (K1)', () => {
+  it('ASCII_WHITESPACE_TOKEN', () =>
+    expect(
+      lossCodes(
+        doc({
+          tokens: [
+            { id: 't1', text: ' ' },
+            { id: 't2', text: '乙' },
+            { id: 't3', text: '丙' },
+          ],
+        })
+      )
+    ).toContain('unrepresentable:ASCII_WHITESPACE_TOKEN@/tokens/0'));
+  it('U+3000 token is not a loss', () =>
+    expect(
+      lossCodes(
+        doc({
+          tokens: [
+            { id: 't1', text: '　' },
+            { id: 't2', text: '乙' },
+            { id: 't3', text: '丙' },
+          ],
+        })
+      )
+    ).toEqual([]));
+  it('BLOCK_START_KAERI (unvalidated input)', () =>
+    expect(
+      lossCodes(doc({ marks: [{ type: 'kaeri', value: '㆑', position: { blockId: 'b1' } }] }))
+    ).toContain('unrepresentable:BLOCK_START_KAERI@/marks/0'));
+  it('DANGLING_REFERENCE (unvalidated input)', () =>
+    expect(
+      lossCodes(
+        doc({
+          marks: [{ type: 'kutoten', value: '。', position: { blockId: 'b1', after: 'tX' } }],
+        })
+      )
+    ).toContain('unrepresentable:DANGLING_REFERENCE@/marks/0'));
+  it('CROSS_BLOCK_ANCHOR (unvalidated input)', () =>
+    expect(
+      lossCodes(
+        doc({
+          blocks: [
+            { id: 'b1', tokenIds: ['t1'] },
+            { id: 'b2', tokenIds: ['t2', 't3'] },
+          ],
+          marks: [{ type: 'emphasis', anchor: { from: 't1', to: 't2' } }],
+        })
+      )
+    ).toContain('unrepresentable:CROSS_BLOCK_ANCHOR@/marks/0'));
+  it('PLACEMENT_HINT', () =>
+    expect(
+      lossCodes(
+        doc({
+          marks: [{ type: 'okimoji', anchor: { from: 't1', to: 't1' }, placementHint: 'inline' }],
+        })
+      )
+    ).toContain('unsupported:PLACEMENT_HINT@/marks/0/placementHint'));
+  it('UNNESTABLE_OVERLAP: range group with okuri containing an inner single-token kun', () =>
+    expect(
+      lossCodes(
+        doc({
+          marks: [
+            { type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'て' },
+            { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'び' },
+          ],
+        })
+      ).filter((c) => c.startsWith('unsupported:UNNESTABLE_OVERLAP'))
+    ).toHaveLength(1));
+});
+
+describe('implementation gaps fixed (K1) — output shape', () => {
+  it('emits block-start kutoten and ref before the first token', () => {
+    const xml = stringify(
+      doc({
+        marks: [
+          { type: 'kutoten', kind: 'ku', value: '。', position: { blockId: 'b1' } },
+          { id: 'r1', type: 'ref', format: 'numeric-bracket', position: { blockId: 'b1' } },
+        ],
+      })
+    );
+    expect(xml).toMatch(/<skam:block xml:id="b1"><skam:kutoten[^>]*\/><skam:ref[^>]*\/>甲/);
+  });
+  it('uses the yomigana wrapper only when a yomi-only range contains an inner kun', () => {
+    expect(
+      stringify(
+        doc({
+          marks: [
+            { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'x' },
+            { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'y' },
+          ],
+        })
+      )
+    ).toContain('<skam:yomigana value="x"><skam:kun okuri="y">甲</skam:kun>乙</skam:yomigana>');
+    expect(
+      stringify(
+        doc({ marks: [{ type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'x' }] })
+      )
+    ).toContain('<skam:kun yomi="x">甲乙</skam:kun>');
+  });
+  it('emits a content-only ref inline', () => {
+    expect(
+      stringify(
+        doc({
+          marks: [
+            {
+              type: 'ref',
+              format: 'numeric-bracket',
+              content: '注',
+              position: { blockId: 'b1', after: 't1' },
+            },
+          ],
+        })
+      )
+    ).toContain('甲<skam:ref format="numeric-bracket">注</skam:ref>乙');
+  });
+  it('emits an empty block', () => {
+    expect(
+      stringify(
+        doc({
+          blocks: [
+            { id: 'b1', tokenIds: ['t1', 't2', 't3'] },
+            { id: 'b2', tokenIds: [] },
+          ],
+        })
+      )
+    ).toContain('<skam:block xml:id="b2"/>');
+  });
+  it('emits meta in the spec form', () => {
+    expect(stringify(doc())).toContain('<skam:meta tokenization="char"/>');
+  });
+});

@@ -256,8 +256,9 @@ function isElement(node: Node): node is Element {
   return node.nodeType === 1; // Node.ELEMENT_NODE
 }
 
+// CDATA は XML 上ただの文字データなので、TEXT_NODE と同じに扱う
 function isText(node: Node): node is Text {
-  return node.nodeType === 3; // Node.TEXT_NODE
+  return node.nodeType === 3 || node.nodeType === 4; // TEXT_NODE | CDATA_SECTION_NODE
 }
 
 function getLocalName(element: Element): string {
@@ -280,13 +281,16 @@ function generateMarkId(state: ParserState): string {
 // Token Generation
 // ============================================================================
 
+// SKAM-ML §6.2 が無視する空白 + U+000D。/\s/ は U+3000 (全角空白) も含むが、全角空白は token として残す
+const XML_IGNORED_WHITESPACE = /^[\t\n\r ]$/;
+
 function addTokensFromText(text: string, state: ParserState): string[] {
   const ids: string[] = [];
   const tracker = state.positionTracker;
 
   // Split by grapheme clusters (simplified: by character)
   for (const char of text) {
-    if (/\s/.test(char)) {
+    if (XML_IGNORED_WHITESPACE.test(char)) {
       // Skip whitespace but update search offset if tracking
       if (tracker) {
         const pos = tracker.findText(char, state.currentSearchOffset);

@@ -226,7 +226,8 @@ export class SkamRendererElement extends BaseElement {
    */
   #reportInvalid(invalid: InvalidAttribute[], attrs: AttributeValues): void {
     const invalidNames = new Set(invalid.map((i) => i.attribute));
-    for (const name of [...this.#reportedInvalid.keys()]) {
+    // Map は反復中の delete が安全なので、キーを配列に写さずに反復する
+    for (const name of this.#reportedInvalid.keys()) {
       if (!invalidNames.has(name)) this.#reportedInvalid.delete(name);
     }
     for (const { attribute, error } of invalid) {

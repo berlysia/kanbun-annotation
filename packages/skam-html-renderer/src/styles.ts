@@ -658,7 +658,7 @@ ${
   position: absolute;
   font-size: ${okototenFontSize};
   left: calc((var(--okototen-x) / var(--okototen-grid)) * var(--${vp}-glyph-size));
-  top: calc((var(--okototen-y) / var(--okototen-grid)) * var(--${vp}-glyph-size));
+  top: calc((var(--okototen-y) / var(--okototen-grid-rows, var(--okototen-grid))) * var(--${vp}-glyph-size));
   pointer-events: none;
   -webkit-user-select: none;
   user-select: none;

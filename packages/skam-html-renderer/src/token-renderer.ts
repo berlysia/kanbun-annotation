@@ -21,10 +21,15 @@ import type {
   OkototenMark,
   RefMark,
 } from '@kanbun-skam/skam';
-import { KAERI } from '@kanbun-skam/skam';
-import { resolveEmphasisCharacter, getMarksForToken } from '@kanbun-skam/skam/rendering';
+import { KAERI, isValidEmphasisStyle } from '@kanbun-skam/skam';
+import {
+  resolveEmphasisCharacter,
+  getMarksForToken,
+  resolveOkototenCell,
+} from '@kanbun-skam/skam/rendering';
 import type { RenderProfile, RubyMethod } from './render-config.js';
 import { escapeHtml, generateEmphasisMarks, shouldApplyTateChuYoko } from './html-utils.js';
+import { safeCssInteger, toCssEmphasisValue, toSafeHtml, type SafeCssValue } from './safe.js';
 import type { RangeMarkContext, RangeTokenInfo, TokenRenderResult } from './render-tree-types.js';
 
 // ============================================================================
@@ -123,6 +128,11 @@ function renderTokenWithRuby(
   }
 }
 
+/** saidoku の n (読みの順序)。正の整数でなければ既定値にする */
+function resolveSaidokuN(n: unknown, fallback: number): SafeCssValue {
+  return safeCssInteger(typeof n === 'number' && Number.isSafeInteger(n) && n > 0 ? n : fallback);
+}
+
 /**
  * 再読文字のToken HTMLを生成
  *
@@ -158,7 +168,7 @@ function renderSaidokuToken(
 
   if (rubyMethod === 'grid') {
     // grid モード: フラットな3行グリッド（ネスト不要）
-    const firstN = firstForm?.n ?? 1;
+    const firstN = resolveSaidokuN(firstForm?.n, 1);
     const firstYomi = profile.yomigana && firstForm?.yomi ? escapeHtml(firstForm.yomi) : '';
     const firstRubyHtml = `<span class="${prefix}-ruby" data-saidoku-n="${firstN}">${firstYomi}</span>`;
     const baseHtml = `<span class="${prefix}-base"${tokenIdAttr}>${escapeHtml(token.text)}</span>`;
@@ -172,7 +182,7 @@ function renderSaidokuToken(
       return `<span class="${gridClass}">${emphasisRowHtml}${firstRubyHtml}${baseHtml}</span>`;
     }
 
-    const n2 = secondForm.n ?? 2;
+    const n2 = resolveSaidokuN(secondForm.n, 2);
     const yomi2 = profile.yomigana && secondForm.yomi ? escapeHtml(secondForm.yomi) : '';
     const secondRubyHtml = `<span class="${prefix}-ruby ${prefix}-saidoku-under" data-saidoku-n="${n2}">${yomi2}</span>`;
     const saidokuGridClass = gridEmphasisStyle
@@ -187,7 +197,7 @@ function renderSaidokuToken(
   // 読み仮名の表示はprofile.yomiganaに従う
   let firstRt = '';
   if (firstForm) {
-    const n = firstForm.n ?? 1;
+    const n = resolveSaidokuN(firstForm.n, 1);
     const yomi = profile.yomigana && firstForm.yomi ? escapeHtml(firstForm.yomi) : '';
     firstRt = `<rt class="${prefix}-ruby" data-saidoku-n="${n}">${yomi}</rt>`;
   }
@@ -202,7 +212,7 @@ function renderSaidokuToken(
 
   // 第2読み用のrt（読み仮名のみ、送り仮名は含めない）
   // 読み仮名の表示はprofile.yomiganaに従う
-  const n2 = secondForm.n ?? 2;
+  const n2 = resolveSaidokuN(secondForm.n, 2);
   const yomi2 = profile.yomigana && secondForm.yomi ? escapeHtml(secondForm.yomi) : '';
   const secondRt = `<rt class="${prefix}-ruby ${prefix}-saidoku-under" data-saidoku-n="${n2}">${yomi2}</rt>`;
 
@@ -214,10 +224,15 @@ function renderSaidokuToken(
  * ヲコト点を生成
  */
 function renderOkototen(okototenMark: OkototenMark, prefix: string): string {
-  const { position, shape } = okototenMark;
-  const gridSize = parseInt(position.grid.split('x')[0] ?? '5', 10);
+  // 格子の規則を満たさない点は描かない (validator を通った文書では起きない)
+  const cell = resolveOkototenCell(okototenMark);
+  if (!cell) return '';
+  const x = safeCssInteger(cell.x);
+  const y = safeCssInteger(cell.y);
+  const cols = safeCssInteger(cell.cols);
+  const rows = safeCssInteger(cell.rows);
 
-  return `<span class="${prefix}-okototen" data-shape="${escapeHtml(shape)}" style="--okototen-x: ${position.x}; --okototen-y: ${position.y}; --okototen-grid: ${gridSize};"></span>`;
+  return `<span class="${prefix}-okototen" data-shape="${escapeHtml(cell.shape)}" style="--okototen-x: ${x}; --okototen-y: ${y}; --okototen-grid: ${cols}; --okototen-grid-rows: ${rows};"></span>`;
 }
 
 // ============================================================================
@@ -256,8 +271,13 @@ export function renderToken(
   const emphasisMarks = (tokenMarks.get('emphasis') ?? []) as EmphasisMark[];
   const allEmphasisMarks = [...emphasisMarks, ...(rangeCtx?.trailingEmphasisMarks ?? [])];
   const hasEmphasis = profile.emphasis && allEmphasisMarks.length > 0;
+  // 検証を通らない style (型違いを含む) は既定値にする。キーワードか 1 文字のままの値を保持し、
+  // CSS 文字列への変換は出力する 2 か所 (toCssEmphasisValue) でだけ行う
+  const rawEmphasisStyle: unknown = allEmphasisMarks[0]?.style;
   const resolvedEmphasisStyle = hasEmphasis
-    ? (allEmphasisMarks[0]?.style ?? 'filled dot')
+    ? typeof rawEmphasisStyle === 'string' && isValidEmphasisStyle(rawEmphasisStyle)
+      ? rawEmphasisStyle
+      : 'filled dot'
     : undefined;
   // suppressEmphasis: tateten+yomigana 時にグループレベルで emphasis を適用するため、個別トークンでは抑制
   // grid モードで yomigana/saidoku と emphasis が共存する場合、emphasis-row で処理
@@ -285,9 +305,9 @@ export function renderToken(
       // 再読文字の場合: formsから送り仮名を取得
       for (const form of saidokuMark.forms) {
         if (form.okuri) {
-          const n = form.n ?? saidokuMark.forms.indexOf(form) + 1;
+          const n = resolveSaidokuN(form.n, saidokuMark.forms.indexOf(form) + 1);
           const okuriHtml = `<span class="${prefix}-okuri" data-saidoku-n="${n}">${escapeHtml(form.okuri)}</span>`;
-          if (n === 1) {
+          if (n === '1') {
             saidokuOkuri1 = okuriHtml;
           } else {
             saidokuOkuri2 = okuriHtml;
@@ -321,7 +341,10 @@ export function renderToken(
   // 返り点（現在のトークン + 範囲グループ後続トークンの返り点）
   // extractTatetenKaeri=true の場合、非レ返り点を tatetenKaeriHtml に分離
   const kaeriMarks = (tokenMarks.get('kaeri') ?? []) as KaeriMark[];
-  const allKaeriMarks = [...kaeriMarks, ...(rangeCtx?.trailingKaeriMarks ?? [])];
+  // value が文字列でない kaeri は出力しない
+  const allKaeriMarks = [...kaeriMarks, ...(rangeCtx?.trailingKaeriMarks ?? [])].filter(
+    (m) => typeof m.value === 'string'
+  );
 
   // extractTatetenKaeri=true の場合、返り点を suffix（レ部分）と separator（非レ部分）に分離
   // 複合返り点（一レ等）は分割: レ→suffix、非レ→separator
@@ -338,7 +361,7 @@ export function renderToken(
       }
       if (nonRePart) {
         separatorParts.push(
-          `<span class="${prefix}-kaeriten" aria-hidden="true">${nonRePart}</span>`
+          `<span class="${prefix}-kaeriten" aria-hidden="true">${toSafeHtml(nonRePart)}</span>`
         );
       }
     }
@@ -346,7 +369,9 @@ export function renderToken(
     tatetenKaeriHtml = separatorParts.join('');
   } else if (profile.kaeriten && allKaeriMarks.length > 0) {
     kaeriten = allKaeriMarks
-      .map((m) => `<span class="${prefix}-kaeriten" aria-hidden="true">${m.value}</span>`)
+      .map(
+        (m) => `<span class="${prefix}-kaeriten" aria-hidden="true">${toSafeHtml(m.value)}</span>`
+      )
       .join('');
   }
 
@@ -478,7 +503,7 @@ export function renderToken(
   // 傍点スタイル（インラインスタイル、デフォルト: filled dot）
   let emphasisInlineStyle = '';
   if (applyEmphasis && resolvedEmphasisStyle) {
-    emphasisInlineStyle = ` style="text-emphasis-style: ${escapeHtml(resolvedEmphasisStyle)};"`;
+    emphasisInlineStyle = ` style="text-emphasis-style: ${escapeHtml(toCssEmphasisValue(resolvedEmphasisStyle))};"`;
   }
 
   const result: TokenRenderResult = {

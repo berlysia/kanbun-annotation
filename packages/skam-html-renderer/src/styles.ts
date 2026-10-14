@@ -6,6 +6,7 @@ import { css } from './css-tag.js';
 import type { CopyableElement, RubyMethod } from './render-config.js';
 import type { Spacing } from '@kanbun-skam/skam/rendering';
 import { resolveSpacingEm } from '@kanbun-skam/skam/rendering';
+import { validateCSSOptions } from './render-options.js';
 
 export type { CopyableElement, RubyMethod } from './render-config.js';
 
@@ -53,6 +54,7 @@ export interface StyleOptions {
  * @param options.variablePrefix - CSS Variables のプレフィックス（default: 'skam'）
  */
 export function getDefaultStyles(options: StyleOptions = {}): string {
+  validateCSSOptions(options);
   const prefix = options.classPrefix ?? 'skam';
   const vp = options.variablePrefix ?? 'skam';
   const writingMode = options.writingMode ?? 'vertical';

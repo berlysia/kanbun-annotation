@@ -20,6 +20,8 @@
  * @module
  */
 
+import { assertVariablePrefix } from './render-options.js';
+
 /**
  * Detect Chromium's inline-grid baseline alignment bug and set CSS custom property.
  *
@@ -51,6 +53,7 @@ export function calibrateGridBaseline(
   root: HTMLElement,
   options?: { variablePrefix?: string }
 ): void {
+  if (options?.variablePrefix !== undefined) assertVariablePrefix(options.variablePrefix);
   const vp = options?.variablePrefix ?? 'skam';
 
   // Use large font for reliable measurement (amplifies the bug signal)

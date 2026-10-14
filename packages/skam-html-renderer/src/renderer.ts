@@ -12,6 +12,7 @@ import type { RenderProfile, RubyMethod, CopyableElement } from './render-config
 import { PROFILES } from './render-config.js';
 import { escapeHtml, shouldApplyTateChuYoko } from './html-utils.js';
 import { renderDisplayLayer } from './render-display-layer.js';
+import { validateCSSOptions, validateRenderOptions } from './render-options.js';
 
 export type { RenderProfile, RubyMethod, CopyableElement } from './render-config.js';
 export { PROFILES } from './render-config.js';
@@ -75,6 +76,8 @@ export interface RenderOptions {
    * - number: 任意の em 値（0以上）
    */
   spacing?: Spacing;
+  /** 表示層の言語タグ (BCP 47) */
+  displayLang?: string;
 }
 
 /**
@@ -228,6 +231,7 @@ function renderRefNotes(
  * SKAMドキュメントをHTMLにレンダリング
  */
 export function render(doc: SKAMDocument, options: RenderOptions = {}): RenderResult {
+  validateRenderOptions(options);
   const profile: RenderProfile = { ...PROFILES.full, ...options.profile };
   const writingMode = options.writingMode ?? 'vertical';
   const prefix = options.classPrefix ?? 'skam';
@@ -302,6 +306,7 @@ export function render(doc: SKAMDocument, options: RenderOptions = {}): RenderRe
  * ```
  */
 export function renderHTML(doc: SKAMDocument, options: RenderHTMLOptions = {}): string {
+  validateRenderOptions(options);
   const profile: RenderProfile = { ...PROFILES.full, ...options.profile };
   const writingMode = options.writingMode ?? 'vertical';
   const prefix = options.classPrefix ?? 'skam';
@@ -357,6 +362,7 @@ export function renderHTML(doc: SKAMDocument, options: RenderHTMLOptions = {}): 
  * ```
  */
 export function generateCSS(options: CSSOptions = {}): string {
+  validateCSSOptions(options);
   const styleOptions: import('./styles.js').StyleOptions = {};
   if (options.classPrefix !== undefined) {
     styleOptions.classPrefix = options.classPrefix;

@@ -58,6 +58,8 @@ xmlns:skam="urn:skam:1"
 
 ## 4. 文書構造
 
+- SKAM-ML 文書に `<!` で始まる宣言（`<!DOCTYPE>`、`<!ENTITY>`、`<!ELEMENT>` 等）を含めてはならない（MUST NOT）。コメント（`<!-- -->`）と CDATA セクションは使用できる
+
 ### 4.1 トップレベル構成
 
 | 要素            | 必須 | 説明                 |
@@ -131,7 +133,8 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 
 ### 6.2 空白・改行の扱い
 
-- 改行（U+000A）、タブ（U+0009）、半角スペース（U+0020）の連続は tokenization 時に**無視される**
+- 改行（U+000A）、タブ（U+0009）、半角スペース（U+0020）、キャリッジリターン（U+000D）の連続は tokenization 時に**無視される**
+  - U+000D は XML の改行正規化により通常は U+000A に置き換わるため、`&#13;` と書いた場合にのみ残る
 - 意図的な空白が必要な場合は全角スペース（U+3000）等を使用
 
 ### 6.3 例
@@ -208,6 +211,10 @@ position は `{ blockId, after: tokenId }` または `{ blockId }`（ブロッ�
 
 複合返り点（例: 一レ）は `kind="ichi-re"` のように連結表記する。
 
+#### 内容モデル
+
+- `skam:kaeri` は同じブロック内で直前に token がなければならない（MUST）。ブロック先頭の `skam:kaeri` は誤りである
+
 #### 正規化
 
 - `marks.type = "kaeri"`
@@ -252,8 +259,8 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 #### 内容モデル
 
 - テキストノードのみ（漢字1文字を推奨）
-- 他の `skam:*` 要素を子として含まない
-- 他の `skam:*` 要素（`underline`, `span` 等）の子要素として使用可能
+- 他の既知の `skam:*` 要素を子として含んでいれば誤りである（未知の `skam:*` 要素は §10 に従って無視する）
+- `skam:yomigana`、`skam:span` 等の子要素として使用可能（内側の範囲は外側の範囲に含まれる）
 
 ---
 
@@ -272,6 +279,15 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 | 属性    | 必須 | 説明             |
 | ------- | ---- | ---------------- |
 | `value` | 必須 | 読み仮名テキスト |
+
+#### 内容モデル
+
+- テキストと `skam:kun` を子に持てる。`skam:kun` の範囲は `skam:yomigana` の範囲に含まれる
+- `skam:kun` 以外の既知の `skam:*` 要素を子として含んでいれば誤りである
+
+```xml
+<skam:yomigana value="がく"><skam:kun okuri="ぶ">學</skam:kun>而</skam:yomigana>
+```
 
 #### 正規化
 
@@ -410,6 +426,10 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 </skam:block>
 ```
 
+#### 内容モデル
+
+- テキストと `skam:kun` を子に持てる。`skam:kun` の範囲は `skam:span` の範囲に含まれる
+
 #### 属性
 
 | 属性    | 必須 | 説明                                        |
@@ -428,6 +448,9 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 - `triangle` - 三角（▲ filled / △ open）
 - `sesame` - ゴマ点（﹅ filled / ﹆ open）
 - カスタム文字列（任意の1文字、例: `★`, `◆`）
+  - 1 code point で、Unicode の一般カテゴリが L / N / S / P のものに限る
+  - そのうえで `\` `"` `'` `;` `{` `}` `<` `>` `&` は使えない
+  - 制御文字、零幅文字、bidi 制御、結合文字は CSS の値を壊すので使えない
 
 ※ `filled`/`open` 修飾子で塗りつぶし/中空を指定可能。省略時は `filled`。
 ※ デフォルト値（style省略時）: `filled dot`
@@ -683,7 +706,8 @@ skam:note (content を提供)
 
 ## 10. 拡張性
 
-- 未知の `skam:*` 要素・属性は **無視してよい**
+- SKAM 以外の名前空間の要素は誤りである（MUST NOT）。パーサーはエラーとして扱う
+- 未知の `skam:*` 要素・属性は **無視してよい**。無視した場合は、要素名と位置を利用者に通知してよい
 - round-trip を行う処理系は **保持して再出力してよい**
 - 将来の拡張は **後方互換**で行う
 
@@ -843,3 +867,16 @@ SKAM-ML/XMLはHTMLに依存しない純XML語彙とし、本文構造は`skam:bl
 | `skam:tateten`                 | `tateten`            |
 
 ※ `derivations`（読み順等）はコンパイル時に生成される。
+
+---
+
+## 変更履歴
+
+### v0.1 改訂（2026-10）
+
+- §4: `<!` で始まる宣言を使わないこととした
+- §6.2: 無視する空白に U+000D を加えた。U+3000 は無視されず token になる
+- §7.2: ブロック先頭の `skam:kaeri` を誤りとした
+- §7.3 / §7.4 / §7.10: `skam:yomigana` と `skam:span` はテキストと `skam:kun` を子に持てることを明記した。`skam:kun` の中に既知の要素があれば誤り
+- §7.10: カスタム傍点の 1 文字に許す文字クラスを定めた
+- §10: SKAM 以外の名前空間の要素を誤りとした。未知の `skam:*` は無視し、通知してよい

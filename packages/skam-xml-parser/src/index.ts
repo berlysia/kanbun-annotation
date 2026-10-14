@@ -12,6 +12,7 @@ export type { SKAMDocument } from '@kanbun-skam/skam';
 export {
   SKAMXMLParseError,
   type ParseOptions,
+  type ParseWarning,
   type PositionInfo,
   type TokenPosition,
 } from './parser-core.js';

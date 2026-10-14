@@ -191,9 +191,14 @@ interface ParserState {
   /** Current search offset in the source for position tracking */
   currentSearchOffset: number;
   idGenerator: IdGenerator;
+  onWarning: ((warning: ParseWarning) => void) | undefined;
 }
 
-function createParserState(source?: string, idGenerator?: IdGenerator): ParserState {
+function createParserState(
+  source?: string,
+  idGenerator?: IdGenerator,
+  onWarning?: (warning: ParseWarning) => void
+): ParserState {
   return {
     tokens: [],
     blocks: [],
@@ -205,6 +210,7 @@ function createParserState(source?: string, idGenerator?: IdGenerator): ParserSt
     positionTracker: source ? new PositionTracker(source) : null,
     currentSearchOffset: 0,
     idGenerator: idGenerator ?? createRandomIdGenerator(),
+    onWarning,
   };
 }
 
@@ -240,6 +246,101 @@ function isText(node: Node): node is Text {
 
 function getLocalName(element: Element): string {
   return element.localName ?? element.nodeName.split(':').pop() ?? '';
+}
+
+/** SKAM-ML 仕様が定義する要素名。これ以外の skam:* は将来の拡張とみなして無視し、onWarning で通知する */
+const KNOWN_SKAM_ELEMENTS: ReadonlySet<string> = new Set([
+  'doc',
+  'meta',
+  'body',
+  'block',
+  'readings',
+  'reading',
+  'notes',
+  'note',
+  'kaeri',
+  'kun',
+  'yomigana',
+  'kutoten',
+  'okototen',
+  'soegana',
+  'okimoji',
+  'joji',
+  'span',
+  'tateten',
+  'saidoku',
+  'base',
+  'kunform',
+  'ref',
+]);
+
+/** xmldom (locator 指定時) が要素に付ける行・列。ブラウザの DOM には無いので undefined になる */
+function nodePosition(node: Node): { line?: number; column?: number } {
+  const { lineNumber, columnNumber } = node as { lineNumber?: unknown; columnNumber?: unknown };
+  const position: { line?: number; column?: number } = {};
+  if (typeof lineNumber === 'number') position.line = lineNumber;
+  if (typeof columnNumber === 'number') position.column = columnNumber;
+  return position;
+}
+
+function parseErrorAt(node: Node, message: string): SKAMXMLParseError {
+  const { line, column } = nodePosition(node);
+  return new SKAMXMLParseError(message, line, column);
+}
+
+/** SKAM 以外の名前空間の要素は、内容モデルのどこに現れても受け付けない */
+function assertSkamNamespace(element: Element): void {
+  if (element.namespaceURI !== SKAM_NS) {
+    throw parseErrorAt(
+      element,
+      `Element <${element.nodeName}> in namespace "${element.namespaceURI ?? ''}" is not allowed`
+    );
+  }
+}
+
+/** 子要素の走査はここに集める。要素を返す前に必ず名前空間を検査する */
+function childElements(element: Element): Element[] {
+  const result: Element[] = [];
+  for (const child of Array.from(element.childNodes)) {
+    if (isElement(child)) {
+      assertSkamNamespace(child);
+      result.push(child);
+    }
+  }
+  return result;
+}
+
+function warn(state: ParserState, element: Element): void {
+  if (!state.onWarning) return;
+  const name = getLocalName(element);
+  const warning: ParseWarning = {
+    code: 'UNKNOWN_ELEMENT',
+    name,
+    message: `Unknown element <skam:${name}> was ignored`,
+    ...nodePosition(element),
+  };
+  state.onWarning(warning);
+}
+
+/**
+ * 要素の直下のテキスト (CDATA を含む) だけを読む。
+ * 既知の skam:* が入っていれば内容モデル違反、未知の skam:* は部分木ごと無視して通知する。
+ */
+function readTextOnly(element: Element, state: ParserState, owner: string): string {
+  let text = '';
+  for (const child of Array.from(element.childNodes)) {
+    if (isText(child)) {
+      text += child.textContent ?? '';
+    } else if (isElement(child)) {
+      assertSkamNamespace(child);
+      const name = getLocalName(child);
+      if (KNOWN_SKAM_ELEMENTS.has(name)) {
+        throw parseErrorAt(child, `<skam:${owner}> must not contain <skam:${name}>`);
+      }
+      warn(state, child);
+    }
+  }
+  return text;
 }
 
 function generateTokenId(state: ParserState): string {
@@ -360,7 +461,7 @@ function processKun(element: Element, state: ParserState): string[] {
   const soe = getAttr(element, 'soe');
 
   // Extract text content and generate tokens
-  const textContent = element.textContent ?? '';
+  const textContent = readTextOnly(element, state, 'kun');
   const tokenIds = addTokensFromText(textContent, state);
 
   if (tokenIds.length === 0) {
@@ -405,8 +506,23 @@ function processKun(element: Element, state: ParserState): string[] {
 function processYomigana(element: Element, state: ParserState): string[] {
   const value = getRequiredAttr(element, 'value', 'skam:yomigana');
 
-  const textContent = element.textContent ?? '';
-  const tokenIds = addTokensFromText(textContent, state);
+  // yomigana は kun を内包できる (内側の範囲 ⊆ 外側の範囲)。それ以外の既知要素は受け付けない
+  const tokenIds: string[] = [];
+  for (const child of Array.from(element.childNodes)) {
+    if (isText(child)) {
+      tokenIds.push(...addTokensFromText(child.textContent ?? '', state));
+    } else if (isElement(child)) {
+      assertSkamNamespace(child);
+      const name = getLocalName(child);
+      if (name === 'kun') {
+        tokenIds.push(...processKun(child, state));
+      } else if (KNOWN_SKAM_ELEMENTS.has(name)) {
+        throw parseErrorAt(child, `<skam:yomigana> must not contain <skam:${name}>`);
+      } else {
+        warn(state, child);
+      }
+    }
+  }
 
   if (tokenIds.length === 0) {
     throw new SKAMXMLParseError('<skam:yomigana> must contain text');
@@ -474,7 +590,7 @@ function processOkototen(element: Element, state: ParserState): string[] {
     throw new SKAMXMLParseError('x and y must be integers');
   }
 
-  const textContent = element.textContent ?? '';
+  const textContent = readTextOnly(element, state, 'okototen');
   const tokenIds = addTokensFromText(textContent, state);
 
   if (tokenIds.length === 0) {
@@ -509,7 +625,7 @@ function processOkototen(element: Element, state: ParserState): string[] {
 }
 
 function processOkimoji(element: Element, state: ParserState): string[] {
-  const textContent = element.textContent ?? '';
+  const textContent = readTextOnly(element, state, 'okimoji');
   const tokenIds = addTokensFromText(textContent, state);
 
   if (tokenIds.length === 0) {
@@ -527,7 +643,7 @@ function processOkimoji(element: Element, state: ParserState): string[] {
 }
 
 function processJoji(element: Element, state: ParserState): string[] {
-  const textContent = element.textContent ?? '';
+  const textContent = readTextOnly(element, state, 'joji');
   const tokenIds = addTokensFromText(textContent, state);
 
   if (tokenIds.length === 0) {
@@ -548,7 +664,7 @@ function processSoegana(element: Element, state: ParserState): string[] {
   const value = getRequiredAttr(element, 'value', 'skam:soegana');
 
   // Extract text content (the wrapped character) and generate tokens
-  const textContent = element.textContent ?? '';
+  const textContent = readTextOnly(element, state, 'soegana');
   const tokenIds = addTokensFromText(textContent, state);
 
   if (tokenIds.length === 0) {
@@ -682,10 +798,7 @@ function processSaidoku(element: Element, state: ParserState): string[] {
   const kunforms: Element[] = [];
 
   // Find base and kunform elements
-  for (let i = 0; i < element.childNodes.length; i++) {
-    const child = element.childNodes[i];
-    if (!child || !isElement(child)) continue;
-
+  for (const child of childElements(element)) {
     const localName = getLocalName(child);
     if (localName === 'base') {
       baseElement = child;
@@ -703,7 +816,7 @@ function processSaidoku(element: Element, state: ParserState): string[] {
   }
 
   // Generate tokens from base
-  const baseText = baseElement.textContent ?? '';
+  const baseText = readTextOnly(baseElement, state, 'base');
   const tokenIds = addTokensFromText(baseText, state);
 
   if (tokenIds.length === 0) {
@@ -763,14 +876,7 @@ function processRef(element: Element, state: ParserState, precedingTokenId: stri
   const textContent = (element.textContent ?? '').trim();
 
   // If element has text content but no child elements, it's inline content
-  let hasChildElements = false;
-  for (let i = 0; i < element.childNodes.length; i++) {
-    const child = element.childNodes[i];
-    if (child && isElement(child)) {
-      hasChildElements = true;
-      break;
-    }
-  }
+  const hasChildElements = childElements(element).length > 0;
 
   if (textContent && !hasChildElements) {
     content = textContent;
@@ -861,6 +967,7 @@ function processBlockChildren(element: Element, state: ParserState): string[] {
         lastTokenId = ids[ids.length - 1]!;
       }
     } else if (isElement(child)) {
+      assertSkamNamespace(child);
       const localName = getLocalName(child);
 
       switch (localName) {
@@ -938,7 +1045,8 @@ function processBlockChildren(element: Element, state: ParserState): string[] {
           });
           break;
         default:
-          // Unknown elements are ignored per spec
+          // 未知の skam:* は部分木ごと無視する (将来の拡張との前方互換)。既知だが置き場所の違う要素は黙って無視する
+          if (!KNOWN_SKAM_ELEMENTS.has(localName)) warn(state, child);
           break;
       }
     }
@@ -993,22 +1101,16 @@ function processBlock(element: Element, state: ParserState): void {
 // ============================================================================
 
 function processBody(element: Element, state: ParserState): void {
-  for (let i = 0; i < element.childNodes.length; i++) {
-    const child = element.childNodes[i];
-    if (!child) continue;
-
-    if (isElement(child) && getLocalName(child) === 'block') {
+  for (const child of childElements(element)) {
+    if (getLocalName(child) === 'block') {
       processBlock(child, state);
     }
   }
 }
 
 function processReadings(element: Element, state: ParserState): void {
-  for (let i = 0; i < element.childNodes.length; i++) {
-    const child = element.childNodes[i];
-    if (!child) continue;
-
-    if (isElement(child) && getLocalName(child) === 'reading') {
+  for (const child of childElements(element)) {
+    if (getLocalName(child) === 'reading') {
       const kind = getRequiredAttr(child, 'kind', 'skam:reading');
       const text = (child.textContent ?? '').trim();
 
@@ -1021,22 +1123,16 @@ function processReadings(element: Element, state: ParserState): void {
 }
 
 function processNotes(element: Element, state: ParserState): void {
-  for (let i = 0; i < element.childNodes.length; i++) {
-    const child = element.childNodes[i];
-    if (!child) continue;
-
-    if (isElement(child)) {
-      const localName = getLocalName(child);
-      // skam:note element with ref attribute referencing a skam:ref element
-      if (localName === 'note') {
-        // Note: @xmldom/xmldom returns "" for missing attributes, not null
-        // Use || instead of ?? to handle empty string fallback
-        // New design: note has 'ref' attribute that references skam:ref's xml:id
-        const refAttr = getAttr(child, 'ref');
-        if (refAttr) {
-          const text = (child.textContent ?? '').trim();
-          state.noteContents.set(refAttr, text);
-        }
+  for (const child of childElements(element)) {
+    // skam:note element with ref attribute referencing a skam:ref element
+    if (getLocalName(child) === 'note') {
+      // Note: @xmldom/xmldom returns "" for missing attributes, not null
+      // Use || instead of ?? to handle empty string fallback
+      // New design: note has 'ref' attribute that references skam:ref's xml:id
+      const refAttr = getAttr(child, 'ref');
+      if (refAttr) {
+        const text = (child.textContent ?? '').trim();
+        state.noteContents.set(refAttr, text);
       }
     }
   }
@@ -1070,6 +1166,18 @@ export interface ParseOptions {
   maxInputLength?: number;
   /** Maximum element nesting depth (default: 64) */
   maxDepth?: number;
+  /** Receives non-fatal diagnostics (e.g. unknown skam:* elements). Omit to drop them */
+  onWarning?: (warning: ParseWarning) => void;
+}
+
+export interface ParseWarning {
+  code: 'UNKNOWN_ELEMENT' | (string & {});
+  /** 入力 XML に由来する要素名。エスケープしていないので、HTML に出すときは利用者側でエスケープすること */
+  name: string;
+  /** ブラウザ版では undefined */
+  line?: number;
+  column?: number;
+  message: string;
 }
 
 /**
@@ -1102,7 +1210,7 @@ export function parseFromDocument(
   options: ParseOptions = {},
   source?: string
 ): SKAMDocument {
-  const { validate: _validate = true, trackPositions = false, idGenerator } = options;
+  const { validate: _validate = true, trackPositions = false, idGenerator, onWarning } = options;
 
   // Get root element
   const root = doc.documentElement;
@@ -1112,29 +1220,26 @@ export function parseFromDocument(
 
   // Validate namespace
   const rootLocalName = getLocalName(root);
-  const ns = root.namespaceURI ?? root.getAttribute('xmlns:skam');
 
-  if (rootLocalName !== 'doc' || (ns !== SKAM_NS && !root.getAttribute('xmlns:skam'))) {
+  if (rootLocalName !== 'doc' || root.namespaceURI !== SKAM_NS) {
     throw new SKAMXMLParseError(
       `Invalid root element. Expected <skam:doc xmlns:skam="${SKAM_NS}"> but got <${root.tagName}>`
     );
   }
 
   // Initialize state (with source for position tracking if enabled)
-  const state = createParserState(trackPositions ? source : undefined, idGenerator);
+  const state = createParserState(trackPositions ? source : undefined, idGenerator, onWarning);
 
   // Find and process main sections
   let hasBody = false;
 
-  for (let i = 0; i < root.childNodes.length; i++) {
-    const child = root.childNodes[i];
-    if (!child || !isElement(child)) continue;
-
+  for (const child of childElements(root)) {
     const localName = getLocalName(child);
 
     switch (localName) {
       case 'meta':
-        // Currently we just ignore meta, tokenization is always 'char'
+        // Currently we just ignore meta, tokenization is always 'char'. 子要素の名前空間だけは検査する
+        childElements(child);
         break;
       case 'body':
         hasBody = true;

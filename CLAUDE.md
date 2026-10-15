@@ -11,6 +11,7 @@ pnpm build / test / typecheck       # 全パッケージ
 pnpm --filter <pkg> test -- <file>   # 単一テスト
 pnpm format / lint / clean           # フォーマット・リント・未使用コード検出
 pnpm playground:dev / playground:build / playground:preview
+pnpm verify / release                # 検査一式 / リリース (手順: docs/releasing.md)
 ```
 
 ## Architecture
@@ -43,6 +44,7 @@ packages/
 
 - `SKAM-draft.md` / `SKAM-ML-draft.md` — 仕様書
 - `docs/decisions/` — ADR、`docs/plans/` — 実装計画
+- `docs/releasing.md` — リリース手順
 
 ### ADR-Plan ワークフロー
 

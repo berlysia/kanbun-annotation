@@ -1,0 +1,7 @@
+rules:
+  adhoc-packages:
+    ignore:
+      # Staged publishing needs npm 11.15.0 or newer, and the npm bundled with lts/* is not guaranteed to meet it.
+      # The version is pinned and asserted right after the install (`test "$(npm --version)" = "12.1.0"`),
+      # and scripts/workflow-structure.test.ts allows exactly this one `npm install` in the npm-stage job.
+      - release.yml

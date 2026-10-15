@@ -1,0 +1,21 @@
+{
+  "extends": "../tsconfig.base.json",
+  "compilerOptions": {
+    "noEmit": true,
+    "allowImportingTsExtensions": true,
+    "types": ["node"],
+    "declaration": false,
+    "declarationMap": false,
+    "sourceMap": false
+  },
+  "include": [
+    "lib/release-check.ts",
+    "lib/release-check.test.ts",
+    "lib/test-workspace.ts",
+    "check-release.ts",
+    "check-release.test.ts",
+    "release.ts",
+    "release.test.ts",
+    "workflow-structure.test.ts"
+  ]
+}

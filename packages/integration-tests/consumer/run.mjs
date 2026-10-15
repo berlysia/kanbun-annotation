@@ -1,5 +1,7 @@
-// 6 パッケージを pack し、空の利用者プロジェクトに npm install して、Node と TypeScript から使えることを確かめる。
-// 先に `pnpm build` が済んでいること (ルートの `pnpm test:consumer` が行う)。
+// 公開する全パッケージ (.changeset/config.json の fixed[0]) の tarball を空の利用者プロジェクトに npm install して、
+// Node と TypeScript から使えることを確かめる。
+// 既定では自分で pack する (先に `pnpm build` が済んでいること。ルートの `pnpm test:consumer` が行う)。
+// `--tarballs <dir>` を付けると pack せず、dir の manifest.json に載った tarball (validate が pack したもの) を使う。
 import { execFileSync, spawnSync } from 'node:child_process';
 import {
   mkdtempSync,
@@ -7,6 +9,7 @@ import {
   writeFileSync,
   readFileSync,
   readdirSync,
+  existsSync,
   copyFileSync,
   lstatSync,
   rmSync,
@@ -15,17 +18,10 @@ import {
 import { tmpdir } from 'node:os';
 import { join, resolve, dirname, basename, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { checkLicense, loadTarballSet, readPublicNames } from './tarballs.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '../../..');
-const PUBLIC = [
-  'skam',
-  'skam-xml-parser',
-  'skam-xml-stringify',
-  'skam-html-renderer',
-  'skam-canvas-renderer',
-  'skam-web-component',
-];
 const FORBIDDEN_SCRIPTS = ['prepare', 'prepack', 'prepublish', 'prepublishOnly', 'postpack'];
 const ALLOWED_TOP_LEVEL = new Set(['dist', 'package.json', 'README.md', 'CHANGELOG.md', 'LICENSE']);
 // 親にあれば引き継ぐ環境変数 (token を含む変数は渡さない)
@@ -43,6 +39,14 @@ const PASS_THROUGH = [
   'npm_config_registry',
   'NPM_CONFIG_REGISTRY',
 ];
+
+function parseTarballsOption(argv) {
+  const i = argv.indexOf('--tarballs');
+  if (i < 0) return undefined;
+  const dir = argv[i + 1];
+  if (!dir) throw new Error('--tarballs needs a directory');
+  return resolve(dir);
+}
 
 const failures = [];
 const check = (cond, message) => {
@@ -81,34 +85,77 @@ function runChecked(label, cmd, args, options) {
   return result;
 }
 
-function main(tmp) {
+function main(tmp, tarballsOption) {
+  // 一覧の正本は .changeset/config.json。名前からディレクトリを引く
+  const dirByName = new Map();
+  for (const entry of readdirSync(join(repoRoot, 'packages'), { withFileTypes: true })) {
+    const file = join(repoRoot, 'packages', entry.name, 'package.json');
+    if (entry.isDirectory() && existsSync(file)) dirByName.set(readJson(file).name, entry.name);
+  }
+  const publicNames = readPublicNames(repoRoot);
   const versions = new Map();
-  for (const p of PUBLIC) {
-    const pkg = readJson(join(repoRoot, 'packages', p, 'package.json'));
-    versions.set(pkg.name, pkg.version);
+  for (const name of publicNames) {
+    const dir = dirByName.get(name);
+    if (!dir)
+      throw new Error(`${name}: listed in .changeset/config.json but not found in packages/`);
+    const pkg = readJson(join(repoRoot, 'packages', dir, 'package.json'));
+    versions.set(name, pkg.version);
     for (const script of FORBIDDEN_SCRIPTS)
-      check(!(pkg.scripts && script in pkg.scripts), `${p}: has a ${script} script`);
+      check(!(pkg.scripts && script in pkg.scripts), `${name}: has a ${script} script`);
   }
   if (failures.length > 0) return;
 
-  // 1. pack (親の環境のまま。HOME を替えると corepack が pnpm を取りに行って失敗しうる。
-  //    pack はネットワークを使わず、上でパッケージのスクリプトがないことを確かめている)
+  // 1. tarball を用意する
   const tarballDir = join(tmp, 'tarballs');
   mkdirSync(tarballDir);
-  for (const p of PUBLIC) {
-    const r = runChecked(`pnpm pack ${p}`, 'pnpm', ['pack', '--pack-destination', tarballDir], {
-      cwd: join(repoRoot, 'packages', p),
-    });
-    if (r.status !== 0) return;
+  const fileByName = new Map();
+  if (tarballsOption) {
+    // 渡された tarball は触らず、コピーに対して npm install する (install で動く第三者のコードに元を書き換えさせない)
+    const set = loadTarballSet(tarballsOption);
+    const manifestNames = set.packages.map((p) => p.name);
+    check(
+      manifestNames.length === publicNames.length &&
+        publicNames.every((n) => manifestNames.includes(n)),
+      `manifest packages [${manifestNames.join(', ')}] differ from [${publicNames.join(', ')}]`
+    );
+    if (failures.length > 0) return;
+    for (const p of set.packages) {
+      copyFileSync(join(tarballsOption, p.file), join(tarballDir, p.file));
+      fileByName.set(p.name, p.file);
+      versions.set(p.name, set.version);
+    }
+  } else {
+    // pack (親の環境のまま。HOME を替えると corepack が pnpm を取りに行って失敗しうる。
+    // pack はネットワークを使わず、上でパッケージのスクリプトがないことを確かめている)
+    for (const name of publicNames) {
+      const r = runChecked(
+        `pnpm pack ${name}`,
+        'pnpm',
+        ['pack', '--pack-destination', tarballDir],
+        {
+          cwd: join(repoRoot, 'packages', dirByName.get(name)),
+        }
+      );
+      if (r.status !== 0) return;
+      fileByName.set(name, `${name.replace(/^@/, '').replace('/', '-')}-${versions.get(name)}.tgz`);
+    }
   }
+  // pnpm は package 直下に LICENSE がなくても root の LICENSE を tarball に入れる。その挙動が変わったら検出する
+  for (const [name, file] of fileByName) {
+    try {
+      checkLicense(join(tarballDir, file), join(repoRoot, 'LICENSE'));
+    } catch (e) {
+      failures.push(`${name}: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  if (failures.length > 0) return;
 
   // 2. app/package.json
   const appDir = join(tmp, 'app');
   mkdirSync(appDir);
   const tarballFor = (name) => {
-    const stem = name.replace(/^@/, '').replace('/', '-');
-    const file = readdirSync(tarballDir).find((f) => f === `${stem}-${versions.get(name)}.tgz`);
-    if (!file) throw new Error(`no tarball for ${name}`);
+    const file = fileByName.get(name);
+    if (!file || !readdirSync(tarballDir).includes(file)) throw new Error(`no tarball for ${name}`);
     return `file:${join(tarballDir, file)}`;
   };
   const dependencies = {};
@@ -176,7 +223,7 @@ function main(tmp) {
 
 const tmp = mkdtempSync(join(tmpdir(), 'skam-consumer-'));
 try {
-  main(tmp);
+  main(tmp, parseTarballsOption(process.argv.slice(2)));
 } catch (e) {
   failures.push(e instanceof Error ? (e.stack ?? e.message) : String(e));
 } finally {

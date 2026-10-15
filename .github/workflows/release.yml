@@ -1,53 +1,267 @@
 name: Release
 
 on:
-  workflow_dispatch:
+  push:
+    tags: ['v*']
 
-concurrency: release-${{ github.ref }}
+permissions: {}
+
+# Runs are serialized and never cancelled: a half-staged release must not be interrupted by a second tag.
+concurrency:
+  group: release
+  cancel-in-progress: false
 
 jobs:
-  release:
-    name: Create Release Pull Request
+  validate:
+    name: Validate and pack
     runs-on: ubuntu-latest
     permissions:
-      contents: write
-      pull-requests: write
+      contents: read
+    env:
+      TAG_NAME: ${{ github.ref_name }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
       - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
+      # No cache here: this job produces the artifact that gets published (zizmor cache-poisoning).
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: '20'
-          cache: 'pnpm'
+          node-version: 'lts/*'
+          package-manager-cache: false
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
 
-      - name: Lint
-        run: pnpm lint
+      - name: Verify
+        id: verify
+        run: pnpm run verify
 
-      - name: Format check
-        run: pnpm format:check
+      - name: Check release preconditions
+        id: check
+        run: node scripts/check-release.ts check --tag "$TAG_NAME" --registry
 
-      - name: Build
-        run: pnpm build
+      # The tarballs are packed here so that npm-stage publishes exactly what passed the checks above,
+      # without running install or build in the job that holds the OIDC token.
+      - name: Pack the six tarballs and the manifest
+        id: pack
+        run: node scripts/check-release.ts pack --out "$RUNNER_TEMP/npm-tarball" --tag "$TAG_NAME"
 
-      - name: Type check
-        run: pnpm typecheck
+      - name: Install the packed tarballs in an empty consumer project
+        id: consumer
+        run: node packages/integration-tests/consumer/run.mjs --tarballs "$RUNNER_TEMP/npm-tarball"
 
-      - name: Run tests
-        run: pnpm test:run
+      - name: Verify the manifest against the public package list
+        id: verify-manifest
+        run: node scripts/check-release.ts verify-manifest --dir "$RUNNER_TEMP/npm-tarball" --tag "$TAG_NAME"
 
-      - name: Create Release Pull Request
-        uses: changesets/action@v1
+      - name: Upload the tarballs and the manifest
+        id: upload
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
-          version: pnpm changeset version
-          title: 'chore: release packages'
-          commit: 'chore: release packages'
+          name: npm-tarball
+          path: ${{ runner.temp }}/npm-tarball/
+          if-no-files-found: error
+          retention-days: 7
+
+      # Shown so the maintainer can compare it with `npm stage view` before approving.
+      - name: Print the release manifest
+        id: summary
+        run: |
+          node --input-type=module <<'EOF'
+          import { appendFileSync, readFileSync } from 'node:fs';
+
+          const manifest = JSON.parse(
+            readFileSync(`${process.env.RUNNER_TEMP}/npm-tarball/manifest.json`, 'utf8')
+          );
+          const lines = [
+            '## Release manifest',
+            `- tag: ${manifest.tag}`,
+            `- version: ${manifest.version}`,
+            `- distTag: ${manifest.distTag}`,
+            '',
+            '| # | name | file | integrity |',
+            '| --- | --- | --- | --- |',
+            ...manifest.packages.map(
+              (p, i) => `| ${i + 1} | ${p.name} | ${p.file} | ${p.integrity} |`
+            ),
+          ];
+          const text = `${lines.join('\n')}\n`;
+          appendFileSync(process.env.GITHUB_STEP_SUMMARY, text);
+          process.stdout.write(text);
+          EOF
+
+  npm-stage:
+    name: Stage on npm
+    needs: validate
+    runs-on: ubuntu-latest
+    environment: npm
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      TAG_NAME: ${{ github.ref_name }}
+    steps:
+      - name: Download the tarballs and the manifest
+        id: download
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: npm-tarball
+          path: npm-tarball
+
+      - name: Setup Node.js
+        id: setup-node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 'lts/*'
+          package-manager-cache: false
+          registry-url: https://registry.npmjs.org
+
+      # Staged publishing requires npm 11.15.0 or newer; the npm bundled with lts/* is not guaranteed to meet it.
+      - name: Install npm with staged publishing support
+        id: npm
+        run: |
+          npm install -g npm@12.1.0
+          test "$(npm --version)" = "12.1.0"
+
+      # This job has no repository, so it cannot compare names with the public package list;
+      # that comparison is the validate job's verify-manifest. Here the downloaded files are only
+      # checked against the manifest that validate verified, so a lost or altered file is caught.
+      - name: Verify the downloaded artifact against its manifest
+        id: verify-artifact
+        run: |
+          node --input-type=module <<'EOF'
+          import { createHash } from 'node:crypto';
+          import { readdirSync, readFileSync } from 'node:fs';
+
+          const dir = 'npm-tarball';
+          const tag = process.env.TAG_NAME;
+          const errors = [];
+
+          let manifest;
+          try {
+            manifest = JSON.parse(readFileSync(`${dir}/manifest.json`, 'utf8'));
+          } catch (error) {
+            console.error(`cannot read ${dir}/manifest.json: ${error.message}`);
+            process.exit(1);
+          }
+          if (typeof manifest !== 'object' || manifest === null || Array.isArray(manifest)) {
+            console.error('manifest is not an object');
+            process.exit(1);
+          }
+
+          if (manifest.schemaVersion !== 1) {
+            errors.push(`manifest schemaVersion is ${manifest.schemaVersion}, expected 1`);
+          }
+          if (typeof tag !== 'string' || tag === '' || manifest.tag !== tag) {
+            errors.push(`manifest tag ${manifest.tag} differs from the pushed tag ${tag}`);
+          }
+          if (manifest.distTag !== 'latest' && manifest.distTag !== 'next') {
+            errors.push(`manifest distTag is ${manifest.distTag}, expected latest or next`);
+          } else if (typeof tag === 'string' && tag.includes('-') !== (manifest.distTag === 'next')) {
+            errors.push(`manifest distTag ${manifest.distTag} does not match the tag ${tag}`);
+          }
+
+          const filePattern = /^[A-Za-z0-9._-]+\.tgz$/;
+          const integrityPattern = /^sha512-[A-Za-z0-9+/]+={0,2}$/;
+          const entries = [];
+          if (!Array.isArray(manifest.packages) || manifest.packages.length === 0) {
+            errors.push('manifest packages must be a non-empty array');
+          } else {
+            const names = new Set();
+            const files = new Set();
+            for (const entry of manifest.packages) {
+              const { name, file, integrity } = entry ?? {};
+              if (typeof name !== 'string' || typeof file !== 'string' || typeof integrity !== 'string') {
+                errors.push('manifest package entry needs string name, file and integrity');
+                continue;
+              }
+              if (names.has(name)) errors.push(`manifest lists name ${name} more than once`);
+              names.add(name);
+              if (files.has(file)) errors.push(`manifest lists file ${file} more than once`);
+              files.add(file);
+              if (!filePattern.test(file)) {
+                errors.push(`manifest file ${JSON.stringify(file)} is not a plain .tgz name`);
+              }
+              if (!integrityPattern.test(integrity)) {
+                errors.push(`manifest integrity for ${file} is not sha512`);
+              }
+              entries.push({ name, file, integrity });
+            }
+          }
+
+          const present = readdirSync(dir).filter((f) => f.endsWith('.tgz'));
+          const listed = new Set(entries.map((e) => e.file));
+          for (const f of present) {
+            if (!listed.has(f)) errors.push(`${f} is in the directory but not in the manifest`);
+          }
+          for (const e of entries) {
+            if (!present.includes(e.file)) {
+              errors.push(`${e.file} is in the manifest but not in the directory`);
+              continue;
+            }
+            const actual = `sha512-${createHash('sha512').update(readFileSync(`${dir}/${e.file}`)).digest('base64')}`;
+            if (actual !== e.integrity) {
+              errors.push(`${e.file}: integrity ${actual} differs from the manifest ${e.integrity}`);
+            }
+          }
+
+          if (errors.length > 0) {
+            console.error(errors.join('\n'));
+            process.exit(1);
+          }
+          console.log(`verified ${entries.length} tarballs for ${tag} (${manifest.distTag})`);
+          EOF
+
+      # Publishing a tarball runs no lifecycle scripts, so no third-party code executes while the OIDC token is available.
+      # Each version stays uninstallable until a maintainer approves it with 2FA. Stops at the first failure.
+      - name: Stage publish
+        id: stage
+        run: |
+          node --input-type=module <<'EOF'
+          import { spawnSync } from 'node:child_process';
+          import { readFileSync } from 'node:fs';
+
+          const manifest = JSON.parse(readFileSync('npm-tarball/manifest.json', 'utf8'));
+          for (const { file } of manifest.packages) {
+            // The ./ prefix is required: without it npm reads the path as a GitHub shorthand, not a file.
+            const args = [
+              'stage',
+              'publish',
+              `./npm-tarball/${file}`,
+              '--access',
+              'public',
+              '--tag',
+              manifest.distTag,
+            ];
+            console.log(`npm ${args.join(' ')}`);
+            const result = spawnSync('npm', args, { stdio: 'inherit' });
+            if (result.status !== 0) {
+              console.error(`staging ${file} failed (${result.status ?? result.signal ?? result.error})`);
+              process.exit(1);
+            }
+          }
+          EOF
+
+  github-release:
+    name: GitHub Release
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    env:
+      TAG_NAME: ${{ github.ref_name }}
+    steps:
+      - name: Create GitHub Release
+        id: release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          prerelease_flag=()
+          case "$TAG_NAME" in *-*) prerelease_flag=(--prerelease) ;; esac
+          gh release create "$TAG_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag --generate-notes "${prerelease_flag[@]}"

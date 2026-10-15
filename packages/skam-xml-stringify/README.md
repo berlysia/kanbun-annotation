@@ -16,6 +16,8 @@ pnpm add @kanbun-skam/skam-xml-stringify
 
 ### 基本的なシリアライズ
 
+<!-- doctest -->
+
 ```typescript
 import { stringify } from '@kanbun-skam/skam-xml-stringify';
 import type { SKAMDocument } from '@kanbun-skam/skam';
@@ -50,14 +52,19 @@ const xml = stringify(doc);
 
 ### オプション
 
+<!-- doctest:typecheck -->
+
 ```typescript
 import { stringify } from '@kanbun-skam/skam-xml-stringify';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
 
 // XML 宣言なし
-const xml = stringify(doc, { xmlDeclaration: false });
+const withoutDeclaration = stringify(doc, { xmlDeclaration: false });
 
 // インデントサイズの変更（デフォルト: 2）
-const xml = stringify(doc, { indent: 4 });
+const indented = stringify(doc, { indent: 4 });
 ```
 
 ## 対応 Mark Types

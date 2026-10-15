@@ -49,6 +49,8 @@ pnpm add @kanbun-skam/skam-html-renderer
 
 ### SKAM ドキュメントを直接作成
 
+<!-- doctest -->
+
 ```typescript
 import type { SKAMDocument } from '@kanbun-skam/skam';
 
@@ -76,6 +78,8 @@ const doc: SKAMDocument = {
 
 ### SKAM-ML/XML からパース
 
+<!-- doctest -->
+
 ```typescript
 import { parse } from '@kanbun-skam/skam-xml-parser';
 
@@ -93,8 +97,13 @@ const doc = parse(xml);
 
 ### HTML へレンダリング
 
+<!-- doctest:typecheck -->
+
 ```typescript
 import { render, getDefaultStyles } from '@kanbun-skam/skam-html-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument; // 上の例で作成・パースしたドキュメント
 
 const { html, css } = render(doc); // 縦書き（デフォルト）
 // または横書き: render(doc, { writingMode: 'horizontal' })

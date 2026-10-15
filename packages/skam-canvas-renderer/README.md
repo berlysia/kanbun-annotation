@@ -16,6 +16,8 @@ pnpm add @kanbun-skam/skam-canvas-renderer
 
 ### 基本的なレンダリング
 
+<!-- doctest:skip 実際の HTMLCanvasElement が CanvasLike に型として合わない (fillStyle の型)。API 側の修正待ち -->
+
 ```typescript
 import { render } from '@kanbun-skam/skam-canvas-renderer';
 import type { SKAMDocument } from '@kanbun-skam/skam';
@@ -37,8 +39,15 @@ render(doc, canvas, { fontSize: 24 });
 
 ### サイズ計測
 
+<!-- doctest:typecheck -->
+
 ```typescript
+import type { CanvasLike } from '@kanbun-skam/skam-canvas-renderer';
 import { measure } from '@kanbun-skam/skam-canvas-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
+declare const canvas: CanvasLike;
 
 const ctx = canvas.getContext('2d')!;
 const { width, height } = measure(doc, ctx, { fontSize: 24 });
@@ -58,8 +67,15 @@ canvas.height = height;
 
 ### 表示プロファイル
 
+<!-- doctest:typecheck -->
+
 ```typescript
 import { render, PROFILES } from '@kanbun-skam/skam-canvas-renderer';
+import type { CanvasLike } from '@kanbun-skam/skam-canvas-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
+declare const canvas: CanvasLike;
 
 // フルプロファイル（すべての要素を表示、デフォルト）
 render(doc, canvas, { profile: PROFILES.full });
@@ -73,8 +89,15 @@ render(doc, canvas, { profile: PROFILES.learningHint });
 
 ### フォントの読み込み
 
+<!-- doctest:typecheck -->
+
 ```typescript
-import { loadDefaultFont, DEFAULT_FONT_FAMILY } from '@kanbun-skam/skam-canvas-renderer';
+import { render, loadDefaultFont, DEFAULT_FONT_FAMILY } from '@kanbun-skam/skam-canvas-renderer';
+import type { CanvasLike } from '@kanbun-skam/skam-canvas-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
+declare const canvas: CanvasLike;
 
 // デフォルトフォント（Noto Serif JP）を読み込み
 await loadDefaultFont();

@@ -49,6 +49,8 @@ const config: KnipConfig = {
     'packages/skam/src/__tests__/operations/helpers.ts',
     'packages/skam-html-renderer/src/__tests__/helpers/css-contract.ts',
     'packages/skam-web-component/src/__tests__/helpers/style-contract.ts',
+    // README doctest extractor, imported only by integration-tests *.test.ts
+    'packages/integration-tests/src/doctest/extract.ts',
     // Legacy render-tree used by active tests (layout-vertical.test.ts etc.)
     'packages/skam-canvas-renderer/src/render-tree.ts',
   ],

@@ -14,6 +14,8 @@ pnpm add @kanbun-skam/skam-xml-parser
 
 ## 使い方
 
+<!-- doctest -->
+
 ```typescript
 import { parse } from '@kanbun-skam/skam-xml-parser';
 
@@ -39,6 +41,8 @@ const doc = parse(xml);
 
 ### ルート要素
 
+<!-- doctest:skip 子要素を省略記号で示した構造の例 -->
+
 ```xml
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>...</skam:body>
@@ -49,6 +53,8 @@ const doc = parse(xml);
 
 ### 本文 (`<skam:body>`)
 
+<!-- doctest:xml body -->
+
 ```xml
 <skam:body>
   <skam:block>學而時習之</skam:block>
@@ -57,6 +63,8 @@ const doc = parse(xml);
 ```
 
 ### 訓読注記（インライン）
+
+<!-- doctest:xml block -->
 
 ```xml
 <skam:block>
@@ -94,6 +102,8 @@ const doc = parse(xml);
 
 ### 再読文字
 
+<!-- doctest:xml block -->
+
 ```xml
 <skam:saidoku>
   <skam:base>將</skam:base>
@@ -103,6 +113,8 @@ const doc = parse(xml);
 ```
 
 ### その他の注記
+
+<!-- doctest:xml block -->
 
 ```xml
 <!-- たて点（熟語境界） -->
@@ -117,16 +129,22 @@ const doc = parse(xml);
 
 ### 注釈 (`<skam:notes>`)
 
+<!-- doctest:xml -->
+
 ```xml
-<skam:body>
-  <skam:block>學而時習之<skam:ref target="#n1"/></skam:block>
-</skam:body>
-<skam:notes>
-  <skam:note xml:id="n1">「之」は目的語として読む。</skam:note>
-</skam:notes>
+<skam:doc xmlns:skam="urn:skam:1">
+  <skam:body>
+    <skam:block>學而時習之<skam:ref xml:id="n1"/></skam:block>
+  </skam:body>
+  <skam:notes>
+    <skam:note ref="n1">「之」は目的語として読む。</skam:note>
+  </skam:notes>
+</skam:doc>
 ```
 
 ### 読み層 (`<skam:readings>`)
+
+<!-- doctest:skip doc の子要素だけの断片 -->
 
 ```xml
 <skam:readings>
@@ -138,8 +156,12 @@ const doc = parse(xml);
 
 ## エラーハンドリング
 
+<!-- doctest:typecheck -->
+
 ```typescript
 import { parse, SKAMXMLParseError } from '@kanbun-skam/skam-xml-parser';
+
+declare const xmlString: string;
 
 try {
   const doc = parse(xmlString);

@@ -16,6 +16,8 @@ pnpm add @kanbun-skam/skam-html-renderer
 
 ### 基本的なレンダリング
 
+<!-- doctest -->
+
 ```typescript
 import { render } from '@kanbun-skam/skam-html-renderer';
 import type { SKAMDocument } from '@kanbun-skam/skam';
@@ -26,6 +28,7 @@ const doc: SKAMDocument = {
     { id: 't1', text: '学' },
     { id: 't2', text: '而' },
   ],
+  blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
   marks: [{ type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'びて' }],
   readings: [],
 };
@@ -49,8 +52,13 @@ const result = render(doc);
 
 ### 書字方向の指定
 
+<!-- doctest:typecheck -->
+
 ```typescript
 import { render } from '@kanbun-skam/skam-html-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
 
 // 縦書き（デフォルト）
 const vertical = render(doc, { writingMode: 'vertical' });
@@ -61,8 +69,13 @@ const horizontal = render(doc, { writingMode: 'horizontal' });
 
 ### 表示プロファイル
 
+<!-- doctest:typecheck -->
+
 ```typescript
 import { render, PROFILES } from '@kanbun-skam/skam-html-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
 
 // フルプロファイル（すべての要素を表示、デフォルト）
 const full = render(doc, { profile: PROFILES.full });
@@ -76,8 +89,13 @@ const hint = render(doc, { profile: PROFILES.learningHint });
 
 ### スタイルのカスタマイズ
 
+<!-- doctest:typecheck -->
+
 ```typescript
 import { render, getDefaultStyles, generateCSS } from '@kanbun-skam/skam-html-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
 
 // CSS 生成オプション
 const css = generateCSS({
@@ -126,20 +144,25 @@ const result = render(doc, { writingMode: 'vertical' });
 
 #### API での指定
 
+<!-- doctest:typecheck -->
+
 ```typescript
-import { render, renderHTML } from '@kanbun-skam/skam-html-renderer';
+import { render } from '@kanbun-skam/skam-html-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
 
 // デフォルト: 本文のみコピー可能
-const result = render(doc);
+const bodyOnly = render(doc);
 
 // 読み仮名もコピー可能
-const result = render(doc, { copyable: ['ruby'] });
+const withRuby = render(doc, { copyable: ['ruby'] });
 
 // 複数指定
-const result = render(doc, { copyable: ['ruby', 'okurigana'] });
+const withRubyAndOkurigana = render(doc, { copyable: ['ruby', 'okurigana'] });
 
 // 全てコピー可能
-const result = render(doc, { copyable: 'all' });
+const everything = render(doc, { copyable: 'all' });
 ```
 
 #### 生成される HTML
@@ -190,7 +213,11 @@ const result = render(doc, { copyable: 'all' });
 
 #### @layer を無効にする
 
+<!-- doctest -->
+
 ```typescript
+import { generateCSS } from '@kanbun-skam/skam-html-renderer';
+
 const css = generateCSS({ useLayer: false });
 ```
 
@@ -235,6 +262,8 @@ const css = generateCSS({ useLayer: false });
 okototen は格子の外 (座標が範囲外) の場合は描画しない。
 
 ## 出力形式
+
+<!-- doctest:skip 型の一覧 -->
 
 ```typescript
 interface RenderResult {

@@ -41,6 +41,8 @@ pnpm add @kanbun-skam/skam-web-component
 
 メインエントリからは自動登録されない。利用側で `customElements.define()` を呼ぶ。
 
+<!-- doctest:typecheck -->
+
 ```typescript
 import { SkamRendererElement } from '@kanbun-skam/skam-web-component';
 
@@ -49,8 +51,12 @@ customElements.define('skam-renderer', SkamRendererElement);
 
 ### プログラマティックに XML を設定
 
+<!-- doctest:typecheck -->
+
 ```typescript
 import { SkamRendererElement } from '@kanbun-skam/skam-web-component';
+
+declare const xmlString: string;
 
 const el = document.querySelector('skam-renderer') as SkamRendererElement;
 el.xmlContent = xmlString;

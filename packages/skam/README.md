@@ -16,6 +16,8 @@ pnpm add @kanbun-skam/skam
 
 ### 型定義
 
+<!-- doctest -->
+
 ```typescript
 import type { SKAMDocument, Token, Mark, Reading } from '@kanbun-skam/skam';
 
@@ -25,6 +27,7 @@ const doc: SKAMDocument = {
     { id: 't1', text: '学' },
     { id: 't2', text: '而' },
   ],
+  blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
   marks: [{ type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'びて' }],
   readings: [{ kind: 'kakikudashi', text: '学びて' }],
 };
@@ -32,8 +35,13 @@ const doc: SKAMDocument = {
 
 ### バリデーション
 
+<!-- doctest:typecheck -->
+
 ```typescript
 import { validateSKAMDocument, isSKAMDocument, assertSKAMDocument } from '@kanbun-skam/skam';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const input: unknown; // 検証したい外部からの入力
 
 // 結果オブジェクトを返す
 const result = validateSKAMDocument(input);

@@ -13,7 +13,7 @@ import {
   orderByDependencies,
   checkPackedPackageJson,
   verifyManifest,
-  parseReleaseArgs,
+  parseNpmViewVersions,
   parseReleaseFlags,
   decideEntry,
   decideEntryWithStatus,
@@ -524,13 +524,24 @@ for (const [label, value] of [
   });
 }
 
-// parseReleaseArgs
+// parseNpmViewVersions
 
-test('parseReleaseArgs: reads --tag-only, skips a leading --, rejects the unknown', () => {
-  assert.deepEqual(parseReleaseArgs([]), { ok: true, value: { tagOnly: false } });
-  assert.deepEqual(parseReleaseArgs(['--tag-only']), { ok: true, value: { tagOnly: true } });
-  assert.deepEqual(parseReleaseArgs(['--', '--tag-only']), { ok: true, value: { tagOnly: true } });
-  assert.equal(parseReleaseArgs(['--force']).ok, false);
+test('parseNpmViewVersions: reads the versions array (実物の形: 1 版でも配列)', () => {
+  assert.deepEqual(parseNpmViewVersions({ status: 0, stdout: '[\n  "0.1.0"\n]\n', stderr: '' }), {
+    kind: 'found',
+    versions: ['0.1.0'],
+    latest: undefined,
+  });
+});
+
+test('parseNpmViewVersions: E404 is not-found, other shapes are errors', () => {
+  const e404 = '{"error":{"code":"E404","summary":"Not Found"}}';
+  assert.deepEqual(parseNpmViewVersions({ status: 1, stdout: e404, stderr: '' }), {
+    kind: 'not-found',
+  });
+  assert.equal(parseNpmViewVersions({ status: 0, stdout: '"0.1.0"', stderr: '' }).kind, 'error');
+  assert.equal(parseNpmViewVersions({ status: 0, stdout: 'not json', stderr: '' }).kind, 'error');
+  assert.equal(parseNpmViewVersions({ status: 1, stdout: '["0.1.0"]', stderr: '' }).kind, 'error');
 });
 
 // parseReleaseFlags

@@ -361,14 +361,19 @@ export function verifyManifest(
   return ok({ schemaVersion: 1, tag, version, distTag: distTag as DistTag, packages: entries });
 }
 
-export function parseReleaseArgs(argv: readonly string[]): Check<{ tagOnly: boolean }> {
-  const args = argv[0] === '--' ? argv.slice(1) : argv;
-  let tagOnly = false;
-  for (const arg of args) {
-    if (arg === '--tag-only') tagOnly = true;
-    else return fail(`unknown argument: ${arg}`);
+// `npm view <name> versions --json` は版の配列を返す (1 版でも配列、research §5b)。
+// parseNpmView は dist-tags を含む object を前提にしているので、配列だけをここで読み、
+// それ以外 (E404 の JSON、非 JSON) は parseNpmView に任せる
+export function parseNpmViewVersions(result: CommandResult): RegistryResponse {
+  try {
+    const json: unknown = JSON.parse(result.stdout);
+    if (result.status === 0 && isStringArray(json)) {
+      return { kind: 'found', versions: json, latest: undefined };
+    }
+  } catch {
+    // 非 JSON は parseNpmView が error にする
   }
-  return ok({ tagOnly });
+  return parseNpmView(result.status, result.stdout);
 }
 
 // --- フラグ (K2) ---

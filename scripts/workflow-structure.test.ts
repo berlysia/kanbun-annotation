@@ -23,6 +23,7 @@ import {
   GH_RUN_LIST_FIELDS,
   GH_RUN_VIEW_FIELDS,
   RELEASE_JOB_NAMES,
+  RELEASING_SECTIONS,
   isSubsetOfAllowlist,
 } from './lib/release-after-push-check.ts';
 import { makeWorkspace, removeWorkspace } from './lib/test-workspace.ts';
@@ -1001,5 +1002,205 @@ describe('release scripts: constants shared with release.yml and gh', () => {
       isSubsetOfAllowlist([...GH_RUN_VIEW_FIELDS, 'attempt'], GH_245_VIEW_ALLOWED),
       false
     );
+  });
+});
+
+// --- releasing.md の構造 (plan-5 T4) ---
+// 検査関数は文字列を受けて違反を返す。現物が通ることと、違反を入れた文字列で落ちることの両方を確かめる。
+// 手作業の節には `## Release manifest` を含むコードブロックがあるので、見出しの走査はコードフェンスの中を読み飛ばす。
+
+interface MarkdownHeading {
+  level: number;
+  text: string;
+  // text 内の行番号 (0 始まり)
+  line: number;
+}
+
+function markdownHeadings(text: string): MarkdownHeading[] {
+  const headings: MarkdownHeading[] = [];
+  let inFence = false;
+  text.split('\n').forEach((line, index) => {
+    if (line.trimStart().startsWith('```')) {
+      inFence = !inFence;
+      return;
+    }
+    if (inFence) return;
+    const match = /^(#{1,6}) (.*)$/.exec(line);
+    if (match?.[1] !== undefined && match[2] !== undefined) {
+      headings.push({ level: match[1].length, text: line, line: index });
+    }
+  });
+  return headings;
+}
+
+// `## ` の見出しが prefix で始まる節の本文 (次の `## ` の見出しの手前まで)。なければ undefined
+function markdownSection(text: string, prefix: string): string | undefined {
+  const headings = markdownHeadings(text).filter((h) => h.level === 2);
+  const index = headings.findIndex((h) => h.text.startsWith(prefix));
+  const start = headings[index];
+  if (start === undefined) return undefined;
+  const end = headings[index + 1]?.line;
+  return text.split('\n').slice(start.line, end).join('\n');
+}
+
+function markdownCodeBlocks(body: string): string[] {
+  const blocks: string[] = [];
+  let current: string[] | undefined;
+  for (const line of body.split('\n')) {
+    if (line.trimStart().startsWith('```')) {
+      if (current === undefined) current = [];
+      else {
+        blocks.push(current.join('\n'));
+        current = undefined;
+      }
+    } else if (current !== undefined) current.push(line);
+  }
+  return blocks;
+}
+
+const MANUAL_SECTION = '## 手作業の手順';
+const FIRST_RELEASE_SECTION = '## 最初のリリース (0.2.0) で確かめること';
+const PRERELEASE_SECTION = '## prerelease';
+const MANUAL_COMMANDS = [
+  'npm stage list',
+  'npm stage view',
+  'npm stage download',
+  'npm stage approve',
+  'npm view',
+];
+
+// classifyStop が出す見出しの接頭辞 (RELEASING_SECTIONS) が、releasing.md に実在する
+function findMissingReleasingSections(text: string): string[] {
+  const headings = markdownHeadings(text).filter((h) => h.level === 2 || h.level === 3);
+  return Object.entries(RELEASING_SECTIONS)
+    .filter(([, prefix]) => !headings.some((h) => h.text.startsWith(prefix)))
+    .map(([route, prefix]) => `route ${route}: no heading starts with ${JSON.stringify(prefix)}`);
+}
+
+function findManualStepViolations(text: string): string[] {
+  const body = markdownSection(text, MANUAL_SECTION);
+  if (body === undefined) return [`no section ${MANUAL_SECTION}`];
+  const code = markdownCodeBlocks(body).join('\n');
+  return MANUAL_COMMANDS.filter((command) => !code.includes(command)).map(
+    (command) => `${MANUAL_SECTION}: no code block has ${command}`
+  );
+}
+
+function findFirstReleaseViolations(text: string): string[] {
+  const body = markdownSection(text, FIRST_RELEASE_SECTION);
+  if (body === undefined) return [`no section ${FIRST_RELEASE_SECTION}`];
+  return ['段 10', '`N`', '.tmp/release/']
+    .filter((needle) => !body.includes(needle))
+    .map((needle) => `${FIRST_RELEASE_SECTION}: no ${needle}`);
+}
+
+function findPrereleaseViolations(text: string): string[] {
+  const violations: string[] = [];
+  const body = markdownSection(text, PRERELEASE_SECTION);
+  if (body === undefined) violations.push(`no section ${PRERELEASE_SECTION}`);
+  else {
+    for (const needle of ['--pre beta', '--exit-pre']) {
+      if (!body.includes(needle)) violations.push(`${PRERELEASE_SECTION}: no ${needle}`);
+    }
+  }
+  if (/検証していないので.{0,10}書かない/.test(text)) {
+    violations.push('releasing.md still says the prerelease steps are not verified');
+  }
+  return violations;
+}
+
+describe('releasing.md structure', () => {
+  const releasing = readSource('docs/releasing.md');
+
+  test('(11a) every RELEASING_SECTIONS prefix starts a ## or ### heading', () => {
+    assert.deepEqual(findMissingReleasingSections(releasing), []);
+    const renamed = releasing.replace('### F2:', '### F2 ');
+    assert.deepEqual(findMissingReleasingSections(renamed), [
+      'route F2: no heading starts with "### F2:"',
+    ]);
+    assert.equal(findMissingReleasingSections('## 止まったとき\n').length, 5);
+  });
+
+  test('(11a) a heading-looking line inside a code fence is not a heading', () => {
+    const fenced = ['## 止まったとき', '', '```', '### F1: in a fence', '```', ''].join('\n');
+    assert.ok(findMissingReleasingSections(fenced).some((v) => v.startsWith('route F1')));
+  });
+
+  test('(11b) the manual steps section keeps the npm commands in code blocks', () => {
+    assert.deepEqual(findManualStepViolations(releasing), []);
+    const misspelled = releasing.replaceAll('npm stage approve', 'npm stage aprove');
+    assert.deepEqual(findManualStepViolations(misspelled), [
+      `${MANUAL_SECTION}: no code block has npm stage approve`,
+    ]);
+    assert.deepEqual(findManualStepViolations('## 毎回のリリース\n'), [
+      `no section ${MANUAL_SECTION}`,
+    ]);
+  });
+
+  test('(11b) commands written only in prose do not count, and a ## line in a fence does not end the section', () => {
+    const proseOnly = [MANUAL_SECTION, '', MANUAL_COMMANDS.join(' / '), '', '## 次の節', ''].join(
+      '\n'
+    );
+    assert.equal(findManualStepViolations(proseOnly).length, MANUAL_COMMANDS.length);
+    const afterFencedHeading = [
+      MANUAL_SECTION,
+      '',
+      '```',
+      '## Release manifest',
+      '```',
+      '',
+      '```bash',
+      ...MANUAL_COMMANDS,
+      '```',
+      '',
+      '## 次の節',
+      '',
+    ].join('\n');
+    assert.deepEqual(findManualStepViolations(afterFencedHeading), []);
+    const afterNextSection = [
+      MANUAL_SECTION,
+      '',
+      '## 次の節',
+      '',
+      '```',
+      ...MANUAL_COMMANDS,
+      '```',
+    ];
+    assert.equal(
+      findManualStepViolations(afterNextSection.join('\n')).length,
+      MANUAL_COMMANDS.length
+    );
+  });
+
+  test('(11c) the first release section names stage 10, the N answer and the saved files', () => {
+    assert.deepEqual(findFirstReleaseViolations(releasing), []);
+    assert.deepEqual(findFirstReleaseViolations(releasing.replaceAll('段 10', '段 9')), [
+      `${FIRST_RELEASE_SECTION}: no 段 10`,
+    ]);
+    assert.deepEqual(findFirstReleaseViolations(releasing.replaceAll('`N`', 'N')), [
+      `${FIRST_RELEASE_SECTION}: no \`N\``,
+    ]);
+    assert.deepEqual(
+      findFirstReleaseViolations(releasing.replaceAll('.tmp/release/', '.tmp/rel/')),
+      [`${FIRST_RELEASE_SECTION}: no .tmp/release/`]
+    );
+  });
+
+  test('(11d) the prerelease section shows --pre beta and --exit-pre, and no "not verified" sentence remains', () => {
+    assert.deepEqual(findPrereleaseViolations(releasing), []);
+    assert.deepEqual(findPrereleaseViolations(releasing.replaceAll('--exit-pre', '--exit')), [
+      `${PRERELEASE_SECTION}: no --exit-pre`,
+    ]);
+    assert.deepEqual(findPrereleaseViolations(releasing.replaceAll('--pre beta', '--pre b')), [
+      `${PRERELEASE_SECTION}: no --pre beta`,
+    ]);
+    for (const sentence of [
+      'prerelease の手順は検証していないので書かない。',
+      'prerelease の版を作る手順は検証していないので、この文書には書かない。',
+    ]) {
+      assert.deepEqual(findPrereleaseViolations(`${releasing}\n${sentence}\n`), [
+        'releasing.md still says the prerelease steps are not verified',
+      ]);
+    }
   });
 });

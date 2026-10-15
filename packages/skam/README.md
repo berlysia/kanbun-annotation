@@ -64,6 +64,37 @@ assertSKAMDocument(input);
 
 返り点（kaeri）はブロックの先頭に置けない。検証エラーと parser のエラーは、同じ案内文 `BLOCK_START_KAERI_HINT`（本パッケージが export する）を使う。同じ位置に重複した kaeri は検査しない。
 
+## 読み上げ用テキスト (`@experimental`)
+
+`@kanbun-skam/skam/rendering` の次の API は、AIR（`buildAnnotationIR` が `profile` で絞った「画面に見えるもの」）から、読み上げ用の構造と文字列を作る。どれも `@experimental` で、読み上げの言葉は 0.x のマイナーリリースで変わりうる。
+
+- `describeAnnotationIR(air)`: ブロック → 単位 → 注記の構造を返す。言語に依存しない。注記の `kind` は 0.x のマイナーで増えうる。
+- `formatAccessibleText(blocks, labels?)`: 構造を日本語の文章にする。**HTML のエスケープをしない**ので、HTML に入れるときは呼び出し側でエスケープする。`labels` で `kind` ごとに言葉を上書きできる（own property だけを引く）。空文字・例外・string 以外を返した注記は出ない。すべての注記が出ず、本文も無いと空文字を返す。
+- `DEFAULT_ACCESSIBLE_LABELS`: 既定の言葉。
+
+<!-- doctest:typecheck -->
+
+```typescript
+import {
+  buildAnnotationIR,
+  describeAnnotationIR,
+  formatAccessibleText,
+  RENDER_PROFILES,
+} from '@kanbun-skam/skam/rendering';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
+
+const air = buildAnnotationIR(doc, RENDER_PROFILES.learningBasic);
+const text = formatAccessibleText(describeAnnotationIR(air));
+// 例: 學。而、置き字。時。習、レ点。之。
+```
+
+既知の制約:
+
+- 読みの範囲が竪点のグループからはみ出す文書（#16）では、範囲の読みが先頭の字の読み仮名として出る。
+- 再読文字は `slots.saidokuUnder` か `slots.saidokuOkuri2` があるときだけ再読文字として読む。2 回目の読みが無い再読文字は、1 回目の読みが読み仮名・送り仮名として出る。
+
 ## Mark Types
 
 | type        | 説明                     |

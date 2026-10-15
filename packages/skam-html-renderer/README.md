@@ -62,6 +62,56 @@ const result = render(doc);
 
 `displayLang` は、表示層の `lang` だけを変える。
 
+`readingLayerSource` (`@experimental`) で、読み層の出どころを選べる。
+
+- `'readings'` (既定): 作者が書いた読み (`yomiage` → `kakikudashi`)。無ければ白文。**`profile` で隠した注記も、読み下しとして読み上げる。**
+- `'display'`: 表示層と同じ `profile` で解決した、画面に見えている注記だけを言葉にする。`readings` も白文も参照しない。
+
+`'display'` の言葉は `accessibleLabels` (`@experimental`) で上書きできる。注記の種類ごとに `(note) => string` を渡す。空文字・例外・string 以外を返した注記は読み上げない。返した文字列は HTML エスケープされる。読み上げの言葉は 0.x のマイナーリリースで変わりうる。
+
+<!-- doctest:typecheck -->
+
+```typescript
+import { render } from '@kanbun-skam/skam-html-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
+
+const { html } = render(doc, {
+  profile: { base: 'learningBasic' },
+  readingLayerSource: 'display',
+  accessibleLabels: { kaeri: (note) => `返り点 ${note.value}` },
+});
+```
+
+読み上げの構造と文字列は、`@kanbun-skam/skam/rendering` の `describeAnnotationIR` / `formatAccessibleText` (`@experimental`) でも作れる。
+
+### 出題に使うとき
+
+教材の出題画面のように注記の一部を隠すときは、次の 4 点に従う。
+
+1. `profile` は `{ base, overrides }` の形で書き、**必ず** `readingLayerSource: 'display'` と併用する。部分指定はキーを書き忘れると full 側に倒れる。
+2. 既定の `'readings'` は、隠した注記を読み下しとして読み上げる。
+3. Web Component では、`profile` 属性を外すと full で描かれる。
+4. 保証するのは画面と読み層だけである。HTML ソースや `<script>` 内の SKAM-ML からは元の注記を取れる。答えを本当に隠したいなら、配る前に SKAM-ML から注記を除く。
+
+<!-- doctest:typecheck -->
+
+```typescript
+import { render } from '@kanbun-skam/skam-html-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
+
+// 送り仮名を隠した出題
+const quiz = render(doc, {
+  profile: { base: 'learningHint', overrides: { okurigana: false } },
+  readingLayerSource: 'display',
+});
+```
+
+既知の制約: 読みの範囲が竪点のグループからはみ出す文書では、範囲の読みが先頭の字の読み仮名として読み上げられる。2 回目の読みが無い再読文字は、1 回目の読みが読み仮名・送り仮名として読み上げられる。
+
 ### 書字方向の指定
 
 <!-- doctest:typecheck -->

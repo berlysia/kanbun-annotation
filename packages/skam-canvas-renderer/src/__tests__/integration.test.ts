@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { SKAMDocument } from '@kanbun-skam/skam';
 import { KAERI } from '@kanbun-skam/skam';
 import { render, measure, PROFILES } from '../index.js';
+import { RENDER_PROFILES } from '@kanbun-skam/skam/rendering';
 import { RecordingCanvas, RecordingContext } from './recording-context.js';
 
 function plainDoc(): SKAMDocument {
@@ -447,5 +448,39 @@ describe('integration: measure()', () => {
     // measure() should not call fillText or fillRect
     expect(ctx.getCalls('fillText')).toHaveLength(0);
     expect(ctx.getCalls('fillRect')).toHaveLength(0);
+  });
+});
+
+describe('profile validation (K4)', () => {
+  const bad = { profile: { okuriganaa: false } as never };
+
+  it('render rejects unknown profile keys', () => {
+    expect(() => render(plainDoc(), new RecordingCanvas(), bad)).toThrow(TypeError);
+  });
+
+  it('measure rejects unknown profile keys', () => {
+    expect(() => measure(plainDoc(), new RecordingContext(), bad)).toThrow(TypeError);
+  });
+
+  it('PROFILES is the frozen RENDER_PROFILES of skam/rendering', () => {
+    expect(PROFILES).toBe(RENDER_PROFILES);
+    expect(Object.isFrozen(PROFILES.full)).toBe(true);
+  });
+
+  it('accepts partial, preset and base forms', () => {
+    const partial = { profile: { kaeriten: true } };
+    const preset = { profile: PROFILES.learningBasic };
+    const based = { profile: { base: 'learningBasic', overrides: { ref: false } } } as const;
+    const mixed: Parameters<typeof render>[2] = {
+      profile: {
+        base: 'learningBasic',
+        // @ts-expect-error base と個別キーは混ぜられない
+        okurigana: false,
+      },
+    };
+    for (const opts of [partial, preset, based]) {
+      expect(() => render(plainDoc(), new RecordingCanvas(), opts)).not.toThrow();
+    }
+    expect(mixed).toBeDefined();
   });
 });

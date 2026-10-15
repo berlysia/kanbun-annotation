@@ -24,7 +24,7 @@ export interface StyleOptions {
   /** CSS Variables のプレフィックス（default: 'skam'） */
   variablePrefix?: string;
   /**
-   * Ruby要素のレンダリング方式（default: 'ruby'）
+   * Ruby要素のレンダリング方式（default: 'grid'）
    *
    * - 'ruby': ruby要素用CSS
    * - 'grid': inline-grid用CSS

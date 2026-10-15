@@ -11,7 +11,7 @@ import type {
   CanvasRenderOptions,
 } from './types.js';
 import type { RenderProfile } from './profiles.js';
-import { PROFILES } from './profiles.js';
+import { resolveRenderProfile } from './profiles.js';
 import { DEFAULT_FONT_FAMILY } from './font-loader.js';
 import { TextMeasurer } from './measure.js';
 import { layoutVertical } from './layout-vertical.js';
@@ -33,7 +33,7 @@ function assertPositiveFinite(name: string, value: number): void {
 export function resolveOptions(options?: CanvasRenderOptions): ResolvedOptions {
   if (options?.pixelRatio !== undefined) assertPositiveFinite('pixelRatio', options.pixelRatio);
   if (options?.maxExtent !== undefined) assertPositiveFinite('maxExtent', options.maxExtent);
-  const profile: RenderProfile = { ...PROFILES.full, ...options?.profile };
+  const profile: RenderProfile = resolveRenderProfile(options?.profile);
   return {
     writingMode: options?.writingMode ?? 'vertical',
     profile,

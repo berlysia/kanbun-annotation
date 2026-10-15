@@ -8,14 +8,25 @@ import type { SKAMDocument, Mark, RefMark, Reading } from '@kanbun-skam/skam';
 import type { Spacing } from '@kanbun-skam/skam/rendering';
 import { resolveRefValues } from '@kanbun-skam/skam/rendering';
 import { getDefaultStyles } from './styles.js';
-import type { RenderProfile, RubyMethod, CopyableElement } from './render-config.js';
-import { PROFILES } from './render-config.js';
+import type {
+  RenderProfile,
+  RenderProfileInput,
+  RubyMethod,
+  CopyableElement,
+} from './render-config.js';
+import { resolveRenderProfile } from './render-config.js';
 import { escapeHtml, getSourceOrderedTokens, shouldApplyTateChuYoko } from './html-utils.js';
 import { renderDisplayLayer } from './render-display-layer.js';
 import { validateCSSOptions, validateRenderOptions } from './render-options.js';
 
-export type { RenderProfile, RubyMethod, CopyableElement } from './render-config.js';
-export { PROFILES } from './render-config.js';
+export type {
+  RenderProfile,
+  RenderProfileInput,
+  RenderProfileName,
+  RubyMethod,
+  CopyableElement,
+} from './render-config.js';
+export { PROFILES, resolveRenderProfile } from './render-config.js';
 export { escapeHtml, generateEmphasisMarks, shouldApplyTateChuYoko } from './html-utils.js';
 export { getBlockStartMarks } from './mark-utils.js';
 export { renderToken, type TokenRenderContext } from './token-renderer.js';
@@ -30,8 +41,11 @@ export type { RangeMarkContext, RangeTokenInfo, TokenRenderResult } from './rend
  * レンダリングオプション
  */
 export interface RenderOptions {
-  /** 表示要素の制御プロファイル */
-  profile?: Partial<RenderProfile>;
+  /**
+   * 表示要素の制御プロファイル。部分指定は full に重なる（書かなかったキーは表示される）。
+   * 注記を隠す用途では `{ base, overrides }` の形を使う。不正な値は TypeError。
+   */
+  profile?: RenderProfileInput;
   /** 書字方向 */
   writingMode?: 'vertical' | 'horizontal';
   /** CSSクラス名プレフィックス */
@@ -61,7 +75,7 @@ export interface RenderOptions {
    */
   interactive?: boolean;
   /**
-   * Ruby要素のレンダリング方式（default: 'ruby'）
+   * Ruby要素のレンダリング方式（default: 'grid'）
    *
    * - 'ruby': HTML ruby要素を使用
    * - 'grid': inline-grid で代替レンダリング
@@ -92,8 +106,11 @@ export interface RenderResult {
  * HTMLのみ生成オプション
  */
 export interface RenderHTMLOptions {
-  /** 表示要素の制御プロファイル */
-  profile?: Partial<RenderProfile>;
+  /**
+   * 表示要素の制御プロファイル。部分指定は full に重なる（書かなかったキーは表示される）。
+   * 注記を隠す用途では `{ base, overrides }` の形を使う。不正な値は TypeError。
+   */
+  profile?: RenderProfileInput;
   /** 書字方向 */
   writingMode?: 'vertical' | 'horizontal';
   /** CSSクラス名プレフィックス */
@@ -117,7 +134,7 @@ export interface RenderHTMLOptions {
    */
   interactive?: boolean;
   /**
-   * Ruby要素のレンダリング方式（default: 'ruby'）
+   * Ruby要素のレンダリング方式（default: 'grid'）
    */
   rubyMethod?: RubyMethod;
   /** 表示層の言語タグ (BCP 47) */
@@ -141,7 +158,7 @@ export interface CSSOptions {
   /** CSS Variables のプレフィックス（default: 'skam'） */
   variablePrefix?: string;
   /**
-   * Ruby要素のレンダリング方式（default: 'ruby'）
+   * Ruby要素のレンダリング方式（default: 'grid'）
    *
    * - 'ruby': ruby要素用CSS
    * - 'grid': inline-grid用CSS
@@ -247,7 +264,7 @@ function renderDocumentHtml(
   inline: boolean;
   rubyMethod: RubyMethod;
 } {
-  const profile: RenderProfile = { ...PROFILES.full, ...options.profile };
+  const profile: RenderProfile = resolveRenderProfile(options.profile);
   const writingMode = options.writingMode ?? 'vertical';
   const prefix = options.classPrefix ?? 'skam';
   const includeReadingLayer = options.includeReadingLayer ?? true;

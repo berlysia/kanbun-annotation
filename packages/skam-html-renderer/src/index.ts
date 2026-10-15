@@ -16,7 +16,10 @@ export {
 
 export {
   PROFILES,
+  resolveRenderProfile,
   type RenderProfile,
+  type RenderProfileInput,
+  type RenderProfileName,
   type CopyableElement,
   type RubyMethod,
 } from './render-config.js';

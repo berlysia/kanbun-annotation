@@ -10,6 +10,7 @@
 
 import type { SpacingPreset } from '@kanbun-skam/skam/rendering';
 import type { CopyableElement, RubyMethod } from './render-config.js';
+import { resolveRenderProfile } from './render-config.js';
 import type { RenderOptions } from './renderer.js';
 import type { StyleOptions } from './styles.js';
 
@@ -87,8 +88,17 @@ function check<T>(v: T | undefined, assert: (v: unknown) => void): void {
   if (v !== undefined) assert(v);
 }
 
+/** includeReadingLayer は指定されていれば真偽値。'false' のような文字列は truthy として通ってしまうため */
+function assertIncludeReadingLayer(v: unknown): void {
+  if (typeof v !== 'boolean') {
+    throw new TypeError('includeReadingLayer must be a boolean');
+  }
+}
+
 /** render / renderHTML のオプションを検査する。render は CSS も作るので CSS 用のオプションも含む */
 export function validateRenderOptions(o: RenderOptions): void {
+  check(o.profile, (v) => void resolveRenderProfile(v));
+  check(o.includeReadingLayer, assertIncludeReadingLayer);
   check(o.writingMode, (v) => assertWritingMode(v, false));
   check(o.classPrefix, assertClassPrefix);
   check(o.layerName, assertLayerName);

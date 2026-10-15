@@ -35,6 +35,15 @@ export type {
   AIRDocument,
 } from './air-types.js';
 
+// 表示設定
+export {
+  RENDER_PROFILES,
+  resolveRenderProfile,
+  type RenderProfile,
+  type RenderProfileInput,
+  type RenderProfileName,
+} from './render-profile.js';
+
 // 返り点
 export { splitKaeriForTateten } from './kaeri.js';
 

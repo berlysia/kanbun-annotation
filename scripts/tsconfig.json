@@ -19,6 +19,8 @@
     "check-release.test.ts",
     "release.ts",
     "release.test.ts",
+    "release-after-push.ts",
+    "release-after-push.test.ts",
     "workflow-structure.test.ts"
   ]
 }

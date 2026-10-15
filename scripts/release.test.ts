@@ -10,6 +10,7 @@ import {
   readFileSync,
   realpathSync,
   rmSync,
+  symlinkSync,
   unlinkSync,
   writeFileSync,
 } from 'node:fs';
@@ -20,8 +21,12 @@ import type { Readable } from 'node:stream';
 import {
   buildReleaseDeps,
   createConfirm,
+  createEvidenceStore,
+  createInterruptState,
   createOutput,
   createRunner,
+  createTempFs,
+  nodeFsApi,
   pumpSanitizedStderr,
   readPreState,
   reportOutcome,
@@ -43,9 +48,17 @@ import type {
   SpawnOptionsLike,
   SpawnSyncFn,
 } from './release.ts';
+import type { AfterPushInput } from './release-after-push.ts';
 import { checkChangelog } from './lib/release-check.ts';
 import type { ChangesetStatus, ReleaseFlags, ReleaseLookup } from './lib/release-check.ts';
-import type { Check, CommandResult, Outcome, TrustResult } from './lib/release-types.ts';
+import type {
+  AfterPushResult,
+  Check,
+  ClassifiedStop,
+  CommandResult,
+  Outcome,
+  TrustResult,
+} from './lib/release-types.ts';
 import { makeWorkspace, removeWorkspace } from './lib/test-workspace.ts';
 
 const PREFIX = 'skam-rel-';
@@ -1185,6 +1198,9 @@ interface MainOptions {
   published?: 'none' | 'partial' | 'all';
   status?: ChangesetStatus;
   front?: ReleaseOutcome;
+  // true なら前半は偽の changesets + 実 git の runRelease (版上げ、commit、tag、push が実際に起きる)
+  realFront?: boolean;
+  afterPush?: AfterPushResult;
   throwOnGit?: string;
 }
 
@@ -1195,6 +1211,9 @@ interface MainFake {
   gitCalls: string[][];
   frontFlags: ReleaseFlags[];
   confirmCalls: string[];
+  afterPushInputs: AfterPushInput[];
+  interruptInstalls: () => number;
+  releaseCalls: string[];
 }
 
 function fakeMain(repo: Repo, options: MainOptions = {}): MainFake {
@@ -1203,6 +1222,8 @@ function fakeMain(repo: Repo, options: MainOptions = {}): MainFake {
   const gitCalls: string[][] = [];
   const frontFlags: ReleaseFlags[] = [];
   const confirmCalls: string[] = [];
+  const afterPushInputs: AfterPushInput[] = [];
+  let interruptInstalls = 0;
   const base = fakeDeps(repo);
   const status = options.status;
   const git: ReleaseDeps['git'] = (args) => {
@@ -1246,12 +1267,30 @@ function fakeMain(repo: Repo, options: MainOptions = {}): MainFake {
     git,
     run,
     release,
-    runFront: async (flags) => {
+    runFront: async (flags, releaseDeps) => {
       frontFlags.push(flags);
+      if (options.realFront === true) return runRelease(flags, releaseDeps);
       return options.front ?? { status: 'released', tag: 'v0.2.0' };
     },
+    afterPush: async (input) => {
+      afterPushInputs.push(input);
+      return options.afterPush ?? { kind: 'completed' };
+    },
+    installInterruptHandler: () => {
+      interruptInstalls += 1;
+    },
   };
-  return { deps, lines: out.text, runCalls, gitCalls, frontFlags, confirmCalls };
+  return {
+    deps,
+    lines: out.text,
+    runCalls,
+    gitCalls,
+    frontFlags,
+    confirmCalls,
+    afterPushInputs,
+    interruptInstalls: () => interruptInstalls,
+    releaseCalls: base.calls,
+  };
 }
 
 function pkgVersion(repo: Repo, dir: string): string {
@@ -1325,18 +1364,65 @@ test('main: a foreign scoped registry stops the run, and npm config get carries 
   assert.ok(fake.lines().includes('registry.example.com'), fake.lines());
 });
 
-test('main: an after-push entry with a dirty working tree stops; with a clean tree it stops at the stub', async () => {
+test('main: an after-push entry with a dirty working tree stops; with a clean tree it calls runAfterPush', async () => {
   const repo = makeRepo({ changeset: false });
   tagOriginAtHead(repo, 'v0.1.0');
   writeFileSync(join(repo.work, 'dirty.txt'), 'x');
   const dirty = fakeMain(repo, { published: 'partial' });
   assert.equal(await runMain([], dirty.deps), 1);
   assert.ok(dirty.lines().includes('not clean'), dirty.lines());
+  assert.equal(dirty.afterPushInputs.length, 0);
+  assert.equal(dirty.interruptInstalls(), 0);
   unlinkSync(join(repo.work, 'dirty.txt'));
   const clean = fakeMain(repo, { published: 'partial' });
-  assert.equal(await runMain([], clean.deps), 1);
-  assert.ok(clean.lines().includes('not implemented'), clean.lines());
+  assert.equal(await runMain([], clean.deps), 0);
+  assert.equal(clean.afterPushInputs.length, 1);
   assert.equal(clean.frontFlags.length, 0);
+});
+
+test('main: an after-push entry calls runAfterPush once with the origin tag, and neither verify nor changeset version', async () => {
+  const repo = makeRepo({ changeset: false });
+  tagOriginAtHead(repo, 'v0.1.0');
+  const head = mustGit(repo.work, ['rev-parse', 'HEAD']);
+  const fake = fakeMain(repo, { published: 'partial' });
+  await runMain([], fake.deps);
+  assert.deepEqual(fake.afterPushInputs, [
+    {
+      tag: 'v0.1.0',
+      tagCommit: head,
+      version: '0.1.0',
+      names: ['@fx/a', '@fx/b'],
+      checkOnly: false,
+    },
+  ]);
+  assert.equal(fake.releaseCalls.includes('verify'), false);
+  assert.equal(fake.releaseCalls.includes('changesetVersion'), false);
+  assert.equal(fake.frontFlags.length, 0);
+  assert.equal(fake.interruptInstalls(), 1);
+});
+
+test('main: the check-only entry (row 8: released, all published, no pending changeset) passes checkOnly', async () => {
+  const repo = makeRepo({ changeset: false });
+  tagOriginAtHead(repo, 'v0.1.0');
+  const fake = fakeMain(repo, { published: 'all' });
+  assert.equal(await runMain([], fake.deps), 0);
+  assert.equal(fake.afterPushInputs.length, 1);
+  assert.equal(fake.afterPushInputs[0]?.checkOnly, true);
+});
+
+test('main: package names are passed in dependency order, not alphabetical', async () => {
+  const repo = makeRepo({ changeset: false });
+  // @fx/a depends on @fx/b, so b comes first
+  const file = join(repo.work, 'packages', 'a', 'package.json');
+  const json = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+  json['dependencies'] = { '@fx/b': '0.1.0' };
+  writeFileSync(file, `${JSON.stringify(json, null, 2)}\n`);
+  mustGit(repo.work, ['commit', '-am', 'a depends on b']);
+  mustGit(repo.work, ['push', 'origin', 'master']);
+  tagOriginAtHead(repo, 'v0.1.0');
+  const fake = fakeMain(repo, { published: 'partial' });
+  await runMain([], fake.deps);
+  assert.deepEqual(fake.afterPushInputs[0]?.names, ['@fx/b', '@fx/a']);
 });
 
 test('main: the current master state (0.1.1, no tag, only 0.1.0 on npm, status has a release) enters the front half', async () => {
@@ -1357,17 +1443,93 @@ test('main: --tag-only on a released tag with everything published stops at row 
   assertUnchanged(repo, before);
 });
 
-test('main: a front half that released (or tag-pushed) stops at the after-push stub with exit 1', async () => {
-  for (const front of [
-    { status: 'released', tag: 'v0.2.0' },
-    { status: 'tag-pushed', tag: 'v0.2.0' },
-  ] as const) {
-    const repo = makeRepo({ version: '0.1.1' });
-    const fake = fakeMain(repo, { status: { kind: 'release', version: '0.2.0' }, front });
-    assert.equal(await runMain([], fake.deps), 1);
-    assert.ok(fake.lines().includes('not implemented'), fake.lines());
-    assert.ok(fake.lines().includes('approve の前の確認'), fake.lines());
+test('main: a front half that released calls runAfterPush once, with the tag, commit and version of what it pushed', async () => {
+  const repo = makeRepo({ version: '0.1.1' });
+  const fake = fakeMain(repo, { status: { kind: 'release', version: '0.2.0' }, realFront: true });
+  assert.equal(await runMain([], fake.deps), 0, fake.lines());
+  const head = mustGit(repo.work, ['rev-parse', 'HEAD']);
+  assert.deepEqual(fake.afterPushInputs, [
+    {
+      tag: 'v0.2.0',
+      tagCommit: head,
+      version: '0.2.0',
+      names: ['@fx/a', '@fx/b'],
+      checkOnly: false,
+    },
+  ]);
+  assert.equal(fake.interruptInstalls(), 1);
+});
+
+test('main: a --tag-only front half that pushed the tag calls runAfterPush with the same input shape', async () => {
+  const repo = makeRepo({ changeset: false, version: '0.2.0' });
+  const fake = fakeMain(repo, { realFront: true });
+  assert.equal(await runMain(['--tag-only'], fake.deps), 0, fake.lines());
+  const head = mustGit(repo.work, ['rev-parse', 'HEAD']);
+  assert.deepEqual(fake.afterPushInputs, [
+    {
+      tag: 'v0.2.0',
+      tagCommit: head,
+      version: '0.2.0',
+      names: ['@fx/a', '@fx/b'],
+      checkOnly: false,
+    },
+  ]);
+});
+
+test('main: a front half that stopped does not call runAfterPush or install the SIGINT handler', async () => {
+  const repo = makeRepo({ version: '0.1.1' });
+  const fake = fakeMain(repo, {
+    status: { kind: 'release', version: '0.2.0' },
+    front: { status: 'stopped', stage: '5 confirmation', reason: 'declined' },
+  });
+  assert.equal(await runMain([], fake.deps), 1);
+  assert.equal(fake.afterPushInputs.length, 0);
+  assert.equal(fake.interruptInstalls(), 0);
+});
+
+test('main: the exit code and the printed route follow the runAfterPush result', async () => {
+  const stop: ClassifiedStop = {
+    route: 'F3',
+    reason: 'partly published',
+    next: 'deprecate and patch',
+    section: '### F3:',
+    mayBeF3: false,
+  };
+  const cases: [AfterPushResult, number][] = [
+    [{ kind: 'stopped', stop }, 1],
+    [{ kind: 'declined' }, 0],
+    [{ kind: 'post-check-failed', stops: [stop] }, 1],
+    [{ kind: 'completed' }, 0],
+  ];
+  for (const [afterPush, code] of cases) {
+    const repo = makeRepo({ changeset: false });
+    tagOriginAtHead(repo, 'v0.1.0');
+    const fake = fakeMain(repo, { published: 'partial', afterPush });
+    assert.equal(await runMain([], fake.deps), code, afterPush.kind);
+    if (afterPush.kind === 'stopped' || afterPush.kind === 'post-check-failed') {
+      assert.ok(fake.lines().includes('[F3]'), fake.lines());
+      assert.ok(fake.lines().includes('### F3:'), fake.lines());
+    }
   }
+});
+
+test('createInterruptState: the handler is registered once; the first SIGINT only raises the flag, the second exits 1', () => {
+  const handlers: (() => void)[] = [];
+  const exits: number[] = [];
+  const state = createInterruptState(
+    (h) => handlers.push(h),
+    (code) => exits.push(code)
+  );
+  assert.equal(state.interrupted(), false);
+  state.install();
+  state.install();
+  assert.equal(handlers.length, 1);
+  assert.equal(state.interrupted(), false);
+  handlers[0]?.();
+  assert.equal(state.interrupted(), true);
+  assert.deepEqual(exits, []);
+  handlers[0]?.();
+  assert.deepEqual(exits, [1]);
 });
 
 test('main: a front half that stopped is reported as exit 1', async () => {
@@ -1399,6 +1561,39 @@ test('reportOutcome: every outcome maps to its exit code', () => {
   ];
   for (const [outcome, code] of cases) {
     assert.equal(reportOutcome(outcome, lineCollector().output), code, outcome.kind);
+  }
+});
+
+test('reportOutcome: after-push-stopped and post-check-failed print the route, the next step and the releasing.md section', () => {
+  const stops: ClassifiedStop[] = [
+    {
+      route: 'F2',
+      reason: 'staged mismatch',
+      next: 'reject it',
+      section: '### F2:',
+      mayBeF3: false,
+    },
+    {
+      route: 'manual',
+      reason: 'odd shape',
+      next: 'by hand',
+      section: '## 手作業の手順',
+      mayBeF3: true,
+    },
+  ];
+  const first = stops[0] as ClassifiedStop;
+  const single = lineCollector();
+  reportOutcome({ kind: 'after-push-stopped', stop: first }, single.output);
+  for (const needle of ['[F2]', 'staged mismatch', 'reject it', '### F2:']) {
+    assert.ok(single.text().includes(needle), needle);
+  }
+  const many = lineCollector();
+  reportOutcome(
+    { kind: 'post-check-failed', stops: [first, stops[1] as ClassifiedStop] },
+    many.output
+  );
+  for (const needle of ['[F2]', '[manual]', '### F2:', '## 手作業の手順', 'F3 situation']) {
+    assert.ok(many.text().includes(needle), needle);
   }
 });
 
@@ -1578,6 +1773,10 @@ function entryDeps(fake: RealFake, output: Output, published: string[]): MainDep
     run,
     release: fake.deps,
     runFront: runRelease,
+    afterPush: async () => {
+      throw new Error('runAfterPush is not expected in this test');
+    },
+    installInterruptHandler: () => {},
   };
 }
 
@@ -1778,4 +1977,100 @@ test('changesets bug (K7): pre exit then version bumps an ignored package withou
     readFileSync(join(repo.work, 'packages', 'priv-solo', 'package.json'), 'utf8')
   ) as { version: string };
   assert.notEqual(solo.version, '0.0.0');
+});
+
+// --- 後半の実 deps (本物の node:fs を、os.tmpdir() の下の新しい dir の中だけで) ---
+
+function makeTmpRoot(): string {
+  const root = mkdtempSync(join(tmpdir(), PREFIX));
+  roots.push(root);
+  return root;
+}
+
+function tempFsIn(tmpRoot: string): { fs: ReturnType<typeof createTempFs>; text: () => string } {
+  const out = lineCollector();
+  return { fs: createTempFs(nodeFsApi, tmpRoot, out.output), text: out.text };
+}
+
+test('createTempFs: a directory made by mkTemp is removed by removeTemp', () => {
+  const root = makeTmpRoot();
+  const { fs } = tempFsIn(root);
+  const dir = fs.mkTemp();
+  assert.ok(dir.startsWith(`${realpathSync(root)}${sep}kanbun-release-`), dir);
+  assert.equal(existsSync(dir), true);
+  writeFileSync(join(dir, 'a.txt'), 'x');
+  fs.removeTemp(dir);
+  assert.equal(existsSync(dir), false);
+});
+
+test('createTempFs: removeTemp refuses a directory outside tmpRoot and one that mkTemp did not make', () => {
+  const root = makeTmpRoot();
+  const elsewhere = makeTmpRoot();
+  const outside = join(elsewhere, 'kanbun-release-outside');
+  mkdirSync(outside);
+  const inside = join(realpathSync(root), 'kanbun-release-handmade');
+  mkdirSync(inside);
+  const { fs, text } = tempFsIn(root);
+  fs.removeTemp(outside);
+  fs.removeTemp(inside);
+  fs.removeTemp(realpathSync(root));
+  assert.equal(existsSync(outside), true);
+  assert.equal(existsSync(inside), true);
+  assert.equal(existsSync(root), true);
+  assert.ok(text().includes('refusing'), text());
+});
+
+test('createTempFs: listDir reports file, dir and symlink by lstat, and readFile rejects a file over the limit', () => {
+  const root = makeTmpRoot();
+  const { fs } = tempFsIn(root);
+  const dir = fs.mkTemp();
+  writeFileSync(join(dir, 'f.txt'), '12345');
+  mkdirSync(join(dir, 'sub'));
+  symlinkSync(join(dir, 'f.txt'), join(dir, 'link'));
+  const kinds = Object.fromEntries(fs.listDir(dir).map((e) => [e.name, e.kind]));
+  assert.deepEqual(kinds, { 'f.txt': 'file', sub: 'dir', link: 'symlink' });
+  assert.equal(fs.listDir(dir).find((e) => e.name === 'f.txt')?.size, 5);
+  assert.equal(fs.readFile(join(dir, 'f.txt'), 5).toString(), '12345');
+  assert.throws(() => fs.readFile(join(dir, 'f.txt'), 4));
+  assert.throws(() => fs.readFile(join(dir, 'link'), 100));
+});
+
+test('createTempFs: when tmpRoot is a symlink (its realpath is elsewhere), mkTemp then removeTemp still works', () => {
+  const real = makeTmpRoot();
+  const holder = makeTmpRoot();
+  const link = join(holder, 'link');
+  symlinkSync(real, link);
+  const { fs } = tempFsIn(link);
+  const dir = fs.mkTemp();
+  assert.ok(dir.startsWith(realpathSync(real)), dir);
+  fs.removeTemp(dir);
+  assert.equal(existsSync(dir), false);
+});
+
+test('createEvidenceStore: two runs write to different directories and the earlier evidence stays', () => {
+  const root = makeTmpRoot();
+  const now = new Date('2026-10-15T01:02:03.004Z');
+  const first = createEvidenceStore(nodeFsApi, root, '0.2.0', () => now);
+  const second = createEvidenceStore(nodeFsApi, root, '0.2.0', () => now);
+  const dir1 = first('run.json', 'one');
+  const dir1Again = first('jobs.json', 'two');
+  const dir2 = second('run.json', 'three');
+  assert.equal(dir1, dir1Again);
+  assert.notEqual(dir1, dir2);
+  assert.ok(dir1.startsWith(join(root, '.tmp', 'release', 'v0.2.0')), dir1);
+  assert.equal(dir1.includes(':'), false);
+  assert.equal(readFileSync(join(dir1, 'run.json'), 'utf8'), 'one');
+  assert.equal(readFileSync(join(dir1, 'jobs.json'), 'utf8'), 'two');
+  assert.equal(readFileSync(join(dir2, 'run.json'), 'utf8'), 'three');
+});
+
+test('createEvidenceStore: a name with a path separator or a version that is not a plain semver is refused', () => {
+  const root = makeTmpRoot();
+  const store = createEvidenceStore(nodeFsApi, root, '0.2.0', () => new Date(0));
+  assert.throws(() => store('../x.json', 'x'));
+  assert.throws(() => store('a/b.json', 'x'));
+  assert.throws(() =>
+    createEvidenceStore(nodeFsApi, root, '../0.2.0', () => new Date(0))('x', 'y')
+  );
+  assert.equal(existsSync(join(root, '.tmp', 'release', 'x')), false);
 });

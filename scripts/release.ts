@@ -12,7 +12,18 @@
  * This script never force-pushes and never merges.
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  lstatSync,
+  mkdirSync,
+  mkdtempSync,
+  readdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { tmpdir } from 'node:os';
 import { join, resolve, sep } from 'node:path';
 import type { Readable } from 'node:stream';
 import { pathToFileURL } from 'node:url';
@@ -37,6 +48,7 @@ import {
   parseGhReleaseView,
   parseNpmViewVersions,
   parseReleaseFlags,
+  orderByDependencies,
   parseToolVersion,
   planIgnoredRestore,
 } from './lib/release-check.ts';
@@ -49,10 +61,14 @@ import type {
 } from './lib/release-check.ts';
 import {
   createStreamSanitizer,
+  isSafeTempPath,
   npmViewVersionsArgs,
   sanitizeForTerminal,
 } from './lib/release-after-push-check.ts';
+import { runAfterPush } from './release-after-push.ts';
+import type { AfterPushDeps, AfterPushInput } from './release-after-push.ts';
 import type {
+  AfterPushResult,
   Check,
   ClassifiedStop,
   CommandResult,
@@ -382,6 +398,13 @@ export function readPreState(root: string): Check<PreState> {
   return { ok: true, value: { mode: 'none' } };
 }
 
+function readDependencyRecord(value: unknown): Record<string, string> {
+  if (typeof value !== 'object' || value === null) return {};
+  return Object.fromEntries(
+    Object.entries(value).filter((entry): entry is [string, string] => typeof entry[1] === 'string')
+  );
+}
+
 // packages/*/package.json の全部 (private を含む)
 function readWorkspacePackages(root: string, git: ReleaseDeps['git']): WorkspacePackage[] {
   const listed = git(['ls-files', '--', ':(glob)packages/*/package.json']);
@@ -395,9 +418,9 @@ function readWorkspacePackages(root: string, git: ReleaseDeps['git']): Workspace
       dir: rel.replace(/\/package\.json$/, ''),
       version: String(json['version']),
       private: json['private'] === true,
-      dependencies: {},
-      peerDependencies: {},
-      optionalDependencies: {},
+      dependencies: readDependencyRecord(json['dependencies']),
+      peerDependencies: readDependencyRecord(json['peerDependencies']),
+      optionalDependencies: readDependencyRecord(json['optionalDependencies']),
     });
   }
   return pkgs;
@@ -803,10 +826,11 @@ export interface MainDeps {
   run: Runner;
   release: ReleaseDeps;
   runFront: (flags: ReleaseFlags, deps: ReleaseDeps) => Promise<ReleaseOutcome>;
+  // 後半 (段 8〜11)。実体は runAfterPush に実 deps を渡したもの
+  afterPush: (input: AfterPushInput) => Promise<AfterPushResult>;
+  // 後半に入る直前に 1 回だけ呼ぶ (前半の spawnSync 中の Ctrl-C は子と一緒に止まる)
+  installInterruptHandler: () => void;
 }
-
-const AFTER_PUSH_NOT_IMPLEMENTED =
-  'The after-push half is not implemented yet. Continue by hand from "approve の前の確認" in docs/releasing.md.';
 
 async function checkTooling(run: Runner): Promise<string | undefined> {
   // 前半と後半の両方に効くよう、入口の観測の前に 1 回。引数は固定せず (raw)、設定の実効値を読む
@@ -897,11 +921,39 @@ async function observeEntry(
   };
 }
 
-function toFrontOutcome(outcome: ReleaseOutcome): Outcome {
-  if (outcome.status === 'stopped') {
-    return { kind: 'front-stopped', stage: outcome.stage, reason: outcome.reason };
+// 後半の入力。tag の commit は origin から読む (前半から続けて入るときも、再開で入るときも同じ)
+function prepareAfterPush(deps: MainDeps, root: string, checkOnly: boolean): Check<AfterPushInput> {
+  const { git } = deps;
+  const version = readVersion(root, git);
+  if (!version.ok) return version;
+  const tag = `v${version.value}`;
+  const originTag = parseOriginTag(
+    git(['ls-remote', 'origin', `refs/tags/${tag}`, `refs/tags/${tag}^{}`]),
+    tag
+  );
+  if (originTag.kind !== 'present') {
+    return { ok: false, errors: [`tag ${tag} was not found on origin`] };
   }
-  return { kind: 'entry-stopped', reason: AFTER_PUSH_NOT_IMPLEMENTED };
+  const ordered = orderByDependencies(readPublicPackages(root, git));
+  if (!ordered.ok) return ordered;
+  return {
+    ok: true,
+    value: {
+      tag,
+      tagCommit: originTag.commit,
+      version: version.value,
+      names: ordered.value.map((p) => p.name),
+      checkOnly,
+    },
+  };
+}
+
+async function enterAfterPush(deps: MainDeps, root: string, checkOnly: boolean): Promise<Outcome> {
+  const input = prepareAfterPush(deps, root, checkOnly);
+  if (!input.ok) return { kind: 'entry-stopped', reason: errorText(input) };
+  deps.installInterruptHandler();
+  const result = await deps.afterPush(input.value);
+  return result.kind === 'stopped' ? { kind: 'after-push-stopped', stop: result.stop } : result;
 }
 
 async function runEntry(argv: readonly string[], deps: MainDeps): Promise<Outcome> {
@@ -930,15 +982,20 @@ async function runEntry(argv: readonly string[], deps: MainDeps): Promise<Outcom
   switch (decision.kind) {
     case 'stop':
       return { kind: 'entry-stopped', reason: decision.reason };
-    case 'front':
-      return toFrontOutcome(await deps.runFront(decision.mode, deps.release));
+    case 'front': {
+      const front = await deps.runFront(decision.mode, deps.release);
+      if (front.status === 'stopped') {
+        return { kind: 'front-stopped', stage: front.stage, reason: front.reason };
+      }
+      return enterAfterPush(deps, root, false);
+    }
     case 'after-push':
     case 'after-push-check-only': {
       const dirty = deps.git(['status', '--porcelain']);
       if (dirty.status !== 0 || dirty.stdout.trim() !== '') {
         return { kind: 'entry-stopped', reason: 'working tree is not clean' };
       }
-      return { kind: 'entry-stopped', reason: AFTER_PUSH_NOT_IMPLEMENTED };
+      return enterAfterPush(deps, root, decision.kind === 'after-push-check-only');
     }
   }
 }
@@ -951,6 +1008,194 @@ export async function runMain(argv: readonly string[], deps: MainDeps): Promise<
     deps.output.emit(`release failed: ${errorMessage(error)}`);
     return 1;
   }
+}
+
+// --- 後半の実 adapter (fs は注入。テストは本物の node:fs を os.tmpdir() の下の新しい dir だけで使う) ---
+
+export interface FsApi {
+  mkdtempSync(prefix: string): string;
+  realpathSync(path: string): string;
+  rmSync(path: string, options: { recursive: boolean }): void;
+  lstatSync(path: string): {
+    size: number;
+    isFile(): boolean;
+    isDirectory(): boolean;
+    isSymbolicLink(): boolean;
+  };
+  readdirSync(path: string): string[];
+  readFileSync(path: string): Buffer;
+  mkdirSync(path: string, options?: { recursive: boolean }): void;
+  writeFileSync(path: string, data: string): void;
+}
+
+export const nodeFsApi: FsApi = {
+  mkdtempSync: (prefix) => mkdtempSync(prefix),
+  realpathSync: (path) => realpathSync(path),
+  rmSync: (path, options) => rmSync(path, options),
+  lstatSync: (path) => lstatSync(path),
+  readdirSync: (path) => readdirSync(path),
+  readFileSync: (path) => readFileSync(path),
+  mkdirSync: (path, options) => {
+    mkdirSync(path, options);
+  },
+  writeFileSync: (path, data) => writeFileSync(path, data),
+};
+
+const TEMP_DIR_PREFIX = 'kanbun-release-';
+
+export type TempFs = Pick<AfterPushDeps, 'mkTemp' | 'removeTemp' | 'listDir' | 'readFile'>;
+
+// 一時ディレクトリは tmpRoot の realpath の直下に作る。消すのは、この関数が作ったものだけ
+export function createTempFs(fsApi: FsApi, tmpRoot: string, output: Output): TempFs {
+  const realTmpRoot = fsApi.realpathSync(tmpRoot);
+  const created = new Set<string>();
+  return {
+    mkTemp: () => {
+      const dir = fsApi.mkdtempSync(join(realTmpRoot, TEMP_DIR_PREFIX));
+      created.add(dir);
+      return dir;
+    },
+    removeTemp: (path) => {
+      if (!isSafeTempPath(path, created, realTmpRoot)) {
+        output.emit(`refusing to remove ${path}: not a temporary directory made by this run`);
+        return;
+      }
+      fsApi.rmSync(path, { recursive: true });
+    },
+    listDir: (path) =>
+      fsApi.readdirSync(path).map((name) => {
+        const stat = fsApi.lstatSync(join(path, name));
+        const kind = stat.isSymbolicLink()
+          ? 'symlink'
+          : stat.isDirectory()
+            ? 'dir'
+            : stat.isFile()
+              ? 'file'
+              : 'other';
+        return { name, kind, size: stat.size };
+      }),
+    readFile: (path, maxBytes) => {
+      const stat = fsApi.lstatSync(path);
+      if (!stat.isFile()) throw new Error(`${path} is not a regular file`);
+      if (stat.size > maxBytes) throw new Error(`${path} is larger than ${maxBytes} bytes`);
+      const bytes = fsApi.readFileSync(path);
+      // lstat の後に伸びていても、上限を超えたものは返さない
+      if (bytes.length > maxBytes) throw new Error(`${path} is larger than ${maxBytes} bytes`);
+      return bytes;
+    },
+  };
+}
+
+const EVIDENCE_NAME_PATTERN = /^[A-Za-z0-9._-]+$/;
+
+function makeEvidenceDir(fsApi: FsApi, parent: string, stamp: string): string {
+  fsApi.mkdirSync(parent, { recursive: true });
+  // 同じ時刻の 2 つの実行が同じ dir を使わない (前の証拠を上書きしない)
+  for (let n = 0; n < 100; n += 1) {
+    const dir = join(parent, n === 0 ? stamp : `${stamp}-${n}`);
+    try {
+      fsApi.mkdirSync(dir);
+      return dir;
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    }
+  }
+  throw new Error(`could not create a new evidence directory under ${parent}`);
+}
+
+// 1 回の実行は 1 つの dir (.tmp/release/v<V>/<ISO 時刻>/) に書く。名前は path の区切りを含められない
+export function createEvidenceStore(
+  fsApi: FsApi,
+  repoRoot: string,
+  version: string,
+  now: () => Date
+): (name: string, content: string) => string {
+  let dir: string | undefined;
+  return (name, content) => {
+    if (!VERSION_FOR_REFS.test(version))
+      throw new Error(`invalid version ${JSON.stringify(version)}`);
+    if (!EVIDENCE_NAME_PATTERN.test(name) || /^\.+$/.test(name)) {
+      throw new Error(`invalid evidence file name ${JSON.stringify(name)}`);
+    }
+    dir ??= makeEvidenceDir(
+      fsApi,
+      join(repoRoot, '.tmp', 'release', `v${version}`),
+      now().toISOString().replace(/[:.]/g, '-')
+    );
+    fsApi.writeFileSync(join(dir, name), content);
+    return dir;
+  };
+}
+
+// 1 回目の SIGINT はフラグを立てるだけ (待機と再試行の境界で見る)。2 回目は即座に終わる
+export function createInterruptState(
+  register: (handler: () => void) => void,
+  exit: (code: number) => void,
+  notify: (message: string) => void = () => {}
+): { install(): void; interrupted(): boolean } {
+  let raised = false;
+  let installed = false;
+  return {
+    install: () => {
+      if (installed) return;
+      installed = true;
+      register(() => {
+        if (raised) {
+          exit(1);
+          return;
+        }
+        raised = true;
+        notify(
+          'interrupt received; stopping at the next safe point (press Ctrl-C again to quit now)'
+        );
+      });
+    },
+    interrupted: () => raised,
+  };
+}
+
+// 待機は 250ms ごとに interrupted() を見る (Ctrl-C が 30 秒の待機の後まで効かないことのないように)
+async function interruptibleSleep(ms: number, interrupted: () => boolean): Promise<void> {
+  const end = Date.now() + ms;
+  while (Date.now() < end && !interrupted()) {
+    await new Promise<void>((done) =>
+      setTimeout(done, Math.min(250, Math.max(0, end - Date.now())))
+    );
+  }
+}
+
+export interface AfterPushBuildOptions {
+  cwd: string;
+  version: string;
+  output: Output;
+  run: Runner;
+  confirm: (question: string) => Promise<boolean>;
+  verifyTrust: () => Promise<TrustResult>;
+  interrupted: () => boolean;
+  fsApi?: FsApi;
+  tmpRoot?: string;
+  now?: () => Date;
+}
+
+export function buildAfterPushDeps(options: AfterPushBuildOptions): AfterPushDeps {
+  const fsApi = options.fsApi ?? nodeFsApi;
+  const temp = createTempFs(fsApi, options.tmpRoot ?? tmpdir(), options.output);
+  return {
+    run: options.run,
+    output: options.output,
+    sleep: (ms) => interruptibleSleep(ms, options.interrupted),
+    now: () => Date.now(),
+    interrupted: options.interrupted,
+    confirm: options.confirm,
+    verifyTrust: options.verifyTrust,
+    ...temp,
+    saveEvidence: createEvidenceStore(
+      fsApi,
+      options.cwd,
+      options.version,
+      options.now ?? (() => new Date())
+    ),
+  };
 }
 
 // --- 実 adapter ---
@@ -1076,12 +1321,14 @@ export function buildReleaseDeps(
 async function main(argv: string[]): Promise<number> {
   const output = createOutput((text) => process.stdout.write(text));
   const run = createRunner(nodeSpawn, output);
-  const release = buildReleaseDeps({
-    cwd: process.cwd(),
-    output,
-    run,
-    confirm: createConfirm(createInterface, output),
-  });
+  const confirm = createConfirm(createInterface, output);
+  const cwd = process.cwd();
+  const release = buildReleaseDeps({ cwd, output, run, confirm });
+  const interrupt = createInterruptState(
+    (handler) => process.on('SIGINT', handler),
+    (code) => process.exit(code),
+    (message) => output.emit(message)
+  );
   process.on('unhandledRejection', (reason) => {
     output.emit(`release failed: ${errorMessage(reason)}`);
     process.exitCode = 1;
@@ -1093,6 +1340,20 @@ async function main(argv: string[]): Promise<number> {
     run,
     release,
     runFront: runRelease,
+    afterPush: (input) =>
+      runAfterPush(
+        input,
+        buildAfterPushDeps({
+          cwd,
+          version: input.version,
+          output,
+          run,
+          confirm,
+          verifyTrust: release.verifyTrust,
+          interrupted: interrupt.interrupted,
+        })
+      ),
+    installInterruptHandler: interrupt.install,
   });
 }
 

@@ -15,8 +15,16 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, join, posix } from 'node:path';
 import { parse } from 'yaml';
+import {
+  GH_245_LIST_ALLOWED,
+  GH_245_VIEW_ALLOWED,
+  GH_RUN_LIST_FIELDS,
+  GH_RUN_VIEW_FIELDS,
+  RELEASE_JOB_NAMES,
+  isSubsetOfAllowlist,
+} from './lib/release-after-push-check.ts';
 import { makeWorkspace, removeWorkspace } from './lib/test-workspace.ts';
 
 const REPO_ROOT = dirname(import.meta.dirname);
@@ -584,5 +592,414 @@ describe('ci.yml', () => {
     }
     const missing = commands.filter((c) => !runs.has(c));
     assert.deepEqual(missing, []);
+  });
+});
+
+// --- release の script の構造 (spec Architecture) ---
+// 検査は、ソースの文字列を受けて違反の一覧を返す純粋な関数で、現物が通ることと、
+// 違反を 1 つ入れた文字列で落ちることの両方を確かめる。
+
+const RELEASE_SOURCES = [
+  'scripts/release.ts',
+  'scripts/release-after-push.ts',
+  'scripts/lib/release-after-push-check.ts',
+  'scripts/lib/release-check.ts',
+  'scripts/lib/release-types.ts',
+] as const;
+
+// spec の Architecture の許可の表。node:* はどこでも許可
+const ALLOWED_IMPORTS: Readonly<Record<string, readonly string[]>> = {
+  'scripts/release.ts': [
+    'scripts/release-after-push.ts',
+    'scripts/lib/release-after-push-check.ts',
+    'scripts/lib/release-check.ts',
+    'scripts/lib/release-types.ts',
+  ],
+  'scripts/release-after-push.ts': [
+    'scripts/lib/release-after-push-check.ts',
+    'scripts/lib/release-check.ts',
+    'scripts/lib/release-types.ts',
+  ],
+  'scripts/lib/release-after-push-check.ts': [
+    'scripts/lib/release-check.ts',
+    'scripts/lib/release-types.ts',
+  ],
+  'scripts/lib/release-check.ts': ['scripts/lib/release-types.ts'],
+  'scripts/lib/release-types.ts': [],
+};
+
+function readSource(file: string): string {
+  return readFileSync(join(REPO_ROOT, file), 'utf8');
+}
+
+// 文字列リテラルの中の // (https://) は残し、行コメントとブロックコメントを除く
+function stripComments(source: string): string {
+  return source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:'"`\\])\/\/.*$/gm, '$1');
+}
+
+function importSpecifiers(source: string): string[] {
+  const code = stripComments(source);
+  const patterns = [
+    /\b(?:import|export)\b[^'";]*?\bfrom\s*['"]([^'"]+)['"]/g,
+    /\bimport\s*['"]([^'"]+)['"]/g,
+    /\bimport\s*\(\s*['"]([^'"]+)['"]\s*\)/g,
+  ];
+  return patterns.flatMap((pattern) =>
+    [...code.matchAll(pattern)].flatMap((m) => (m[1] === undefined ? [] : [m[1]]))
+  );
+}
+
+function findImportViolations(file: string, source: string): string[] {
+  const allowed = ALLOWED_IMPORTS[file] ?? [];
+  const violations: string[] = [];
+  for (const spec of importSpecifiers(source)) {
+    if (spec.startsWith('node:')) continue;
+    const resolved = spec.startsWith('.')
+      ? posix.normalize(posix.join(posix.dirname(file), spec))
+      : spec;
+    if (!allowed.includes(resolved)) violations.push(`${file} imports ${spec} (${resolved})`);
+  }
+  return violations;
+}
+
+const OUTPUT_ESCAPES: readonly [string, RegExp][] = [
+  ['console', /\bconsole\s*\./],
+  ['process.stdout / process.stderr', /\bprocess\s*\.\s*(?:stdout|stderr)\b(?!\s*\.\s*isTTY\b)/],
+  ['process["stdout"]', /\bprocess\s*\[\s*['"`](?:stdout|stderr)['"`]\s*\]/],
+  ['new Console', /\bnew\s+Console\b/],
+  ['.pipe(process.', /\.pipe\(\s*process\./],
+  ['writeSync(1 / writeSync(2', /\bwriteSync\s*\(\s*[12]\b/],
+  ['node:console', /['"](?:node:)?console['"]/],
+  ['createInterface with output', /\bcreateInterface\s*\(\s*\{[^}]*\boutput\s*:/],
+];
+
+// release.ts の main() が createOutput に渡す書き込み関数 1 か所だけが、標準出力への出口
+const OUTPUT_SINK = /createOutput\(\s*\((\w+)\)\s*=>\s*process\.stdout\.write\(\1\)\s*\)/g;
+
+function findOutputEscapes(file: string, source: string, allowSink: boolean): string[] {
+  let code = stripComments(source);
+  const violations: string[] = [];
+  if (allowSink) {
+    const sinks = [...code.matchAll(OUTPUT_SINK)].length;
+    if (sinks !== 1) violations.push(`${file} has ${sinks} createOutput sinks, expected exactly 1`);
+    code = code.replace(OUTPUT_SINK, '');
+  }
+  for (const [label, pattern] of OUTPUT_ESCAPES) {
+    if (pattern.test(code)) violations.push(`${file} uses ${label}`);
+  }
+  return violations;
+}
+
+const SPAWN_CALLEES = [
+  'spawn',
+  'spawnSync',
+  'exec',
+  'execFile',
+  'execSync',
+  'execFileSync',
+  'fork',
+];
+
+interface SpawnRules {
+  // 外部コマンドの実行を直接呼べるトップレベルの宣言
+  literal: readonly string[];
+  // 注入された async の spawn (spawnFn) を呼べるトップレベルの宣言
+  spawnFn: readonly string[];
+  // 注入された同期の spawn (sync) を呼べる、トップレベルの宣言と、その中の宣言
+  sync: { top: string; nested: readonly string[] } | undefined;
+  allowChildProcessImport: boolean;
+}
+
+const NO_SPAWN: SpawnRules = {
+  literal: [],
+  spawnFn: [],
+  sync: undefined,
+  allowChildProcessImport: false,
+};
+
+// release.ts の実際の構造: 直接の spawn は nodeSpawn (async) と nodeSpawnSync (同期) だけ。
+// 実行は createRunner (spawnFn)、spawnChecked / git の dep / ghRelease (sync) を通る
+const RELEASE_SPAWN_RULES: SpawnRules = {
+  literal: ['nodeSpawn', 'nodeSpawnSync'],
+  spawnFn: ['createRunner'],
+  sync: { top: 'buildReleaseDeps', nested: ['spawnChecked', 'git', 'ghRelease'] },
+  allowChildProcessImport: true,
+};
+
+function lastDeclaration(
+  code: string,
+  pattern: RegExp,
+  before: number,
+  after = -1
+): string | undefined {
+  let found: string | undefined;
+  let foundAt = -1;
+  for (const m of code.matchAll(pattern)) {
+    if (m.index >= before) break;
+    if (m.index > after) {
+      found = m[1];
+      foundAt = m.index;
+    }
+  }
+  return foundAt >= 0 ? found : undefined;
+}
+
+function findSpawnViolations(file: string, source: string, rules: SpawnRules): string[] {
+  const code = stripComments(source);
+  const violations: string[] = [];
+  if (!rules.allowChildProcessImport) {
+    for (const spec of importSpecifiers(source)) {
+      if (spec === 'node:child_process' || spec === 'child_process') {
+        violations.push(`${file} imports ${spec}`);
+      }
+    }
+  }
+  const calleePattern = new RegExp(
+    `(?<![.\\w])(${[...SPAWN_CALLEES, 'spawnFn', 'sync'].join('|')})\\s*\\(`,
+    'g'
+  );
+  const topPattern = /^(?:export\s+)?(?:async\s+)?(?:function\s+|const\s+|let\s+|class\s+)(\w+)/gm;
+  const nestedPattern = /^ {2}(?:async\s+)?(?:function\s+|const\s+)(\w+)/gm;
+  for (const m of code.matchAll(calleePattern)) {
+    const callee = m[1] ?? '';
+    const top = lastDeclaration(code, topPattern, m.index);
+    const topAt =
+      top === undefined
+        ? -1
+        : code.search(
+            new RegExp(
+              `^(?:export\\s+)?(?:async\\s+)?(?:function\\s+|const\\s+|let\\s+|class\\s+)${top}\\b`,
+              'm'
+            )
+          );
+    const nested = lastDeclaration(code, nestedPattern, m.index, topAt);
+    const where = `${top ?? '(top)'}${nested === undefined ? '' : `/${nested}`}`;
+    let allowed: boolean;
+    if (callee === 'spawnFn') allowed = top !== undefined && rules.spawnFn.includes(top);
+    else if (callee === 'sync') {
+      allowed =
+        rules.sync !== undefined &&
+        top === rules.sync.top &&
+        nested !== undefined &&
+        rules.sync.nested.includes(nested);
+    } else allowed = top !== undefined && rules.literal.includes(top);
+    if (!allowed) violations.push(`${file}: ${callee}( is called in ${where}`);
+  }
+  return violations;
+}
+
+// テストが本物の npm / gh を直接起動しない (changesets と git は K18 で許可)
+function findDirectNpmGhSpawns(file: string, source: string): string[] {
+  const code = stripComments(source);
+  const pattern =
+    /(?<![.\w])(?:spawn|spawnSync|execFile|execFileSync|exec|execSync)\s*\(\s*['"`](?:npm|gh)(?:['"`\s])/g;
+  return [...code.matchAll(pattern)].map((m) => `${file}: ${m[0]}`);
+}
+
+describe('release scripts: module boundaries', () => {
+  test('(6a) every import of the real files is in the allowed table', () => {
+    for (const file of RELEASE_SOURCES) {
+      assert.deepEqual(findImportViolations(file, readSource(file)), [], file);
+    }
+  });
+
+  test('(6b) the import check catches static, type, re-export, dynamic and multi-line imports', () => {
+    const file = 'scripts/release-after-push.ts';
+    const bad = [
+      "import { x } from './release.ts';",
+      "import type { X } from './release.ts';",
+      "export * from './release.ts';",
+      "export { y } from '../release.ts';",
+      "const m = await import('./release.ts');",
+      "import './release.ts';",
+      "import {\n  a,\n  b,\n} from './release.ts';",
+      "import lodash from 'lodash';",
+      "import { z } from './lib/test-workspace.ts';",
+    ];
+    for (const source of bad) {
+      assert.equal(findImportViolations(file, source).length, 1, source);
+    }
+    const good = [
+      "import { a } from './lib/release-after-push-check.ts';",
+      "import type { B } from './lib/release-types.ts';",
+      "import { createHash } from 'node:crypto';",
+      "// import { c } from './release.ts';\nconst x = 1;",
+    ];
+    for (const source of good) assert.deepEqual(findImportViolations(file, source), [], source);
+    assert.equal(
+      findImportViolations(
+        'scripts/lib/release-check.ts',
+        "import { a } from './release-after-push-check.ts';"
+      ).length,
+      1
+    );
+    assert.deepEqual(
+      findImportViolations('scripts/release.ts', "import { a } from './release-after-push.ts';"),
+      []
+    );
+  });
+
+  test('(7a) the real files write only through the one createOutput sink', () => {
+    for (const file of RELEASE_SOURCES) {
+      const violations = findOutputEscapes(file, readSource(file), file === 'scripts/release.ts');
+      assert.deepEqual(violations, [], file);
+    }
+  });
+
+  test('(7b) the output check catches each way out of the output function', () => {
+    const file = 'scripts/release-after-push.ts';
+    const bad = [
+      "console.log('x');",
+      "console . error('x');",
+      "process.stdout.write('x');",
+      "process.stderr.write('x');",
+      "process['stdout'].write('x');",
+      'const c = new Console(process.stdout);',
+      'child.stdout.pipe(process.stdout);',
+      "fs.writeSync(1, 'x');",
+      "writeSync(2, 'x');",
+      "import { log } from 'node:console';",
+      'createInterface({ input, output: process.stdout });',
+    ];
+    for (const source of bad) {
+      assert.ok(findOutputEscapes(file, source, false).length > 0, source);
+    }
+    const good = [
+      'const tty = process.stdout.isTTY;',
+      'const tty = process.stderr.isTTY;',
+      '// console.log is not used here\nconst x = 1;',
+      'createInterface({ input });',
+      'const answer = process.stdin;',
+    ];
+    for (const source of good) assert.deepEqual(findOutputEscapes(file, source, false), [], source);
+  });
+
+  test('(7c) the createOutput sink is allowed in release.ts exactly once and nowhere else', () => {
+    const sink = 'const output = createOutput((text) => process.stdout.write(text));\n';
+    assert.deepEqual(findOutputEscapes('scripts/release.ts', sink, true), []);
+    assert.equal(findOutputEscapes('scripts/release.ts', sink + sink, true).length, 1);
+    assert.equal(findOutputEscapes('scripts/release.ts', 'const x = 1;', true).length, 1);
+    assert.ok(findOutputEscapes('scripts/release-after-push.ts', sink, false).length > 0);
+    const other =
+      "createOutput((text) => process.stdout.write(text));\nprocess.stdout.write('x');\n";
+    assert.ok(findOutputEscapes('scripts/release.ts', other, true).length > 0);
+  });
+
+  test('(8a) external commands are started only by the known call sites of release.ts', () => {
+    for (const file of RELEASE_SOURCES) {
+      const rules = file === 'scripts/release.ts' ? RELEASE_SPAWN_RULES : NO_SPAWN;
+      assert.deepEqual(findSpawnViolations(file, readSource(file), rules), [], file);
+    }
+  });
+
+  test('(8b) the spawn check catches a call outside the known sites', () => {
+    const good = [
+      'const nodeSpawn = (cmd) =>\n  spawn(cmd, []);\n',
+      "export function createRunner(spawnFn) {\n  return () => spawnFn('npm', []);\n}\n",
+      "export function buildReleaseDeps(o) {\n  const sync = o.sync;\n  const spawnChecked = () => {\n    const r = sync('x', []);\n  };\n}\n",
+      'const found = PATTERN.exec(line);\n',
+    ];
+    for (const source of good) {
+      assert.deepEqual(
+        findSpawnViolations('scripts/release.ts', source, RELEASE_SPAWN_RULES),
+        [],
+        source
+      );
+    }
+    const bad = [
+      "export function sneaky() {\n  return spawnSync('npm', ['publish']);\n}\n",
+      "export function sneaky() {\n  return execFileSync('gh', []);\n}\n",
+      "export function runIt() {\n  return sync('npm', []);\n}\n",
+      "export function buildReleaseDeps(o) {\n  const sync = o.sync;\n  const other = () => sync('x', []);\n}\n",
+      "export function other(spawnFn) {\n  return spawnFn('npm', []);\n}\n",
+    ];
+    for (const source of bad) {
+      assert.equal(
+        findSpawnViolations('scripts/release.ts', source, RELEASE_SPAWN_RULES).length,
+        1,
+        source
+      );
+    }
+    assert.equal(
+      findSpawnViolations('scripts/release-after-push.ts', "spawn('x', []);", NO_SPAWN).length,
+      1
+    );
+    assert.equal(
+      findSpawnViolations(
+        'scripts/release-after-push.ts',
+        "import { spawn } from 'node:child_process';",
+        NO_SPAWN
+      ).length,
+      1
+    );
+  });
+
+  test('(9a) no test starts the real npm or gh directly', () => {
+    const files = (readdirSync(join(REPO_ROOT, 'scripts'), { recursive: true }) as string[])
+      .filter((f) => f.endsWith('.test.ts') && !f.includes('node_modules'))
+      // この検査自身は、違反の例を文字列として持つ
+      .filter((f) => f !== 'workflow-structure.test.ts');
+    assert.ok(files.length >= 4, files.join(', '));
+    for (const f of files) {
+      const rel = `scripts/${f}`;
+      assert.deepEqual(findDirectNpmGhSpawns(rel, readSource(rel)), [], rel);
+    }
+  });
+
+  test('(9b) the npm / gh spawn check catches a direct start and lets git, tar and variables through', () => {
+    const bad = [
+      "spawnSync('npm', ['view', 'x']);",
+      'execFile("gh", ["run", "list"]);',
+      'spawn(`npm`, []);',
+      "execSync('npm view x');",
+      "exec('gh run list');",
+    ];
+    for (const source of bad)
+      assert.equal(findDirectNpmGhSpawns('x.test.ts', source).length, 1, source);
+    const good = [
+      "spawnSync('git', ['status']);",
+      "spawnSync('tar', ['-tzf', f]);",
+      'return spawnSync(cmd, args, options);',
+      "const r = run('npm', ['view']);",
+      "assert.equal(cmd, 'npm');",
+    ];
+    for (const source of good)
+      assert.deepEqual(findDirectNpmGhSpawns('x.test.ts', source), [], source);
+  });
+});
+
+describe('release scripts: constants shared with release.yml and gh', () => {
+  test('(10a) RELEASE_JOB_NAMES, the manifest step and the workflow name match release.yml', () => {
+    const wf = parse(readFileSync(join(WORKFLOWS_DIR, 'release.yml'), 'utf8')) as Workflow & {
+      name?: string;
+      jobs: Record<string, Job & { name?: string }>;
+    };
+    assert.equal(wf.name, 'Release');
+    assert.equal(wf.jobs['validate']?.name, RELEASE_JOB_NAMES.validate);
+    assert.equal(wf.jobs['npm-stage']?.name, RELEASE_JOB_NAMES.npmStage);
+    assert.equal(wf.jobs['github-release']?.name, RELEASE_JOB_NAMES.githubRelease);
+    const summarySteps = stepsOf(wf.jobs['validate']).filter(
+      (s) => s.name === 'Print the release manifest'
+    );
+    assert.equal(summarySteps.length, 1);
+    for (const file of [
+      'scripts/lib/release-after-push-check.ts',
+      'scripts/release-after-push.ts',
+    ]) {
+      assert.ok(readSource(file).includes('Print the release manifest'), file);
+    }
+  });
+
+  test('(10b) the gh --json fields are within what gh 2.45.0 accepts', () => {
+    assert.equal(isSubsetOfAllowlist(GH_RUN_LIST_FIELDS, GH_245_LIST_ALLOWED), true);
+    assert.equal(isSubsetOfAllowlist(GH_RUN_VIEW_FIELDS, GH_245_VIEW_ALLOWED), true);
+    assert.equal(
+      isSubsetOfAllowlist([...GH_RUN_LIST_FIELDS, 'attempt'], GH_245_LIST_ALLOWED),
+      false
+    );
+    assert.equal(
+      isSubsetOfAllowlist([...GH_RUN_VIEW_FIELDS, 'attempt'], GH_245_VIEW_ALLOWED),
+      false
+    );
   });
 });

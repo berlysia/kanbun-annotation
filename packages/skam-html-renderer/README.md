@@ -14,6 +14,12 @@ pnpm add @kanbun-skam/skam-html-renderer
 
 ## 使い方
 
+DOM に置くときは、次の 3 手順を踏む。
+
+1. `render` の `css` を、ページに 1 回だけ入れる。
+2. `html` を挿入する。
+3. フォントを読み込んだ後に `calibrateGridBaseline(container)` を呼ぶ。
+
 ### 基本的なレンダリング
 
 <!-- doctest -->
@@ -75,6 +81,13 @@ const horizontal = render(doc, { writingMode: 'horizontal' });
 
 ### 表示プロファイル
 
+`profile` には 2 つの形がある。
+
+- **部分指定**: 13 個のキーの一部を書く。**書かなかったキーは full（表示）になる**。キーの書き忘れは、隠すつもりの注記が見える側に倒れる。
+- **`{ base, overrides? }`**: プリセット（`full` / `learningBasic` / `learningHint`）から出発し、`overrides` で一部を変える。この形は安定した契約で、注記を隠す用途ではこちらを使う。
+
+2 つの形は混ぜられない。未知のキー、真偽値でない値（`'false'` など）、`null`、`{ base, okurigana: false }` のような混在は `TypeError` になる（Web Component では描画しない）。
+
 <!-- doctest:typecheck -->
 
 ```typescript
@@ -91,7 +104,17 @@ const basic = render(doc, { profile: PROFILES.learningBasic });
 
 // 学習用ヒント付きプロファイル（返り点+送り仮名）
 const hint = render(doc, { profile: PROFILES.learningHint });
+
+// プリセットから 1 項目だけ外す
+const noSaidoku = render(doc, {
+  profile: { base: 'learningHint', overrides: { saidoku: false } },
+});
+
+// 部分指定: 書いていないキーは表示される
+const partial = render(doc, { profile: { kaeriten: true, okurigana: false } });
 ```
+
+`PROFILES` は凍結されている。書き換えず、`{ base, overrides }` を使う。
 
 ### スタイルのカスタマイズ
 

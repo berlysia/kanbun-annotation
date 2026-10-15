@@ -67,6 +67,13 @@ canvas.height = height;
 
 ### 表示プロファイル
 
+`profile` には 2 つの形がある。
+
+- **部分指定**: 13 個のキーの一部を書く。**書かなかったキーは full（表示）になる**。
+- **`{ base, overrides? }`**: プリセットから出発し、`overrides` で一部を変える。この形は安定した契約で、注記を隠す用途ではこちらを使う。
+
+未知のキー、真偽値でない値、`{ base, okurigana: false }` のような混在は、`render` / `measure` が `TypeError` を投げる。
+
 <!-- doctest:typecheck -->
 
 ```typescript
@@ -85,7 +92,12 @@ render(doc, canvas, { profile: PROFILES.learningBasic });
 
 // 学習用ヒント付きプロファイル（返り点+送り仮名）
 render(doc, canvas, { profile: PROFILES.learningHint });
+
+// プリセットから 1 項目だけ外す
+render(doc, canvas, { profile: { base: 'learningHint', overrides: { saidoku: false } } });
 ```
+
+`PROFILES` は凍結されている。書き換えず、`{ base, overrides }` を使う。
 
 ### フォントの読み込み
 

@@ -158,6 +158,8 @@ const doc = parse(xml);
 
 XML には token と mark の ID を書かない。`parse` はこれらの ID を毎回生成し直すので、JSON → XML → JSON と往復すると、token と mark の ID は元の値と一致しない。token や mark の ID を使った外部の参照は、往復で失われる。block と ref の `xml:id` は XML に書かれ、`parse` はそれを読む（`xml:id` がなければ生成する）。
 
+決定的な出力が要るとき（スナップショットテストなど）は、`idGenerator: createSequentialIdGenerator()` を渡す。`createSequentialIdGenerator` は `@kanbun-skam/skam` から import する。
+
 ## IVS と結合文字
 
 `parse` は本文を code point ごとに別の token にする。異体字セレクタ（IVS）や結合文字は、基底文字とは別の token になる。注記を付けるときは、基底文字の token を anchor にする。

@@ -77,7 +77,14 @@ el.xmlContent = xmlString;
 
 `auto-font` を有効にすると、Google Fonts から **Noto Serif JP** を読み込み、`--{class-prefix}-font-family` と `--{class-prefix}-font-family-ruby` を自動設定する。無効時はフォントを継承する。
 
-各属性の詳細（`profile` の種類、`copyable` の指定可能な値など）は [@kanbun-skam/skam-html-renderer の README](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-html-renderer#readme) を参照。
+`profile` は、プリセット名か JSON で書く。JSON には 2 つの形がある。
+
+- 部分指定（例: `{"okurigana":false}`）: **書かなかったキーは full（表示）になる**。
+- `{ "base": "learningBasic", "overrides": { "okurigana": true } }`: プリセットから出発して一部を変える。注記を隠す用途ではこちらを使う。
+
+未知のキー、真偽値でない値、空文字、JSON の `null` / 配列 / 数値は不正で、**描画しない**（下の `skam-error`、`recoverable: false`）。`include-reading-layer` も `true` / `false` / 空文字以外は描画しない。`profile` 属性を外すと、full で描画する。
+
+各属性の詳細（`copyable` の指定可能な値など）は [@kanbun-skam/skam-html-renderer の README](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-html-renderer#readme) を参照。
 
 ### イベント
 
@@ -88,8 +95,8 @@ el.xmlContent = xmlString;
 
 `skam-error` には 2 種類ある。
 
-- `recoverable: false`: 描画に失敗した。内容を消して `role="alert"` を表示する。再描画のたびに発火する。
-- `recoverable: true`: `class-prefix` / `display-lang` の値が不正だったため、その属性だけ既定値に戻して描画を続けた。`attribute` に属性名が入る。`skam-render` より前に、`class-prefix` → `display-lang` の順で発火する。`error.message` に属性の値は含まれない。
+- `recoverable: false`: 描画に失敗した。内容を消して `role="alert"` を表示する。`profile` / `include-reading-layer` が不正なときも、この形で発火する（`attribute` に属性名が入り、`detail` に属性の生の値は入らない。値は 64 文字に切り詰めて、メッセージに含まれる）。描画の失敗は再描画のたびに発火する。属性が不正な間は、`<script>` の内容が変わっても空のままで、同じ属性の同じ値では再び発火しない。
+- `recoverable: true`: `writing-mode` / `copyable` / `class-prefix` / `display-lang` の値が不正だったため、その属性だけ既定値に戻して描画を続けた（`copyable` は有効な要素名だけを使う）。`attribute` に属性名が入る。`skam-render` より前に、`writing-mode` → `copyable` → `class-prefix` → `display-lang` の順で発火する。`class-prefix` / `display-lang` では、`error.message` に属性の値は含まれない。
 
 回復可能なエラーは、同じ属性に同じ不正値が残っている間は再描画しても再び発火しない。値が変わったときだけ発火する。値が有効になった場合と、要素を DOM から外した場合は、記録が消える。ハンドラが属性を毎回違う不正値に書き換えると、エラー → 再描画 → エラーの連鎖は止まらない。これはハンドラ側の誤りとして扱う。
 

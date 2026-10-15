@@ -129,6 +129,9 @@ import {
   groupTokensByBlock,
   // Block-start marks
   getBlockStartMarks,
+  // 表示設定（検証つき）
+  RENDER_PROFILES,
+  resolveRenderProfile,
   // AIR Resolver
   buildAnnotationIR,
   // 改行制御
@@ -137,6 +140,9 @@ import {
 import type {
   RangeMarkGroup,
   AIRRenderProfile,
+  RenderProfile,
+  RenderProfileInput,
+  RenderProfileName,
   AIRTrailingMark,
   AIRRangeInfo,
   AIRTokenSlots,
@@ -166,6 +172,9 @@ render(doc, canvas, { writingMode: 'vertical', fontSize: 24 });
 const { width, height } = measure(doc, ctx);
 
 // プロファイル: PROFILES.full | PROFILES.learningBasic | PROFILES.learningHint
+// 部分指定: { profile: { kaeriten: true } }（書かなかったキーは full になる）
+// プリセットから外す: { profile: { base: 'learningHint', overrides: { saidoku: false } } }
+// 不正な値（未知のキー、真偽値でない値、base と個別キーの混在）は TypeError
 ```
 
 ## @kanbun-skam/skam-xml-parser
@@ -201,6 +210,9 @@ import {
 const { html, css } = render(doc);
 // 横書き: render(doc, { writingMode: 'horizontal' })
 // プロファイル: PROFILES.full | PROFILES.learningBasic | PROFILES.learningHint
+// 部分指定は full に重なる（書かなかったキーは表示される）。注記を隠す用途では
+// { profile: { base: 'learningHint', overrides: { saidoku: false } } } の形を使う。
+// 不正な値は TypeError（Web Component の profile 属性では描画しない）
 
 // ブラウザ環境: インタラクティブイベントハンドラ
 import { attachInteractiveHandlers } from '@kanbun-skam/skam-html-renderer';

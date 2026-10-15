@@ -9,8 +9,11 @@
     "sourceMap": false
   },
   "include": [
+    "lib/release-types.ts",
     "lib/release-check.ts",
     "lib/release-check.test.ts",
+    "lib/release-after-push-check.ts",
+    "lib/release-after-push-check.test.ts",
     "lib/test-workspace.ts",
     "check-release.ts",
     "check-release.test.ts",

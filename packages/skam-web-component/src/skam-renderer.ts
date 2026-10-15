@@ -78,6 +78,7 @@ export class SkamRendererElement extends BaseElement {
     'profile',
     'inline',
     'include-reading-layer',
+    'reading-layer-source',
     'copyable',
     'class-prefix',
     'display-lang',
@@ -330,6 +331,7 @@ export class SkamRendererElement extends BaseElement {
       copyable: this.getAttribute('copyable'),
       'class-prefix': this.getAttribute('class-prefix'),
       'display-lang': this.getAttribute('display-lang'),
+      'reading-layer-source': this.getAttribute('reading-layer-source'),
     };
   }
 }

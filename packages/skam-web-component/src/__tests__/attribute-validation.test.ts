@@ -226,6 +226,98 @@ describe('fail closed attributes (K5)', () => {
   });
 });
 
+const XML_GAKUJI =
+  '<skam:doc xmlns:skam="urn:skam:1"><skam:body><skam:block>' +
+  '<skam:kun okuri="ビテ">學</skam:kun><skam:okimoji>而</skam:okimoji>' +
+  '<skam:kun okuri="ニ">時</skam:kun><skam:kun okuri="フ">習</skam:kun><skam:kaeri kind="re"/>' +
+  '<skam:kun okuri="ヲ">之</skam:kun></skam:block></skam:body>' +
+  '<skam:readings><skam:reading kind="yomiage">學びて時に之を習ふ</skam:reading></skam:readings>' +
+  '</skam:doc>';
+
+describe('reading-layer-source attribute (K3, K5)', () => {
+  const reading = (el: HTMLElement) => el.shadowRoot!.querySelector('.skam-reading')?.textContent;
+
+  it('display: reads only what the profile shows, never the readings', async () => {
+    const { el, errors, renders } = mountWithXml(
+      { profile: 'learningBasic', 'reading-layer-source': 'display' },
+      XML_GAKUJI
+    );
+    await vi.waitFor(() => expect(renders).toHaveLength(1));
+    expect(errors).toHaveLength(0);
+    expect(reading(el)).toBe('學。而、置き字。時。習、レ点。之。');
+    expect(el.shadowRoot!.innerHTML).not.toContain('學びて');
+  });
+
+  it('readings (explicit) and no attribute read the readings', async () => {
+    const explicit = mountWithXml({ 'reading-layer-source': 'readings' }, XML_GAKUJI);
+    await vi.waitFor(() => expect(explicit.renders).toHaveLength(1));
+    expect(reading(explicit.el)).toBe('學びて時に之を習ふ');
+    const absent = mountWithXml({}, XML_GAKUJI);
+    await vi.waitFor(() => expect(absent.renders).toHaveLength(1));
+    expect(reading(absent.el)).toBe('學びて時に之を習ふ');
+  });
+
+  it.each(['dispaly', '', 'Display', '__proto__'])(
+    'blocks reading-layer-source=%j (non-recoverable, empty content)',
+    async (value) => {
+      const { el, errors, renders } = mountWithXml({ 'reading-layer-source': value }, XML_GAKUJI);
+      await vi.waitFor(() => expect(errors).toHaveLength(1));
+      expect(renders).toHaveLength(0);
+      expect(errors[0]!.detail).toMatchObject({
+        recoverable: false,
+        attribute: 'reading-layer-source',
+      });
+      expect(content(el).children).toHaveLength(1);
+      expect(content(el).querySelectorAll('[role="alert"]')).toHaveLength(1);
+      expect(el.shadowRoot!.querySelector('.skam-document')).toBeNull();
+    }
+  );
+
+  it('goes valid -> invalid -> valid: empties, then renders again', async () => {
+    const { el, errors, renders } = mountWithXml(
+      { profile: 'learningBasic', 'reading-layer-source': 'display' },
+      XML_GAKUJI
+    );
+    await vi.waitFor(() => expect(renders).toHaveLength(1));
+    el.setAttribute('reading-layer-source', 'dispaly');
+    await vi.waitFor(() => expect(errors).toHaveLength(1));
+    expect(el.shadowRoot!.querySelector('.skam-document')).toBeNull();
+    el.setAttribute('reading-layer-source', 'display');
+    await vi.waitFor(() => expect(renders).toHaveLength(2));
+    expect(reading(el)).toBe('學。而、置き字。時。習、レ点。之。');
+  });
+
+  it('removing the attribute renders with readings again', async () => {
+    const { el, renders } = mountWithXml(
+      { profile: 'learningBasic', 'reading-layer-source': 'display' },
+      XML_GAKUJI
+    );
+    await vi.waitFor(() => expect(renders).toHaveLength(1));
+    el.removeAttribute('reading-layer-source');
+    await vi.waitFor(() => expect(renders).toHaveLength(2));
+    expect(reading(el)).toBe('學びて時に之を習ふ');
+  });
+
+  it('reports each blocked attribute once, in a fixed order', async () => {
+    const { errors } = mountWithXml(
+      { profile: 'bogus', 'include-reading-layer': 'x', 'reading-layer-source': 'y' },
+      XML_GAKUJI
+    );
+    await vi.waitFor(() => expect(errors).toHaveLength(3));
+    expect(errors.map((e) => e.detail.attribute)).toEqual([
+      'profile',
+      'include-reading-layer',
+      'reading-layer-source',
+    ]);
+  });
+
+  it('reading-layer-source="" is invalid while include-reading-layer="" is true', async () => {
+    const { el, renders } = mountWithXml({ 'include-reading-layer': '' }, XML_GAKUJI);
+    await vi.waitFor(() => expect(renders).toHaveLength(1));
+    expect(el.shadowRoot!.querySelector('.skam-reading')).not.toBeNull();
+  });
+});
+
 describe('extractXmlFromScriptElement export (K10)', () => {
   it('is a function and importing does not register the element', () => {
     expect(typeof extractXmlFromScriptElement).toBe('function');

@@ -85,6 +85,10 @@ describe('SkamRendererElement', () => {
   });
 
   describe('attributes', () => {
+    it('observes reading-layer-source so a change re-renders', () => {
+      expect(SkamRendererElement.observedAttributes).toContain('reading-layer-source');
+    });
+
     it('defaults to vertical writing mode', async () => {
       el.xmlContent = SAMPLE_XML;
       document.body.appendChild(el);

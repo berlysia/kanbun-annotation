@@ -77,6 +77,12 @@ export interface AttributeValues {
   'class-prefix': string | null;
   /** 任意。省略は null と同じ (export 済みの型なので既存の利用者を壊さない) */
   'display-lang'?: string | null;
+  /**
+   * 任意。省略は null と同じ (readings)。`readings` / `display` 以外は不正で、描画しない。
+   *
+   * @experimental
+   */
+  'reading-layer-source'?: string | null;
 }
 
 export interface InvalidAttribute {
@@ -90,7 +96,7 @@ export interface BuiltRenderOptions {
   invalid: InvalidAttribute[];
   /**
    * 注記を隠すための属性で、不正なもの。既定値に戻すと隠すつもりの注記が見える側に倒れるので、
-   * 描画しない (fail closed)。profile → include-reading-layer の固定順。
+   * 描画しない (fail closed)。profile → include-reading-layer → reading-layer-source の固定順。
    */
   blocked: InvalidAttribute[];
 }
@@ -118,6 +124,12 @@ function parseReadingLayerFlag(value: string): boolean {
   );
 }
 
+/** reading-layer-source 属性を解決する。属性が無い (null) ときは呼ばない。空文字は不正 */
+function parseReadingLayerSource(value: string): 'readings' | 'display' {
+  if (value === 'readings' || value === 'display') return value;
+  throw new TypeError('reading-layer-source must be "readings" or "display"');
+}
+
 function applyHiddenAnnotationAttributes(
   attrs: AttributeValues,
   options: RenderOptions,
@@ -134,12 +146,21 @@ function applyHiddenAnnotationAttributes(
   const readingLayer = attrs['include-reading-layer'];
   if (readingLayer === null) {
     options.includeReadingLayer = true;
-    return;
+  } else {
+    try {
+      options.includeReadingLayer = parseReadingLayerFlag(readingLayer);
+    } catch (error) {
+      blocked.push({ attribute: 'include-reading-layer', error: toTypeError(error) });
+    }
   }
-  try {
-    options.includeReadingLayer = parseReadingLayerFlag(readingLayer);
-  } catch (error) {
-    blocked.push({ attribute: 'include-reading-layer', error: toTypeError(error) });
+
+  const readingLayerSource = attrs['reading-layer-source'] ?? null;
+  if (readingLayerSource !== null) {
+    try {
+      options.readingLayerSource = parseReadingLayerSource(readingLayerSource);
+    } catch (error) {
+      blocked.push({ attribute: 'reading-layer-source', error: toTypeError(error) });
+    }
   }
 }
 

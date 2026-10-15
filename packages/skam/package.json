@@ -6,12 +6,12 @@
   "sideEffects": false,
   "exports": {
     ".": {
-      "import": "./dist/index.js",
-      "types": "./dist/index.d.ts"
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
     },
     "./rendering": {
-      "import": "./dist/rendering/index.js",
-      "types": "./dist/rendering/index.d.ts"
+      "types": "./dist/rendering/index.d.ts",
+      "import": "./dist/rendering/index.js"
     }
   },
   "files": [

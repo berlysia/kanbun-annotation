@@ -14,8 +14,10 @@
   "license": "MIT",
   "devDependencies": {
     "@kanbun-skam/skam": "workspace:*",
+    "@kanbun-skam/skam-canvas-renderer": "workspace:*",
     "@kanbun-skam/skam-html-renderer": "workspace:*",
     "@kanbun-skam/skam-screenshot": "workspace:*",
+    "@kanbun-skam/skam-web-component": "workspace:*",
     "@kanbun-skam/skam-xml-parser": "workspace:*",
     "@kanbun-skam/skam-xml-stringify": "workspace:*",
     "@playwright/test": "1.58.0"

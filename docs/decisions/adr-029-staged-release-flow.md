@@ -21,6 +21,13 @@ plan: plan-staged-release-flow.md
 - actions は tag 指定で、workflow の静的検査はない (zizmor 1.30.1 の手元の計測で 55 件)。
 - 手順書も決定の記録もない。ADR-028 に「公開は人間が workflow を起動して行う。本 ADR の範囲外」とある。
 
+### 根拠にした計測 (2026-10-15、手元)
+
+- **zizmor 1.30.1 のベースライン**: 変更前の `.github/workflows` は `zizmor --offline` で 55 findings (12 suppressed)。主な内訳は `unpinned-uses` 38 件、`excessive-permissions` 2 件 (deploy-playground のトップレベル `pages: write` / `id-token: write`)、`artipacked` 3 件 (checkout)。plan-1 の後は 0 件。release.yml を足した後は `cache-poisoning` (setup-node の自動 cache) と `adhoc-packages` (`npm install -g npm@12.1.0`) が出て、前者は workflow で直し、後者だけを ignore した (K10)。offline と online (`GH_TOKEN` 付き) で結果は同じ。表示される suppressed は regular persona が隠す pedantic 以下の指摘で、ignore ではない。
+- **`pnpm pack` の LICENSE**: パッケージ直下に LICENSE がなくても、root の `LICENSE` が tarball の `package/LICENSE` に入り、root とバイト一致する (K5)。
+- **`pnpm pack` の内部依存**: `workspace:*` は、pack 時の `version` と**完全一致**の範囲 (`0.2.0` など。`^` も `~` も付かない) に書き換わる。書き換えには `pnpm install` 済みであることが要る (K3 の tarball の契約。`scripts/lib/test-workspace.ts` が fixture でオフライン install する理由)。
+- **`npm view` の未公開の名前**: 存在しない名前に `npm view <name> versions dist-tags --json` を実行すると、`{"error":{"code":"E404",...}}` の JSON が **stdout** に出る (stderr を捨てても残る)。`parseNpmView` は stdout の JSON の `error.code` だけで「未公開」を判定し、JSON でない出力や E404 以外のコードは fail-closed にする (K2 e)。
+
 ### shiori の流儀
 
 shiori の ADR-036 (staged npm publishing) は、tag push を起点に自動で stage し、旧来の publish workflow を消して経路を 1 本にする。検証済みの tarball を特権のない job で作り、OIDC token を持つ job では checkout も install も build もしない。tarball を指定した publish は lifecycle script を走らせない (ADR-036 が npm のソースで確認したと記載。この ADR では独自に確認していない)。npm 側は release workflow と environment に `--allow-stage-publish` だけを許可し、GitHub 側は environment の deployment を tag `v*` に限って tag の操作を ruleset で admin に限る。ただし shiori は単一パッケージで、changesets を使わない。
@@ -105,7 +112,7 @@ ci.yml と deploy-playground.yml は、トップレベル `permissions: {}`、jo
 
 ### K10: zizmor と workflow 構造のテスト
 
-zizmor 1.30.1 を、`.github/workflows/**` の変更で online audits 付きで実行する。plan-1 の後で、手元の検査 (offline と online) の finding は 0 件 (ベースラインは 55 件)。`.github/zizmor.yml` の ignore は、残った finding だけに理由を添えて書く方針で、現時点では `rules: {}`。zizmor が見ない不変条件 (run への直接展開、トップレベルの権限、`id-token: write` と `environment: npm` の配置、npm-stage の照合の実行) は、`scripts/workflow-structure.test.ts` で検査する。zizmor は required check ではない (A5)。
+zizmor 1.30.1 を、`.github/workflows/**` の変更で online audits 付きで実行する。手元の検査 (offline と online) の finding は、ベースライン 55 件から 0 件になった。`.github/zizmor.yml` の ignore は、workflow 側で直せない finding だけを、ルール id とファイル名の組で、理由のコメント付きで書く。現在の ignore は `adhoc-packages` × `release.yml` の 1 つで、理由は「staged publishing は npm 11.15.0 以上が要り、lts/\* 同梱の npm では保証されない。版を固定し、直後に `npm --version` で assert している」である。`cache-poisoning` は直せたので ignore せず、release.yml の 2 つの `actions/setup-node` に `package-manager-cache: false` を明示した。zizmor が見ない不変条件は `scripts/workflow-structure.test.ts` で検査する (検査の範囲は「spec からの訂正」)。zizmor は required check ではない (A5)。
 
 ### K11: 撤去したもの
 
@@ -130,6 +137,21 @@ approve は stage id ごと。manifest の順 (依存の根から) に、続け�
 ### K16: テストの置き場所
 
 `scripts/lib/release-check.test.ts` (純粋関数)、`scripts/release.test.ts` (一時 git repo + bare remote)、`scripts/workflow-structure.test.ts`、リポジトリの現物に対する `check-release` のテスト。実行は root の `test:scripts` (`node --test`)。**spec の訂正**: リポジトリの現物に対する検査は、`check` ではなく `node scripts/check-release.ts list` を使う。`check` は版上げの前に失敗するのが正しい挙動のため (CHANGELOG の先頭が現在の版でない)。consumer の `--tarballs` と LICENSE の検査は `test:consumer` の実行で確かめる。
+
+## spec からの訂正
+
+実装の途中で、spec (K1〜K16 と plan の想定) から外れた点。決定の内容を変えたものはなく、spec が置いた前提が現物と合わなかったもの、または spec より細かく決めたものである。
+
+- **setup は `pnpm/setup` ではなく `pnpm/action-setup` + `actions/setup-node`** (K9): `pnpm/setup` v3 は pnpm v11 以上を要求し、このリポジトリは `pnpm@10.27.0`。spec の代替の分岐に従った。release.yml の validate も同じ 2 つの `uses` (SHA まで同じ) で、`cache` を付けない。構造テストの (3f) が、この 2 つの `uses` を ci.yml の全 job と組で比べる。
+- **pages 系 actions の版** (K9): configure-pages v6.0.0、upload-pages-artifact v5.0.0、deploy-pages v5.0.1。spec は版を決めておらず、plan-1 で現物を確かめて SHA 固定した。
+- **現物の検査は `list`** (K16): `check-release` に、一覧の正本の一致 (K2 a) だけを行う `list` を足した。現物は 0.1.1 で CHANGELOG の先頭が `## 0.1.0` なので、版上げ前の `check` は失敗するのが正しい。
+- **manifest の順は、層ごとのトポロジカル順**: 1 つずつ取る順ではなく、依存が済んだパッケージを 1 層として取り、層の中は名前順にした。層の境界が approve の区切りとして読めるようにするため (K3 の「名前で層を分けた順」)。
+- **zizmor の ignore と workflow の修正**: ignore は `adhoc-packages` × `release.yml` の 1 つだけ。`cache-poisoning` は ignore せず workflow を直した (K10)。そのため (3f) は、validate の `with` が「ci.yml の `with` から `cache` を除き、`package-manager-cache: false` を足したもの」に等しいことを求める。spec の「`cache` の有無だけが違う」より 1 項目多い。
+- **ci.yml への `typecheck:scripts` / `test:scripts` の追加は plan-4 に移した**: spec は plan-2 に置いていたが、`.github/workflows/` の変更を plan-4 にまとめるため。PR は 1 つなので、plan-2 から plan-4 の間に、CI が `test:scripts` を回さない commit があるだけである。
+- **構造テストは K10 の 4 検査より広い**: K10 が挙げた 4 検査 (run への直接展開、トップレベルの権限、`id-token: write` と `environment: npm` の配置、npm-stage の照合の実行) に加えて、K3 / K12 の契約を検査する。具体的には、起動条件 (3a)、権限の配置 (3b の contents: write と validate の権限)、`needs` と `concurrency` (3c)、npm-stage の第三者コードの不在 (3d)、validate の工程の順 (3e)、setup の同一性 (3f)、`--verify-tag` と `--generate-notes` (3g)、stage の順序と失敗での停止と dist-tag (4b)、`--prerelease` の判定 (4c)、ci.yml が `verify` の各コマンドを覆うこと (5)、validate が `pnpm run verify` を呼ぶこと (6)。さらに、Step Summary の書式 (releasing.md が参照する) と、release.yml の `uses` が SHA 固定であることも検査する。レビューで、これらが「テストされていない契約」として指摘されたため。
+- **manifest の読み手は 3 つ**: (1) validate の `verify-manifest` (`scripts/lib/release-check.ts` の `verifyManifest`。一覧の正本と照合する)、(2) npm-stage の `verify-artifact` (workflow に埋めた node。repo を持たないので同じ規則を再実装する)、(3) consumer の `loadTarballSet` (`packages/integration-tests/consumer/tarballs.mjs`)。(1) と (2) の規則が割れないよう、(4a) は `verifyManifest` と同じ拒否の集合 (schemaVersion、tag、distTag、file の形、integrity の形、packages が空、name と file の重複、tgz の過不足、1 バイトの改変) を `verify-artifact` に流す。
+- **npm-stage は names を照合しない**: npm-stage は repo を持たないので、manifest の `name` が公開 6 パッケージであることは照合できない。その信頼の根は validate の `verify-manifest` で、upload された artifact を書き換えられれば、この信頼は崩れる (脅威と統制の「artifact の改ざん」の行、A1)。npm 側の trust がパッケージごとなので、6 つ以外の名前は npm が拒否する。
+- **knip の ignore は要らなかった**: plan は `yaml` を knip の `ignoreDependencies` に入れる想定だったが、knip はテストからの import を検出し、ignore は冗長だと報告したので入れていない。
 
 ## 脅威と統制
 

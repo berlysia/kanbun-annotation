@@ -4,7 +4,7 @@
 
 公開 6 パッケージのリリースを、`v*` tag の push → 検査済み tarball の作成 → OIDC での `npm stage publish` → メンテナの 2FA による approve という経路に一本化する。あわせて、全 workflow の actions を SHA で固定し、zizmor と workflow 構造のテストで特権の配置を検査する。版と CHANGELOG の生成は changesets を残し、`pnpm run release` (`scripts/release.ts`) が検査から tag の push までを 1 コマンドで行う。この作業では tag を打たず、stage も publish もしない。0.2.0 の公開は、この作業の後に行う。
 
-このファイルは、実装した内容の記録と、残った作業 (Followup) を持つ。plan-4 (公開経路) の内容は、plan-4 の実装が済むまでは予定である。
+このファイルは、実装した内容の記録と、残った作業 (Followup) を持つ。
 
 関連 ADR: [ADR-029](../decisions/adr-029-staged-release-flow.md)
 手順: [releasing.md](../releasing.md)
@@ -41,12 +41,14 @@
 - ADR-029: `ba2d7e2`
 - この plan、plan-practical-readiness の Followup、CLAUDE.md (このコミット)
 
-### plan-4: 公開経路 (予定)
+### plan-4: 公開経路
 
-- 新しい release.yml (validate / npm-stage / github-release)
-- `scripts/workflow-structure.test.ts` と `yaml` の devDependency
-- `.github/zizmor.yml` の確定
-- 手順書と実装の突き合わせ、ADR-029 への反映
+- 新しい release.yml (validate / npm-stage / github-release)、`scripts/workflow-structure.test.ts`、`yaml` の devDependency (exact 2.8.2)、ci.yml の `typecheck:scripts` / `test:scripts` の step、`.github/zizmor.yml` の確定: `8699475`
+  - 構造テストは 30 件。release.yml の `verify-artifact` / `stage` / `release` の step は、`check-release pack` が作った本物の manifest と tgz、偽の `npm` と `gh` で実際に実行する。
+  - zizmor 1.30.1 は offline と online の両方で finding 0 件。ignore は `adhoc-packages` × `release.yml` の 1 つ (npm 12.1.0 の固定 install)。`cache-poisoning` は ignore せず、setup-node の `package-manager-cache: false` で直した。
+- knip の `ignoreDependencies` に `yaml` を入れる想定だったが、冗長だったので外した: `e417766`
+- releasing.md と release.yml の突き合わせ (Step Summary の書式と順序、`npm stage` のコマンド、artifact の名前と保持日数): ずれはなく、releasing.md は変えていない。
+- ADR-029 への反映 (根拠にした計測、「spec からの訂正」、K10 の更新)、この plan の更新 (このコミット)
 
 ## リスクと軽減策
 
@@ -59,6 +61,8 @@
 | 一度だけの移行 (人間の作業) の漏れ                                 | 高     | 読み戻しの期待値を releasing.md に置き、すべてそろうまで PR を merge しない        |
 
 ## 検証方法
+
+plan-4: `pnpm verify` が exit 0 (build / typecheck / typecheck:scripts / lint / format:check / test:run / test:scripts / knip / test:consumer)。`uses:` がすべて 40 桁の SHA + `# vN` であること。zizmor 1.30.1 の offline と online。release.yml は tag push でしか動かないので、OIDC、artifact の受け渡し、`npm stage` の実行は未実行 (ADR-029 の R8)。
 
 plan-3 は文書だけの変更である。`pnpm exec prettier --check` で対象の文書、`pnpm adr:status` で ADR-029 の frontmatter と plan へのリンク、ADR と plan の双方向リンク、releasing.md のコマンドと引数を `npm help trust` / `npm help stage` (npm 12.2.0) と照合した。npm の trust と stage の出力の書式は、手元で実行していないので未確認。
 

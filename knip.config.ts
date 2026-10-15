@@ -27,6 +27,8 @@ const config: KnipConfig = {
     'packages/integration-tests': {
       entry: ['src/**/*.test.ts'],
       project: ['src/**/*.ts'],
+      // used only by the generated .doctest/ and the tarball consumer test, both outside `project`
+      ignoreDependencies: ['@kanbun-skam/skam-canvas-renderer', '@kanbun-skam/skam-web-component'],
     },
     'packages/skam-screenshot': {
       project: ['src/**/*.ts'],
@@ -45,10 +47,11 @@ const config: KnipConfig = {
     // Test helpers referenced by test files (not reachable from entry points)
     'packages/skam-canvas-renderer/src/__tests__/recording-context.ts',
     'packages/skam/src/__tests__/operations/helpers.ts',
+    'packages/skam-html-renderer/src/__tests__/helpers/css-contract.ts',
+    'packages/skam-web-component/src/__tests__/helpers/style-contract.ts',
     // Legacy render-tree used by active tests (layout-vertical.test.ts etc.)
     'packages/skam-canvas-renderer/src/render-tree.ts',
   ],
-  ignoreBinaries: ['playwright'], // installed dynamically in CI
   ignoreExportsUsedInFile: true,
 };
 

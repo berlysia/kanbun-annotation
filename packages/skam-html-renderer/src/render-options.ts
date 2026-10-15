@@ -6,10 +6,14 @@
  *
  * 違反は TypeError にする。メッセージにはオプション名と規則だけを含め、渡された値や許可される値の一覧は
  * 含めない (エラーメッセージが innerHTML に入れられても注入にならないように)。
+ * 例外は profile の検査 (resolveRenderProfile)。未知のキー名と、64 文字に切り詰めた値をメッセージに含める。
+ * 綴りを間違えたキー名を作者が直せるようにするためで、他のオプションとは別に決めている。
  */
 
 import type { SpacingPreset } from '@kanbun-skam/skam/rendering';
 import type { CopyableElement, RubyMethod } from './render-config.js';
+import { resolveRenderProfile } from './render-config.js';
+import { normalizeAccessibleLabels } from './reading-text.js';
 import type { RenderOptions } from './renderer.js';
 import type { StyleOptions } from './styles.js';
 
@@ -87,8 +91,61 @@ function check<T>(v: T | undefined, assert: (v: unknown) => void): void {
   if (v !== undefined) assert(v);
 }
 
-/** render / renderHTML のオプションを検査する。render は CSS も作るので CSS 用のオプションも含む */
-export function validateRenderOptions(o: RenderOptions): void {
+/** includeReadingLayer は指定されていれば真偽値。'false' のような文字列は truthy として通ってしまうため */
+function assertIncludeReadingLayer(v: unknown): void {
+  if (typeof v !== 'boolean') {
+    throw new TypeError('includeReadingLayer must be a boolean');
+  }
+}
+
+function assertReadingLayerSource(v: unknown): void {
+  if (v !== 'readings' && v !== 'display') {
+    throw new TypeError('readingLayerSource must be a known reading layer source');
+  }
+}
+
+const RENDER_OPTION_KEYS = [
+  'profile',
+  'writingMode',
+  'classPrefix',
+  'includeReadingLayer',
+  'inline',
+  'useLayer',
+  'layerName',
+  'variablePrefix',
+  'copyable',
+  'interactive',
+  'rubyMethod',
+  'spacing',
+  'displayLang',
+  'readingLayerSource',
+  'accessibleLabels',
+] as const satisfies readonly (keyof RenderOptions)[];
+
+/**
+ * 入口でオプションを 1 回だけ読む。getter を持つ object でも、検査した値と使う値が一致する。
+ * undefined のキーは「指定なし」として落とす。
+ */
+function snapshotRenderOptions(o: RenderOptions): RenderOptions {
+  const snapshot: Record<string, unknown> = {};
+  for (const key of RENDER_OPTION_KEYS) {
+    const value: unknown = o[key];
+    if (value !== undefined) snapshot[key] = value;
+  }
+  return snapshot as RenderOptions;
+}
+
+/**
+ * render / renderHTML の入口で使う、検証と正規化。
+ *
+ * 検査を通った値だけを持つ新しい options を返す。profile は解決済みの値、accessibleLabels は
+ * 凍結したコピーに置き換える。描画はこの戻り値だけを使い、渡された object を読み直さない。
+ * render は CSS も作るので CSS 用のオプションも検査する。
+ */
+export function normalizeRenderOptions(options: RenderOptions): RenderOptions {
+  const o = snapshotRenderOptions(options);
+  if (o.profile !== undefined) o.profile = resolveRenderProfile(o.profile);
+  check(o.includeReadingLayer, assertIncludeReadingLayer);
   check(o.writingMode, (v) => assertWritingMode(v, false));
   check(o.classPrefix, assertClassPrefix);
   check(o.layerName, assertLayerName);
@@ -97,6 +154,20 @@ export function validateRenderOptions(o: RenderOptions): void {
   check(o.rubyMethod, (v) => assertRubyMethod(v, false));
   check(o.spacing, assertSpacing);
   check(o.displayLang, assertDisplayLang);
+  check(o.readingLayerSource, assertReadingLayerSource);
+  const labels = normalizeAccessibleLabels(o.accessibleLabels);
+  if (labels !== undefined) o.accessibleLabels = labels;
+  return o;
+}
+
+/**
+ * render / renderHTML のオプションを検査する。render は CSS も作るので CSS 用のオプションも含む。
+ *
+ * `render` は内部で同じ検証をするので、事前に呼ぶ必要はない。呼んだ場合、`accessibleLabels` の getter は
+ * 2 回読まれる (この関数で 1 回、`render` で 1 回)。
+ */
+export function validateRenderOptions(o: RenderOptions): void {
+  normalizeRenderOptions(o);
 }
 
 /** generateCSS / getDefaultStyles のオプションを検査する。writingMode / rubyMethod は 'both' も許す */

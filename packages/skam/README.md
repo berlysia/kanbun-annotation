@@ -64,6 +64,37 @@ assertSKAMDocument(input);
 
 返り点（kaeri）はブロックの先頭に置けない。検証エラーと parser のエラーは、同じ案内文 `BLOCK_START_KAERI_HINT`（本パッケージが export する）を使う。同じ位置に重複した kaeri は検査しない。
 
+## 読み上げ用テキスト (`@experimental`)
+
+`@kanbun-skam/skam/rendering` の次の API は、AIR（`buildAnnotationIR` が `profile` で絞った「画面に見えるもの」）から、読み上げ用の構造と文字列を作る。どれも `@experimental` で、読み上げの言葉は 0.x のマイナーリリースで変わりうる。
+
+- `describeAnnotationIR(air)`: ブロック → 単位 → 注記の構造を返す。言語に依存しない。注記の `kind` は 0.x のマイナーで増えうる。
+- `formatAccessibleText(blocks, labels?)`: 構造を日本語の文章にする。**HTML のエスケープをしない**ので、HTML に入れるときは呼び出し側でエスケープする。`labels` で `kind` ごとに言葉を上書きできる（own property だけを引く）。空文字・例外・string 以外を返した注記は出ない。すべての注記が出ず、本文も無いと空文字を返す。
+- `DEFAULT_ACCESSIBLE_LABELS`: 既定の言葉。
+
+<!-- doctest:typecheck -->
+
+```typescript
+import {
+  buildAnnotationIR,
+  describeAnnotationIR,
+  formatAccessibleText,
+  RENDER_PROFILES,
+} from '@kanbun-skam/skam/rendering';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
+
+const air = buildAnnotationIR(doc, RENDER_PROFILES.learningBasic);
+const text = formatAccessibleText(describeAnnotationIR(air));
+// 例: 學。而、置き字。時。習、レ点。之。
+```
+
+既知の制約:
+
+- 読みの範囲が竪点のグループからはみ出す文書（#16）では、範囲の読みが先頭の字の読み仮名として出る。
+- 再読文字は `slots.saidokuUnder` か `slots.saidokuOkuri2` があるときだけ再読文字として読む。2 回目の読みが無い再読文字は、1 回目の読みが読み仮名・送り仮名として出る。
+
 ## Mark Types
 
 | type        | 説明                     |
@@ -102,6 +133,10 @@ assertSKAMDocument(input);
 | M09 | ブロック先頭の kaeri を通した。                                                                                                                                                                                        | `skam` の validator が `BLOCK_START_KAERI` (検証エラーの `kind`) で拒否する。`skam-xml-stringify` の欠落の `code` の `BLOCK_START_KAERI` とは別の型である。案内文は `BLOCK_START_KAERI_HINT`。                                                                                                                                                                                                                                                 | 返り点を前のブロックの最後の字の後に置くか、ブロックをまとめる。                                                                                                                              |
 | M23 | なし。                                                                                                                                                                                                                 | `skam`: `isValidEmphasisStyle`、`BLOCK_START_KAERI_HINT`、`HIGHLIGHT_STYLES`、`isValidHighlightStyle`、`resolveOkototenCell`。`skam-xml-parser`: `SKAM_ML_CONTENT_MODEL` (`@experimental`)、`ParseWarning` / `onWarning`。`skam-xml-stringify`: `SKAM_ML_CONTENT_MODEL`、`SKAM_ML_NESTING_ORDER` (どちらも `@experimental`)、`SKAMXMLStringifyError` / `StringifyLoss`。`skam-html-renderer`: `validateRenderOptions` / `validateCSSOptions`。 | 対応は要らない。`@experimental` の API は、0.x の間はマイナーリリースで値が変わりうる。                                                                                                       |
 | M24 | 条件オブジェクトで `import` が `types` より前にあった。`skam-web-component` の `./auto` には `types` がなかった。                                                                                                      | `types` を先頭にする。`./auto` に `types` を足す。サブパスと実体は変わらない。                                                                                                                                                                                                                                                                                                                                                                 | 対応は要らない (非破壊の変更)。                                                                                                                                                               |
+| M27 | なし。                                                                                                                                                                                                                 | `skam` / `skam-html-renderer` / `skam-canvas-renderer`: `RENDER_PROFILES` (html と canvas では `PROFILES` の別名のまま)、`resolveRenderProfile`、`RenderProfileInput`、`RenderProfileName` (`RenderProfile` の型も skam から再 export する)。`skam-web-component`: `extractXmlFromScriptElement` (`@experimental`)。                                                                                                                           | 対応は要らない (非破壊の追加)。`@experimental` の API は、0.x の間はマイナーリリースで値が変わりうる。                                                                                        |
+| M34 | `buildAnnotationIR` の範囲 (`rangeInfo`) の `trailingMarks` に、`profile.okimoji` / `profile.joji` が false でも置き字・助字が入った。HTML の表示は、後段が profile を再判定するので変わらなかった。                   | `profile.okimoji` / `profile.joji` が true のときだけ、`trailingMarks` に入る。HTML と canvas の出力は変わらない。                                                                                                                                                                                                                                                                                                                             | AIR を直接使っている場合は、隠した置き字・助字が `trailingMarks` に無いことを前提にする。                                                                                                     |
+| M36 | `SKAMValidationError.errors` の各要素は `kind` / `path` / `message` (と `expected` / `actual`) だけで、元の SKAM-ML の位置を示さなかった。                                                                             | `ValidationError` に任意の `line` / `column` を足した。Node 版の `parse()` (`validate: true`) が投げる `SKAMValidationError` で、`path` が `tokens[i]` / `marks[i]` / `blocks[i]` で始まるエラーに付く。`validateSKAMDocument` を直接呼んだときと、ブラウザ版では付かない (キーごと無い)。                                                                                                                                                     | 型は非破壊。parser 経由の検証エラーにはキーが増えるので、エラーを `toEqual` で比べている利用側のテストは差が出る。比較から `line` / `column` を外すか、`toMatchObject` を使う。               |
+| M37 | なし。                                                                                                                                                                                                                 | `skam`: `describeAnnotationIR`、`formatAccessibleText`、`DEFAULT_ACCESSIBLE_LABELS`、型 `AccessibleNote` / `AccessibleUnit` / `AccessibleBlock` / `AccessibleLabels` (すべて `@experimental`)。`skam-html-renderer`: `readingLayerSource` / `accessibleLabels` オプションと `AccessibleLabels` 型 (`@experimental`)。`skam-web-component`: `reading-layer-source` 属性 (`@experimental`)。                                                     | 対応は要らない (追加。既定の挙動は変わらない)。`@experimental` の API は、0.x の間はマイナーリリースで値が変わりうる。読み上げの言葉も 0.x のマイナーで変わりうる。                           |
 
 全体の移行表 (対象パッケージ、依存の更新を含む): https://github.com/berlysia/kanbun-annotation/blob/master/docs/migration-0.1-to-0.2.md
 

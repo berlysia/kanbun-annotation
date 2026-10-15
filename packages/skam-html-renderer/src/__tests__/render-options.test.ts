@@ -9,7 +9,10 @@ import {
   validateCSSOptions,
   type RenderOptions,
   type CSSOptions,
+  PROFILES,
+  type RenderProfile,
 } from '../index.js';
+import { RENDER_PROFILES } from '@kanbun-skam/skam/rendering';
 import type { SKAMDocument } from '@kanbun-skam/skam';
 const doc: SKAMDocument = {
   format: 'skam@0.1',
@@ -34,6 +37,70 @@ const badRender: [RenderOptions, RegExp][] = [
   [{ spacing: Number.NaN }, /spacing/],
   [{ spacing: Number.POSITIVE_INFINITY }, /spacing/],
   [{ spacing: 'x;}' as unknown as NonNullable<RenderOptions['spacing']> }, /spacing/],
+  // profile は resolveRenderProfile で厳密に検証する (未知のキー・真偽値でない値は隠すつもりの注記が出る原因になる)
+  [
+    { profile: { okurigana: 'false' } as unknown as NonNullable<RenderOptions['profile']> },
+    /profile/,
+  ],
+  [
+    { profile: { okuriganaa: false } as unknown as NonNullable<RenderOptions['profile']> },
+    /profile/,
+  ],
+  [{ profile: null as unknown as NonNullable<RenderOptions['profile']> }, /profile/],
+  [{ includeReadingLayer: 'false' as unknown as boolean }, /includeReadingLayer/],
+  // readingLayerSource / accessibleLabels (K3, experimental)
+  [
+    {
+      readingLayerSource: 'dispaly' as unknown as NonNullable<RenderOptions['readingLayerSource']>,
+    },
+    /readingLayerSource/,
+  ],
+  [
+    {
+      accessibleLabels: { foo: () => '' } as unknown as NonNullable<
+        RenderOptions['accessibleLabels']
+      >,
+    },
+    /accessibleLabels/,
+  ],
+  [
+    {
+      accessibleLabels: { kaeri: 'x' } as unknown as NonNullable<RenderOptions['accessibleLabels']>,
+    },
+    /accessibleLabels/,
+  ],
+  [
+    {
+      accessibleLabels: JSON.parse('{"__proto__": {}}') as NonNullable<
+        RenderOptions['accessibleLabels']
+      >,
+    },
+    /accessibleLabels/,
+  ],
+  [
+    {
+      accessibleLabels: Object.create({ kaeri: () => 'X' }) as NonNullable<
+        RenderOptions['accessibleLabels']
+      >,
+    },
+    /accessibleLabels/,
+  ],
+  [
+    { accessibleLabels: [] as unknown as NonNullable<RenderOptions['accessibleLabels']> },
+    /accessibleLabels/,
+  ],
+  [
+    {
+      accessibleLabels: new (class Labels {
+        kaeri = () => 'X';
+      })() as unknown as NonNullable<RenderOptions['accessibleLabels']>,
+    },
+    /accessibleLabels/,
+  ],
+  [
+    { accessibleLabels: null as unknown as NonNullable<RenderOptions['accessibleLabels']> },
+    /accessibleLabels/,
+  ],
   // 文字列でない値: 検査した後に toString が別の値を返す (検査時と使用時のずれ) のを防ぐため、型で拒否する
   [{ classPrefix: { toString: () => 'ok' } as unknown as string }, /classPrefix/],
 ];
@@ -80,6 +147,17 @@ describe('option validation (K4)', () => {
       validateRenderOptions({ writingMode: 'vertical', rubyMethod: 'grid' })
     ).not.toThrow();
     expect(() => validateRenderOptions({})).not.toThrow();
+    expect(() =>
+      validateRenderOptions({
+        readingLayerSource: 'display',
+        accessibleLabels: { kaeri: () => 'x', okimoji: () => '' },
+      })
+    ).not.toThrow();
+    expect(() =>
+      validateRenderOptions({
+        accessibleLabels: Object.create(null) as NonNullable<RenderOptions['accessibleLabels']>,
+      })
+    ).not.toThrow();
     // undefined は「指定なし」として扱う (web-component が未設定の属性を undefined で渡しうる)
     expect(() =>
       validateRenderOptions({
@@ -115,5 +193,29 @@ describe('option validation (K4)', () => {
         variablePrefix: ['x'] as unknown as string,
       })
     ).toThrow(TypeError);
+  });
+});
+
+describe('profile (K4)', () => {
+  it('PROFILES は skam/rendering の RENDER_PROFILES と同一で、凍結されている', () => {
+    expect(PROFILES).toBe(RENDER_PROFILES);
+    expect(Object.isFrozen(PROFILES.full)).toBe(true);
+  });
+
+  it('既存の指定の形が型検査を通り、描画できる', () => {
+    const partial: RenderOptions = { profile: { kaeriten: true } };
+    const preset: RenderOptions = { profile: PROFILES.learningBasic };
+    const based: RenderOptions = { profile: { base: 'learningBasic', overrides: { ref: false } } };
+    // @ts-expect-error base と個別キーは混ぜられない
+    const mixed: RenderOptions = { profile: { base: 'learningBasic', okurigana: false } };
+    expect(() => render(doc, partial)).not.toThrow();
+    expect(() => render(doc, preset)).not.toThrow();
+    expect(() => render(doc, based)).not.toThrow();
+    expect(mixed).toBeDefined();
+  });
+
+  it('RenderProfile は 13 個の真偽値で、プリセットを書き換え用にコピーできる', () => {
+    const copy: RenderProfile = { ...PROFILES.full, okurigana: false };
+    expect(copy.okurigana).toBe(false);
   });
 });

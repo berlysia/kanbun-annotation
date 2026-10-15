@@ -129,14 +129,24 @@ import {
   groupTokensByBlock,
   // Block-start marks
   getBlockStartMarks,
+  // 表示設定（検証つき）
+  RENDER_PROFILES,
+  resolveRenderProfile,
   // AIR Resolver
   buildAnnotationIR,
+  // 読み上げ用テキスト（@experimental）
+  describeAnnotationIR,
+  formatAccessibleText,
+  DEFAULT_ACCESSIBLE_LABELS,
   // 改行制御
   canBreakBefore,
 } from '@kanbun-skam/skam/rendering';
 import type {
   RangeMarkGroup,
   AIRRenderProfile,
+  RenderProfile,
+  RenderProfileInput,
+  RenderProfileName,
   AIRTrailingMark,
   AIRRangeInfo,
   AIRTokenSlots,
@@ -149,8 +159,14 @@ import type {
   AIRBlock,
   AIRBlockChild,
   AIRDocument,
+  AccessibleNote, // @experimental
+  AccessibleUnit, // @experimental
+  AccessibleBlock, // @experimental
+  AccessibleLabels, // @experimental
 } from '@kanbun-skam/skam/rendering';
 ```
+
+読み上げ用テキスト（`describeAnnotationIR` / `formatAccessibleText` / `DEFAULT_ACCESSIBLE_LABELS`）はすべて `@experimental`。AIR から「画面に見えている注記だけ」を言葉にする。`formatAccessibleText` は生のテキストを返し、HTML のエスケープをしない。読み上げの言葉は 0.x のマイナーで変わりうる。既知の制約として、竪点のグループからはみ出す読みの範囲（#16）は先頭の字の読み仮名として出る。2 回目の読みが無い再読文字は、1 回目の読みが読み仮名・送り仮名として出る。
 
 ## @kanbun-skam/skam-canvas-renderer
 
@@ -166,6 +182,9 @@ render(doc, canvas, { writingMode: 'vertical', fontSize: 24 });
 const { width, height } = measure(doc, ctx);
 
 // プロファイル: PROFILES.full | PROFILES.learningBasic | PROFILES.learningHint
+// 部分指定: { profile: { kaeriten: true } }（書かなかったキーは full になる）
+// プリセットから外す: { profile: { base: 'learningHint', overrides: { saidoku: false } } }
+// 不正な値（未知のキー、真偽値でない値、base と個別キーの混在）は TypeError
 ```
 
 ## @kanbun-skam/skam-xml-parser
@@ -201,6 +220,13 @@ import {
 const { html, css } = render(doc);
 // 横書き: render(doc, { writingMode: 'horizontal' })
 // プロファイル: PROFILES.full | PROFILES.learningBasic | PROFILES.learningHint
+// 部分指定は full に重なる（書かなかったキーは表示される）。注記を隠す用途では
+// { profile: { base: 'learningHint', overrides: { saidoku: false } } } の形を使う。
+// 不正な値は TypeError（Web Component の profile 属性では描画しない）
+// 読み層の出どころ（@experimental）: { readingLayerSource: 'readings' | 'display' }
+//   'display' は profile で見えている注記だけを言葉にする（readings も白文も参照しない）。
+//   言葉の上書き: { accessibleLabels: { kaeri: (note) => '...' } }
+//   出題など注記を隠す用途では { base, overrides } の profile と 'display' を併用する
 
 // ブラウザ環境: インタラクティブイベントハンドラ
 import { attachInteractiveHandlers } from '@kanbun-skam/skam-html-renderer';

@@ -1501,6 +1501,10 @@ function validateDocumentFields(input: Record<string, unknown>, errors: Validati
  *
  * 同じ位置に重複した kaeri は検査しない。
  *
+ * 検証は渡された object を複製しない。`@kanbun-skam/skam-xml-parser` は、この同一性に頼って
+ * エラーの path が指す要素を作った SKAM-ML の行と列を引く。
+ * ここで返すエラーには `line` / `column` は付かない (parser 経由で検証したときだけ付く)。
+ *
  * @param input 検証対象のオブジェクト
  * @returns 検証結果
  */

@@ -16,12 +16,15 @@ export {
 
 export {
   PROFILES,
+  resolveRenderProfile,
   type RenderProfile,
+  type RenderProfileInput,
+  type RenderProfileName,
   type CopyableElement,
   type RubyMethod,
 } from './render-config.js';
 
-export type { Spacing, SpacingPreset } from '@kanbun-skam/skam/rendering';
+export type { AccessibleLabels, Spacing, SpacingPreset } from '@kanbun-skam/skam/rendering';
 
 export { getDefaultStyles, type StyleOptions } from './styles.js';
 

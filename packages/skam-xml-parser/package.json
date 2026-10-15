@@ -52,6 +52,6 @@
   },
   "dependencies": {
     "@kanbun-skam/skam": "workspace:*",
-    "@xmldom/xmldom": "0.8.15"
+    "@xmldom/xmldom": "^0.8.15"
   }
 }

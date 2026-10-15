@@ -158,6 +158,8 @@ plan: plan-html-renderer-colocation-and-named-grid-areas.md
 | HTML/CSS 仕様テストの意味論ベース化（スナップショット依存削減） | 既存テスト資産を維持しつつ移行するため          | 「構造と意味」を検証する安定テストへ移行         | **ADR-020 で部分解決** (slot テスト追加) |
 | HTML renderer / Canvas renderer の内部モデル統合検討            | スコープ拡大を避けるため                        | 表現層差分を吸収できる共有モデルを定義           | 未着手                                   |
 
+> 注記 (2026-10): `check:deps` は後に oxlint の `no-restricted-imports` に置き換えた（b74ad78, a4f0d1a）。
+
 これらは「未実施」ではなく「今回スコープ外」として管理する。ADR-020 で解決済みの項目は Phase3 (Option C) で再検討の必要はない。
 
 ## 今回やらないこと（明示的非目標）

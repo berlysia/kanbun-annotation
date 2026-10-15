@@ -339,6 +339,27 @@ describe('buildAnnotationIR', () => {
     expect(firstToken.rangeInfo!.trailingMarks[0]!.sourceTokenId).toBe('t2');
   });
 
+  describe.each(['okimoji', 'joji'] as const)('range の trailing %s を profile で絞る', (type) => {
+    const doc = () =>
+      createDoc([
+        { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しいわく' },
+        { type, anchor: { from: 't2', to: 't2' } } as Mark,
+      ]);
+    const trailingKinds = (flag: boolean) => {
+      const air = buildAnnotationIR(doc(), { ...FULL_PROFILE, [type]: flag });
+      const first = air.blocks[0]!.children[0] as AIRTokenNode;
+      return first.rangeInfo!.trailingMarks.map((t) => t.kind);
+    };
+
+    it(`profile.${type} = false なら trailingMarks に ${type} が入らない`, () => {
+      expect(trailingKinds(false)).not.toContain(type);
+    });
+
+    it(`profile.${type} = true なら trailingMarks に ${type} が 1 件入る`, () => {
+      expect(trailingKinds(true).filter((k) => k === type)).toHaveLength(1);
+    });
+  });
+
   // ============================================================================
   // Profile フィルタリング
   // ============================================================================

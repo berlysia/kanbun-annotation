@@ -4,7 +4,7 @@
 
 import type { Token, HighlightStyle } from '@kanbun-skam/skam';
 import type { Spacing } from '@kanbun-skam/skam/rendering';
-import type { RenderProfile } from './profiles.js';
+import type { RenderProfile, RenderProfileInput } from './profiles.js';
 
 // ============================================================================
 // Render Options
@@ -20,7 +20,8 @@ export interface PaddingConfig {
 export interface CanvasRenderOptions {
   /** 縦書き専用。横書きは未実装 */
   writingMode?: 'vertical';
-  profile?: Partial<RenderProfile>;
+  /** 表示要素の制御。部分指定は full に重なる。不正な値は TypeError */
+  profile?: RenderProfileInput;
   fontSize?: number;
   fontFamily?: string;
   rubyRatio?: number;
@@ -63,7 +64,8 @@ export interface CanvasRenderOptions {
 export interface MeasureOptions {
   /** 縦書き専用。横書きは未実装 */
   writingMode?: 'vertical';
-  profile?: Partial<RenderProfile>;
+  /** 表示要素の制御。部分指定は full に重なる。不正な値は TypeError */
+  profile?: RenderProfileInput;
   fontSize?: number;
   fontFamily?: string;
   rubyRatio?: number;

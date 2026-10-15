@@ -15,6 +15,7 @@ deps: [19, 20]
 - `tateten-sep` 命名行: `sep-spacer-start`, `sep-tateten-start`, `sep-kaeri-start`, `sep-end` が配置定義に存在
 - 依存方向機械検証: `pnpm --filter @kanbun-skam/skam-html-renderer run check:deps` 成功
 - CI 連携: `.github/workflows/ci.yml` に `check:deps` 実行が存在
+- 注記 (2026-10): `check:deps` は後に oxlint の `no-restricted-imports` に置き換えた（b74ad78, a4f0d1a）。
 - 回帰安全性:
   - `pnpm --filter @kanbun-skam/skam-html-renderer test:run` 成功（431 tests passed）
   - `pnpm typecheck` 成功

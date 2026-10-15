@@ -35,6 +35,26 @@ export type {
   AIRDocument,
 } from './air-types.js';
 
+// 表示設定
+export {
+  RENDER_PROFILES,
+  resolveRenderProfile,
+  type RenderProfile,
+  type RenderProfileInput,
+  type RenderProfileName,
+} from './render-profile.js';
+
+// 読み上げ用テキスト (experimental)
+export {
+  describeAnnotationIR,
+  formatAccessibleText,
+  type AccessibleNote,
+  type AccessibleUnit,
+  type AccessibleBlock,
+} from './accessible-text.js';
+
+export { DEFAULT_ACCESSIBLE_LABELS, type AccessibleLabels } from './accessible-labels.js';
+
 // 返り点
 export { splitKaeriForTateten } from './kaeri.js';
 

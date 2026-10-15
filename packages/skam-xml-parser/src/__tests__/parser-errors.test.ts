@@ -161,3 +161,56 @@ describe('parse - error handling', () => {
     });
   });
 });
+
+describe('parse - error positions (K7 a)', () => {
+  const positionOf = (xml: string): SKAMXMLParseError => {
+    try {
+      parse(xml);
+    } catch (e) {
+      expect(e).toBeInstanceOf(SKAMXMLParseError);
+      return e as SKAMXMLParseError;
+    }
+    throw new Error('expected parse to throw');
+  };
+  const doc = (body: string) =>
+    `<skam:doc xmlns:skam="urn:skam:1">\n<skam:body><skam:block>\n${body}\n</skam:block></skam:body>\n</skam:doc>`;
+
+  it('puts line 1 and a numeric column on a wrong root element', () => {
+    const error = positionOf('<foo xmlns="urn:x"/>');
+    expect(error.line).toBe(1);
+    expect(error.column).toBeTypeOf('number');
+  });
+
+  it('puts the element line on an unknown kaeri kind', () => {
+    const xml = `<skam:doc xmlns:skam="urn:skam:1">\n<skam:body><skam:block>學\n<skam:kaeri kind="unknown"/></skam:block></skam:body></skam:doc>`;
+    expect(positionOf(xml).line).toBe(3);
+  });
+
+  it('puts the element line on an empty yomigana', () => {
+    const xml = `<skam:doc xmlns:skam="urn:skam:1">\n<skam:body><skam:block>\n<skam:yomigana value="x"></skam:yomigana></skam:block></skam:body></skam:doc>`;
+    expect(positionOf(xml).line).toBe(3);
+  });
+
+  it('puts the element line on a missing required attribute', () => {
+    const xml = `<skam:doc xmlns:skam="urn:skam:1">\n<skam:body>\n<skam:block>學\n<skam:kaeri/></skam:block></skam:body></skam:doc>`;
+    expect(positionOf(xml).line).toBe(4);
+  });
+
+  it('uses the root element position when <skam:body> is missing', () => {
+    expect(positionOf('<skam:doc xmlns:skam="urn:skam:1">\n</skam:doc>').line).toBe(1);
+  });
+
+  it('leaves Empty document without a position', () => {
+    const error = positionOf('');
+    expect(error.message).toMatch(/Empty document|XML parse error/);
+    expect(error.line).toBeUndefined();
+  });
+
+  it('keeps positions on other element errors (okototen, ref, saidoku)', () => {
+    expect(
+      positionOf(doc('<skam:okototen grid="x" x="1" y="1" shape="a">學</skam:okototen>')).line
+    ).toBe(3);
+    expect(positionOf(doc('<skam:ref/>')).line).toBe(3);
+    expect(positionOf(doc('<skam:saidoku><skam:kunform yomi="a"/></skam:saidoku>')).line).toBe(3);
+  });
+});

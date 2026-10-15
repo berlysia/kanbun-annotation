@@ -43,12 +43,14 @@ SKAM の HTML レンダリングパイプライン（`parse` → `render`）を�
 ```html
 <skam-renderer writing-mode="vertical">
   <script type="application/vnd.berlysia.skam+xml">
-    <skam:doc xmlns:skam="urn:skam">
+    <skam:doc xmlns:skam="urn:skam:1">
       子曰<skam:yomigana value="いは">く</skam:yomigana>學而時習之
     </skam:doc>
   </script>
 </skam-renderer>
 ```
+
+注記 (2026-10): 上の例の名前空間は `urn:skam` と誤記していた。実装と仕様 (SKAM-ML-draft §3.1) は `urn:skam:1` で、決定の内容は変わらない。
 
 制約: XML 内に `</script>` リテラルを含めることはできない（SKAM-ML にはそのような要素がないため実用上問題なし）。
 

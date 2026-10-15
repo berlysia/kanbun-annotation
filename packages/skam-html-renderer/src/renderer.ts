@@ -5,17 +5,29 @@
  */
 
 import type { SKAMDocument, Mark, RefMark, Reading } from '@kanbun-skam/skam';
-import type { Spacing } from '@kanbun-skam/skam/rendering';
+import type { AccessibleLabels, Spacing } from '@kanbun-skam/skam/rendering';
 import { resolveRefValues } from '@kanbun-skam/skam/rendering';
 import { getDefaultStyles } from './styles.js';
-import type { RenderProfile, RubyMethod, CopyableElement } from './render-config.js';
-import { PROFILES } from './render-config.js';
+import type {
+  RenderProfile,
+  RenderProfileInput,
+  RubyMethod,
+  CopyableElement,
+} from './render-config.js';
+import { resolveRenderProfile } from './render-config.js';
 import { escapeHtml, getSourceOrderedTokens, shouldApplyTateChuYoko } from './html-utils.js';
 import { renderDisplayLayer } from './render-display-layer.js';
-import { validateCSSOptions, validateRenderOptions } from './render-options.js';
+import { validateCSSOptions, normalizeRenderOptions } from './render-options.js';
+import { buildReadingText, renderReadingLayerElement } from './reading-text.js';
 
-export type { RenderProfile, RubyMethod, CopyableElement } from './render-config.js';
-export { PROFILES } from './render-config.js';
+export type {
+  RenderProfile,
+  RenderProfileInput,
+  RenderProfileName,
+  RubyMethod,
+  CopyableElement,
+} from './render-config.js';
+export { PROFILES, resolveRenderProfile } from './render-config.js';
 export { escapeHtml, generateEmphasisMarks, shouldApplyTateChuYoko } from './html-utils.js';
 export { getBlockStartMarks } from './mark-utils.js';
 export { renderToken, type TokenRenderContext } from './token-renderer.js';
@@ -30,14 +42,39 @@ export type { RangeMarkContext, RangeTokenInfo, TokenRenderResult } from './rend
  * レンダリングオプション
  */
 export interface RenderOptions {
-  /** 表示要素の制御プロファイル */
-  profile?: Partial<RenderProfile>;
+  /**
+   * 表示要素の制御プロファイル。部分指定は full に重なる（書かなかったキーは表示される）。
+   * 注記を隠す用途では `{ base, overrides }` の形を使う。不正な値は TypeError。
+   */
+  profile?: RenderProfileInput;
   /** 書字方向 */
   writingMode?: 'vertical' | 'horizontal';
   /** CSSクラス名プレフィックス */
   classPrefix?: string;
   /** a11y用読み層を含める */
   includeReadingLayer?: boolean;
+  /**
+   * 読み上げ層の出どころ（experimental）
+   *
+   * - 'readings'（既定）: 作者が書いた読み下し（`doc.readings`）。無ければ白文。表示設定で隠した注記も読み上げる
+   * - 'display': 表示層と同じ profile で解決した、画面に見えている注記だけを言葉にする。
+   *   `doc.readings` も白文も参照しない。注記を隠す用途（出題など）ではこちらを使う
+   *
+   * 不正な値は TypeError。
+   *
+   * @experimental
+   */
+  readingLayerSource?: 'readings' | 'display';
+  /**
+   * 読み上げの言葉の上書き（experimental）。`readingLayerSource: 'display'` のときだけ使う
+   *
+   * 注記の種類ごとの `(note) => string`。空文字・例外・string 以外を返した注記は読み上げない。
+   * 返した文字列は HTML エスケープされる。キーは own property だけが有効で、未知のキーは TypeError。
+   * 読み上げの言葉は 0.x の minor で変わりうる。
+   *
+   * @experimental
+   */
+  accessibleLabels?: Partial<AccessibleLabels>;
   /** インラインモード（文中埋め込み・連続フロー用） */
   inline?: boolean;
   /** @layer でラップするか（default: true） */
@@ -61,7 +98,7 @@ export interface RenderOptions {
    */
   interactive?: boolean;
   /**
-   * Ruby要素のレンダリング方式（default: 'ruby'）
+   * Ruby要素のレンダリング方式（default: 'grid'）
    *
    * - 'ruby': HTML ruby要素を使用
    * - 'grid': inline-grid で代替レンダリング
@@ -92,14 +129,39 @@ export interface RenderResult {
  * HTMLのみ生成オプション
  */
 export interface RenderHTMLOptions {
-  /** 表示要素の制御プロファイル */
-  profile?: Partial<RenderProfile>;
+  /**
+   * 表示要素の制御プロファイル。部分指定は full に重なる（書かなかったキーは表示される）。
+   * 注記を隠す用途では `{ base, overrides }` の形を使う。不正な値は TypeError。
+   */
+  profile?: RenderProfileInput;
   /** 書字方向 */
   writingMode?: 'vertical' | 'horizontal';
   /** CSSクラス名プレフィックス */
   classPrefix?: string;
   /** a11y用読み層を含める */
   includeReadingLayer?: boolean;
+  /**
+   * 読み上げ層の出どころ（experimental）
+   *
+   * - 'readings'（既定）: 作者が書いた読み下し（`doc.readings`）。無ければ白文。表示設定で隠した注記も読み上げる
+   * - 'display': 表示層と同じ profile で解決した、画面に見えている注記だけを言葉にする。
+   *   `doc.readings` も白文も参照しない。注記を隠す用途（出題など）ではこちらを使う
+   *
+   * 不正な値は TypeError。
+   *
+   * @experimental
+   */
+  readingLayerSource?: 'readings' | 'display';
+  /**
+   * 読み上げの言葉の上書き（experimental）。`readingLayerSource: 'display'` のときだけ使う
+   *
+   * 注記の種類ごとの `(note) => string`。空文字・例外・string 以外を返した注記は読み上げない。
+   * 返した文字列は HTML エスケープされる。キーは own property だけが有効で、未知のキーは TypeError。
+   * 読み上げの言葉は 0.x の minor で変わりうる。
+   *
+   * @experimental
+   */
+  accessibleLabels?: Partial<AccessibleLabels>;
   /** インラインモード（文中埋め込み・連続フロー用） */
   inline?: boolean;
   /**
@@ -117,7 +179,7 @@ export interface RenderHTMLOptions {
    */
   interactive?: boolean;
   /**
-   * Ruby要素のレンダリング方式（default: 'ruby'）
+   * Ruby要素のレンダリング方式（default: 'grid'）
    */
   rubyMethod?: RubyMethod;
   /** 表示層の言語タグ (BCP 47) */
@@ -141,7 +203,7 @@ export interface CSSOptions {
   /** CSS Variables のプレフィックス（default: 'skam'） */
   variablePrefix?: string;
   /**
-   * Ruby要素のレンダリング方式（default: 'ruby'）
+   * Ruby要素のレンダリング方式（default: 'grid'）
    *
    * - 'ruby': ruby要素用CSS
    * - 'grid': inline-grid用CSS
@@ -177,28 +239,21 @@ export interface CSSOptions {
 // Display layer orchestration: moved to render-display-layer.ts
 
 /**
- * 読み層のHTMLを生成
+ * 作者が書いた読み (yomiage → kakikudashi)。無ければ白文 (原文順の本文)
  */
-function renderReadingLayer(doc: SKAMDocument, prefix: string, inline: boolean): string {
+function getReadingsText(doc: SKAMDocument): string {
   const usable = (kind: Reading['kind']): string | undefined => {
     const text = doc.readings.find((r) => r.kind === kind)?.text;
     return text !== undefined && text.trim() !== '' ? text : undefined;
   };
 
-  // 読みがなければ白文 (原文順の本文) を読み上げ用に出す
-  const text =
+  return (
     usable('yomiage') ??
     usable('kakikudashi') ??
     getSourceOrderedTokens(doc)
       .map((t) => t.text)
-      .join('');
-
-  if (!text) {
-    return '';
-  }
-
-  const tag = inline ? 'span' : 'div';
-  return `<${tag} class="${prefix}-reading">${escapeHtml(text)}</${tag}>`;
+      .join('')
+  );
 }
 
 /**
@@ -247,7 +302,7 @@ function renderDocumentHtml(
   inline: boolean;
   rubyMethod: RubyMethod;
 } {
-  const profile: RenderProfile = { ...PROFILES.full, ...options.profile };
+  const profile: RenderProfile = resolveRenderProfile(options.profile);
   const writingMode = options.writingMode ?? 'vertical';
   const prefix = options.classPrefix ?? 'skam';
   const includeReadingLayer = options.includeReadingLayer ?? true;
@@ -262,8 +317,14 @@ function renderDocumentHtml(
   const displayTag = inline ? 'span' : 'div';
   const displayHtml = `<${displayTag} class="${prefix}-display" lang="${displayLang}" aria-hidden="true">${displayResult.tokens}</${displayTag}>`;
 
-  // 読み層
-  const readingHtml = includeReadingLayer ? renderReadingLayer(doc, prefix, inline) : '';
+  // 読み層。'display' は表示層と同じ profile から作り、doc.readings も白文も参照しない
+  const readingText =
+    options.readingLayerSource === 'display'
+      ? buildReadingText(doc, profile, options.accessibleLabels)
+      : getReadingsText(doc);
+  const readingHtml = includeReadingLayer
+    ? renderReadingLayerElement(readingText, prefix, inline)
+    : '';
 
   // refマークの値を事前計算（注釈出力用）
   const refValueMap = profile.ref
@@ -288,8 +349,9 @@ function renderDocumentHtml(
 /**
  * SKAMドキュメントをHTMLにレンダリング
  */
-export function render(doc: SKAMDocument, options: RenderOptions = {}): RenderResult {
-  validateRenderOptions(options);
+export function render(doc: SKAMDocument, rawOptions: RenderOptions = {}): RenderResult {
+  // 入口でオプションを 1 回だけ読み、検査した値だけを以降に使う
+  const options = normalizeRenderOptions(rawOptions);
   const { html, prefix, writingMode, inline, rubyMethod } = renderDocumentHtml(doc, options);
 
   // CSS
@@ -332,9 +394,8 @@ export function render(doc: SKAMDocument, options: RenderOptions = {}): RenderRe
  * const html2 = renderHTML(doc2, { writingMode: 'horizontal' });
  * ```
  */
-export function renderHTML(doc: SKAMDocument, options: RenderHTMLOptions = {}): string {
-  validateRenderOptions(options);
-  return renderDocumentHtml(doc, options).html;
+export function renderHTML(doc: SKAMDocument, rawOptions: RenderHTMLOptions = {}): string {
+  return renderDocumentHtml(doc, normalizeRenderOptions(rawOptions)).html;
 }
 
 /**

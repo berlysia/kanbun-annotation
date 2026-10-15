@@ -2,7 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { parse, SKAMXMLParseError, SKAMValidationError, SKAM_ML_CONTENT_MODEL } from '../index.js';
 import * as browser from '../index.browser.js';
 import { SKAMValidationError as CoreError } from '@kanbun-skam/skam';
-import { createSequentialIdGenerator, BLOCK_START_KAERI_HINT } from '@kanbun-skam/skam';
+import {
+  createSequentialIdGenerator,
+  BLOCK_START_KAERI_HINT,
+  validateSKAMDocument,
+} from '@kanbun-skam/skam';
 
 const wrap = (inner: string, ns = 'urn:skam:1') =>
   `<skam:doc xmlns:skam="${ns}"><skam:body>${inner}</skam:body></skam:doc>`;
@@ -248,5 +252,120 @@ describe('SKAM-ML content model (§7.0) — hand-written representative cases', 
   it('exports the same table from Node and browser entry points', () => {
     expect(browser.SKAM_ML_CONTENT_MODEL).toEqual(SKAM_ML_CONTENT_MODEL);
     expect(SKAM_ML_CONTENT_MODEL.kun).toEqual(['#text']);
+  });
+});
+
+describe('validation error positions (K7 b)', () => {
+  const lines = (...rows: string[]) =>
+    `<skam:doc xmlns:skam="urn:skam:1">\n<skam:body>\n${rows.join('\n')}\n</skam:body>\n</skam:doc>`;
+  const validationErrors = (xml: string, opts = {}) => {
+    try {
+      parse(xml, { idGenerator: createSequentialIdGenerator(), ...opts });
+    } catch (e) {
+      expect(e).toBeInstanceOf(SKAMValidationError);
+      return (e as SKAMValidationError).errors;
+    }
+    throw new Error('expected parse to throw');
+  };
+
+  it('puts the line of the failing mark on a marks[...] error', () => {
+    const errors = validationErrors(
+      lines(
+        '<skam:block>',
+        '<skam:okototen grid="5x5" x="9" y="0" shape="dot">甲</skam:okototen>',
+        '</skam:block>'
+      )
+    );
+    expect(errors[0]!.path).toMatch(/^marks\[/);
+    expect(errors[0]!.line).toBe(4);
+    expect(errors[0]!.column).toBeTypeOf('number');
+  });
+
+  it('gives every mark expanded from one element the position of that element', () => {
+    // kun (3 行目) は yomigana と okurigana の 2 つの mark に展開され、どちらも saidoku (2 行目) と衝突する
+    const errors = validationErrors(
+      lines(
+        '<skam:block><skam:saidoku><skam:base>',
+        '<skam:kun yomi="a" okuri="b">未</skam:kun>',
+        '</skam:base><skam:kunform n="1" yomi="x"/></skam:saidoku></skam:block>'
+      )
+    );
+    const conflicts = errors.filter((e) => e.kind === 'MARK_CONFLICT');
+    expect(conflicts).toHaveLength(2);
+    expect(conflicts.map((e) => e.line)).toEqual([4, 4]);
+  });
+
+  it('looks positions up by object identity, not by id (duplicate xml:id)', () => {
+    const errors = validationErrors(
+      lines(
+        '<skam:block xml:id="dup">甲</skam:block>',
+        '<skam:block>乙</skam:block>',
+        '<skam:block xml:id="dup">丙</skam:block>'
+      )
+    );
+    const duplicates = errors.filter((e) => e.kind === 'DUPLICATE_ID');
+    expect(duplicates).toHaveLength(1);
+    expect(duplicates[0]!.path).toBe('blocks[2].id');
+    expect(duplicates[0]!.line).toBe(5);
+  });
+
+  it('reports the duplicate on a mark by the line of the element that made it', () => {
+    const errors = validationErrors(
+      lines(
+        '<skam:block>甲<skam:ref xml:id="r" label="1"/>',
+        '乙',
+        '<skam:ref xml:id="r" label="2"/></skam:block>'
+      )
+    );
+    const duplicates = errors.filter((e) => e.kind === 'DUPLICATE_ID');
+    expect(duplicates).toHaveLength(1);
+    expect(duplicates[0]!.path).toMatch(/^marks\[\d+\]\.id$/);
+    expect(duplicates[0]!.line).toBe(5);
+  });
+
+  it('does not add line/column to paths that cannot be resolved (e.g. readings)', () => {
+    const xml = lines(
+      '<skam:block>甲</skam:block>',
+      '<skam:readings><skam:reading kind="kundoku">x</skam:reading></skam:readings>'
+    );
+    const doc = parse(xml);
+    const broken = { ...doc, readings: [{ kind: 'nope', text: 'x' }] };
+    const result = validateSKAMDocument(broken);
+    expect(result.valid).toBe(false);
+    if (result.valid) return;
+    const error = result.errors.find((e) => e.path.startsWith('readings'))!;
+    expect('line' in error).toBe(false);
+    expect('column' in error).toBe(false);
+  });
+
+  it('does not add line/column when validateSKAMDocument is called directly', () => {
+    const doc = parse(
+      lines(
+        '<skam:block>',
+        '<skam:okototen grid="5x5" x="0" y="0" shape="dot">甲</skam:okototen>',
+        '</skam:block>'
+      )
+    );
+    const mark = doc.marks.find((m) => m.type === 'okototen')!;
+    const result = validateSKAMDocument({
+      ...doc,
+      marks: [{ ...mark, position: { system: 'glyph-grid', grid: '5x5', x: 9, y: 0 } }],
+    });
+    expect(result.valid).toBe(false);
+    if (result.valid) return;
+    for (const error of result.errors) {
+      expect('line' in error).toBe(false);
+      expect('column' in error).toBe(false);
+    }
+  });
+
+  it('adds positions even with trackPositions: false', () => {
+    const xml = lines(
+      '<skam:block>',
+      '<skam:okototen grid="5x5" x="9" y="0" shape="dot">甲</skam:okototen>',
+      '</skam:block>'
+    );
+    expect(validationErrors(xml, { trackPositions: false })[0]!.line).toBe(4);
+    expect(validationErrors(xml, { trackPositions: true })[0]!.line).toBe(4);
   });
 });

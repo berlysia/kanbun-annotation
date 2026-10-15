@@ -306,10 +306,10 @@ function buildRangeInfo(
         } else if (type === 'ref' && profile.ref) {
           const t = resolveTrailingMark(m, tid, refValueMap, highlightRefIds);
           if (t) info.trailingMarks.push(t);
-        } else if (type === 'okimoji') {
+        } else if (type === 'okimoji' && profile.okimoji) {
           const t = resolveTrailingMark(m, tid, refValueMap, highlightRefIds);
           if (t) info.trailingMarks.push(t);
-        } else if (type === 'joji') {
+        } else if (type === 'joji' && profile.joji) {
           const t = resolveTrailingMark(m, tid, refValueMap, highlightRefIds);
           if (t) info.trailingMarks.push(t);
         } else if (type === 'emphasis' && profile.emphasis) {

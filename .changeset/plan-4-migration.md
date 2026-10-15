@@ -11,7 +11,7 @@ Fix the six public packages to 0.2.0 and consolidate the 0.1 to 0.2 migration ta
 
 Every row of the migration table, with a one-line summary:
 
-- M01 (skam, skam-xml-parser, skam-xml-stringify, skam-html-renderer, skam-canvas-renderer, skam-web-component): パッケージ名の scope を `@kanbun` から `@kanbun-skam` に改名
+- M01 (skam, skam-xml-parser, skam-xml-stringify, skam-html-renderer, skam-canvas-renderer, skam-web-component): CHANGELOG から未公開の 0.1.1 (scope の改名) の節を消した。npm の名前は 0.1.0 から `@kanbun-skam/*` のままで、対応は不要
 - M02 (skam-xml-stringify): `stringify()` が表現できないものがあると `SKAMXMLStringifyError` を投げる
 - M03 (skam-xml-stringify): `stringify()` の出力の形が変わる
 - M04 (skam-xml-stringify): 内容モデルに違反する重なりと、同じ種類の注記の重複が欠落として扱われる

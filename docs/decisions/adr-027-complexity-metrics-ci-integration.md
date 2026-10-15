@@ -17,6 +17,7 @@ plan: plan-complexity-metrics-ci-integration.md
 - `pnpm test` — テスト実行
 - `pnpm lint` — oxlint によるリント
 - `check:deps` — 依存方向検証（ADR-020 で導入）
+- 注記 (2026-10): `check:deps` は後に oxlint の `no-restricted-imports` に置き換えた（b74ad78, a4f0d1a）。
 - 複雑度メトリクスの測定・閾値チェックは **未導入**
 
 ### 目的

@@ -235,11 +235,11 @@ function getRequiredAttr(element: Element, name: string, elementName: string): s
   // Note: @xmldom/xmldom returns "" for missing attributes, not null
   // We need to check hasAttribute to properly detect missing attributes
   if (!element.hasAttribute(name)) {
-    throw new SKAMXMLParseError(`Missing required attribute '${name}' on <${elementName}>`);
+    throw parseErrorAt(element, `Missing required attribute '${name}' on <${elementName}>`);
   }
   const value = element.getAttribute(name);
   if (value === null || value === '') {
-    throw new SKAMXMLParseError(`Missing required attribute '${name}' on <${elementName}>`);
+    throw parseErrorAt(element, `Missing required attribute '${name}' on <${elementName}>`);
   }
   return value;
 }
@@ -470,9 +470,9 @@ function addTokensFromText(text: string, state: ParserState): string[] {
   return ids;
 }
 
-function createAnchor(tokenIds: string[]): { from: string; to: string } {
+function createAnchor(tokenIds: string[], element: Element): { from: string; to: string } {
   if (tokenIds.length === 0) {
-    throw new SKAMXMLParseError('Cannot create anchor from empty token list');
+    throw parseErrorAt(element, 'Cannot create anchor from empty token list');
   }
   return { from: tokenIds[0]!, to: tokenIds[tokenIds.length - 1]! };
 }
@@ -481,7 +481,7 @@ function createAnchor(tokenIds: string[]): { from: string; to: string } {
 // Mark Processors
 // ============================================================================
 
-function parseKaeriKind(kind: string): string {
+function parseKaeriKind(kind: string, element: Element): string {
   // 単一返り点
   if (VALID_KAERI_KINDS.includes(kind as KaeriKind)) {
     return KAERI_VALUE_MAP[kind as KaeriKind];
@@ -493,14 +493,15 @@ function parseKaeriKind(kind: string): string {
     return parts.map((p) => KAERI_VALUE_MAP[p as KaeriKind]).join('');
   }
 
-  throw new SKAMXMLParseError(
+  throw parseErrorAt(
+    element,
     `Invalid kaeri kind '${kind}'. Valid kinds: ${VALID_KAERI_KINDS.join(', ')} (compound: e.g. ichi-re)`
   );
 }
 
 function processKaeri(element: Element, state: ParserState, precedingTokenId: string | null): void {
   const kind = getRequiredAttr(element, 'kind', 'skam:kaeri');
-  const value = parseKaeriKind(kind);
+  const value = parseKaeriKind(kind, element);
 
   if (!precedingTokenId) {
     throw parseErrorAt(
@@ -529,10 +530,10 @@ function processKun(element: Element, state: ParserState): string[] {
   const tokenIds = addTokensFromText(textContent, state);
 
   if (tokenIds.length === 0) {
-    throw new SKAMXMLParseError('<skam:kun> must contain text');
+    throw parseErrorAt(element, '<skam:kun> must contain text');
   }
 
-  const anchor = createAnchor(tokenIds);
+  const anchor = createAnchor(tokenIds, element);
 
   if (yomi) {
     const yomiganaMark: YomiganaMark = {
@@ -574,13 +575,13 @@ function processYomigana(element: Element, state: ParserState): string[] {
   const tokenIds = processConstrainedContent(element, state, 'yomigana');
 
   if (tokenIds.length === 0) {
-    throw new SKAMXMLParseError('<skam:yomigana> must contain text');
+    throw parseErrorAt(element, '<skam:yomigana> must contain text');
   }
 
   const mark: YomiganaMark = {
     type: 'yomigana',
     id: generateMarkId(state),
-    anchor: createAnchor(tokenIds),
+    anchor: createAnchor(tokenIds, element),
     value,
   };
 
@@ -627,7 +628,8 @@ function processOkototen(element: Element, state: ParserState): string[] {
 
   // Validate grid format
   if (!/^\d+x\d+$/.test(grid)) {
-    throw new SKAMXMLParseError(
+    throw parseErrorAt(
+      element,
       `Invalid grid format '${grid}'. Expected format: NxN (e.g., '5x5')`
     );
   }
@@ -636,13 +638,13 @@ function processOkototen(element: Element, state: ParserState): string[] {
   const y = parseInt(yStr, 10);
 
   if (Number.isNaN(x) || Number.isNaN(y)) {
-    throw new SKAMXMLParseError('x and y must be integers');
+    throw parseErrorAt(element, 'x and y must be integers');
   }
 
   const tokenIds = processConstrainedContent(element, state, 'okototen');
 
   if (tokenIds.length === 0) {
-    throw new SKAMXMLParseError('<skam:okototen> must contain text');
+    throw parseErrorAt(element, '<skam:okototen> must contain text');
   }
 
   const position: GlyphGridCoord = {
@@ -655,7 +657,7 @@ function processOkototen(element: Element, state: ParserState): string[] {
   const mark: OkototenMark = {
     type: 'okototen',
     id: generateMarkId(state),
-    anchor: createAnchor(tokenIds),
+    anchor: createAnchor(tokenIds, element),
     position,
     shape,
   };
@@ -676,13 +678,13 @@ function processOkimoji(element: Element, state: ParserState): string[] {
   const tokenIds = processConstrainedContent(element, state, 'okimoji');
 
   if (tokenIds.length === 0) {
-    throw new SKAMXMLParseError('<skam:okimoji> must contain text');
+    throw parseErrorAt(element, '<skam:okimoji> must contain text');
   }
 
   const mark: OkimojiMark = {
     type: 'okimoji',
     id: generateMarkId(state),
-    anchor: createAnchor(tokenIds),
+    anchor: createAnchor(tokenIds, element),
   };
 
   state.marks.push(mark);
@@ -693,13 +695,13 @@ function processJoji(element: Element, state: ParserState): string[] {
   const tokenIds = processConstrainedContent(element, state, 'joji');
 
   if (tokenIds.length === 0) {
-    throw new SKAMXMLParseError('<skam:joji> must contain text');
+    throw parseErrorAt(element, '<skam:joji> must contain text');
   }
 
   const mark: JojiMark = {
     type: 'joji',
     id: generateMarkId(state),
-    anchor: createAnchor(tokenIds),
+    anchor: createAnchor(tokenIds, element),
   };
 
   state.marks.push(mark);
@@ -714,13 +716,13 @@ function processSoegana(element: Element, state: ParserState): string[] {
   const tokenIds = addTokensFromText(textContent, state);
 
   if (tokenIds.length === 0) {
-    throw new SKAMXMLParseError('<skam:soegana> must contain text (the character to annotate)');
+    throw parseErrorAt(element, '<skam:soegana> must contain text (the character to annotate)');
   }
 
   const mark: SoeganaMark = {
     type: 'soegana',
     id: generateMarkId(state),
-    anchor: createAnchor(tokenIds),
+    anchor: createAnchor(tokenIds, element),
     value,
   };
 
@@ -739,7 +741,7 @@ function processSpan(element: Element, state: ParserState): string[] {
   const tokenIds = processBlockChildren(element, state);
 
   if (tokenIds.length === 0) {
-    throw new SKAMXMLParseError('<skam:span> must contain content');
+    throw parseErrorAt(element, '<skam:span> must contain content');
   }
 
   // Find refs added during this span's processing
@@ -751,7 +753,7 @@ function processSpan(element: Element, state: ParserState): string[] {
     const mark: EmphasisMark = {
       type: 'emphasis',
       id: generateMarkId(state),
-      anchor: createAnchor(tokenIds),
+      anchor: createAnchor(tokenIds, element),
     };
 
     // style は CSS text-emphasis-style の値（任意の文字列も可）
@@ -766,12 +768,13 @@ function processSpan(element: Element, state: ParserState): string[] {
     const mark: HighlightMark = {
       type: 'highlight',
       id: generateMarkId(state),
-      anchor: createAnchor(tokenIds),
+      anchor: createAnchor(tokenIds, element),
     };
 
     if (styleAttr) {
       if (!isValidHighlightStyle(styleAttr)) {
-        throw new SKAMXMLParseError(
+        throw parseErrorAt(
+          element,
           `Invalid highlight style '${styleAttr}'. Valid styles: ${HIGHLIGHT_STYLES.join(', ')}`
         );
       }
@@ -794,7 +797,8 @@ function processSpan(element: Element, state: ParserState): string[] {
         const hasExplicitId = singleRef.id && !state.autoGeneratedIds.has(singleRef.id);
         if (!hasExplicitId) {
           // ref.id がない → エラー
-          throw new SKAMXMLParseError(
+          throw parseErrorAt(
+            element,
             `<skam:span type="highlight" ref="${refAttr}"> references a ref that does not exist. ` +
               `Add xml:id="${refAttr}" to the <skam:ref> element inside the span.`
           );
@@ -826,13 +830,13 @@ function processTateten(element: Element, state: ParserState): string[] {
   const tokenIds = processBlockChildren(element, state);
 
   if (tokenIds.length === 0) {
-    throw new SKAMXMLParseError('<skam:tateten> must contain text');
+    throw parseErrorAt(element, '<skam:tateten> must contain text');
   }
 
   const mark: TatetenMark = {
     type: 'tateten',
     id: generateMarkId(state),
-    anchor: createAnchor(tokenIds),
+    anchor: createAnchor(tokenIds, element),
   };
 
   state.marks.push(mark);
@@ -854,18 +858,18 @@ function processSaidoku(element: Element, state: ParserState): string[] {
   }
 
   if (!baseElement) {
-    throw new SKAMXMLParseError('<skam:saidoku> requires <skam:base> element');
+    throw parseErrorAt(element, '<skam:saidoku> requires <skam:base> element');
   }
 
   if (kunforms.length === 0) {
-    throw new SKAMXMLParseError('<skam:saidoku> requires at least one <skam:kunform> element');
+    throw parseErrorAt(element, '<skam:saidoku> requires at least one <skam:kunform> element');
   }
 
   // Generate tokens from base
   const tokenIds = processConstrainedContent(baseElement, state, 'base');
 
   if (tokenIds.length === 0) {
-    throw new SKAMXMLParseError('<skam:base> must contain text');
+    throw parseErrorAt(baseElement, '<skam:base> must contain text');
   }
 
   // Build forms array
@@ -891,7 +895,7 @@ function processSaidoku(element: Element, state: ParserState): string[] {
   const mark: SaidokuMark = {
     type: 'saidoku',
     id: generateMarkId(state),
-    anchor: createAnchor(tokenIds),
+    anchor: createAnchor(tokenIds, element),
     forms,
   };
 
@@ -929,21 +933,24 @@ function processRef(element: Element, state: ParserState, precedingTokenId: stri
 
   // Validate: label and format are mutually exclusive
   if (labelAttr && formatAttr) {
-    throw new SKAMXMLParseError(
+    throw parseErrorAt(
+      element,
       '<skam:ref> cannot have both label and format (mutually exclusive)'
     );
   }
 
   // Validate: at least one of label, format, content, or xml:id (for separated definition) must be present
   if (!labelAttr && !formatAttr && !content && !xmlIdAttr) {
-    throw new SKAMXMLParseError(
+    throw parseErrorAt(
+      element,
       '<skam:ref> requires at least one of: label, format, content, or xml:id'
     );
   }
 
   // Validate format value
   if (formatAttr && !VALID_REF_FORMATS.includes(formatAttr as (typeof VALID_REF_FORMATS)[number])) {
-    throw new SKAMXMLParseError(
+    throw parseErrorAt(
+      element,
       `Invalid ref format '${formatAttr}'. Valid formats: ${VALID_REF_FORMATS.join(', ')}`
     );
   }
@@ -1266,7 +1273,8 @@ export function parseFromDocument(
   const rootLocalName = getLocalName(root);
 
   if (rootLocalName !== 'doc' || root.namespaceURI !== SKAM_NS) {
-    throw new SKAMXMLParseError(
+    throw parseErrorAt(
+      root,
       `Invalid root element. Expected <skam:doc xmlns:skam="${SKAM_NS}"> but got <${root.tagName}>`
     );
   }
@@ -1299,7 +1307,7 @@ export function parseFromDocument(
   }
 
   if (!hasBody) {
-    throw new SKAMXMLParseError('Document must contain <skam:body>');
+    throw parseErrorAt(root, 'Document must contain <skam:body>');
   }
 
   // Resolve content references for ref marks

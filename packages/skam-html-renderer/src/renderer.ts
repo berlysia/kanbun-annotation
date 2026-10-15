@@ -5,7 +5,7 @@
  */
 
 import type { SKAMDocument, Mark, RefMark, Reading } from '@kanbun-skam/skam';
-import type { Spacing } from '@kanbun-skam/skam/rendering';
+import type { AccessibleLabels, Spacing } from '@kanbun-skam/skam/rendering';
 import { resolveRefValues } from '@kanbun-skam/skam/rendering';
 import { getDefaultStyles } from './styles.js';
 import type {
@@ -17,7 +17,8 @@ import type {
 import { resolveRenderProfile } from './render-config.js';
 import { escapeHtml, getSourceOrderedTokens, shouldApplyTateChuYoko } from './html-utils.js';
 import { renderDisplayLayer } from './render-display-layer.js';
-import { validateCSSOptions, validateRenderOptions } from './render-options.js';
+import { validateCSSOptions, normalizeRenderOptions } from './render-options.js';
+import { buildReadingText, renderReadingLayerElement } from './reading-text.js';
 
 export type {
   RenderProfile,
@@ -52,6 +53,28 @@ export interface RenderOptions {
   classPrefix?: string;
   /** a11y用読み層を含める */
   includeReadingLayer?: boolean;
+  /**
+   * 読み上げ層の出どころ（experimental）
+   *
+   * - 'readings'（既定）: 作者が書いた読み下し（`doc.readings`）。無ければ白文。表示設定で隠した注記も読み上げる
+   * - 'display': 表示層と同じ profile で解決した、画面に見えている注記だけを言葉にする。
+   *   `doc.readings` も白文も参照しない。注記を隠す用途（出題など）ではこちらを使う
+   *
+   * 不正な値は TypeError。
+   *
+   * @experimental
+   */
+  readingLayerSource?: 'readings' | 'display';
+  /**
+   * 読み上げの言葉の上書き（experimental）。`readingLayerSource: 'display'` のときだけ使う
+   *
+   * 注記の種類ごとの `(note) => string`。空文字・例外・string 以外を返した注記は読み上げない。
+   * 返した文字列は HTML エスケープされる。キーは own property だけが有効で、未知のキーは TypeError。
+   * 読み上げの言葉は 0.x の minor で変わりうる。
+   *
+   * @experimental
+   */
+  accessibleLabels?: Partial<AccessibleLabels>;
   /** インラインモード（文中埋め込み・連続フロー用） */
   inline?: boolean;
   /** @layer でラップするか（default: true） */
@@ -117,6 +140,28 @@ export interface RenderHTMLOptions {
   classPrefix?: string;
   /** a11y用読み層を含める */
   includeReadingLayer?: boolean;
+  /**
+   * 読み上げ層の出どころ（experimental）
+   *
+   * - 'readings'（既定）: 作者が書いた読み下し（`doc.readings`）。無ければ白文。表示設定で隠した注記も読み上げる
+   * - 'display': 表示層と同じ profile で解決した、画面に見えている注記だけを言葉にする。
+   *   `doc.readings` も白文も参照しない。注記を隠す用途（出題など）ではこちらを使う
+   *
+   * 不正な値は TypeError。
+   *
+   * @experimental
+   */
+  readingLayerSource?: 'readings' | 'display';
+  /**
+   * 読み上げの言葉の上書き（experimental）。`readingLayerSource: 'display'` のときだけ使う
+   *
+   * 注記の種類ごとの `(note) => string`。空文字・例外・string 以外を返した注記は読み上げない。
+   * 返した文字列は HTML エスケープされる。キーは own property だけが有効で、未知のキーは TypeError。
+   * 読み上げの言葉は 0.x の minor で変わりうる。
+   *
+   * @experimental
+   */
+  accessibleLabels?: Partial<AccessibleLabels>;
   /** インラインモード（文中埋め込み・連続フロー用） */
   inline?: boolean;
   /**
@@ -194,28 +239,21 @@ export interface CSSOptions {
 // Display layer orchestration: moved to render-display-layer.ts
 
 /**
- * 読み層のHTMLを生成
+ * 作者が書いた読み (yomiage → kakikudashi)。無ければ白文 (原文順の本文)
  */
-function renderReadingLayer(doc: SKAMDocument, prefix: string, inline: boolean): string {
+function getReadingsText(doc: SKAMDocument): string {
   const usable = (kind: Reading['kind']): string | undefined => {
     const text = doc.readings.find((r) => r.kind === kind)?.text;
     return text !== undefined && text.trim() !== '' ? text : undefined;
   };
 
-  // 読みがなければ白文 (原文順の本文) を読み上げ用に出す
-  const text =
+  return (
     usable('yomiage') ??
     usable('kakikudashi') ??
     getSourceOrderedTokens(doc)
       .map((t) => t.text)
-      .join('');
-
-  if (!text) {
-    return '';
-  }
-
-  const tag = inline ? 'span' : 'div';
-  return `<${tag} class="${prefix}-reading">${escapeHtml(text)}</${tag}>`;
+      .join('')
+  );
 }
 
 /**
@@ -279,8 +317,14 @@ function renderDocumentHtml(
   const displayTag = inline ? 'span' : 'div';
   const displayHtml = `<${displayTag} class="${prefix}-display" lang="${displayLang}" aria-hidden="true">${displayResult.tokens}</${displayTag}>`;
 
-  // 読み層
-  const readingHtml = includeReadingLayer ? renderReadingLayer(doc, prefix, inline) : '';
+  // 読み層。'display' は表示層と同じ profile から作り、doc.readings も白文も参照しない
+  const readingText =
+    options.readingLayerSource === 'display'
+      ? buildReadingText(doc, profile, options.accessibleLabels)
+      : getReadingsText(doc);
+  const readingHtml = includeReadingLayer
+    ? renderReadingLayerElement(readingText, prefix, inline)
+    : '';
 
   // refマークの値を事前計算（注釈出力用）
   const refValueMap = profile.ref
@@ -305,8 +349,9 @@ function renderDocumentHtml(
 /**
  * SKAMドキュメントをHTMLにレンダリング
  */
-export function render(doc: SKAMDocument, options: RenderOptions = {}): RenderResult {
-  validateRenderOptions(options);
+export function render(doc: SKAMDocument, rawOptions: RenderOptions = {}): RenderResult {
+  // 入口でオプションを 1 回だけ読み、検査した値だけを以降に使う
+  const options = normalizeRenderOptions(rawOptions);
   const { html, prefix, writingMode, inline, rubyMethod } = renderDocumentHtml(doc, options);
 
   // CSS
@@ -349,9 +394,8 @@ export function render(doc: SKAMDocument, options: RenderOptions = {}): RenderRe
  * const html2 = renderHTML(doc2, { writingMode: 'horizontal' });
  * ```
  */
-export function renderHTML(doc: SKAMDocument, options: RenderHTMLOptions = {}): string {
-  validateRenderOptions(options);
-  return renderDocumentHtml(doc, options).html;
+export function renderHTML(doc: SKAMDocument, rawOptions: RenderHTMLOptions = {}): string {
+  return renderDocumentHtml(doc, normalizeRenderOptions(rawOptions)).html;
 }
 
 /**

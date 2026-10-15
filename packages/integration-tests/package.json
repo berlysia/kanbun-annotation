@@ -9,6 +9,7 @@
     "test:run": "vitest run",
     "test:semantic": "vitest run cross-renderer-equivalence",
     "test:visual": "playwright test",
+    "test:consumer": "node consumer/run.mjs",
     "typecheck": "tsgo --noEmit"
   },
   "license": "MIT",

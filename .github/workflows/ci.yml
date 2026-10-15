@@ -189,3 +189,28 @@ jobs:
 
       - name: Knip
         run: pnpm clean
+
+  consumer:
+    name: Consumer (packed tarballs)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version-file: 'package.json'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Verify packed tarballs in an empty consumer project
+        run: pnpm test:consumer

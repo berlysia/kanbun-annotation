@@ -31,7 +31,6 @@
     "baseline:report": "pnpm --filter @kanbun-skam/baseline-check report",
     "changeset": "changeset",
     "changeset:version": "changeset version",
-    "changeset:publish": "changeset publish",
     "screenshot": "turbo build --filter=@kanbun-skam/skam-screenshot && node packages/skam-screenshot/dist/cli.js",
     "adr:status": "node scripts/adr-status.ts",
     "adr:deps": "node scripts/adr-deps.ts",

@@ -22,11 +22,8 @@ import {
 } from './lib/release-check.ts';
 import type { Check, ReleaseLookup, WorkspacePackage } from './lib/release-check.ts';
 
-export interface GitResult {
-  status: number | null;
-  stdout: string;
-  stderr: string;
-}
+import type { GitResult } from './lib/release-types.ts';
+export type { GitResult };
 
 export interface ReleaseDeps {
   git(args: string[]): GitResult;

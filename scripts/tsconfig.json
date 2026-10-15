@@ -15,6 +15,7 @@
     "check-release.ts",
     "check-release.test.ts",
     "release.ts",
-    "release.test.ts"
+    "release.test.ts",
+    "workflow-structure.test.ts"
   ]
 }

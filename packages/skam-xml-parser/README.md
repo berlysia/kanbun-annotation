@@ -176,7 +176,11 @@ XML には token と mark の ID を書かない。`parse` はこれらの ID �
 
 ## 位置情報
 
-Node 版の `SKAMXMLParseError` は `line` / `column` を持つ。ブラウザ版（`browser` 条件で解決される DOMParser 実装）は、これらを持たない。
+Node 版の `SKAMXMLParseError` は `line` / `column` を持つ。要素の処理中に投げる例外は、すべてその要素の位置を持つ（文書が空のときの `Empty document` だけは位置を持たない）。
+
+`validate: true`（既定）で検証が失敗したときは、`SKAMValidationError.errors` の各エラーに、元の要素の `line` / `column` が付く。付くのは、`path` が `tokens[i]` / `marks[i]` / `blocks[i]` で始まるエラーだけで、`readings` や文書全体を指すエラーには付かない。1 つの要素から展開された複数の mark は、どれも元の要素の位置を持つ。`trackPositions` の値とは関係なく付く。`@kanbun-skam/skam` の `validateSKAMDocument` を直接呼んだときは付かない。
+
+ブラウザ版（`browser` 条件で解決される DOMParser 実装）は、どちらの位置も持たない。
 
 ## 実験的な API
 

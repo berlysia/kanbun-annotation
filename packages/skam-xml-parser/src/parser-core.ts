@@ -6,6 +6,7 @@
 
 import type {
   SKAMDocument,
+  ValidationError,
   Token,
   Block,
   Mark,
@@ -200,6 +201,8 @@ interface ParserState {
   currentSearchOffset: number;
   idGenerator: IdGenerator;
   onWarning: ((warning: ParseWarning) => void) | undefined;
+  /** 作った token・mark・block のオブジェクトから、元の要素の位置への対応。検証エラーに行と列を付けるために使う */
+  positions: WeakMap<object, SourcePosition>;
 }
 
 function createParserState(
@@ -220,6 +223,7 @@ function createParserState(
     currentSearchOffset: 0,
     idGenerator: idGenerator ?? createRandomIdGenerator(),
     onWarning,
+    positions: new WeakMap(),
   };
 }
 
@@ -283,13 +287,24 @@ const KNOWN_SKAM_ELEMENTS: ReadonlySet<string> = new Set([
   'ref',
 ]);
 
+interface SourcePosition {
+  line?: number;
+  column?: number;
+}
+
 /** xmldom (locator 指定時) が要素に付ける行・列。ブラウザの DOM には無いので undefined になる */
-function nodePosition(node: Node): { line?: number; column?: number } {
+function nodePosition(node: Node): SourcePosition {
   const { lineNumber, columnNumber } = node as { lineNumber?: unknown; columnNumber?: unknown };
-  const position: { line?: number; column?: number } = {};
+  const position: SourcePosition = {};
   if (typeof lineNumber === 'number') position.line = lineNumber;
   if (typeof columnNumber === 'number') position.column = columnNumber;
   return position;
+}
+
+/** mark を state に積み、元の要素の位置を控える。1 つの要素から複数の mark を作る場合も、どれも同じ位置を継ぐ */
+function pushMark(state: ParserState, mark: Mark, element: Element): void {
+  state.positions.set(mark, nodePosition(element));
+  state.marks.push(mark);
 }
 
 function parseErrorAt(node: Node, message: string): SKAMXMLParseError {
@@ -383,7 +398,7 @@ function processConstrainedContent(
   const tokenIds: string[] = [];
   for (const child of Array.from(element.childNodes)) {
     if (isText(child)) {
-      tokenIds.push(...addTokensFromText(child.textContent ?? '', state));
+      tokenIds.push(...addTokensFromText(child.textContent ?? '', state, element));
       continue;
     }
     if (!isElement(child)) continue;
@@ -423,7 +438,7 @@ function generateMarkId(state: ParserState): string {
 // SKAM-ML §6.2 が無視する空白 + U+000D。/\s/ は U+3000 (全角空白) も含むが、全角空白は token として残す
 const XML_IGNORED_WHITESPACE = /^[\t\n\r ]$/;
 
-function addTokensFromText(text: string, state: ParserState): string[] {
+function addTokensFromText(text: string, state: ParserState, owner: Element): string[] {
   const ids: string[] = [];
   const tracker = state.positionTracker;
 
@@ -464,6 +479,7 @@ function addTokensFromText(text: string, state: ParserState): string[] {
       }
     }
 
+    state.positions.set(token, nodePosition(owner));
     state.tokens.push(token);
     ids.push(id);
   }
@@ -517,7 +533,7 @@ function processKaeri(element: Element, state: ParserState, precedingTokenId: st
     value,
   };
 
-  state.marks.push(mark);
+  pushMark(state, mark, element);
 }
 
 function processKun(element: Element, state: ParserState): string[] {
@@ -527,7 +543,7 @@ function processKun(element: Element, state: ParserState): string[] {
 
   // Extract text content and generate tokens
   const textContent = readTextOnly(element, state, 'kun');
-  const tokenIds = addTokensFromText(textContent, state);
+  const tokenIds = addTokensFromText(textContent, state, element);
 
   if (tokenIds.length === 0) {
     throw parseErrorAt(element, '<skam:kun> must contain text');
@@ -542,7 +558,7 @@ function processKun(element: Element, state: ParserState): string[] {
       anchor,
       value: yomi,
     };
-    state.marks.push(yomiganaMark);
+    pushMark(state, yomiganaMark, element);
   }
 
   if (okuri) {
@@ -552,7 +568,7 @@ function processKun(element: Element, state: ParserState): string[] {
       anchor,
       value: okuri,
     };
-    state.marks.push(okuriganaMark);
+    pushMark(state, okuriganaMark, element);
   }
 
   if (soe) {
@@ -562,7 +578,7 @@ function processKun(element: Element, state: ParserState): string[] {
       anchor,
       value: soe,
     };
-    state.marks.push(soeganaMark);
+    pushMark(state, soeganaMark, element);
   }
 
   return tokenIds;
@@ -585,7 +601,7 @@ function processYomigana(element: Element, state: ParserState): string[] {
     value,
   };
 
-  state.marks.push(mark);
+  pushMark(state, mark, element);
   return tokenIds;
 }
 
@@ -615,7 +631,7 @@ function processKutoten(
     mark.kind = kind;
   }
 
-  state.marks.push(mark);
+  pushMark(state, mark, element);
 }
 
 function processOkototen(element: Element, state: ParserState): string[] {
@@ -670,7 +686,7 @@ function processOkototen(element: Element, state: ParserState): string[] {
     mark.color = color;
   }
 
-  state.marks.push(mark);
+  pushMark(state, mark, element);
   return tokenIds;
 }
 
@@ -687,7 +703,7 @@ function processOkimoji(element: Element, state: ParserState): string[] {
     anchor: createAnchor(tokenIds, element),
   };
 
-  state.marks.push(mark);
+  pushMark(state, mark, element);
   return tokenIds;
 }
 
@@ -704,7 +720,7 @@ function processJoji(element: Element, state: ParserState): string[] {
     anchor: createAnchor(tokenIds, element),
   };
 
-  state.marks.push(mark);
+  pushMark(state, mark, element);
   return tokenIds;
 }
 
@@ -713,7 +729,7 @@ function processSoegana(element: Element, state: ParserState): string[] {
 
   // Extract text content (the wrapped character) and generate tokens
   const textContent = readTextOnly(element, state, 'soegana');
-  const tokenIds = addTokensFromText(textContent, state);
+  const tokenIds = addTokensFromText(textContent, state, element);
 
   if (tokenIds.length === 0) {
     throw parseErrorAt(element, '<skam:soegana> must contain text (the character to annotate)');
@@ -726,7 +742,7 @@ function processSoegana(element: Element, state: ParserState): string[] {
     value,
   };
 
-  state.marks.push(mark);
+  pushMark(state, mark, element);
   return tokenIds;
 }
 
@@ -761,7 +777,7 @@ function processSpan(element: Element, state: ParserState): string[] {
       mark.style = styleAttr;
     }
 
-    state.marks.push(mark);
+    pushMark(state, mark, element);
   } else if (type === 'highlight') {
     const refAttr = getAttr(element, 'ref');
 
@@ -819,7 +835,7 @@ function processSpan(element: Element, state: ParserState): string[] {
     }
     // highlight.ref なし + 内部refが複数 + すべてid指定あり → 単独表示（何もしない）
 
-    state.marks.push(mark);
+    pushMark(state, mark, element);
   }
 
   return tokenIds;
@@ -839,7 +855,7 @@ function processTateten(element: Element, state: ParserState): string[] {
     anchor: createAnchor(tokenIds, element),
   };
 
-  state.marks.push(mark);
+  pushMark(state, mark, element);
   return tokenIds;
 }
 
@@ -899,7 +915,7 @@ function processSaidoku(element: Element, state: ParserState): string[] {
     forms,
   };
 
-  state.marks.push(mark);
+  pushMark(state, mark, element);
   return tokenIds;
 }
 
@@ -983,7 +999,7 @@ function processRef(element: Element, state: ParserState, precedingTokenId: stri
   // Note: separated note content is resolved in processNotes()
   // The note element references this ref via its 'ref' attribute
 
-  state.marks.push(mark);
+  pushMark(state, mark, element);
 }
 
 // ============================================================================
@@ -1016,7 +1032,7 @@ function processBlockChildren(element: Element, state: ParserState): string[] {
 
     if (isText(child)) {
       const text = child.textContent ?? '';
-      const ids = addTokensFromText(text, state);
+      const ids = addTokensFromText(text, state, element);
       allTokenIds.push(...ids);
       if (ids.length > 0) {
         lastTokenId = ids[ids.length - 1]!;
@@ -1144,6 +1160,7 @@ function processBlock(element: Element, state: ParserState): void {
 
   // Build Block object and add to state
   const block: Block = { id: blockId, tokenIds };
+  state.positions.set(block, nodePosition(element));
   state.blocks.push(block);
 }
 
@@ -1200,6 +1217,33 @@ function resolveContentReferences(state: ParserState): void {
       }
     }
   }
+}
+
+const ERROR_PATH_ROOT = /^(tokens|marks|blocks)\[(\d+)\]/;
+
+/**
+ * 検証エラーの path が指す token・mark・block を作った要素の行と列を、エラーに足す。
+ * 表はオブジェクトの同一性で引く (id は重複や自動採番で当てにならない)。
+ * validateSKAMDocument は渡された object を複製しないので、skamDoc の配列の要素がそのまま表のキーになる。
+ * 引けない path (readings、文書全体など) と、位置を持たないブラウザ版では、元のエラーを返す。
+ */
+function attachPositions(
+  errors: ValidationError[],
+  skamDoc: SKAMDocument,
+  positions: WeakMap<object, SourcePosition>
+): ValidationError[] {
+  return errors.map((error) => {
+    const match = ERROR_PATH_ROOT.exec(error.path);
+    if (!match) return error;
+    const collection = match[1] as 'tokens' | 'marks' | 'blocks';
+    const target = skamDoc[collection][Number(match[2])];
+    const position = target === undefined ? undefined : positions.get(target);
+    if (!position) return error;
+    const located: ValidationError = { ...error };
+    if (position.line !== undefined) located.line = position.line;
+    if (position.column !== undefined) located.column = position.column;
+    return located;
+  });
 }
 
 // ============================================================================
@@ -1325,7 +1369,7 @@ export function parseFromDocument(
   if (validate) {
     const result = validateSKAMDocument(skamDoc);
     if (!result.valid) {
-      throw new SKAMValidationError(result.errors);
+      throw new SKAMValidationError(attachPositions(result.errors, skamDoc, state.positions));
     }
   }
 

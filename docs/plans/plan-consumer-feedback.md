@@ -65,6 +65,5 @@
 - DOM へ描く `mount()` 関数 (#11)。CSS の 1 回だけの注入とフォント読み込み後の補正をまとめる。
 - `parse` の既定の id を、文書の順で決まる値にする (#15、破壊的変更)。`xml:id` との衝突回避が要る。
 - Web Component から `accessibleLabels` を指定する手段 (プロパティ)。
-- PR を作るとき、`feat/staged-release-flow` の ADR-029 と番号が衝突しないことを確かめる (この ADR は 030)。
 
 <!-- validated -->

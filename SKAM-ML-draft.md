@@ -54,6 +54,23 @@ xmlns:skam="urn:skam:1"
 </skam:doc>
 ```
 
+### 3.3 埋め込み時のメディアタイプ（規範）
+
+SKAM-ML を HTML の `<script>` 要素に埋め込むときの `type` は、次の文字列とする。
+
+```html
+<script type="application/vnd.berlysia.skam+xml">
+  <skam:doc xmlns:skam="urn:skam:1">…</skam:doc>
+</script>
+```
+
+- 登録されていないベンダー型には `vnd.` のツリーを使う（RFC 6838 §3.2）。`x-` の接頭辞は RFC 6648 で非推奨とされているので使わない。
+- XML を基にした型には `+xml` の接尾辞を付ける（RFC 7303）。
+- この型は IANA に登録していない。
+- SKAM-ML の版は名前空間（§3.1 の `urn:skam:1`）で表す。メディアタイプのパラメータでは表さない。
+- この文字列は教材の HTML などに書かれるので、仕様の約束とする。実装の都合では変えない。
+- `<skam-renderer>`（Web Component）は、この型の `<script>` だけを読む。`application/xml` など、ほかの型の `<script>` は読まない。
+
 ---
 
 ## 4. 文書構造
@@ -910,6 +927,7 @@ SKAM-ML/XMLはHTMLに依存しない純XML語彙とし、本文構造は`skam:bl
 
 ### v0.1 改訂（2026-10）
 
+- §3.3: 埋め込み時のメディアタイプ `application/vnd.berlysia.skam+xml` を規範として新設した（0.1.0 から公開されている文字列を確定した）
 - §4: `<!` で始まる宣言を使わないこととした
 - §6.2: 無視する空白に U+000D を加えた。U+3000 は無視されず token になる
 - §7.2: ブロック先頭の `skam:kaeri` を誤りとした

@@ -7,6 +7,10 @@
  * 3. Light DOM の textContent（フォールバック）
  */
 
+/**
+ * SKAM-ML を HTML に埋め込むときのメディアタイプ。仕様の約束であり、実装の都合では変えない。
+ * 根拠と範囲は SKAM-ML-draft §3.3 を参照。
+ */
 export const SKAM_XML_MEDIA_TYPE = 'application/vnd.berlysia.skam+xml';
 
 /**

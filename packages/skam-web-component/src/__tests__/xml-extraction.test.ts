@@ -34,6 +34,19 @@ describe('extractXmlFromScriptElement', () => {
     expect(extractXmlFromScriptElement(el)).toBeNull();
   });
 
+  it('fixes the media type string as part of the SKAM-ML spec (§3.3)', () => {
+    expect(SKAM_XML_MEDIA_TYPE).toBe('application/vnd.berlysia.skam+xml');
+  });
+
+  it('ignores a script that only has type="application/xml"', () => {
+    const el = document.createElement('div');
+    const script = document.createElement('script');
+    script.setAttribute('type', 'application/xml');
+    script.textContent = '<skam:doc>test</skam:doc>';
+    el.appendChild(script);
+    expect(extractXmlFromScriptElement(el)).toBeNull();
+  });
+
   it('ignores script with different type', () => {
     const el = document.createElement('div');
     const script = document.createElement('script');

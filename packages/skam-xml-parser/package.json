@@ -7,12 +7,12 @@
   "exports": {
     ".": {
       "browser": {
-        "import": "./dist/index.browser.js",
-        "types": "./dist/index.browser.d.ts"
+        "types": "./dist/index.browser.d.ts",
+        "import": "./dist/index.browser.js"
       },
       "default": {
-        "import": "./dist/index.js",
-        "types": "./dist/index.d.ts"
+        "types": "./dist/index.d.ts",
+        "import": "./dist/index.js"
       }
     }
   },

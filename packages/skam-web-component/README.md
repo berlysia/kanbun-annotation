@@ -41,6 +41,8 @@ pnpm add @kanbun-skam/skam-web-component
 
 メインエントリからは自動登録されない。利用側で `customElements.define()` を呼ぶ。
 
+<!-- doctest:typecheck -->
+
 ```typescript
 import { SkamRendererElement } from '@kanbun-skam/skam-web-component';
 
@@ -49,8 +51,12 @@ customElements.define('skam-renderer', SkamRendererElement);
 
 ### プログラマティックに XML を設定
 
+<!-- doctest:typecheck -->
+
 ```typescript
 import { SkamRendererElement } from '@kanbun-skam/skam-web-component';
+
+declare const xmlString: string;
 
 const el = document.querySelector('skam-renderer') as SkamRendererElement;
 el.xmlContent = xmlString;
@@ -109,6 +115,21 @@ skam-renderer {
 1. `xmlContent` プロパティ（プログラマティック設定）
 2. `<script type="application/vnd.berlysia.skam+xml">` 子要素
 3. Light DOM のテキストコンテンツ
+
+## 0.1 からの移行
+
+0.1.x からの変更のうち、このパッケージに関わるものです。ID は全体の移行表と共通です。
+
+| ID  | 旧挙動                                                                                                                                                                                   | 新挙動                                                                                                        | 回避策                                                                                                          |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------- |
+| M01 | npm には 0.1.0 から `@kanbun-skam/*` の名前で公開している (`@kanbun/*` は npm に公開していない)。リポジトリの CHANGELOG には、未公開の 0.1.1 として `@kanbun` からの改名が書かれていた。 | 名前は変わらない。CHANGELOG から未公開の 0.1.1 の節を消し、0.1.0 の次を 0.2.0 とした。                        | 不要。                                                                                                          |
+| M15 | readings のない文書では本文が支援技術から見えなかった。読み層に `aria-label` を付けた。                                                                                                  | readings がない文書は、読み層に白文 (本文のテキスト) を出力する。読み層に `aria-label` は付けない。           | スナップショットや VRT を取り直す。`aria-label` に依存した検索や CSS があれば、読み層の要素の内容に切り替える。 |
+| M20 | `detail` は従来の項目だけだった。                                                                                                                                                        | `detail` に `recoverable` と `attribute` が加わる。回復可能なエラーは、同じ不正な値で再描画しても発火しない。 | `skam-error` のハンドラで `recoverable` を見て扱いを分ける。                                                    |
+| M21 | DOM のない環境で import すると失敗した。                                                                                                                                                 | SSR 中に import できる。要素の登録はブラウザで行う。                                                          | 対応は要らない (非破壊の修正)。                                                                                 |
+| M22 | 表示言語を指定する手段がなかった。                                                                                                                                                       | html-renderer に `displayLang` オプション、web-component に `display-lang` 属性を足す。                       | 対応は要らない (非破壊の追加)。                                                                                 |
+| M24 | 条件オブジェクトで `import` が `types` より前にあった。`skam-web-component` の `./auto` には `types` がなかった。                                                                        | `types` を先頭にする。`./auto` に `types` を足す。サブパスと実体は変わらない。                                | 対応は要らない (非破壊の変更)。                                                                                 |
+
+全体の移行表 (対象パッケージ、依存の更新を含む): https://github.com/berlysia/kanbun-annotation/blob/master/docs/migration-0.1-to-0.2.md
 
 ## 関連パッケージ
 

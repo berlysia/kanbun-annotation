@@ -22,8 +22,12 @@ export interface TextMetricsLike {
  */
 export interface CanvasRenderingContext2DLike {
   font: string;
-  fillStyle: string;
-  strokeStyle: string;
+  // DOM の CanvasRenderingContext2D は、読み出すと string | CanvasGradient | CanvasPattern を返す。
+  // レンダラーは文字列を代入するだけで読み出さないので、getter は unknown にして DOM の context をそのまま受け入れる。
+  get fillStyle(): unknown;
+  set fillStyle(value: string);
+  get strokeStyle(): unknown;
+  set strokeStyle(value: string);
   lineWidth: number;
   textBaseline: string;
   textAlign: string;

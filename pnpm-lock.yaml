@@ -65,12 +65,18 @@ importers:
       '@kanbun-skam/skam':
         specifier: workspace:*
         version: link:../skam
+      '@kanbun-skam/skam-canvas-renderer':
+        specifier: workspace:*
+        version: link:../skam-canvas-renderer
       '@kanbun-skam/skam-html-renderer':
         specifier: workspace:*
         version: link:../skam-html-renderer
       '@kanbun-skam/skam-screenshot':
         specifier: workspace:*
         version: link:../skam-screenshot
+      '@kanbun-skam/skam-web-component':
+        specifier: workspace:*
+        version: link:../skam-web-component
       '@kanbun-skam/skam-xml-parser':
         specifier: workspace:*
         version: link:../skam-xml-parser

@@ -32,6 +32,12 @@ SKAM-ML/XML を試せるインタラクティブなデモ: https://berlysia.gith
 | [@kanbun-skam/integration-tests](./packages/integration-tests/)       | パッケージ間統合テスト（parse/stringify roundtrip 等） | private |
 | [@kanbun-skam/playground](./packages/playground/)                     | インタラクティブデモ                                   | -       |
 
+## 動作環境
+
+- すべてのパッケージは **ESM 専用**。CommonJS の `require` では読み込めない（`import` を使う）。
+- Node.js 18 以降で動く。
+- 公開する 6 パッケージの版は、0.2.0 から揃える（fixed group）。どれかを更新したら、ほかも同じ版に揃える。
+
 ## インストール
 
 ```bash
@@ -48,6 +54,8 @@ pnpm add @kanbun-skam/skam-html-renderer
 ## 使い方
 
 ### SKAM ドキュメントを直接作成
+
+<!-- doctest -->
 
 ```typescript
 import type { SKAMDocument } from '@kanbun-skam/skam';
@@ -76,6 +84,8 @@ const doc: SKAMDocument = {
 
 ### SKAM-ML/XML からパース
 
+<!-- doctest -->
+
 ```typescript
 import { parse } from '@kanbun-skam/skam-xml-parser';
 
@@ -93,8 +103,13 @@ const doc = parse(xml);
 
 ### HTML へレンダリング
 
+<!-- doctest:typecheck -->
+
 ```typescript
 import { render, getDefaultStyles } from '@kanbun-skam/skam-html-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument; // 上の例で作成・パースしたドキュメント
 
 const { html, css } = render(doc); // 縦書き（デフォルト）
 // または横書き: render(doc, { writingMode: 'horizontal' })
@@ -102,11 +117,12 @@ const { html, css } = render(doc); // 縦書き（デフォルト）
 
 ## 仕様書
 
-| ドキュメント                                        | 説明                                            |
-| --------------------------------------------------- | ----------------------------------------------- |
-| [SKAM-draft.md](./SKAM-draft.md)                    | SKAM v0.1 仕様（JSON 形式）                     |
-| [SKAM-ML-draft.md](./SKAM-ML-draft.md)              | SKAM-ML/XML v0.1 仕様（人間編集用マークアップ） |
-| [Baseline Report](./docs/baseline-compatibility.md) | Web Platform Baseline 互換性チェック結果        |
+| ドキュメント                                         | 説明                                            |
+| ---------------------------------------------------- | ----------------------------------------------- |
+| [SKAM-draft.md](./SKAM-draft.md)                     | SKAM v0.1 仕様（JSON 形式）                     |
+| [SKAM-ML-draft.md](./SKAM-ML-draft.md)               | SKAM-ML/XML v0.1 仕様（人間編集用マークアップ） |
+| [Baseline Report](./docs/baseline-compatibility.md)  | Web Platform Baseline 互換性チェック結果        |
+| [移行表 (0.1 → 0.2)](./docs/migration-0.1-to-0.2.md) | 0.1.x からの変更の旧挙動・新挙動・回避策        |
 
 ## SKAM v0.1 概要
 

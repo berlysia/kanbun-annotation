@@ -14,6 +14,8 @@ pnpm add @kanbun-skam/skam-xml-parser
 
 ## 使い方
 
+<!-- doctest -->
+
 ```typescript
 import { parse } from '@kanbun-skam/skam-xml-parser';
 
@@ -39,6 +41,8 @@ const doc = parse(xml);
 
 ### ルート要素
 
+<!-- doctest:skip 子要素を省略記号で示した構造の例 -->
+
 ```xml
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>...</skam:body>
@@ -49,6 +53,8 @@ const doc = parse(xml);
 
 ### 本文 (`<skam:body>`)
 
+<!-- doctest:xml body -->
+
 ```xml
 <skam:body>
   <skam:block>學而時習之</skam:block>
@@ -57,6 +63,8 @@ const doc = parse(xml);
 ```
 
 ### 訓読注記（インライン）
+
+<!-- doctest:xml block -->
 
 ```xml
 <skam:block>
@@ -94,6 +102,8 @@ const doc = parse(xml);
 
 ### 再読文字
 
+<!-- doctest:xml block -->
+
 ```xml
 <skam:saidoku>
   <skam:base>將</skam:base>
@@ -103,6 +113,8 @@ const doc = parse(xml);
 ```
 
 ### その他の注記
+
+<!-- doctest:xml block -->
 
 ```xml
 <!-- たて点（熟語境界） -->
@@ -117,16 +129,22 @@ const doc = parse(xml);
 
 ### 注釈 (`<skam:notes>`)
 
+<!-- doctest:xml -->
+
 ```xml
-<skam:body>
-  <skam:block>學而時習之<skam:ref target="#n1"/></skam:block>
-</skam:body>
-<skam:notes>
-  <skam:note xml:id="n1">「之」は目的語として読む。</skam:note>
-</skam:notes>
+<skam:doc xmlns:skam="urn:skam:1">
+  <skam:body>
+    <skam:block>學而時習之<skam:ref xml:id="n1"/></skam:block>
+  </skam:body>
+  <skam:notes>
+    <skam:note ref="n1">「之」は目的語として読む。</skam:note>
+  </skam:notes>
+</skam:doc>
 ```
 
 ### 読み層 (`<skam:readings>`)
+
+<!-- doctest:skip doc の子要素だけの断片 -->
 
 ```xml
 <skam:readings>
@@ -136,10 +154,42 @@ const doc = parse(xml);
 </skam:readings>
 ```
 
+## 往復変換と ID
+
+XML には token と mark の ID を書かない。`parse` はこれらの ID を毎回生成し直すので、JSON → XML → JSON と往復すると、token と mark の ID は元の値と一致しない。token や mark の ID を使った外部の参照は、往復で失われる。block と ref の `xml:id` は XML に書かれ、`parse` はそれを読む（`xml:id` がなければ生成する）。
+
+## IVS と結合文字
+
+`parse` は本文を code point ごとに別の token にする。異体字セレクタ（IVS）や結合文字は、基底文字とは別の token になる。注記を付けるときは、基底文字の token を anchor にする。
+
+## 0.1.x の parser との互換性
+
+0.1.x の parser は、0.2.0 の `stringify` が出力する XML の一部を、エラーにせず黙って読み落とす。読み落とすのは次の 3 つの形で、0.1.x の parser はこれらの要素を `textContent` だけで読み、中の `skam:kun` の属性（yomi / okuri / soe）や入れ子の要素の注記を捨てる。
+
+- `skam:yomigana` の中の `skam:kun`
+- 字を包む要素（`skam:okimoji` / `skam:joji` / `skam:okototen`）の中の `skam:kun`
+- 字を包む要素の入れ子
+
+  0.2.0 以降の出力は、0.2.0 以降の parser で読むこと（SKAM-ML-draft の変更履歴「互換性の注意」を参照）。
+
+## 位置情報
+
+Node 版の `SKAMXMLParseError` は `line` / `column` を持つ。ブラウザ版（`browser` 条件で解決される DOMParser 実装）は、これらを持たない。
+
+## 実験的な API
+
+`SKAM_ML_CONTENT_MODEL` は `@experimental`。仕様の改訂に合わせて変わりうる。同じ fixed group の同じ版どうしでだけ、内容の一致を保証する。
+
+ブロック先頭の返り点（`skam:kaeri`）は誤りとして扱う。同じ位置に重複した kaeri は検査しない。エラーの案内文は `@kanbun-skam/skam` の `BLOCK_START_KAERI_HINT` にある。
+
 ## エラーハンドリング
+
+<!-- doctest:typecheck -->
 
 ```typescript
 import { parse, SKAMXMLParseError } from '@kanbun-skam/skam-xml-parser';
+
+declare const xmlString: string;
 
 try {
   const doc = parse(xmlString);
@@ -149,6 +199,26 @@ try {
   }
 }
 ```
+
+## 0.1 からの移行
+
+0.1.x からの変更のうち、このパッケージに関わるものです。ID は全体の移行表と共通です。
+
+| ID  | 旧挙動                                                                                                                                                                                                                 | 新挙動                                                                                                                                                                                                                                                                                                                                                                                                                                         | 回避策                                                                                                                                                                                        |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M01 | npm には 0.1.0 から `@kanbun-skam/*` の名前で公開している (`@kanbun/*` は npm に公開していない)。リポジトリの CHANGELOG には、未公開の 0.1.1 として `@kanbun` からの改名が書かれていた。                               | 名前は変わらない。CHANGELOG から未公開の 0.1.1 の節を消し、0.1.0 の次を 0.2.0 とした。                                                                                                                                                                                                                                                                                                                                                         | 不要。                                                                                                                                                                                        |
+| M05 | `<!` で始まる宣言、深い入れ子、長い入力を受け付けた。xmldom の警告は無視した。名前空間と内容モデルを厳密には見なかった。パース後に検証しなかった。                                                                     | `<!` の宣言、`maxDepth` (既定 64) を超える入れ子、`maxInputLength` (既定 5,000,000) を超える入力を拒否する。xmldom の警告を行と列つきのエラーにする。SKAM の名前空間と内容モデルを検査する。U+3000 を token として残し、CDATA も token にする。結果を検証し、失敗は `SKAMValidationError` で投げる。                                                                                                                                           | 検証だけを外すには `{ validate: false }` を渡す。XML の構造の拒否は外せないので、XML を直す。入力の制限は `maxDepth` / `maxInputLength` で変えられる。                                        |
+| M06 | ブロック先頭の kaeri を、そのまま JSON にした。                                                                                                                                                                        | parser が XML を読む段階で拒否する。JSON の文書に写せないため、`validate: false` でも通らない。                                                                                                                                                                                                                                                                                                                                                | XML を直す。kaeri を前のブロックの最後の字の後に置くか、ブロックをまとめる。                                                                                                                  |
+| M07 | 空の token `text`、空の `saidoku.forms`、ブロック・token・mark にまたがる ID の重複、グリッドの外の okototen の座標、書式に合わない `emphasis.style`、型の違う `id` / `ext` / `placementHint` / `forms[].n` を通した。 | これらを拒否する。parser は既定で検証するので、XML からの文書にも同じ検査が及ぶ。                                                                                                                                                                                                                                                                                                                                                              | 保存済みの JSON を `validateSKAMDocument` で一括検査し、エラーの `kind` ごとに直す (`INVALID_VALUE`、`DUPLICATE_ID`、`INVALID_TYPE` など)。parser では `{ validate: false }` で検査を外せる。 |
+| M08 | yomigana、okurigana、soegana、okimoji、joji、saidoku を同じ anchor に重ねても通った。                                                                                                                                  | `MARK_CONFLICT` で拒否する。okototen、emphasis、highlight、tateten は重ねてよい (SKAM-draft §6.1)。                                                                                                                                                                                                                                                                                                                                            | `validateSKAMDocument` の `MARK_CONFLICT` の位置を探し、重複の片方を消すか、別の anchor に移す。parser では `{ validate: false }` で検査を外せる。                                            |
+| M09 | ブロック先頭の kaeri を通した。                                                                                                                                                                                        | `skam` の validator が `BLOCK_START_KAERI` (検証エラーの `kind`) で拒否する。`skam-xml-stringify` の欠落の `code` の `BLOCK_START_KAERI` とは別の型である。案内文は `BLOCK_START_KAERI_HINT`。                                                                                                                                                                                                                                                 | 返り点を前のブロックの最後の字の後に置くか、ブロックをまとめる。                                                                                                                              |
+| M10 | okimoji / joji / okototen / saidoku の基底の中の `kun` と、入れ子の包む要素の注記を、エラーにせず黙って捨てた。okimoji の中の joji を許さない方針だった。                                                              | これらを保持する。okimoji の中の joji は受理する (制限の緩和)。                                                                                                                                                                                                                                                                                                                                                                                | 対応は要らない。注意: 0.1.x の parser は、0.2.0 の `stringify` の出力の一部を黙って読み落とす。0.2.0 の出力は、0.2.0 以降の parser で読む。                                                   |
+| M11 | 空のブロックを拒否した。未知の `skam:*` 要素は黙って無視した。`SKAMValidationError` は `skam` からしか import できなかった。                                                                                           | 空のブロックを受理する。未知の `skam:*` 要素を `onWarning` (`ParseWarning`) に通知する。`SKAMValidationError` を再 export する。                                                                                                                                                                                                                                                                                                               | 対応は要らない (非破壊の追加と緩和)。                                                                                                                                                         |
+| M23 | なし。                                                                                                                                                                                                                 | `skam`: `isValidEmphasisStyle`、`BLOCK_START_KAERI_HINT`、`HIGHLIGHT_STYLES`、`isValidHighlightStyle`、`resolveOkototenCell`。`skam-xml-parser`: `SKAM_ML_CONTENT_MODEL` (`@experimental`)、`ParseWarning` / `onWarning`。`skam-xml-stringify`: `SKAM_ML_CONTENT_MODEL`、`SKAM_ML_NESTING_ORDER` (どちらも `@experimental`)、`SKAMXMLStringifyError` / `StringifyLoss`。`skam-html-renderer`: `validateRenderOptions` / `validateCSSOptions`。 | 対応は要らない。`@experimental` の API は、0.x の間はマイナーリリースで値が変わりうる。                                                                                                       |
+| M24 | 条件オブジェクトで `import` が `types` より前にあった。`skam-web-component` の `./auto` には `types` がなかった。                                                                                                      | `types` を先頭にする。`./auto` に `types` を足す。サブパスと実体は変わらない。                                                                                                                                                                                                                                                                                                                                                                 | 対応は要らない (非破壊の変更)。                                                                                                                                                               |
+| M26 | 0.8.15 より前の版 (0.8.11 など) に解決された。0.8.11 には、15 件の advisory が関係する (2026-10-15 時点)。                                                                                                             | 0.8.15 に固定する。0.8.15 に関係する advisory は 0 件である。advisory の ID は「依存の更新」の節に挙げる。                                                                                                                                                                                                                                                                                                                                     | 対応は要らない。利用側で xmldom の版を固定している場合は、0.8.15 以上に上げる。                                                                                                               |
+
+全体の移行表 (対象パッケージ、依存の更新を含む): https://github.com/berlysia/kanbun-annotation/blob/master/docs/migration-0.1-to-0.2.md
 
 ## 関連パッケージ
 

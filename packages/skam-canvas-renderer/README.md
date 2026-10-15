@@ -16,6 +16,8 @@ pnpm add @kanbun-skam/skam-canvas-renderer
 
 ### 基本的なレンダリング
 
+<!-- doctest:typecheck -->
+
 ```typescript
 import { render } from '@kanbun-skam/skam-canvas-renderer';
 import type { SKAMDocument } from '@kanbun-skam/skam';
@@ -37,8 +39,15 @@ render(doc, canvas, { fontSize: 24 });
 
 ### サイズ計測
 
+<!-- doctest:typecheck -->
+
 ```typescript
+import type { CanvasLike } from '@kanbun-skam/skam-canvas-renderer';
 import { measure } from '@kanbun-skam/skam-canvas-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
+declare const canvas: CanvasLike;
 
 const ctx = canvas.getContext('2d')!;
 const { width, height } = measure(doc, ctx, { fontSize: 24 });
@@ -58,8 +67,15 @@ canvas.height = height;
 
 ### 表示プロファイル
 
+<!-- doctest:typecheck -->
+
 ```typescript
 import { render, PROFILES } from '@kanbun-skam/skam-canvas-renderer';
+import type { CanvasLike } from '@kanbun-skam/skam-canvas-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
+declare const canvas: CanvasLike;
 
 // フルプロファイル（すべての要素を表示、デフォルト）
 render(doc, canvas, { profile: PROFILES.full });
@@ -73,8 +89,15 @@ render(doc, canvas, { profile: PROFILES.learningHint });
 
 ### フォントの読み込み
 
+<!-- doctest:typecheck -->
+
 ```typescript
-import { loadDefaultFont, DEFAULT_FONT_FAMILY } from '@kanbun-skam/skam-canvas-renderer';
+import { render, loadDefaultFont, DEFAULT_FONT_FAMILY } from '@kanbun-skam/skam-canvas-renderer';
+import type { CanvasLike } from '@kanbun-skam/skam-canvas-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
+declare const canvas: CanvasLike;
 
 // デフォルトフォント（Noto Serif JP）を読み込み
 await loadDefaultFont();
@@ -119,6 +142,22 @@ render(doc, canvas, { fontFamily: DEFAULT_FONT_FAMILY, fontSize: 24 });
 1. **Pass 1** (render-tree): `SKAMDocument` → `CanvasRenderTree` (マーク解決・スロット割り当て)
 2. **Pass 2** (layout): `CanvasRenderTree` → `DocumentLayout` (座標計算)
 3. **Pass 3** (draw): `DocumentLayout` → Canvas API 描画
+
+## 0.1 からの移行
+
+0.1.x からの変更のうち、このパッケージに関わるものです。ID は全体の移行表と共通です。
+
+| ID  | 旧挙動                                                                                                                                                                                                  | 新挙動                                                                                                                                                                                                                                                           | 回避策                                                                                                                                                     |
+| --- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M01 | npm には 0.1.0 から `@kanbun-skam/*` の名前で公開している (`@kanbun/*` は npm に公開していない)。リポジトリの CHANGELOG には、未公開の 0.1.1 として `@kanbun` からの改名が書かれていた。                | 名前は変わらない。CHANGELOG から未公開の 0.1.1 の節を消し、0.1.0 の次を 0.2.0 とした。                                                                                                                                                                           | 不要。                                                                                                                                                     |
+| M12 | 不正な値を黙って受け入れた (CSS や canvas の値として使われた)。                                                                                                                                         | `render` / `renderHTML` / `generateCSS` / `getDefaultStyles` / `calibrateGridBaseline` (html) と `render` (canvas) が、不正なオプションで `TypeError` を投げる。html-renderer では、検査だけを `validateRenderOptions` / `validateCSSOptions` で単独でも呼べる。 | html-renderer では、呼び出す前にオプションを `validateRenderOptions` / `validateCSSOptions` で検査するか。どちらのパッケージでも、`TypeError` を捕捉する。 |
+| M17 | `writingMode` に `'horizontal'` を型の上で指定できた。                                                                                                                                                  | 型は `'vertical'` だけになる。`skam-screenshot` の CLI も、canvas の経路で `horizontal` を拒否する。                                                                                                                                                             | 縦書きだけを指定する。横書きが要る場合は html-renderer を使う。                                                                                            |
+| M18 | canvas の大きさを自動では設定しなかった。                                                                                                                                                               | 既定 (`autoSize: true`) で、`canvas.width` / `canvas.height` を、計測した寸法 × `pixelRatio` に設定する。`maxExtent` は、デバイスピクセルで表した長い辺の上限で、内容が超えるときだけ縮小する。                                                                  | 大きさを自分で管理する場合は `autoSize: false` を渡す。長い文書は `maxExtent` で抑える。                                                                   |
+| M19 | okototen を描かなかった。                                                                                                                                                                               | okototen を描画する。グリッドの外の okototen は描かない。長方形のグリッド (`5x7` など) での縦の位置は、行数から計算する。                                                                                                                                        | 見た目が変わるので、スナップショットや VRT を取り直す。                                                                                                    |
+| M24 | 条件オブジェクトで `import` が `types` より前にあった。`skam-web-component` の `./auto` には `types` がなかった。                                                                                       | `types` を先頭にする。`./auto` に `types` を足す。サブパスと実体は変わらない。                                                                                                                                                                                   | 対応は要らない (非破壊の変更)。                                                                                                                            |
+| M25 | `CanvasRenderingContext2DLike` の `fillStyle` / `strokeStyle` が `string` だったため、実際の canvas と context を `render` / `measure` に渡すと型検査が通らず、`as unknown as` などのキャストが要った。 | getter を `unknown`、setter を `string` に分けた。実際の `HTMLCanvasElement` と `CanvasRenderingContext2D` を、キャストなしで渡せる。                                                                                                                            | 渡すためのキャストを外してよい。残しても動く (非破壊の変更)。                                                                                              |
+
+全体の移行表 (対象パッケージ、依存の更新を含む): https://github.com/berlysia/kanbun-annotation/blob/master/docs/migration-0.1-to-0.2.md
 
 ## 関連パッケージ
 

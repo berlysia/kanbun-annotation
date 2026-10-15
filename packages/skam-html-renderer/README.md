@@ -16,6 +16,8 @@ pnpm add @kanbun-skam/skam-html-renderer
 
 ### 基本的なレンダリング
 
+<!-- doctest -->
+
 ```typescript
 import { render } from '@kanbun-skam/skam-html-renderer';
 import type { SKAMDocument } from '@kanbun-skam/skam';
@@ -26,6 +28,7 @@ const doc: SKAMDocument = {
     { id: 't1', text: '学' },
     { id: 't2', text: '而' },
   ],
+  blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
   marks: [{ type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'びて' }],
   readings: [],
 };
@@ -34,6 +37,12 @@ const result = render(doc);
 // result.html: レンダリングされた HTML
 // result.css: 適用すべき CSS
 ```
+
+### Node / SSR での利用
+
+`render()` は DOM に依存しない。`document` や `window` を使わず、文字列（`html` と `css`）を返すだけなので、Node.js やサーバーサイドレンダリング（SSR）でそのまま呼べる。
+
+`attachInteractiveHandlers` など、DOM 要素を受け取る関数はブラウザ（または DOM 実装のある環境）でだけ使う。
 
 ### 検証とエスケープ
 
@@ -49,8 +58,13 @@ const result = render(doc);
 
 ### 書字方向の指定
 
+<!-- doctest:typecheck -->
+
 ```typescript
 import { render } from '@kanbun-skam/skam-html-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
 
 // 縦書き（デフォルト）
 const vertical = render(doc, { writingMode: 'vertical' });
@@ -61,8 +75,13 @@ const horizontal = render(doc, { writingMode: 'horizontal' });
 
 ### 表示プロファイル
 
+<!-- doctest:typecheck -->
+
 ```typescript
 import { render, PROFILES } from '@kanbun-skam/skam-html-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
 
 // フルプロファイル（すべての要素を表示、デフォルト）
 const full = render(doc, { profile: PROFILES.full });
@@ -76,8 +95,13 @@ const hint = render(doc, { profile: PROFILES.learningHint });
 
 ### スタイルのカスタマイズ
 
+<!-- doctest:typecheck -->
+
 ```typescript
 import { render, getDefaultStyles, generateCSS } from '@kanbun-skam/skam-html-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
 
 // CSS 生成オプション
 const css = generateCSS({
@@ -126,20 +150,25 @@ const result = render(doc, { writingMode: 'vertical' });
 
 #### API での指定
 
+<!-- doctest:typecheck -->
+
 ```typescript
-import { render, renderHTML } from '@kanbun-skam/skam-html-renderer';
+import { render } from '@kanbun-skam/skam-html-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
 
 // デフォルト: 本文のみコピー可能
-const result = render(doc);
+const bodyOnly = render(doc);
 
 // 読み仮名もコピー可能
-const result = render(doc, { copyable: ['ruby'] });
+const withRuby = render(doc, { copyable: ['ruby'] });
 
 // 複数指定
-const result = render(doc, { copyable: ['ruby', 'okurigana'] });
+const withRubyAndOkurigana = render(doc, { copyable: ['ruby', 'okurigana'] });
 
 // 全てコピー可能
-const result = render(doc, { copyable: 'all' });
+const everything = render(doc, { copyable: 'all' });
 ```
 
 #### 生成される HTML
@@ -190,7 +219,11 @@ const result = render(doc, { copyable: 'all' });
 
 #### @layer を無効にする
 
+<!-- doctest -->
+
 ```typescript
+import { generateCSS } from '@kanbun-skam/skam-html-renderer';
+
 const css = generateCSS({ useLayer: false });
 ```
 
@@ -235,6 +268,8 @@ const css = generateCSS({ useLayer: false });
 okototen は格子の外 (座標が範囲外) の場合は描画しない。
 
 ## 出力形式
+
+<!-- doctest:skip 型の一覧 -->
 
 ```typescript
 interface RenderResult {
@@ -299,6 +334,24 @@ display 実装層
 `calibrate.ts` が Chromium の inline-grid baseline バグを実測検出し、
 `--{prefix}-grid-baseline-fix: 1` を設定します。
 各グリッドコンテナの `vertical-align` がこの変数を参照して補正値を算出します。
+
+## 0.1 からの移行
+
+0.1.x からの変更のうち、このパッケージに関わるものです。ID は全体の移行表と共通です。
+
+| ID  | 旧挙動                                                                                                                                                                                   | 新挙動                                                                                                                                                                                                                                                                                                                                                                                                                                         | 回避策                                                                                                                                                     |
+| --- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| M01 | npm には 0.1.0 から `@kanbun-skam/*` の名前で公開している (`@kanbun/*` は npm に公開していない)。リポジトリの CHANGELOG には、未公開の 0.1.1 として `@kanbun` からの改名が書かれていた。 | 名前は変わらない。CHANGELOG から未公開の 0.1.1 の節を消し、0.1.0 の次を 0.2.0 とした。                                                                                                                                                                                                                                                                                                                                                         | 不要。                                                                                                                                                     |
+| M12 | 不正な値を黙って受け入れた (CSS や canvas の値として使われた)。                                                                                                                          | `render` / `renderHTML` / `generateCSS` / `getDefaultStyles` / `calibrateGridBaseline` (html) と `render` (canvas) が、不正なオプションで `TypeError` を投げる。html-renderer では、検査だけを `validateRenderOptions` / `validateCSSOptions` で単独でも呼べる。                                                                                                                                                                               | html-renderer では、呼び出す前にオプションを `validateRenderOptions` / `validateCSSOptions` で検査するか。どちらのパッケージでも、`TypeError` を捕捉する。 |
+| M13 | `kaeri.value`、`emphasis.style`、`classPrefix` などをそのまま HTML / CSS に出力した。                                                                                                    | エスケープするか、許可リストに合うものだけを出力する。許可リストに合わない値は、`emphasis.style` では既定の `filled dot` に置き換え、オプションでは M12 の `TypeError` にする。                                                                                                                                                                                                                                                                | 出力文字列を比較・保存している場合は、0.2.0 の出力で取り直す。                                                                                             |
+| M14 | 任意の 1 文字をそのまま出力した。                                                                                                                                                        | `"\2605 "` のような CSS の文字列で出力する。表示は変わらないが、出力の文字列は変わる。                                                                                                                                                                                                                                                                                                                                                         | 出力文字列を比較・保存している場合は、0.2.0 の出力で取り直す。                                                                                             |
+| M15 | readings のない文書では本文が支援技術から見えなかった。読み層に `aria-label` を付けた。                                                                                                  | readings がない文書は、読み層に白文 (本文のテキスト) を出力する。読み層に `aria-label` は付けない。                                                                                                                                                                                                                                                                                                                                            | スナップショットや VRT を取り直す。`aria-label` に依存した検索や CSS があれば、読み層の要素の内容に切り替える。                                            |
+| M16 | ref の番号が出現順と一致しない場合があった。                                                                                                                                             | ref の番号は本文の出現順 (注釈 IR と同じ) に振る。                                                                                                                                                                                                                                                                                                                                                                                             | スナップショットや VRT を取り直す。                                                                                                                        |
+| M22 | 表示言語を指定する手段がなかった。                                                                                                                                                       | html-renderer に `displayLang` オプション、web-component に `display-lang` 属性を足す。                                                                                                                                                                                                                                                                                                                                                        | 対応は要らない (非破壊の追加)。                                                                                                                            |
+| M23 | なし。                                                                                                                                                                                   | `skam`: `isValidEmphasisStyle`、`BLOCK_START_KAERI_HINT`、`HIGHLIGHT_STYLES`、`isValidHighlightStyle`、`resolveOkototenCell`。`skam-xml-parser`: `SKAM_ML_CONTENT_MODEL` (`@experimental`)、`ParseWarning` / `onWarning`。`skam-xml-stringify`: `SKAM_ML_CONTENT_MODEL`、`SKAM_ML_NESTING_ORDER` (どちらも `@experimental`)、`SKAMXMLStringifyError` / `StringifyLoss`。`skam-html-renderer`: `validateRenderOptions` / `validateCSSOptions`。 | 対応は要らない。`@experimental` の API は、0.x の間はマイナーリリースで値が変わりうる。                                                                    |
+| M24 | 条件オブジェクトで `import` が `types` より前にあった。`skam-web-component` の `./auto` には `types` がなかった。                                                                        | `types` を先頭にする。`./auto` に `types` を足す。サブパスと実体は変わらない。                                                                                                                                                                                                                                                                                                                                                                 | 対応は要らない (非破壊の変更)。                                                                                                                            |
+
+全体の移行表 (対象パッケージ、依存の更新を含む): https://github.com/berlysia/kanbun-annotation/blob/master/docs/migration-0.1-to-0.2.md
 
 ## 関連パッケージ
 

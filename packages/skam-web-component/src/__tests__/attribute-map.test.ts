@@ -1,7 +1,8 @@
 import { describe, it, expect } from 'vitest';
+import { PROFILES } from '@kanbun-skam/skam-html-renderer';
 import {
   parseWritingMode,
-  parseProfile,
+  resolveProfileAttribute,
   parseBooleanAttr,
   parseCopyable,
   buildRenderOptions,
@@ -20,42 +21,47 @@ describe('parseWritingMode', () => {
     expect(parseWritingMode('horizontal')).toBe('horizontal');
   });
 
-  it('returns "vertical" for invalid value', () => {
+  it('returns "vertical" for invalid value (reported via buildRenderOptions)', () => {
     expect(parseWritingMode('diagonal')).toBe('vertical');
   });
 });
 
-describe('parseProfile', () => {
-  it('returns undefined for null', () => {
-    expect(parseProfile(null)).toBeUndefined();
+describe('resolveProfileAttribute', () => {
+  it('resolves a preset name', () => {
+    expect(resolveProfileAttribute('learningBasic')).toEqual(PROFILES.learningBasic);
+    expect(resolveProfileAttribute('full').yomigana).toBe(true);
   });
 
-  it('returns preset profile for known name', () => {
-    const result = parseProfile('full');
-    expect(result).toBeDefined();
-    expect(result!.yomigana).toBe(true);
+  it('resolves the base form', () => {
+    const p = resolveProfileAttribute('{"base":"learningBasic","overrides":{"okurigana":true}}');
+    expect(p).toEqual({ ...PROFILES.learningBasic, okurigana: true });
   });
 
-  it('returns preset for "learningBasic"', () => {
-    const result = parseProfile('learningBasic');
-    expect(result).toBeDefined();
+  it('overlays a partial JSON on full', () => {
+    expect(resolveProfileAttribute('{"yomigana":false}')).toEqual({
+      ...PROFILES.full,
+      yomigana: false,
+    });
   });
 
-  it('parses valid JSON object', () => {
-    const result = parseProfile('{"yomigana":false}');
-    expect(result).toEqual({ yomigana: false });
-  });
-
-  it('returns undefined for invalid JSON', () => {
-    expect(parseProfile('not-json')).toBeUndefined();
-  });
-
-  it('returns undefined for JSON array', () => {
-    expect(parseProfile('[1,2,3]')).toBeUndefined();
-  });
-
-  it('returns undefined for JSON primitive', () => {
-    expect(parseProfile('"string"')).toBeUndefined();
+  it.each([
+    '{bad json',
+    'not-json',
+    'unknownPreset',
+    'constructor',
+    '__proto__',
+    'toString',
+    'null',
+    '[]',
+    '[1,2,3]',
+    '123',
+    '"string"',
+    '',
+    '{"okuriganaa":false}',
+    '{"okurigana":"false"}',
+    '{"__proto__":{"okurigana":false}}',
+  ])('throws TypeError for %j', (value) => {
+    expect(() => resolveProfileAttribute(value)).toThrow(TypeError);
   });
 });
 
@@ -136,6 +142,43 @@ describe('buildRenderOptions', () => {
       'include-reading-layer': 'false',
     });
     expect(options.includeReadingLayer).toBe(false);
+  });
+
+  it('include-reading-layer accepts "", "true" and "false"', () => {
+    for (const [value, expected] of [
+      ['', true],
+      ['true', true],
+      ['false', false],
+    ] as const) {
+      const { options, blocked } = buildRenderOptions({
+        ...defaultAttrs,
+        'include-reading-layer': value,
+      });
+      expect(options.includeReadingLayer).toBe(expected);
+      expect(blocked).toEqual([]);
+    }
+  });
+
+  it('blocks an invalid include-reading-layer and profile, in profile order', () => {
+    const { blocked, options } = buildRenderOptions({
+      ...defaultAttrs,
+      profile: '{"okuriganaa":false}',
+      'include-reading-layer': 'fasle',
+    });
+    expect(blocked.map((b) => b.attribute)).toEqual(['profile', 'include-reading-layer']);
+    expect(options.profile).toBeUndefined();
+  });
+
+  it('lists an invalid writing-mode and copyable as recoverable', () => {
+    const { options, invalid, blocked } = buildRenderOptions({
+      ...defaultAttrs,
+      'writing-mode': 'diagonal',
+      copyable: 'ruby unknown',
+    });
+    expect(options.writingMode).toBe('vertical');
+    expect(options.copyable).toEqual(['ruby']);
+    expect(invalid.map((i) => i.attribute)).toEqual(['writing-mode', 'copyable']);
+    expect(blocked).toEqual([]);
   });
 
   it('maps class-prefix attribute', () => {

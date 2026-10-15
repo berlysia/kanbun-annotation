@@ -2,7 +2,11 @@
  * HTML属性 → RenderOptions 変換ユーティリティ
  */
 
-import { PROFILES, validateRenderOptions } from '@kanbun-skam/skam-html-renderer';
+import {
+  PROFILES,
+  resolveRenderProfile,
+  validateRenderOptions,
+} from '@kanbun-skam/skam-html-renderer';
 import type {
   RenderOptions,
   RenderProfile,
@@ -19,24 +23,25 @@ export function parseWritingMode(value: string | null): 'vertical' | 'horizontal
   return 'vertical';
 }
 
-export function parseProfile(value: string | null): Partial<RenderProfile> | undefined {
-  if (value == null) return undefined;
+const MAX_ECHO = 64;
 
-  // Check preset names first
-  const preset = (PROFILES as Record<string, RenderProfile>)[value];
-  if (preset) return preset;
-
-  // Try JSON parse
-  try {
-    const parsed: unknown = JSON.parse(value);
-    if (typeof parsed === 'object' && parsed !== null && !Array.isArray(parsed)) {
-      return parsed as Partial<RenderProfile>;
-    }
-  } catch {
-    // Invalid JSON, ignore
+/**
+ * profile 属性を解決する。プリセット名か JSON を受け付け、不正なら TypeError を投げる。
+ * 属性が無い (null) ときは呼ばない。空文字・null・配列・数値は不正で、full には落とさない。
+ */
+export function resolveProfileAttribute(value: string): RenderProfile {
+  if (Object.hasOwn(PROFILES, value)) {
+    return resolveRenderProfile({ base: value });
   }
-
-  return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new TypeError(
+      `profile must be a preset name or a JSON object (got ${JSON.stringify(value.slice(0, MAX_ECHO))})`
+    );
+  }
+  return resolveRenderProfile(parsed);
 }
 
 export function parseBooleanAttr(value: string | null): boolean {
@@ -54,6 +59,13 @@ export function parseCopyable(value: string | null): CopyableElement[] | 'all' |
       (VALID_COPYABLE_ELEMENTS as readonly string[]).includes(v)
     );
   return elements.length > 0 ? elements : undefined;
+}
+
+function findUnknownCopyable(value: string | null): string | undefined {
+  if (value == null || value === 'all') return undefined;
+  return value
+    .split(/\s+/)
+    .find((v) => v !== '' && !(VALID_COPYABLE_ELEMENTS as readonly string[]).includes(v));
 }
 
 export interface AttributeValues {
@@ -74,8 +86,13 @@ export interface InvalidAttribute {
 
 export interface BuiltRenderOptions {
   options: RenderOptions;
-  /** 検証を通らず既定値に戻した属性。class-prefix → display-lang の固定順 */
+  /** 検証を通らず既定値に戻した属性 (描画は続ける)。writing-mode → copyable → class-prefix → display-lang の固定順 */
   invalid: InvalidAttribute[];
+  /**
+   * 注記を隠すための属性で、不正なもの。既定値に戻すと隠すつもりの注記が見える側に倒れるので、
+   * 描画しない (fail closed)。profile → include-reading-layer の固定順。
+   */
+  blocked: InvalidAttribute[];
 }
 
 /** html-renderer の検証規則をそのまま使い、1 つの属性だけを検査する */
@@ -84,11 +101,66 @@ function checkAttribute(attribute: string, probe: RenderOptions): InvalidAttribu
     validateRenderOptions(probe);
     return undefined;
   } catch (error) {
-    return {
-      attribute,
-      error: error instanceof TypeError ? error : new TypeError(String(error)),
-    };
+    return { attribute, error: toTypeError(error) };
   }
+}
+
+function toTypeError(error: unknown): TypeError {
+  return error instanceof TypeError ? error : new TypeError(String(error));
+}
+
+/** 属性が真偽値の書き方か。"true" / "false" / 空文字 (属性の存在) だけを受け付ける */
+function parseReadingLayerFlag(value: string): boolean {
+  if (value === '' || value === 'true') return true;
+  if (value === 'false') return false;
+  throw new TypeError(
+    `include-reading-layer must be "true", "false" or empty (got ${JSON.stringify(value.slice(0, MAX_ECHO))})`
+  );
+}
+
+function applyHiddenAnnotationAttributes(
+  attrs: AttributeValues,
+  options: RenderOptions,
+  blocked: InvalidAttribute[]
+): void {
+  if (attrs.profile !== null) {
+    try {
+      options.profile = resolveProfileAttribute(attrs.profile);
+    } catch (error) {
+      blocked.push({ attribute: 'profile', error: toTypeError(error) });
+    }
+  }
+
+  const readingLayer = attrs['include-reading-layer'];
+  if (readingLayer === null) {
+    options.includeReadingLayer = true;
+    return;
+  }
+  try {
+    options.includeReadingLayer = parseReadingLayerFlag(readingLayer);
+  } catch (error) {
+    blocked.push({ attribute: 'include-reading-layer', error: toTypeError(error) });
+  }
+}
+
+function checkWritingModeAndCopyable(attrs: AttributeValues): InvalidAttribute[] {
+  const invalid: InvalidAttribute[] = [];
+  const writingMode = attrs['writing-mode'];
+  if (writingMode !== null && !(VALID_WRITING_MODES as readonly string[]).includes(writingMode)) {
+    invalid.push({
+      attribute: 'writing-mode',
+      error: new TypeError('writing-mode must be "vertical" or "horizontal"'),
+    });
+  }
+  if (findUnknownCopyable(attrs.copyable) !== undefined) {
+    invalid.push({
+      attribute: 'copyable',
+      error: new TypeError(
+        'copyable must be "all" or a space-separated list of known element names'
+      ),
+    });
+  }
+  return invalid;
 }
 
 export function buildRenderOptions(attrs: AttributeValues): BuiltRenderOptions {
@@ -97,29 +169,19 @@ export function buildRenderOptions(attrs: AttributeValues): BuiltRenderOptions {
     useLayer: false, // Shadow DOM doesn't need @layer
   };
 
-  const profile = parseProfile(attrs.profile);
-  if (profile) {
-    options.profile = profile;
-  }
-
   if (parseBooleanAttr(attrs.inline)) {
     options.inline = true;
   }
 
-  // include-reading-layer defaults to true when absent
-  if (attrs['include-reading-layer'] === null) {
-    options.includeReadingLayer = true;
-  } else {
-    // Present but set to "false" explicitly
-    options.includeReadingLayer = attrs['include-reading-layer'] !== 'false';
-  }
+  const blocked: InvalidAttribute[] = [];
+  applyHiddenAnnotationAttributes(attrs, options, blocked);
 
   const copyable = parseCopyable(attrs.copyable);
   if (copyable) {
     options.copyable = copyable;
   }
 
-  const invalid: InvalidAttribute[] = [];
+  const invalid = checkWritingModeAndCopyable(attrs);
 
   const classPrefix = attrs['class-prefix'];
   if (classPrefix != null) {
@@ -135,5 +197,5 @@ export function buildRenderOptions(attrs: AttributeValues): BuiltRenderOptions {
     else options.displayLang = displayLang;
   }
 
-  return { options, invalid };
+  return { options, invalid, blocked };
 }

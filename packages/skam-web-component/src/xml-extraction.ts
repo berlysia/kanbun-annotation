@@ -11,6 +11,8 @@ export const SKAM_XML_MEDIA_TYPE = 'application/vnd.berlysia.skam+xml';
 
 /**
  * <script type="application/vnd.berlysia.skam+xml"> 要素からXMLを取得する
+ *
+ * @experimental 0.x の minor で変わりうる。
  */
 export function extractXmlFromScriptElement(host: HTMLElement): string | null {
   const script = host.querySelector(`script[type="${SKAM_XML_MEDIA_TYPE}"]`);

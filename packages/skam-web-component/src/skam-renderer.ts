@@ -95,6 +95,8 @@ export class SkamRendererElement extends BaseElement {
   #rafId: number | null = null;
   /** 最後に skam-error で通知した不正値 (属性名 → 値)。同じ値では再通知しない */
   #reportedInvalid = new Map<string, string>();
+  /** fail closed で通知済みの属性 → 値。同じ値では再通知しない */
+  #reportedBlocked = new Map<string, string>();
 
   constructor() {
     super();
@@ -160,6 +162,7 @@ export class SkamRendererElement extends BaseElement {
     }
 
     this.#reportedInvalid.clear();
+    this.#reportedBlocked.clear();
   }
 
   attributeChangedCallback(
@@ -179,6 +182,15 @@ export class SkamRendererElement extends BaseElement {
   }
 
   #performRender(): void {
+    const attrs = this.#getAttributeValues();
+    // 注記を隠す属性が不正な間は、内容が変わっても描画しない (fail closed)
+    const { options, invalid, blocked } = buildRenderOptions(attrs);
+    if (blocked.length > 0) {
+      this.#renderBlocked(blocked, attrs);
+      return;
+    }
+    this.#reportedBlocked.clear();
+
     const xml = extractXml(this.#xmlContent, this);
 
     if (!xml) {
@@ -189,8 +201,6 @@ export class SkamRendererElement extends BaseElement {
 
     try {
       const doc = parse(xml);
-      const attrs = this.#getAttributeValues();
-      const { options, invalid } = buildRenderOptions(attrs);
       const { html, css } = render(doc, options);
 
       // 検証を通った値だけから prefix を決める
@@ -238,6 +248,38 @@ export class SkamRendererElement extends BaseElement {
       this.dispatchEvent(
         new CustomEvent('skam-error', {
           detail: { error, recoverable: true, attribute },
+          bubbles: true,
+          composed: true,
+        })
+      );
+    }
+  }
+
+  /**
+   * 隠す属性が不正なとき、描いた内容を消してメッセージだけを出す。
+   * 同じ属性の同じ値では再通知しない (#reportInvalid と同じ理由)。
+   * detail には属性の生の値を入れない。値は 64 文字に切り詰めてメッセージに含まれる。
+   */
+  #renderBlocked(blocked: InvalidAttribute[], attrs: AttributeValues): void {
+    const names = new Set(blocked.map((b) => b.attribute));
+    for (const name of this.#reportedBlocked.keys()) {
+      if (!names.has(name)) this.#reportedBlocked.delete(name);
+    }
+
+    this.#contentDiv.innerHTML = '';
+    const alert = document.createElement('div');
+    alert.setAttribute('role', 'alert');
+    alert.textContent = blocked.map((b) => b.error.message).join('\n');
+    this.#contentDiv.appendChild(alert);
+
+    for (const { attribute, error } of blocked) {
+      const value =
+        (attrs as unknown as Record<string, string | null | undefined>)[attribute] ?? '';
+      if (this.#reportedBlocked.get(attribute) === value) continue;
+      this.#reportedBlocked.set(attribute, value);
+      this.dispatchEvent(
+        new CustomEvent('skam-error', {
+          detail: { error, recoverable: false, attribute },
           bubbles: true,
           composed: true,
         })

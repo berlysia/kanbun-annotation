@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { SkamRendererElement } from '../skam-renderer.js';
+import { extractXmlFromScriptElement } from '../index.js';
 
 if (!customElements.get('skam-renderer')) {
   customElements.define('skam-renderer', SkamRendererElement);
@@ -72,5 +73,161 @@ describe('attribute validation (K4, K5)', () => {
     el.setAttribute('display-lang', 'zh-Hant');
     await vi.waitFor(() => expect(renders).toHaveLength(2));
     expect(el.shadowRoot!.querySelector('.skam-display')?.getAttribute('lang')).toBe('zh-Hant');
+  });
+});
+
+const XML_OKURI =
+  '<skam:doc xmlns:skam="urn:skam:1"><skam:body><skam:block><skam:kun okuri="ク">習</skam:kun></skam:block></skam:body></skam:doc>';
+
+function mountWithXml(attrs: Record<string, string>, xml: string) {
+  const el = document.createElement('skam-renderer') as SkamRendererElement;
+  for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+  const errors: CustomEvent[] = [];
+  const renders: CustomEvent[] = [];
+  el.addEventListener('skam-error', (e) => errors.push(e as CustomEvent));
+  el.addEventListener('skam-render', (e) => renders.push(e as CustomEvent));
+  el.textContent = xml;
+  document.body.append(el);
+  return { el, errors, renders };
+}
+
+const content = (el: HTMLElement) => el.shadowRoot!.getElementById('content')!;
+
+describe('writing-mode / copyable notifications (K5)', () => {
+  it('renders vertically and reports writing-mode once', async () => {
+    const { el, errors, renders } = mount({ 'writing-mode': 'diagonal' });
+    await vi.waitFor(() => expect(renders).toHaveLength(1));
+    expect(el.shadowRoot!.querySelector('.skam-document')?.getAttribute('data-writing-mode')).toBe(
+      'vertical'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0]!.detail).toMatchObject({ recoverable: true, attribute: 'writing-mode' });
+    el.textContent = XML.replace('甲', '乙');
+    await vi.waitFor(() => expect(renders).toHaveLength(2));
+    expect(errors).toHaveLength(1);
+  });
+
+  it('renders the valid copyable names and reports an unknown one', async () => {
+    const { el, errors, renders } = mount({ copyable: 'ruby unknown' });
+    await vi.waitFor(() => expect(renders).toHaveLength(1));
+    expect(el.shadowRoot!.querySelector('.skam-document')?.getAttribute('data-copyable')).toBe(
+      'ruby'
+    );
+    expect(errors).toHaveLength(1);
+    expect(errors[0]!.detail).toMatchObject({ recoverable: true, attribute: 'copyable' });
+  });
+});
+
+describe('fail closed attributes (K5)', () => {
+  it('renders with a preset name', async () => {
+    const { el, errors, renders } = mountWithXml({ profile: 'learningBasic' }, XML_OKURI);
+    await vi.waitFor(() => expect(renders).toHaveLength(1));
+    expect(errors).toHaveLength(0);
+    expect(content(el).innerHTML).not.toContain('ク');
+  });
+
+  it('renders with the base form', async () => {
+    const { el, renders } = mountWithXml(
+      { profile: '{"base":"learningBasic","overrides":{"okurigana":true}}' },
+      XML_OKURI
+    );
+    await vi.waitFor(() => expect(renders).toHaveLength(1));
+    expect(content(el).innerHTML).toContain('ク');
+  });
+
+  it.each([
+    '{"okuriganaa":false}',
+    '{"okurigana":"false"}',
+    '{bad json',
+    'unknownPreset',
+    'constructor',
+    '__proto__',
+    'null',
+    '[]',
+    '123',
+    '',
+    '{"__proto__":{"okurigana":false}}',
+  ])('shows an alert only and reports non-recoverable for profile=%j', async (value) => {
+    const { el, errors, renders } = mountWithXml({ profile: value }, XML_OKURI);
+    await vi.waitFor(() => expect(errors).toHaveLength(1));
+    expect(renders).toHaveLength(0);
+    expect(errors[0]!.detail).toMatchObject({ recoverable: false, attribute: 'profile' });
+    expect(content(el).children).toHaveLength(1);
+    expect(content(el).querySelectorAll('[role="alert"]')).toHaveLength(1);
+    expect(el.shadowRoot!.querySelector('.skam-document')).toBeNull();
+  });
+
+  it('does not re-notify the same invalid profile on re-render', async () => {
+    const { el, errors } = mountWithXml({ profile: '{"okuriganaa":false}' }, XML_OKURI);
+    await vi.waitFor(() => expect(errors).toHaveLength(1));
+    el.setAttribute('class-prefix', 'x');
+    el.textContent = XML_OKURI.replace('習', '学');
+    await new Promise((r) => setTimeout(r, 50));
+    expect(errors).toHaveLength(1);
+    expect(content(el).querySelectorAll('[role="alert"]')).toHaveLength(1);
+  });
+
+  it('treats the profile value as text, not markup', async () => {
+    const value = '<img src=x onerror=alert(1)>';
+    const { el, errors } = mountWithXml({ profile: value }, XML_OKURI);
+    await vi.waitFor(() => expect(errors).toHaveLength(1));
+    expect(el.shadowRoot!.querySelector('img')).toBeNull();
+    expect(content(el).querySelector('[role="alert"]')!.textContent).toContain(value);
+    expect(JSON.stringify(errors[0]!.detail)).not.toContain(value);
+  });
+
+  it('renders with the default profile once the attribute is removed', async () => {
+    const { el, errors, renders } = mountWithXml({ profile: 'learningBasic' }, XML_OKURI);
+    await vi.waitFor(() => expect(renders).toHaveLength(1));
+    el.removeAttribute('profile');
+    await vi.waitFor(() => expect(renders).toHaveLength(2));
+    expect(errors).toHaveLength(0);
+    expect(content(el).innerHTML).toContain('ク');
+  });
+
+  it('blocks include-reading-layer="fasle" and recovers when corrected to "false"', async () => {
+    const { el, errors, renders } = mountWithXml({ 'include-reading-layer': 'fasle' }, XML);
+    await vi.waitFor(() => expect(errors).toHaveLength(1));
+    expect(errors[0]!.detail).toMatchObject({
+      recoverable: false,
+      attribute: 'include-reading-layer',
+    });
+    expect(content(el).querySelectorAll('[role="alert"]')).toHaveLength(1);
+    el.setAttribute('include-reading-layer', 'false');
+    await vi.waitFor(() => expect(renders).toHaveLength(1));
+    expect(el.shadowRoot!.querySelector('.skam-reading')).toBeNull();
+    expect(el.shadowRoot!.querySelector('.skam-document')).not.toBeNull();
+  });
+
+  it.each([
+    ['', true],
+    ['true', true],
+    ['false', false],
+  ])('include-reading-layer=%j shows the reading layer: %s', async (value, shown) => {
+    const { el, errors, renders } = mount({ 'include-reading-layer': value });
+    await vi.waitFor(() => expect(renders).toHaveLength(1));
+    expect(errors).toHaveLength(0);
+    expect(el.shadowRoot!.querySelector('.skam-reading') !== null).toBe(shown);
+  });
+
+  it('stays empty while invalid, even if the SKAML changes, and renders after recovery', async () => {
+    const { el, errors, renders } = mountWithXml({ profile: 'learningBasic' }, XML_OKURI);
+    await vi.waitFor(() => expect(renders).toHaveLength(1));
+    el.setAttribute('profile', 'bogus');
+    await vi.waitFor(() => expect(errors).toHaveLength(1));
+    expect(el.shadowRoot!.querySelector('.skam-document')).toBeNull();
+    el.textContent = XML_OKURI.replace('習', '学');
+    await new Promise((r) => setTimeout(r, 50));
+    expect(el.shadowRoot!.querySelector('.skam-document')).toBeNull();
+    expect(renders).toHaveLength(1);
+    el.setAttribute('profile', 'learningBasic');
+    await vi.waitFor(() => expect(renders).toHaveLength(2));
+    expect(el.shadowRoot!.querySelector('.skam-document')).not.toBeNull();
+  });
+});
+
+describe('extractXmlFromScriptElement export (K10)', () => {
+  it('is a function and importing does not register the element', () => {
+    expect(typeof extractXmlFromScriptElement).toBe('function');
   });
 });

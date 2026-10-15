@@ -2,7 +2,7 @@
 
 公開 6 パッケージ (`@kanbun-skam/skam`、`skam-canvas-renderer`、`skam-html-renderer`、`skam-xml-parser`、`skam-xml-stringify`、`skam-web-component`) の公開は、`v*` tag の push から始まる。`release.yml` が 6 つの tarball を検査して stage し、メンテナが 2FA で approve すると公開される。判断の背景は [ADR-029](decisions/adr-029-staged-release-flow.md) にある。
 
-この文書の手順のうち、npm の trust と stage の画面出力 (`npm trust list`、`npm stage list` / `view` / `download` の書式) は、手元で実行して確かめていない。コマンドと引数は `npm help trust` / `npm help stage` (npm 12.2.0) に載っているものだけを書いた。出力の書式が違った場合は、その場で読み替えず、期待値との差を ADR-029 の「最初のリリースで確かめること」の「結果」の欄に書く。
+この文書の手順のうち、npm の stage の画面出力 (`npm stage list` / `view` / `download` の書式) は、手元で実行して確かめていない (`npm trust list --json` の出力は 2026-10-15 の移行で確かめた)。コマンドと引数は `npm help trust` / `npm help stage` (npm 12.2.0) に載っているものだけを書いた。出力の書式が違った場合は、その場で読み替えず、期待値との差を ADR-029 の「最初のリリースで確かめること」の「結果」の欄に書く。
 
 ## 手元の前提
 
@@ -15,7 +15,7 @@
 
 `release.yml` を含む PR の merge より前に、次の 1〜5 を順序どおり行う。各手順の直後の読み戻しが期待どおりになるまで、次に進まない。**5 つの読み戻しがすべて期待どおりになるまで、PR を merge しない。**
 
-旧経路 (`NPM_TOKEN` の workflow) は plan-1 で撤去済みで、戻る先はない。そのため、shiori の手順にある「旧 trust を残してリハーサルし、最後に revoke する」順序は採らない。リハーサルもしない。
+旧経路の workflow (`publish.yml`) は plan-1 で撤去済みで、`NPM_TOKEN` もない。旧 `publish.yml` 用の trust は npm 側に残っていたので、手順 3a で消す。リハーサルはしないので、shiori の手順にある「旧 trust を残してリハーサルし、最後に revoke する」順序は採らない。
 
 ### 1. environment `npm` を作り、deployment を tag `v*` に限る
 
@@ -57,7 +57,7 @@ gh api repos/berlysia/kanbun-annotation/rulesets --jq '.[] | {name, target, enfo
 
 ### 3. 6 パッケージに trusted publisher を設定する
 
-npm はパッケージごとの設定で、1 パッケージに設定できる trust は 1 件だけである (`npm help trust`)。パッケージが npm に存在している必要があるが、6 つとも 0.1.0 が公開済みである。`--allow-stage-publish` だけを許可し、`--allow-publish` は付けない。最初の 1 回で 2FA を求められる。npm の画面で「次の 5 分間は 2FA を省略する」を選べる。
+npm はパッケージごとの設定である。1 つのパッケージに複数の trust が並びうる (2026-10-15 の移行では、旧 `publish.yml` の trust と新しい `release.yml` の trust が 6 つとも並んでいた)。パッケージが npm に存在している必要があるが、6 つとも 0.1.0 が公開済みである。`--allow-stage-publish` だけを許可し、`--allow-publish` は付けない。`npm trust github` / `list` / `revoke` はどれも 2FA を求める (`list` のような読み取りでも)。最初の 1 回で認証の画面が開くので、「次の 5 分間は 2FA を省略する」を選ぶと、続くコマンドを入力なしで流せる。
 
 読み手がそのまま実行と照合できるように、1 行ずつ並べる。
 
@@ -73,28 +73,42 @@ npm trust github @kanbun-skam/skam-web-component --file release.yml --repo berly
 読み戻し:
 
 ```bash
-npm trust list @kanbun-skam/skam
-npm trust list @kanbun-skam/skam-canvas-renderer
-npm trust list @kanbun-skam/skam-html-renderer
-npm trust list @kanbun-skam/skam-xml-parser
-npm trust list @kanbun-skam/skam-xml-stringify
-npm trust list @kanbun-skam/skam-web-component
+for p in skam skam-canvas-renderer skam-html-renderer skam-xml-parser skam-xml-stringify skam-web-component; do echo "== $p"; npm trust list "@kanbun-skam/$p" --json; done
 ```
 
-期待: 6 つとも、同じ条件 (workflow file が `release.yml`、repository が `berlysia/kanbun-annotation`、environment が `npm`、許可が stage publish のみ) を 1 件だけ返す。出力の書式は未確認なので、条件の読み取りに迷ったら `--json` を付ける (`npm trust list` の flag として `npm help trust` に載っている)。
+期待: 6 つとも、次の 1 件だけを返す。
 
-間違えて設定したものは `npm trust revoke <name> --id <trust-id>` で消し (id は `npm trust list` が示す)、設定し直す。5 つだけ設定済みの状態で tag を打つと、5 つだけが stage される (ADR-029 の R1)。6 つそろうまで merge しない。
+```json
+{
+  "type": "github",
+  "file": "release.yml",
+  "repository": "berlysia/kanbun-annotation",
+  "environment": "npm",
+  "permissions": ["createStagedPackage"]
+}
+```
+
+`file` が `release.yml` 以外の trust、`environment` のない trust、`permissions` に `createPackage` を含む trust が残っていれば、手順 3a で消す。間違えて設定したものも同じく消して、設定し直す。5 つだけ設定済みの状態で tag を打つと、5 つだけが stage される (ADR-029 の R1)。6 つそろうまで merge しない。
+
+### 3a. 旧経路の trust を消す
+
+旧 `publish.yml` 用の trust (`createPackage` を持ち、environment の縛りがない) は、承認を経ずに直接公開できる経路である。workflow のファイルを消しても、書き込み権限者が `publish.yml` という名前の workflow をどのブランチにでも置けば使える。"disallow tokens" (手順 5) は token を止める設定で、OIDC による公開は止めない。手順 3 の読み戻しで見つけた id を使って、6 つとも消す。
+
+```bash
+npm trust revoke @kanbun-skam/<name> --id <手順 3 の出力の id>
+```
+
+消した後に手順 3 の読み戻しを再実行し、6 つとも `release.yml` の 1 件だけになっていることを確かめる。2026-10-15 の移行では、6 パッケージの `publish.yml` の trust をこの手順で消した。
 
 ### 4. 残っている token がないことを確かめる
 
 ```bash
-gh secret list
-gh secret list --env npm
-gh secret list --env github-pages
-gh secret list --app dependabot
+gh secret list; gh secret list --env npm; gh secret list --env github-pages; gh secret list --app dependabot
 ```
 
-期待: `NPM_TOKEN` がどこにもない (出力が空、または `NPM_TOKEN` 以外だけ)。調査 (2026-10-15) では、リポジトリ単位の `gh secret list` は空で、environment は `github-pages` だけだった。リポジトリの所有者は個人なので、organization の secret はない。
+フラグを変数に入れてループで回すと、zsh は変数を空白で分割しないので `--env npm` が 1 つの引数になって失敗する。上のように 1 つずつ書く。
+
+期待: `NPM_TOKEN` がどこにもない (4 つとも `no secrets found`、または `NPM_TOKEN` 以外だけ)。2026-10-15 の移行では 4 つとも `no secrets found` だった。リポジトリの所有者は個人なので、organization の secret はない。
 
 npm 側は、npmjs.com の「Access Tokens」画面で、これらのパッケージに publish できる granular token がないことを目で確かめる。あれば削除する。
 
@@ -106,7 +120,7 @@ npmjs.com の各パッケージの Settings → Publishing access で、6 つと
 
 ### 移行の完了条件
 
-手順 1〜5 の読み戻しがすべて期待どおり。1 つでも外れたら、PR を merge しない。
+手順 1〜5 (3a を含む) の読み戻しがすべて期待どおり。1 つでも外れたら、PR を merge しない。
 
 merge から最初の tag (v0.2.0) までの間に、`v*` tag を打たない。0.1.0 に遡って tag は付けない (0.1.0 は workflow の外から公開されたもので、対応する commit を特定していない)。
 

@@ -16,7 +16,7 @@ plan: plan-staged-release-flow.md
 
 - 6 パッケージは changesets の `fixed` で版がそろっていて、どれも 0.1.1 (npm には 0.1.0 だけ)。private の 4 パッケージは `ignore`。
 - 版上げは `workflow_dispatch` の release.yml (changesets/action が version PR を作る)、公開は別の `workflow_dispatch` の publish.yml (`changeset publish`、`NPM_TOKEN`)。公開する job の中で install と build をするので、検査を通った tarball との対応がない。
-- リポジトリ単位の `gh secret list` は空で、environment は `github-pages` だけ。rulesets は空。`NPM_TOKEN` は存在しない可能性が高い。0.1.0 の公開時刻は、残っている Publish run より前で、workflow の外から公開された可能性が高い (run のログは取得できず、推測)。
+- リポジトリ単位の `gh secret list` は空で、environment は `github-pages` だけ。rulesets は空。`NPM_TOKEN` は存在しない可能性が高い。npm 側の trust は、調査の時点では確かめられなかった (`npm trust list` が未ログインで 401)。移行の作業で、旧 `publish.yml` 用の trust が 6 つとも残っていたと分かった (「移行で見つかったこと」)。0.1.0 の公開時刻は、残っている Publish run より前で、workflow の外から公開された可能性が高い (run のログは取得できず、推測)。
 - 0.1.0 に provenance はない (`dist.attestations` が空)。git tag は 1 つもない。
 - actions は tag 指定で、workflow の静的検査はない (zizmor 1.30.1 の手元の計測で 55 件)。
 - 手順書も決定の記録もない。ADR-028 に「公開は人間が workflow を起動して行う。本 ADR の範囲外」とある。
@@ -54,7 +54,7 @@ changesets/action の version PR は残し、publish.yml だけを「tarball を
 
 ハイブリッド。**起点・公開経路・CI の形は白紙案 (= shiori) に合わせ、版と CHANGELOG の生成だけ changesets を残す。** bumpp が担う役割 (検査 → 版上げ → 検査 → commit → tag → push を 1 コマンドで) は、`changeset version` を呼ぶ自前の `scripts/release.ts` が担う。
 
-理由: 0.2.0 の CHANGELOG の本文は未消費の changeset にあり、`check-version-bump.mjs` がそれを前提に 6 つの CHANGELOG を検査する。changesets を残せば、この検査と ADR-028 の移行表の配置がそのまま有効である。起点を tag にする理由は ADR-036 と同じ (公開物 = 検査を通った tarball、OIDC token を持つ job で第三者コードを動かさない)。このリポジトリには戻る先の旧経路がなく (`NPM_TOKEN` も trust もない)、併存期間を設ける理由もない。
+理由: 0.2.0 の CHANGELOG の本文は未消費の changeset にあり、`check-version-bump.mjs` がそれを前提に 6 つの CHANGELOG を検査する。changesets を残せば、この検査と ADR-028 の移行表の配置がそのまま有効である。起点を tag にする理由は ADR-036 と同じ (公開物 = 検査を通った tarball、OIDC token を持つ job で第三者コードを動かさない)。このリポジトリには戻る先の旧経路がなく (`NPM_TOKEN` も workflow もない。旧 trust は残っていたが、動く workflow がないので戻る先にならない)、併存期間を設ける理由もない。
 
 利用者の決定 (2026-10-15): changesets を残す、リハーサルは含めない、GitHub Release は添付なしで作る、既存の CI は SHA 固定 + 権限 + pnpm の setup まで寄せる。
 
@@ -100,7 +100,7 @@ dist-tag は version に `-` を含めば `next`、そうでなければ `latest
 
 ### K7: 移行順序
 
-人間の作業 (environment と tag ruleset の作成、6 パッケージへの `npm trust github`、`NPM_TOKEN` の不在の確認、Publishing access の変更) を、release.yml を含む PR の merge より前に済ませ、読み戻しですべて確かめる。手順と期待値は releasing.md にある。shiori の「旧 trust を残してリハーサルし、最後に revoke する」順序は、旧経路がないので採らない。npm は 1 パッケージに 1 件の trust しか設定できない (`npm help trust`) ので、設定の誤りは revoke してから設定し直す。
+人間の作業 (environment と tag ruleset の作成、6 パッケージへの `npm trust github`、`NPM_TOKEN` の不在の確認、Publishing access の変更) を、release.yml を含む PR の merge より前に済ませ、読み戻しですべて確かめる。手順と期待値は releasing.md にある。shiori の「旧 trust を残してリハーサルし、最後に revoke する」順序は、リハーサルをしないので採らず、旧 trust は merge の前に revoke する。1 つのパッケージに trust は複数並びうる (当初は `npm help trust` から 1 件だけと読んだが、実際には旧と新の 2 件が並んだ) ので、読み戻しでは `release.yml` の 1 件だけが残っていることを確かめる。
 
 ### K8: リハーサルはしない。受入基準と中止条件を決めておく
 
@@ -166,6 +166,7 @@ approve は stage id ごと。manifest の順 (依存の根から) に、続け�
 | 古い版での `latest` の巻き戻し、同じ版の二重公開                              | registry の検査 (K2 e、release.ts と validate)、`concurrency`                                                                                                    | なし                                                       |
 | action の供給網                                                               | SHA 固定 + zizmor (online audits)、Renovate の digest 更新は人間が merge                                                                                         | zizmor が required check でないこと (A5)                   |
 | 残っている token による直接公開                                               | `NPM_TOKEN` の不在の確認、"disallow tokens" (K7)                                                                                                                 | 2FA を使う手元からの publish (メンテナ本人の操作)          |
+| 残っている旧 trust による OIDC の直接公開                                     | 旧 `publish.yml` の trust の revoke と、`release.yml` の 1 件だけが残る読み戻し (releasing.md の手順 3a)、リリースのたびの `npm trust list` の再確認             | なし                                                       |
 
 npm-stage は repo を持たないので、manifest の `name` が公開 6 パッケージであることは照合しない。その信頼の根は、validate の `verify-manifest` (一覧の正本と照合する) である。
 
@@ -215,7 +216,13 @@ npm-stage は repo を持たないので、manifest の `name` が公開 6 パ�
 
 - **R1: 同じ版の二重 stage、reject 後の再 stage の挙動。** `npm help stage` は、stage 済みの版が公開済みの版と同じ semver の一意性を共有すると書くが、reject した版を同じ版で stage し直せるかは書いていない。F2 は「再 stage できなければ F3」と分岐を持つ。
 - **R3: staged + trusted publishing で provenance が付くか。** npm の docs に記載がない。このリポジトリは public なので、approve の後に `npm view @kanbun-skam/<name>@X.Y.Z dist.attestations` で確かめる。付かなくても公開の正否には影響しない。
-- 手順書に書いた `npm trust list` / `npm stage list` / `view` / `download` の出力の書式。コマンドと引数は `npm help` (npm 12.2.0) で確かめたが、出力は実行していない。
+- 手順書に書いた `npm stage list` / `view` / `download` の出力の書式。コマンドと引数は `npm help` (npm 12.2.0) で確かめたが、出力は実行していない (`npm trust list --json` の出力は移行で確かめた)。
+
+### 移行で見つかったこと (2026-10-15)
+
+- environment `npm` (tag `v*` のみ、required reviewer なし) と tag ruleset `release tags` (active) を作り、読み戻しで確かめた。repo / environment / dependabot の secret は 4 つとも空だった。
+- 6 パッケージとも、新しい trust (`release.yml`、environment `npm`、`createStagedPackage` のみ) に加えて、**旧 `publish.yml` 用の trust (`createPackage` と `createStagedPackage`、environment なし) が残っていた。** 承認を経ずに直接公開できる経路で、`publish.yml` の workflow を消しても、書き込み権限者が同じ名前の workflow を置けば使える。"disallow tokens" は OIDC を止めない。6 つとも `npm trust revoke` で消し、読み戻しで `release.yml` の 1 件だけになったことを確かめた。
+- `npm trust list` は読み取りでも 2FA を求める (自動の実行では `EOTP` で止まる)。読み戻しはメンテナが手元で行う。
 - `pnpm/action-setup` と `actions/setup-node` の `lts/*` (Node 24 系) での CI の結果は、PR の CI で確かめる。
 
 ### 結果 (0.2.0 の公開の後に追記する)

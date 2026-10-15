@@ -117,11 +117,12 @@ const { html, css } = render(doc); // 縦書き（デフォルト）
 
 ## 仕様書
 
-| ドキュメント                                        | 説明                                            |
-| --------------------------------------------------- | ----------------------------------------------- |
-| [SKAM-draft.md](./SKAM-draft.md)                    | SKAM v0.1 仕様（JSON 形式）                     |
-| [SKAM-ML-draft.md](./SKAM-ML-draft.md)              | SKAM-ML/XML v0.1 仕様（人間編集用マークアップ） |
-| [Baseline Report](./docs/baseline-compatibility.md) | Web Platform Baseline 互換性チェック結果        |
+| ドキュメント                                         | 説明                                            |
+| ---------------------------------------------------- | ----------------------------------------------- |
+| [SKAM-draft.md](./SKAM-draft.md)                     | SKAM v0.1 仕様（JSON 形式）                     |
+| [SKAM-ML-draft.md](./SKAM-ML-draft.md)               | SKAM-ML/XML v0.1 仕様（人間編集用マークアップ） |
+| [Baseline Report](./docs/baseline-compatibility.md)  | Web Platform Baseline 互換性チェック結果        |
+| [移行表 (0.1 → 0.2)](./docs/migration-0.1-to-0.2.md) | 0.1.x からの変更の旧挙動・新挙動・回避策        |
 
 ## SKAM v0.1 概要
 

@@ -2,7 +2,16 @@
   "$schema": "https://unpkg.com/@changesets/config@3.1.2/schema.json",
   "changelog": "@changesets/cli/changelog",
   "commit": false,
-  "fixed": [],
+  "fixed": [
+    [
+      "@kanbun-skam/skam",
+      "@kanbun-skam/skam-xml-parser",
+      "@kanbun-skam/skam-xml-stringify",
+      "@kanbun-skam/skam-html-renderer",
+      "@kanbun-skam/skam-canvas-renderer",
+      "@kanbun-skam/skam-web-component"
+    ]
+  ],
   "linked": [],
   "access": "public",
   "baseBranch": "master",

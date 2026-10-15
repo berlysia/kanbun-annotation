@@ -7,8 +7,6 @@ const config: KnipConfig = {
       project: ['scripts/**/*.ts'],
       // used only from *.test.ts, which knip ignores
       ignore: ['scripts/lib/test-workspace.ts'],
-      // imported only from scripts/workflow-structure.test.ts, and knip ignores **/*.test.ts (see `ignore` below)
-      ignoreDependencies: ['yaml'],
       vitest: false,
     },
     'packages/skam': {

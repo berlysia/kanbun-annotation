@@ -4,4 +4,10 @@
  * SKAMドキュメントのXML形式シリアライズ
  */
 
-export { stringify, type StringifyOptions } from './stringify.js';
+export {
+  stringify,
+  SKAM_ML_CONTENT_MODEL,
+  SKAM_ML_NESTING_ORDER,
+  type StringifyOptions,
+} from './stringify.js';
+export { SKAMXMLStringifyError, type StringifyLoss, type StringifyLossCode } from './losses.js';

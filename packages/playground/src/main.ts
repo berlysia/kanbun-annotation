@@ -3,7 +3,8 @@
  */
 
 import { parse, SKAMXMLParseError } from '@kanbun-skam/skam-xml-parser';
-import { stringify } from '@kanbun-skam/skam-xml-stringify';
+import { stringify, SKAMXMLStringifyError } from '@kanbun-skam/skam-xml-stringify';
+import { formatStringifyLosses } from './stringify-losses.js';
 import {
   render,
   attachInteractiveHandlers,
@@ -2089,7 +2090,17 @@ function downloadXml(): void {
  * @param doc The updated SKAMDocument
  */
 function updateXmlFromDocument(doc: SKAMDocument): void {
-  const xml = stringify(doc);
+  let xml: string;
+  try {
+    xml = stringify(doc);
+  } catch (e) {
+    if (e instanceof SKAMXMLStringifyError) {
+      // Keep the GUI-side document and leave the XML editor untouched instead of dropping marks silently.
+      showErrors(formatStringifyLosses(e.losses));
+      return;
+    }
+    throw e;
+  }
   xmlEditor.setValue(xml);
   // onContentChange → parseAndRender will be triggered automatically
   // Selection is restored via position-based tracking in parseAndRender

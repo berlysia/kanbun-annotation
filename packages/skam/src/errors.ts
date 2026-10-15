@@ -14,7 +14,16 @@ export type ValidationErrorKind =
   | 'INVALID_POSITION'
   | 'UNKNOWN_TOKEN_REF'
   | 'INVALID_VALUE'
-  | 'MARK_CONFLICT';
+  | 'MARK_CONFLICT'
+  | 'BLOCK_START_KAERI';
+
+/**
+ * ブロック先頭の返り点に対する案内文。
+ * 返り点は直前の字に付く (anchor ベース) ため、ブロック先頭には置けない。
+ * parser と validator が同じ文言で利用者を誘導する。
+ */
+export const BLOCK_START_KAERI_HINT =
+  'ブロックは段落・文の単位です。表示上の改行のためにブロックを分けた場合は、ブロックを分けずに自動折り返しに任せてください。分けたままにする場合は、返り点を前のブロックの最後の字の後に置いてください。明示的な改行の手段は今後追加する予定です。';
 
 /** 検証エラー */
 export interface ValidationError {

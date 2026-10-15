@@ -65,8 +65,8 @@ describe('stringify - basic', () => {
 
     const xml = stringify(doc, { indent: 4 });
 
-    expect(xml).toContain('    <skam:meta>');
-    expect(xml).toContain('        <skam:tokenize');
+    expect(xml).toContain('    <skam:meta tokenization="char"/>');
+    expect(xml).toContain('    <skam:body>');
   });
 });
 

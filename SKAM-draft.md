@@ -93,7 +93,7 @@ SKAM は JSON 形式で表現される。
 
 ### 4.2 規則
 
-- `id` は**必須**であり、一意でなければならない
+- `id` は**必須**であり、文書全体（blocks・tokens・marks）で一意でなければならない（MUST）
 - `tokenIds` は順序付きの token ID 配列。ブロック内の原文順を表す
 - 全 token は**ちょうど1つの block**に属しなければならない（MUST）
 - 1つの token が複数の block に属してはならない
@@ -124,8 +124,8 @@ SKAM は JSON 形式で表現される。
 
 ### 5.2 規則
 
-- `id` は**必須**であり、一意でなければならない
-- `text` は UTF-8 文字列
+- `id` は**必須**であり、文書全体（blocks・tokens・marks）で一意でなければならない（MUST）
+- `text` は UTF-8 文字列。空文字列にしてはならない（MUST）
 - token 分割規則（1字/熟語等）は SKAM 仕様外とする
   - **推奨：字単位**（訓点・返り点の指示と一致するため）
 - `ext` は拡張フィールド（任意、round-trip 保持推奨）
@@ -179,6 +179,8 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 | `placementHint` | 任意                | 表示上の弱いヒント（解釈不能でも問題としない）                        |
 | `ext`           | 任意                | 拡張フィールド（round-trip 保持推奨）                                 |
 
+`id` を指定する場合は、文書全体（blocks・tokens・marks）で一意でなければならない（MUST）。
+
 #### 同一 anchor を持つ marks の順序
 
 同一の `anchor` を持つ複数の mark が存在する場合、`marks` 配列内の**出現順序**がレンダリング順序に影響する可能性がある。
@@ -191,6 +193,14 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 4. その他
 
 ※ 順序に依存しない実装を推奨するが、round-trip の安定性のため上記順序を推奨。
+
+#### 同じ種類の注記の重複
+
+次の 6 種類は、同じ anchor（`from` と `to` が両方とも一致するもの）に同じ種類を 2 つ以上置いてはならない（MUST）。違反は `MARK_CONFLICT` とする。
+
+- `yomigana` / `okurigana` / `soegana` / `okimoji` / `joji` / `saidoku`
+
+`okototen` / `emphasis` / `highlight` / `tateten` は、重複してよい。
 
 #### placementHint の値例
 
@@ -246,7 +256,7 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 
 ### 6.4 Position（位置指定）
 
-トークン間の位置を指定する。**position ベースの Mark（kutoten, ref）が使用**する。
+トークン間の位置を指定する。**position ベースの Mark（kaeri, kutoten, ref）が使用**する。
 
 #### 構造
 
@@ -277,7 +287,7 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 - `blockId` は必須であり、存在する block の ID を参照しなければならない（MUST）
 - `after` を指定する場合、参照する token ID が存在しなければならない（MUST）
 - `after` で参照する token は、`blockId` で指定された block に属していなければならない（MUST）
-- `after` は省略可能。省略時はブロック先頭への配置を意味する
+- `after` は省略可能。省略時はブロック先頭への配置を意味する。ただし **kaeri の position には `after` が必須**であり、ブロック先頭に返り点を置いてはならない（MUST NOT）。kutoten と ref は従来どおりブロック先頭に置いてよい。Position 型そのものは変えない
 
 #### 用例
 
@@ -383,6 +393,8 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 ```
 
 #### forms 配列
+
+`forms` は 1 つ以上の要素を持たなければならない（MUST）。
 
 | フィールド | 必須 | 説明                     |
 | ---------- | ---- | ------------------------ |
@@ -1161,3 +1173,16 @@ SKAM データは常に完全な情報を保持し、用途に応じた情報の
 ```
 
 ※ 両方とも「(イ)」と表示される
+
+---
+
+## 変更履歴
+
+### v0.1 改訂（2026-10）
+
+- ID は文書全体（blocks・tokens・marks）で一意でなければならない（§4.2 / §5.2 / §6.1）
+- token の `text` は空にしてはならない（§5.2）
+- saidoku の `forms` は 1 つ以上なければならない（§6.7）
+- §6.1: 同じ anchor に同じ種類の注記（yomigana / okurigana / soegana / okimoji / joji / saidoku）を 2 つ以上置くことを禁じた（`MARK_CONFLICT`）
+- 互換性の注意: 0.1.x の SKAM-ML parser は、字を包む要素の中の kun と、入れ子になった包む要素を黙って捨てる。内容モデルは SKAM-ML-draft §7.0 で定めた
+- kaeri の position には `after` が必須とした。ブロック先頭への kaeri は不正（`BLOCK_START_KAERI`）。kutoten と ref は従来どおり先頭に置ける。Position 型は変えない（§6.4）

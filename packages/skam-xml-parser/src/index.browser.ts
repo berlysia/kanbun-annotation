@@ -5,13 +5,16 @@
  */
 
 import type { SKAMDocument } from '@kanbun-skam/skam';
-import { parseFromDocument, SKAMXMLParseError, type ParseOptions } from './parser-core.js';
+import { parseWith, SKAMXMLParseError, type ParseOptions } from './parser-core.js';
 import { parseXML } from './xml-parser.browser.js';
 
 export type { SKAMDocument } from '@kanbun-skam/skam';
+export { SKAMValidationError } from '@kanbun-skam/skam';
 export {
+  SKAM_ML_CONTENT_MODEL,
   SKAMXMLParseError,
   type ParseOptions,
+  type ParseWarning,
   type PositionInfo,
   type TokenPosition,
 } from './parser-core.js';
@@ -24,6 +27,5 @@ export {
  * @throws SKAMXMLParseError if parsing fails
  */
 export function parse(xml: string, options: ParseOptions = {}): SKAMDocument {
-  const doc = parseXML(xml);
-  return parseFromDocument(doc, options, xml);
+  return parseWith(parseXML, xml, options);
 }

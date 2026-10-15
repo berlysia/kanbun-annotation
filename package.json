@@ -32,6 +32,10 @@
     "changeset": "changeset",
     "changeset:version": "changeset version",
     "screenshot": "turbo build --filter=@kanbun-skam/skam-screenshot && node packages/skam-screenshot/dist/cli.js",
+    "typecheck:scripts": "tsgo -p scripts/tsconfig.json",
+    "test:scripts": "node --test \"scripts/**/*.test.ts\"",
+    "verify": "pnpm build && pnpm typecheck && pnpm typecheck:scripts && pnpm lint && pnpm format:check && pnpm test:run && pnpm test:scripts && pnpm clean && pnpm test:consumer",
+    "release": "pnpm verify && node scripts/release.ts",
     "adr:status": "node scripts/adr-status.ts",
     "adr:deps": "node scripts/adr-deps.ts",
     "prepare": "husky"

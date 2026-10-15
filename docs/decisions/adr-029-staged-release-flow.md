@@ -165,7 +165,7 @@ approve は stage id ごと。manifest の順 (依存の根から) に、続け�
 | upload から download の間の artifact の改ざん                                 | npm-stage の照合は取得時の欠落・破損を検出するだけで、tgz と manifest は同じ artifact にあるので、両方を書き換えられれば通る。真正性の最終確認は K8 の人間の照合 | Step Summary 自体は validate の job が書く                 |
 | 古い版での `latest` の巻き戻し、同じ版の二重公開                              | registry の検査 (K2 e、release.ts と validate)、`concurrency`                                                                                                    | なし                                                       |
 | action の供給網                                                               | SHA 固定 + zizmor (online audits)、Renovate の digest 更新は人間が merge                                                                                         | zizmor が required check でないこと (A5)                   |
-| 残っている token による直接公開                                               | `NPM_TOKEN` の不在の確認、"disallow tokens" (K7)                                                                                                                 | 2FA を使う手元からの publish (メンテナ本人の操作)          |
+| 残っている token による直接公開                                               | `NPM_TOKEN` の不在の確認、2FA 必須・token 禁止 (K7)                                                                                                              | 2FA を使う手元からの publish (メンテナ本人の操作)          |
 | 残っている旧 trust による OIDC の直接公開                                     | 旧 `publish.yml` の trust の revoke と、`release.yml` の 1 件だけが残る読み戻し (releasing.md の手順 3a)、リリースのたびの `npm trust list` の再確認             | なし                                                       |
 
 npm-stage は repo を持たないので、manifest の `name` が公開 6 パッケージであることは照合しない。その信頼の根は、validate の `verify-manifest` (一覧の正本と照合する) である。
@@ -221,7 +221,8 @@ npm-stage は repo を持たないので、manifest の `name` が公開 6 パ�
 ### 移行で見つかったこと (2026-10-15)
 
 - environment `npm` (tag `v*` のみ、required reviewer なし) と tag ruleset `release tags` (active) を作り、読み戻しで確かめた。repo / environment / dependabot の secret は 4 つとも空だった。
-- 6 パッケージとも、新しい trust (`release.yml`、environment `npm`、`createStagedPackage` のみ) に加えて、**旧 `publish.yml` 用の trust (`createPackage` と `createStagedPackage`、environment なし) が残っていた。** 承認を経ずに直接公開できる経路で、`publish.yml` の workflow を消しても、書き込み権限者が同じ名前の workflow を置けば使える。"disallow tokens" は OIDC を止めない。6 つとも `npm trust revoke` で消し、読み戻しで `release.yml` の 1 件だけになったことを確かめた。
+- 6 パッケージとも、新しい trust (`release.yml`、environment `npm`、`createStagedPackage` のみ) に加えて、**旧 `publish.yml` 用の trust (`createPackage` と `createStagedPackage`、environment なし) が残っていた。** 承認を経ずに直接公開できる経路で、`publish.yml` の workflow を消しても、書き込み権限者が同じ名前の workflow を置けば使える。Publishing access の設定 (2FA 必須・token 禁止) は OIDC を止めない。6 つとも `npm trust revoke` で消し、読み戻しで `release.yml` の 1 件だけになったことを確かめた。
+- Publishing access は、移行の時点で 6 つともすでに "Require two-factor authentication and disallow bypass 2fa tokens (recommended)" になっていた。npm の docs の "Require two-factor authentication and disallow tokens" と同じ選択肢で、画面の文言が変わっている。
 - `npm trust list` は読み取りでも 2FA を求める (自動の実行では `EOTP` で止まる)。読み戻しはメンテナが手元で行う。
 - `pnpm/action-setup` と `actions/setup-node` の `lts/*` (Node 24 系) での CI の結果は、PR の CI で確かめる。
 

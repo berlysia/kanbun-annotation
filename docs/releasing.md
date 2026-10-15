@@ -92,7 +92,7 @@ for p in skam skam-canvas-renderer skam-html-renderer skam-xml-parser skam-xml-s
 
 ### 3a. 旧経路の trust を消す
 
-旧 `publish.yml` 用の trust (`createPackage` を持ち、environment の縛りがない) は、承認を経ずに直接公開できる経路である。workflow のファイルを消しても、書き込み権限者が `publish.yml` という名前の workflow をどのブランチにでも置けば使える。"disallow tokens" (手順 5) は token を止める設定で、OIDC による公開は止めない。手順 3 の読み戻しで見つけた id を使って、6 つとも消す。
+旧 `publish.yml` 用の trust (`createPackage` を持ち、environment の縛りがない) は、承認を経ずに直接公開できる経路である。workflow のファイルを消しても、書き込み権限者が `publish.yml` という名前の workflow をどのブランチにでも置けば使える。手順 5 の Publishing access の設定は token を止める設定で、OIDC による公開は止めない。手順 3 の読み戻しで見つけた id を使って、6 つとも消す。
 
 ```bash
 npm trust revoke @kanbun-skam/<name> --id <手順 3 の出力の id>
@@ -112,11 +112,13 @@ gh secret list; gh secret list --env npm; gh secret list --env github-pages; gh 
 
 npm 側は、npmjs.com の「Access Tokens」画面で、これらのパッケージに publish できる granular token がないことを目で確かめる。あれば削除する。
 
-### 5. Publishing access を 6 つとも "Require two-factor authentication and disallow tokens" にする
+### 5. Publishing access を 6 つとも 2FA 必須・bypass 2FA token 禁止にする
 
-npmjs.com の各パッケージの Settings → Publishing access で、6 つとも "Require two-factor authentication and disallow tokens" を選ぶ。手元から 2FA を使った publish はこの設定でも可能で、OIDC が使えないときの最後の手段になる (後述「最後の手段」)。
+npmjs.com の各パッケージの Settings → Publishing access (`https://www.npmjs.com/package/@kanbun-skam/<name>/access`) で、6 つとも "Require two-factor authentication and disallow bypass 2fa tokens (recommended)" を選ぶ。npm の docs と以前の画面では "Require two-factor authentication and disallow tokens" と書かれていた選択肢である。手元から 2FA を使った publish はこの設定でも可能で、OIDC が使えないときの最後の手段になる (後述「最後の手段」)。
 
-読み戻し: 6 つの Settings 画面で、選択が "Require two-factor authentication and disallow tokens" になっている。CLI での読み戻し方法は確かめていない。
+この設定が止めるのは token による公開で、trusted publishing (OIDC) による stage は止めない。npm はこの設定を trusted publishing と組み合わせて勧めている。この組み合わせで stage が通ることは、0.2.0 の最初の run で確かめる。
+
+読み戻し: 6 つの Settings 画面で、上の選択肢が選ばれている。CLI の `npm access set mfa=none|publish|automation` は、どの値がこの選択肢に当たるかが docs で確かめられなかったので使わない。2026-10-15 の移行の時点で、6 つともすでにこの選択肢になっていた。
 
 ### 移行の完了条件
 
@@ -334,7 +336,7 @@ approve の後に確かめること (「approve の後の確認」) の結果と
 
 ## 最後の手段
 
-OIDC が使えないとき (trust の設定が壊れた、OIDC の障害など) は、メンテナが 2FA を使って手元から publish できる。「一度だけの移行」の手順 5 の設定 ("disallow tokens") でも、2FA を使った publish は可能である。ただし、推奨しない。検査済みの tarball と、公開物の対応が切れるためである (validate の manifest と integrity による照合が効かなくなる)。やむを得ず行ったら、公開した版の `dist.integrity` を、手元の tarball から計算した値と照合し、経緯を ADR-029 に追記する。
+OIDC が使えないとき (trust の設定が壊れた、OIDC の障害など) は、メンテナが 2FA を使って手元から publish できる。「一度だけの移行」の手順 5 の設定 (2FA 必須・bypass 2FA token 禁止) でも、2FA を使った publish は可能である。ただし、推奨しない。検査済みの tarball と、公開物の対応が切れるためである (validate の manifest と integrity による照合が効かなくなる)。やむを得ず行ったら、公開した版の `dist.integrity` を、手元の tarball から計算した値と照合し、経緯を ADR-029 に追記する。
 
 ## 制約
 

@@ -675,8 +675,8 @@ describe('Emphasis style rendering variations', () => {
     ]);
     const { html } = render(doc);
     expect(html).toContain('skam-emphasis');
-    // Custom character should be rendered as-is in style attribute
-    expect(html).toContain('text-emphasis-style: ★');
+    // Custom character is emitted as a CSS string literal (lowercase hex escape); the quotes are HTML-escaped
+    expect(html).toContain('text-emphasis-style: &quot;\\2605 &quot;');
   });
 });
 

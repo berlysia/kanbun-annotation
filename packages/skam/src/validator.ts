@@ -19,8 +19,8 @@ import type {
   GlyphGridCoord,
   SaidokuForm,
   RefFormat,
-  HighlightStyle,
 } from './index.js';
+import { HIGHLIGHT_STYLES, isValidHighlightStyle } from './highlight-styles.js';
 import {
   type ValidationError,
   type ValidationResult,
@@ -48,7 +48,6 @@ const VALID_MARK_TYPES: MarkType[] = [
   'ref',
 ];
 
-const VALID_HIGHLIGHT_STYLES: HighlightStyle[] = ['solid', 'dotted', 'dashed', 'wavy', 'double'];
 const VALID_REF_FORMATS: RefFormat[] = [
   'alpha-upper',
   'alpha-lower',
@@ -588,13 +587,13 @@ function validateHighlightMark(
 ): boolean {
   let valid = true;
   if ('style' in mark && mark['style'] !== undefined) {
-    if (!VALID_HIGHLIGHT_STYLES.includes(mark['style'] as HighlightStyle)) {
+    if (!isValidHighlightStyle(mark['style'])) {
       errors.push(
         createValidationError(
           'INVALID_VALUE',
           `${path}.style`,
-          `highlight style must be one of: ${VALID_HIGHLIGHT_STYLES.join(', ')}`,
-          VALID_HIGHLIGHT_STYLES.join('|'),
+          `highlight style must be one of: ${HIGHLIGHT_STYLES.join(', ')}`,
+          HIGHLIGHT_STYLES.join('|'),
           mark['style']
         )
       );

@@ -4,6 +4,18 @@
  * 基盤層: 純粋関数のみ。他の内部モジュール（renderer.ts 等）を参照しない。
  */
 
+import type { SKAMDocument, Token } from '@kanbun-skam/skam';
+import { groupTokensByBlock } from '@kanbun-skam/skam/rendering';
+
+/**
+ * 原文順の token 列。AIR (表示層) と同じ規則で並べる。
+ * blocks が空なら tokens の配列順、存在しない id は飛ばし、どの block にも属さない token は含めない。
+ * @internal
+ */
+export function getSourceOrderedTokens(doc: SKAMDocument): Token[] {
+  return groupTokensByBlock(doc.blocks, doc.tokens).flatMap((g) => g.tokens);
+}
+
 /**
  * HTMLエスケープ
  * @internal

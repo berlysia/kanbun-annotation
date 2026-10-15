@@ -93,6 +93,8 @@ export interface AIRTokenSlots {
   saidokuUnder?: string;
   saidokuOkuri2?: string;
   ref?: string;
+  /** ヲコト点。格子座標は `resolveOkototenCell` で検証済みのもののみ入る */
+  okototen?: { x: number; y: number; cols: number; rows: number; shape: string }[];
 }
 
 /** AIR のトークンノード */

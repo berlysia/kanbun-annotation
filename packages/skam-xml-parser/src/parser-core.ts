@@ -26,7 +26,6 @@ import type {
   TatetenMark,
   GlyphGridCoord,
   HighlightMark,
-  HighlightStyle,
   RefMark,
   RefFormat,
 } from '@kanbun-skam/skam';
@@ -36,6 +35,8 @@ import {
   BLOCK_START_KAERI_HINT,
   validateSKAMDocument,
   SKAMValidationError,
+  HIGHLIGHT_STYLES,
+  isValidHighlightStyle,
 } from '@kanbun-skam/skam';
 import { SKAMXMLParseError, type PositionInfo } from './parse-error.js';
 import { checkInputLimits, DEFAULT_INPUT_LIMITS } from './input-limits.js';
@@ -85,7 +86,6 @@ const KAERI_VALUE_MAP: Record<KaeriKind, string> = {
   jin: KAERI.JIN,
 };
 
-const VALID_HIGHLIGHT_STYLES = ['solid', 'dotted', 'dashed', 'wavy', 'double'] as const;
 const VALID_REF_FORMATS = [
   'alpha-upper',
   'alpha-lower',
@@ -770,12 +770,12 @@ function processSpan(element: Element, state: ParserState): string[] {
     };
 
     if (styleAttr) {
-      if (!VALID_HIGHLIGHT_STYLES.includes(styleAttr as (typeof VALID_HIGHLIGHT_STYLES)[number])) {
+      if (!isValidHighlightStyle(styleAttr)) {
         throw new SKAMXMLParseError(
-          `Invalid highlight style '${styleAttr}'. Valid styles: ${VALID_HIGHLIGHT_STYLES.join(', ')}`
+          `Invalid highlight style '${styleAttr}'. Valid styles: ${HIGHLIGHT_STYLES.join(', ')}`
         );
       }
-      mark.style = styleAttr as HighlightStyle;
+      mark.style = styleAttr;
     }
 
     if (refAttr) {

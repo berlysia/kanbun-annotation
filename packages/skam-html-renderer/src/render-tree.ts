@@ -14,7 +14,9 @@ import type {
 } from './render-tree-types.js';
 import type { RenderProfile, RubyMethod } from './render-config.js';
 import { resolveEmphasisCharacter, canBreakBefore } from '@kanbun-skam/skam/rendering';
+import { HIGHLIGHT_STYLES } from '@kanbun-skam/skam';
 import { escapeHtml, generateEmphasisMarks } from './html-utils.js';
+import { safeCssKeyword, toCssEmphasisValue } from './safe.js';
 import { renderToken } from './token-renderer.js';
 
 /** @internal */
@@ -232,7 +234,7 @@ function wrapInTatetenRuby(
       result = `<ruby${inner.dataAttrs}><rb>${baseHtml}</rb><rt class="${prefix}-ruby">${inner.yomigana}</rt>${suffixHtml}</ruby>`;
     }
     if (inner.groupEmphasisStyle) {
-      result = `<span class="${prefix}-emphasis" style="text-emphasis-style: ${escapeHtml(inner.groupEmphasisStyle)};">${result}</span>`;
+      result = `<span class="${prefix}-emphasis" style="text-emphasis-style: ${escapeHtml(toCssEmphasisValue(inner.groupEmphasisStyle))};">${result}</span>`;
     }
     return result;
   }
@@ -261,7 +263,7 @@ function renderTatetenGroup(node: TatetenGroupNode, ctx: RenderTreeContext): str
 
 function renderHighlightGroupNode(node: HighlightGroupNode, ctx: RenderTreeContext): string {
   const { prefix } = ctx;
-  const style = node.highlight.style ?? 'solid';
+  const style = safeCssKeyword(node.highlight.style, HIGHLIGHT_STYLES, 'solid');
   const styleClass = ` ${prefix}-highlight--${style}`;
 
   const contentClass = `${prefix}-highlight-content`;

@@ -24,6 +24,7 @@ import type {
   ResolvedSlotLayouts,
   ResolvedOptions,
   SlotLayout,
+  OkototenLayout,
 } from './types.js';
 import { shouldApplyTateChuYoko } from './draw-text.js';
 
@@ -106,6 +107,27 @@ interface LayoutContext {
   rangeRubyYOffset?: number;
   rangeRubyEndY?: number;
   rangeRubyAlign?: 'center' | 'start' | 'end' | 'justify' | 'space-around' | 'space-evenly';
+}
+
+/** ヲコト点の半径 / fontSize (HTML の 0.3em フォントの「・」に相当する大きさ) */
+const OKOTOTEN_RADIUS_RATIO = 0.08;
+
+/**
+ * okototen: HTML の CSS と同じ式で、ベース文字の em ボックス (左上 = tokenX - fontSize / 2, tokenY) 内の格子点に置く。
+ */
+function layoutOkototen(
+  cells: TokenSlots['okototen'],
+  tokenX: number,
+  tokenY: number,
+  fontSize: number
+): OkototenLayout[] | undefined {
+  if (!cells || cells.length === 0) return undefined;
+  return cells.map((cell) => ({
+    cx: tokenX - fontSize / 2 + (cell.x / cell.cols) * fontSize,
+    cy: tokenY + (cell.y / cell.rows) * fontSize,
+    r: fontSize * OKOTOTEN_RADIUS_RATIO,
+    shape: cell.shape,
+  }));
 }
 
 /**
@@ -268,6 +290,8 @@ function layoutSingleToken(
     };
   }
 
+  const okototen = layoutOkototen(slots.okototen, tokenX, tokenY, fontSize);
+
   return {
     type: 'token' as const,
     tokenId: tokenNode.token.id,
@@ -275,6 +299,7 @@ function layoutSingleToken(
     y: tokenY,
     baseChar: tokenNode.token.text,
     slots: slotLayouts,
+    ...(okototen ? { okototen } : {}),
   };
 }
 

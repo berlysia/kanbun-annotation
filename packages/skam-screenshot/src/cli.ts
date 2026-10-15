@@ -16,7 +16,7 @@ Options:
   -b, --browsers <list>    Comma-separated browser list (default: platform-dependent)
   -f, --format <fmt>       Image format: png | jpeg (default: png)
   -r, --renderer <type>    Renderer: html | canvas (default: html)
-      --writing-mode <m>   vertical | horizontal
+      --writing-mode <m>   vertical | horizontal (canvas: vertical only)
       --viewport <WxH>     Viewport size (default: 800x1200)
       --scale <n>          Device scale factor (default: 2 for Retina quality)
       --no-full-page       Capture viewport only instead of full page
@@ -135,8 +135,10 @@ async function main(): Promise<void> {
     }
     if (values['writing-mode']) {
       const wm = values['writing-mode'];
-      if (wm !== 'vertical' && wm !== 'horizontal') {
-        throw new Error(`Invalid --writing-mode: "${wm}". Expected: vertical | horizontal`);
+      if (wm !== 'vertical') {
+        throw new Error(
+          `Invalid --writing-mode for canvas renderer: "${wm}". The canvas renderer supports vertical only`
+        );
       }
       canvasOptions.writingMode = wm;
     }

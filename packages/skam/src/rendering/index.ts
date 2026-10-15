@@ -50,6 +50,9 @@ export { getTatetenGroups, getHighlightGroups, getRangeMarkGroups } from './mark
 // マーク検索
 export { getMarksForToken } from './mark-lookup.js';
 
+// ヲコト点
+export { resolveOkototenCell, type OkototenCell } from './okototen.js';
+
 // ブロック
 export { groupTokensByBlock } from './block-utils.js';
 

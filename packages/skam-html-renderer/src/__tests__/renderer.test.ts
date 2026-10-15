@@ -542,7 +542,7 @@ describe('render', () => {
       const result = render(doc);
 
       expect(result.html).toContain('skam-reading');
-      expect(result.html).toContain('aria-label="読み上げテキスト"');
+      expect(result.html).not.toContain('aria-label');
       expect(result.html).toContain('学びて時に之を習ふ');
     });
 

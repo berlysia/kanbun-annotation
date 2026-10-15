@@ -18,6 +18,7 @@ import type {
   KutotenMark,
   EmphasisMark,
   SaidokuMark,
+  OkototenMark,
   HighlightMark,
   RefMark,
 } from '../index.js';
@@ -46,6 +47,7 @@ import { getBlockStartMarks } from './block-start.js';
 import { splitKaeriForTateten } from './kaeri.js';
 import { resolveEmphasisCharacter } from './emphasis.js';
 import { resolveRefValues } from './ref.js';
+import { resolveOkototenCell } from './okototen.js';
 
 // ============================================================================
 // Token slot 解決
@@ -108,6 +110,17 @@ function resolveTokenSlots(
     const emphasisMarks = (tokenMarks.get('emphasis') ?? []) as EmphasisMark[];
     if (emphasisMarks.length > 0) {
       slots.emphasis = resolveEmphasisCharacter(emphasisMarks[0]!.style);
+    }
+  }
+
+  if (profile.okototen) {
+    const okototenMarks = (tokenMarks.get('okototen') ?? []) as OkototenMark[];
+    const cells = okototenMarks.flatMap((m) => {
+      const cell = resolveOkototenCell(m);
+      return cell ? [cell] : [];
+    });
+    if (cells.length > 0) {
+      slots.okototen = cells;
     }
   }
 

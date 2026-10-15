@@ -5,6 +5,7 @@
 import { parse, SKAMXMLParseError } from '@kanbun-skam/skam-xml-parser';
 import { stringify, SKAMXMLStringifyError } from '@kanbun-skam/skam-xml-stringify';
 import { formatStringifyLosses } from './stringify-losses.js';
+import { escapeHtml } from './html-escape.js';
 import {
   render,
   attachInteractiveHandlers,
@@ -894,7 +895,7 @@ function updateSelectionPanel(fromId: string, toId: string): void {
   const html = `
     <div class="selection-summary">
       <div class="selection-count">${count}文字選択</div>
-      <div class="selection-chars">${charsText}</div>
+      <div class="selection-chars">${escapeHtml(charsText)}</div>
     </div>
   `;
 
@@ -1768,9 +1769,9 @@ function updateMarksList(doc: SKAMDocument | null): void {
 
     html += `
       <div class="marks-list-item">
-        <span class="marks-list-anchor">${anchorText}</span>
-        <span class="marks-list-type">${getMarkTypeLabel(mark.type)}</span>
-        ${value ? `<span class="marks-list-value">${value}</span>` : ''}
+        <span class="marks-list-anchor">${escapeHtml(anchorText)}</span>
+        <span class="marks-list-type">${escapeHtml(getMarkTypeLabel(mark.type))}</span>
+        ${value ? `<span class="marks-list-value">${escapeHtml(value)}</span>` : ''}
       </div>
     `;
   }
@@ -1835,7 +1836,7 @@ function renderCanvasDocument(doc: SKAMDocument): void {
 
   // Measure dimensions
   const dims = canvasMeasure(doc, ctxLike, {
-    writingMode,
+    writingMode: 'vertical',
     profile: canvasProfile,
     fontSize,
     fontFamily,
@@ -1852,7 +1853,7 @@ function renderCanvasDocument(doc: SKAMDocument): void {
 
   // Render (cast to CanvasLike for type compatibility)
   canvasRender(doc, canvas as unknown as CanvasLike, {
-    writingMode,
+    writingMode: 'vertical',
     profile: canvasProfile,
     fontSize,
     fontFamily,

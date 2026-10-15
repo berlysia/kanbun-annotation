@@ -107,7 +107,7 @@ describe('buildRenderOptions', () => {
   };
 
   it('returns default options for all-null attributes', () => {
-    const options = buildRenderOptions(defaultAttrs);
+    const { options } = buildRenderOptions(defaultAttrs);
     expect(options.writingMode).toBe('vertical');
     expect(options.useLayer).toBe(false);
     expect(options.includeReadingLayer).toBe(true);
@@ -115,7 +115,7 @@ describe('buildRenderOptions', () => {
   });
 
   it('maps writing-mode attribute', () => {
-    const options = buildRenderOptions({
+    const { options } = buildRenderOptions({
       ...defaultAttrs,
       'writing-mode': 'horizontal',
     });
@@ -123,7 +123,7 @@ describe('buildRenderOptions', () => {
   });
 
   it('maps inline boolean attribute', () => {
-    const options = buildRenderOptions({
+    const { options } = buildRenderOptions({
       ...defaultAttrs,
       inline: '',
     });
@@ -131,7 +131,7 @@ describe('buildRenderOptions', () => {
   });
 
   it('maps include-reading-layer="false"', () => {
-    const options = buildRenderOptions({
+    const { options } = buildRenderOptions({
       ...defaultAttrs,
       'include-reading-layer': 'false',
     });
@@ -139,7 +139,7 @@ describe('buildRenderOptions', () => {
   });
 
   it('maps class-prefix attribute', () => {
-    const options = buildRenderOptions({
+    const { options } = buildRenderOptions({
       ...defaultAttrs,
       'class-prefix': 'my-prefix',
     });
@@ -147,10 +147,30 @@ describe('buildRenderOptions', () => {
   });
 
   it('maps copyable attribute', () => {
-    const options = buildRenderOptions({
+    const { options } = buildRenderOptions({
       ...defaultAttrs,
       copyable: 'ruby okurigana',
     });
     expect(options.copyable).toEqual(['ruby', 'okurigana']);
+  });
+
+  it('maps display-lang attribute', () => {
+    const { options, invalid } = buildRenderOptions({
+      ...defaultAttrs,
+      'display-lang': 'lzh',
+    });
+    expect(options.displayLang).toBe('lzh');
+    expect(invalid).toEqual([]);
+  });
+
+  it('drops invalid values and lists them in class-prefix, display-lang order', () => {
+    const { options, invalid } = buildRenderOptions({
+      ...defaultAttrs,
+      'class-prefix': 'a"><b',
+      'display-lang': 'ja"><b',
+    });
+    expect(options.classPrefix).toBeUndefined();
+    expect(options.displayLang).toBeUndefined();
+    expect(invalid.map((i) => i.attribute)).toEqual(['class-prefix', 'display-lang']);
   });
 });

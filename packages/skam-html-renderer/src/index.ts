@@ -46,3 +46,9 @@ export {
  * for the inline-grid vertical-align bug in vertical writing mode.
  */
 export { calibrateGridBaseline } from './calibrate.js';
+
+/**
+ * Option validation used by the renderer's public entry points.
+ * Exposed so wrappers (e.g. web components) can validate user-supplied values before use.
+ */
+export { validateRenderOptions, validateCSSOptions } from './render-options.js';

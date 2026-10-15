@@ -63,8 +63,6 @@ import {
   render as canvasRender,
   measure as canvasMeasure,
   loadDefaultFont,
-  type CanvasRenderingContext2DLike,
-  type CanvasLike,
 } from '@kanbun-skam/skam-canvas-renderer';
 import type { Spacing, SpacingPreset } from '@kanbun-skam/skam/rendering';
 import { SAMPLES } from './samples.js';
@@ -1829,13 +1827,10 @@ function renderCanvasDocument(doc: SKAMDocument): void {
   const ctx = canvas.getContext('2d');
   if (!ctx) return;
 
-  // Cast to CanvasRenderingContext2DLike (browser's fillStyle is wider than string-only)
-  const ctxLike = ctx as unknown as CanvasRenderingContext2DLike;
-
   const spacing = getSpacing();
 
   // Measure dimensions
-  const dims = canvasMeasure(doc, ctxLike, {
+  const dims = canvasMeasure(doc, ctx, {
     writingMode: 'vertical',
     profile: canvasProfile,
     fontSize,
@@ -1851,8 +1846,7 @@ function renderCanvasDocument(doc: SKAMDocument): void {
   canvas.style.width = dims.width + 'px';
   canvas.style.height = dims.height + 'px';
 
-  // Render (cast to CanvasLike for type compatibility)
-  canvasRender(doc, canvas as unknown as CanvasLike, {
+  canvasRender(doc, canvas, {
     writingMode: 'vertical',
     profile: canvasProfile,
     fontSize,

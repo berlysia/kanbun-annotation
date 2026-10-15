@@ -16,7 +16,7 @@ pnpm add @kanbun-skam/skam-canvas-renderer
 
 ### 基本的なレンダリング
 
-<!-- doctest:skip 実際の HTMLCanvasElement が CanvasLike に型として合わない (fillStyle の型)。API 側の修正待ち -->
+<!-- doctest:typecheck -->
 
 ```typescript
 import { render } from '@kanbun-skam/skam-canvas-renderer';

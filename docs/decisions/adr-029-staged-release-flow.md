@@ -7,6 +7,7 @@ plan: plan-staged-release-flow.md
 
 実装計画: [Plan](../plans/plan-staged-release-flow.md)
 手順: [releasing.md](../releasing.md)
+K1、K8 (受入基準の確かめ方と真正性の錨)、K12 は [ADR-031](adr-031-release-command-to-the-end.md) が置き換える
 
 ## コンテキスト
 

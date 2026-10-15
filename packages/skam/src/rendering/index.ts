@@ -44,6 +44,14 @@ export {
   type RenderProfileName,
 } from './render-profile.js';
 
+// 読み上げ用テキスト (experimental)
+export {
+  describeAnnotationIR,
+  type AccessibleNote,
+  type AccessibleUnit,
+  type AccessibleBlock,
+} from './accessible-text.js';
+
 // 返り点
 export { splitKaeriForTateten } from './kaeri.js';
 

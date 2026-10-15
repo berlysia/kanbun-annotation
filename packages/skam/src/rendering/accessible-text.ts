@@ -16,6 +16,7 @@ import type {
   AIRTrailingMark,
   AIRHighlightGroupNode,
 } from './air-types.js';
+import { DEFAULT_ACCESSIBLE_LABELS, type AccessibleLabels } from './accessible-labels.js';
 
 /**
  * 読み上げ用の注記。
@@ -310,4 +311,77 @@ function describeBlock(block: AIRBlock): AccessibleBlock {
  */
 export function describeAnnotationIR(air: AIRDocument): AccessibleBlock[] {
   return air.blocks.map(describeBlock);
+}
+
+// ============================================================================
+// 文字列化
+// ============================================================================
+
+/** label を引く。labels の own property だけを見て、無ければ既定の言葉を使う */
+function pickLabel(
+  kind: string,
+  labels: Partial<AccessibleLabels> | undefined
+): ((note: AccessibleNote) => unknown) | undefined {
+  const own: unknown =
+    labels !== undefined && Object.hasOwn(labels, kind)
+      ? (labels as Record<string, unknown>)[kind]
+      : undefined;
+  const picked =
+    typeof own === 'function' ? own : (DEFAULT_ACCESSIBLE_LABELS as Record<string, unknown>)[kind];
+  return typeof picked === 'function' ? (picked as (note: AccessibleNote) => unknown) : undefined;
+}
+
+/**
+ * note を言葉にする。空文字・例外・string 以外は、その note を出さない（undefined）。
+ * label には凍結したコピーを渡し、AIR や呼び出し側の note を書き換えさせない。
+ */
+function labelNote(
+  note: AccessibleNote,
+  labels: Partial<AccessibleLabels> | undefined
+): string | undefined {
+  const label = pickLabel(note.kind, labels);
+  if (label === undefined) return undefined;
+  try {
+    const result = label(Object.freeze({ ...note }));
+    return typeof result === 'string' && result !== '' ? result : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function formatUnit(
+  unit: AccessibleUnit,
+  labels: Partial<AccessibleLabels> | undefined
+): string | undefined {
+  const parts: string[] = unit.text === '' ? [] : [unit.text];
+  for (const note of unit.notes) {
+    const word = labelNote(note, labels);
+    if (word !== undefined) parts.push(word);
+  }
+  return parts.length === 0 ? undefined : `${parts.join('、')}。`;
+}
+
+/**
+ * 読み上げ用の構造を、日本語の文章にする。
+ *
+ * - 単位の中は本文と注記の言葉を「、」でつなぎ、単位の終わりに「。」を置く。ブロックの間は半角空白 1 つ。
+ * - `labels` で kind ごとに言葉を上書きできる（own property だけを見る）。
+ *   空文字・例外・string 以外を返した注記は出さない。例外は外に出ない。
+ * - 本文が空で、出す注記も無い単位は出さない。すべての単位が出ないブロックは、区切りの空白も出さない。
+ * - すべての注記が出ず、本文も無いと、空文字を返す。読み上げ層は出なくなる (R8)。
+ * - 戻り値は生のテキストで、HTML のエスケープをしていない。HTML に入れるときは呼び出し側でエスケープする。
+ * - 読み上げの言葉は 0.x の minor で変わりうる。
+ *
+ * @experimental
+ */
+export function formatAccessibleText(
+  blocks: AccessibleBlock[],
+  labels?: Partial<AccessibleLabels>
+): string {
+  const blockTexts: string[] = [];
+  for (const block of blocks) {
+    const text = block.units.map((unit) => formatUnit(unit, labels) ?? '').join('');
+    if (text !== '') blockTexts.push(text);
+  }
+  return blockTexts.join(' ');
 }

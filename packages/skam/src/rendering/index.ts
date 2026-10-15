@@ -47,10 +47,13 @@ export {
 // 読み上げ用テキスト (experimental)
 export {
   describeAnnotationIR,
+  formatAccessibleText,
   type AccessibleNote,
   type AccessibleUnit,
   type AccessibleBlock,
 } from './accessible-text.js';
+
+export { DEFAULT_ACCESSIBLE_LABELS, type AccessibleLabels } from './accessible-labels.js';
 
 // 返り点
 export { splitKaeriForTateten } from './kaeri.js';

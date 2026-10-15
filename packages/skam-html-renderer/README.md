@@ -38,6 +38,12 @@ const result = render(doc);
 // result.css: 適用すべき CSS
 ```
 
+### Node / SSR での利用
+
+`render()` は DOM に依存しない。`document` や `window` を使わず、文字列（`html` と `css`）を返すだけなので、Node.js やサーバーサイドレンダリング（SSR）でそのまま呼べる。
+
+`attachInteractiveHandlers` など、DOM 要素を受け取る関数はブラウザ（または DOM 実装のある環境）でだけ使う。
+
 ### 検証とエスケープ
 
 `render()` は文書を検証しない。意味の正しさは、利用者が `validateSKAMDocument` で確かめる。不正な文書の値は、エスケープするか、許可リストで既定値に置き換える。

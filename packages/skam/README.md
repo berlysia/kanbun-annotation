@@ -60,6 +60,10 @@ if (isSKAMDocument(input)) {
 assertSKAMDocument(input);
 ```
 
+## ブロック先頭の返り点
+
+返り点（kaeri）はブロックの先頭に置けない。検証エラーと parser のエラーは、同じ案内文 `BLOCK_START_KAERI_HINT`（本パッケージが export する）を使う。同じ位置に重複した kaeri は検査しない。
+
 ## Mark Types
 
 | type        | 説明                     |

@@ -154,6 +154,34 @@ const doc = parse(xml);
 </skam:readings>
 ```
 
+## 往復変換と ID
+
+XML には token と mark の ID を書かない。`parse` はこれらの ID を毎回生成し直すので、JSON → XML → JSON と往復すると、token と mark の ID は元の値と一致しない。token や mark の ID を使った外部の参照は、往復で失われる。block と ref の `xml:id` は XML に書かれ、`parse` はそれを読む（`xml:id` がなければ生成する）。
+
+## IVS と結合文字
+
+`parse` は本文を code point ごとに別の token にする。異体字セレクタ（IVS）や結合文字は、基底文字とは別の token になる。注記を付けるときは、基底文字の token を anchor にする。
+
+## 0.1.x の parser との互換性
+
+0.1.x の parser は、0.2.0 の `stringify` が出力する XML の一部を、エラーにせず黙って読み落とす。読み落とすのは次の 3 つの形で、0.1.x の parser はこれらの要素を `textContent` だけで読み、中の `skam:kun` の属性（yomi / okuri / soe）や入れ子の要素の注記を捨てる。
+
+- `skam:yomigana` の中の `skam:kun`
+- 字を包む要素（`skam:okimoji` / `skam:joji` / `skam:okototen`）の中の `skam:kun`
+- 字を包む要素の入れ子
+
+  0.2.0 以降の出力は、0.2.0 以降の parser で読むこと（SKAM-ML-draft の変更履歴「互換性の注意」を参照）。
+
+## 位置情報
+
+Node 版の `SKAMXMLParseError` は `line` / `column` を持つ。ブラウザ版（`browser` 条件で解決される DOMParser 実装）は、これらを持たない。
+
+## 実験的な API
+
+`SKAM_ML_CONTENT_MODEL` は `@experimental`。仕様の改訂に合わせて変わりうる。同じ fixed group の同じ版どうしでだけ、内容の一致を保証する。
+
+ブロック先頭の返り点（`skam:kaeri`）は誤りとして扱う。同じ位置に重複した kaeri は検査しない。エラーの案内文は `@kanbun-skam/skam` の `BLOCK_START_KAERI_HINT` にある。
+
 ## エラーハンドリング
 
 <!-- doctest:typecheck -->

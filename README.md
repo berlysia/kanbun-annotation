@@ -32,6 +32,12 @@ SKAM-ML/XML を試せるインタラクティブなデモ: https://berlysia.gith
 | [@kanbun-skam/integration-tests](./packages/integration-tests/)       | パッケージ間統合テスト（parse/stringify roundtrip 等） | private |
 | [@kanbun-skam/playground](./packages/playground/)                     | インタラクティブデモ                                   | -       |
 
+## 動作環境
+
+- すべてのパッケージは **ESM 専用**。CommonJS の `require` では読み込めない（`import` を使う）。
+- Node.js 18 以降で動く。
+- 公開する 6 パッケージの版は、0.2.0 から揃える（fixed group）。どれかを更新したら、ほかも同じ版に揃える。
+
 ## インストール
 
 ```bash

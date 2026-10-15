@@ -160,7 +160,12 @@ export function normalizeRenderOptions(options: RenderOptions): RenderOptions {
   return o;
 }
 
-/** render / renderHTML のオプションを検査する。render は CSS も作るので CSS 用のオプションも含む */
+/**
+ * render / renderHTML のオプションを検査する。render は CSS も作るので CSS 用のオプションも含む。
+ *
+ * `render` は内部で同じ検証をするので、事前に呼ぶ必要はない。呼んだ場合、`accessibleLabels` の getter は
+ * 2 回読まれる (この関数で 1 回、`render` で 1 回)。
+ */
 export function validateRenderOptions(o: RenderOptions): void {
   normalizeRenderOptions(o);
 }

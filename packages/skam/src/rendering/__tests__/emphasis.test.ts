@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
-import { resolveEmphasisCharacter } from '../emphasis.js';
+import { resolveEmphasisCharacter, isEmphasisKeyword } from '../emphasis.js';
 import { isValidEmphasisStyle } from '../../validator.js';
+import * as rendering from '../index.js';
+import * as root from '../../index.js';
 
 const DEFAULT_CHAR = '\u2022';
 
@@ -152,5 +154,86 @@ describe('resolveEmphasisCharacter', () => {
     ])('%s', (_name, value) => {
       expect(resolveEmphasisCharacter(value)).toBe(DEFAULT_CHAR);
     });
+  });
+});
+
+/** 旧実装の正規表現。isEmphasisKeyword が同じ集合を受けることの比較に使う */
+const LEGACY_EMPHASIS_KEYWORD =
+  /^(?:(?:filled|open) )?(?:dot|circle|double-circle|triangle|sesame)$/;
+
+const KEYWORD_COMPARISON_INPUTS = [
+  ...Object.keys(KEYWORD_TABLE),
+  '',
+  'open',
+  'filled',
+  'Circle',
+  ' circle',
+  'circle ',
+  'circle\n',
+  'dot\n',
+  'filled  dot',
+  'open-dot',
+  '\u2605',
+  '<',
+  'constructor',
+  '__proto__',
+  'toString',
+  'dotdot',
+  'open constructor',
+  'filled __proto__',
+];
+
+describe('isEmphasisKeyword', () => {
+  it('compares 33 inputs against the legacy regex', () => {
+    expect(KEYWORD_COMPARISON_INPUTS).toHaveLength(33);
+    for (const s of KEYWORD_COMPARISON_INPUTS) {
+      expect(isEmphasisKeyword(s), JSON.stringify(s)).toBe(LEGACY_EMPHASIS_KEYWORD.test(s));
+    }
+  });
+
+  it('resolves keywords through the same table', () => {
+    expect(isEmphasisKeyword('filled sesame')).toBe(true);
+    expect(resolveEmphasisCharacter('filled sesame')).toBe('\uFE45');
+    expect(resolveEmphasisCharacter('open double-circle')).toBe('\u25CE');
+  });
+
+  it('treats a custom character as valid but not a keyword', () => {
+    expect(isEmphasisKeyword('\u2605')).toBe(false);
+    expect(isValidEmphasisStyle('\u2605')).toBe(true);
+    expect(resolveEmphasisCharacter('\u2605')).toBe('\u2605');
+  });
+
+  it.each(['constructor', 'hasOwnProperty', 'valueOf'])(
+    'does not pick up Object.prototype key %j',
+    (value) => {
+      expect(isEmphasisKeyword(value)).toBe(false);
+      expect(resolveEmphasisCharacter(value)).toBe(DEFAULT_CHAR);
+    }
+  );
+
+  it('falls back to the default dot for null and for an object whose toString gives a keyword', () => {
+    expect(resolveEmphasisCharacter(null)).toBe(DEFAULT_CHAR);
+    expect(
+      resolveEmphasisCharacter({
+        toString() {
+          return 'dot';
+        },
+      })
+    ).toBe(DEFAULT_CHAR);
+  });
+
+  it.each(['<', 'Circle'])('resolves %j to the default dot', (value) => {
+    expect(resolveEmphasisCharacter(value)).toBe(DEFAULT_CHAR);
+  });
+
+  it('is exported from /rendering but not from the package root', () => {
+    expect(typeof rendering.isEmphasisKeyword).toBe('function');
+    expect('isEmphasisKeyword' in root).toBe(false);
+  });
+
+  it('does not leak the shape table through either entry point', () => {
+    const leaked = (name: string) => /shape|char.*table|table/i.test(name);
+    expect(Object.keys(root).filter(leaked)).toEqual([]);
+    expect(Object.keys(rendering).filter(leaked)).toEqual([]);
   });
 });

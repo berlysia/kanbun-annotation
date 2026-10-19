@@ -470,7 +470,35 @@ function validateKutotenMark(
   return valid;
 }
 
-const EMPHASIS_KEYWORD = /^(?:(?:filled|open) )?(?:dot|circle|double-circle|triangle|sesame)$/;
+/**
+ * 傍点の形状ごとの描画文字 (filled / open)。
+ * 描画の文字もここに置くのは、validator と rendering の両方が一方向に参照できる最下層だから。
+ */
+const EMPHASIS_SHAPE_CHARS = {
+  dot: { filled: '\u2022', open: '\u25E6' },
+  circle: { filled: '\u25CF', open: '\u25CB' },
+  'double-circle': { filled: '\u25C9', open: '\u25CE' },
+  triangle: { filled: '\u25B2', open: '\u25B3' },
+  sesame: { filled: '\uFE45', open: '\uFE46' },
+} as const;
+
+/**
+ * 15 のキーワード (`<形状>`、`filled <形状>`、`open <形状>`) と描画文字の対応。
+ * Map にして Object.prototype のキーを拾わないようにする。修飾なしは filled の文字。
+ */
+export const EMPHASIS_KEYWORD_CHARS: ReadonlyMap<string, string> = new Map(
+  Object.entries(EMPHASIS_SHAPE_CHARS).flatMap(([shape, chars]) => [
+    [shape, chars.filled] as const,
+    [`filled ${shape}`, chars.filled] as const,
+    [`open ${shape}`, chars.open] as const,
+  ])
+);
+
+/** CSS text-emphasis-style のキーワード (15 の形) と完全に一致するときだけ true */
+export function isEmphasisKeyword(style: string): boolean {
+  return EMPHASIS_KEYWORD_CHARS.has(style);
+}
+
 /** カスタムの 1 文字として許す文字クラス: 文字・数字・記号・句読点。制御・書式・結合文字・空白は含まない */
 const CUSTOM_EMPHASIS_CHAR = /^[\p{L}\p{N}\p{S}\p{P}]$/u;
 /** style は CSS の値として出力されうるため、文字列リテラルや宣言を壊せる文字を除く */
@@ -482,7 +510,7 @@ const CSS_UNSAFE = new Set(['\\', '"', "'", ';', '{', '}', '<', '>', '&']);
  * 1 文字のカスタム記号のみを許す。
  */
 export function isValidEmphasisStyle(style: string): boolean {
-  if (EMPHASIS_KEYWORD.test(style)) return true;
+  if (isEmphasisKeyword(style)) return true;
   return CUSTOM_EMPHASIS_CHAR.test(style) && !CSS_UNSAFE.has(style);
 }
 

@@ -5,6 +5,7 @@
  * 通った値であることを型で示す。外部へは export しない。
  */
 
+import { isEmphasisKeyword } from '@kanbun-skam/skam/rendering';
 import { escapeHtml } from './html-utils.js';
 
 /** escapeHtml を通した文字列 */
@@ -43,15 +44,13 @@ export function safeCssInteger(n: number): SafeCssValue {
   return String(n) as SafeCssValue;
 }
 
-const EMPHASIS_KEYWORD = /^(?:(?:filled|open) )?(?:dot|circle|double-circle|triangle|sesame)$/;
-
 /**
  * text-emphasis-style に出す値。
  * キーワードはそのまま、カスタムの 1 文字は CSS 文字列 `"\<hex> "` にする。
  * style は呼び出し側で isValidEmphasisStyle を通した値 (または既定値) であること。
  */
 export function toCssEmphasisValue(style: string): SafeCssValue {
-  if (EMPHASIS_KEYWORD.test(style)) return style as SafeCssValue;
+  if (isEmphasisKeyword(style)) return style as SafeCssValue;
   const cp = style.codePointAt(0);
   if (cp === undefined) return 'filled dot' as SafeCssValue;
   return `"\\${cp.toString(16)} "` as SafeCssValue;

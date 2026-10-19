@@ -371,12 +371,17 @@ export async function verifyTrustWith(
   output.emit(
     'npm trust list asks for authentication: choose "skip 2FA for 5 minutes" so the next 6 lookups do not ask again.'
   );
-  const interactive = await run('npm', ['trust', 'list', first], { stdio: 'inherit' });
+  // stdin と stdout は端末のまま (認証の案内と 2FA)。stderr は無害化して流しつつ、失敗の表示のために保持する
+  const interactive = await run('npm', ['trust', 'list', first], { stdio: 'inherit-keep-stderr' });
   if (interactive.status !== 0) {
-    // 対話の 1 回は stderr を受けていない (画面に出ている)
     return {
       kind: 'command-failed',
       what: `npm trust list ${first} (interactive) exited ${interactive.status ?? 'not started'}`,
+      failure: {
+        command: `npm trust list ${first}`,
+        status: interactive.status,
+        stderr: interactive.stderr,
+      },
     };
   }
   const results: { name: string; result: CommandResult }[] = [];
@@ -1684,9 +1689,10 @@ export type SpawnSyncFn = (
 
 const nodeSpawnSync: SpawnSyncFn = (cmd, args, options) => spawnSync(cmd, args, options);
 
-// 前半の子ごとの stdio。崩れた子を inherit に戻すのは、その子の行 1 か所の変更で済む。
+// 前半の子ごとの stdio。stdin と stdout は端末のまま、stderr は無害化して流しつつ末尾を保持する
+// (plan-1 T1 の確認に合格)。崩れた子を inherit に戻すのは、その子の行 1 か所の変更で済む。
 // verify のキーは 1 つで、段ごとに流すときも全段に同じ stdio を使う
-type FrontChild =
+export type FrontChild =
   | 'changesetStatus'
   | 'changesetPre'
   | 'verify'
@@ -1696,13 +1702,13 @@ type FrontChild =
   | 'consumer';
 
 const FRONT_CHILD_STDIO: Readonly<Record<FrontChild, RunStdio>> = {
-  changesetStatus: 'inherit',
-  changesetPre: 'inherit',
-  verify: 'inherit',
-  changesetVersion: 'inherit',
-  prettier: 'inherit',
-  checkRelease: 'inherit',
-  consumer: 'inherit',
+  changesetStatus: 'inherit-keep-stderr',
+  changesetPre: 'inherit-keep-stderr',
+  verify: 'inherit-keep-stderr',
+  changesetVersion: 'inherit-keep-stderr',
+  prettier: 'inherit-keep-stderr',
+  checkRelease: 'inherit-keep-stderr',
+  consumer: 'inherit-keep-stderr',
 };
 
 // リポジトリの package.json の scripts.verify を、流す時点で読む。読めない、JSON でない、
@@ -1731,6 +1737,8 @@ export interface BuildOptions {
   spawnSync?: SpawnSyncFn;
   // 'pipe' なら、前半の子の stdio の表 (FRONT_CHILD_STDIO) を上書きして全部を集める。テストが使う
   stdio?: 'inherit' | 'pipe';
+  // 子ごとの stdio の上書き (テスト用)。現物の表には inherit の子は無い
+  frontChildStdio?: Partial<Record<FrontChild, RunStdio>>;
   // changeset を呼ぶコマンド。テストは fixture の repo の node_modules/.bin/changeset を絶対パスで指す
   changesetCmd?: readonly string[];
   run?: Runner;
@@ -1755,7 +1763,10 @@ export function buildReleaseDeps(
     args: string[],
     rerun?: string
   ): Promise<FrontCheck<void>> => {
-    const stdio = options.stdio === 'pipe' ? 'pipe' : FRONT_CHILD_STDIO[child];
+    const stdio =
+      options.stdio === 'pipe'
+        ? 'pipe'
+        : (options.frontChildStdio?.[child] ?? FRONT_CHILD_STDIO[child]);
     const result = await run(cmd, args, { stdio, cwd });
     if (result.status === 0) return { ok: true, value: undefined };
     const command = [cmd, ...args].join(' ');

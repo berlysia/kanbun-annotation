@@ -36,6 +36,7 @@ import {
   verifyTrustWith,
 } from './release.ts';
 import type {
+  BuildOptions,
   ChildLike,
   CreateInterface,
   GitResult,
@@ -1228,7 +1229,7 @@ function trustHarness(pipeResult: (name: string) => CommandResult): {
   const saved: { name: string; content: string }[][] = [];
   const run: Runner = async (cmd, args, options) => {
     calls.push({ cmd, args, stdio: options.stdio });
-    if (options.stdio === 'inherit') return { status: 0, stdout: '', stderr: '' };
+    if (options.stdio === 'inherit-keep-stderr') return { status: 0, stdout: '', stderr: '' };
     return pipeResult(args[2] ?? '');
   };
   return {
@@ -1254,7 +1255,7 @@ test('verifyTrustWith: six ok lookups are ok and the raw output is saved once', 
   assert.deepEqual(h.calls[0], {
     cmd: 'npm',
     args: ['trust', 'list', '@fx/n0'],
-    stdio: 'inherit',
+    stdio: 'inherit-keep-stderr',
   });
   assert.equal(h.calls.filter((c) => c.stdio === 'pipe').length, 6);
   assert.ok(out.text().includes('2FA'));
@@ -1758,7 +1759,7 @@ interface FrontHarness {
 function frontHarness(
   packageJson: string,
   respond: (line: string) => CommandResult,
-  options: { stdio?: 'inherit' | 'pipe' } = {}
+  options: { stdio?: 'inherit' | 'pipe'; frontChildStdio?: BuildOptions['frontChildStdio'] } = {}
 ): FrontHarness {
   const root = mkdtempSync(join(tmpdir(), PREFIX));
   roots.push(root);
@@ -1775,6 +1776,7 @@ function frontHarness(
     run,
     env: dirtyEnv,
     ...(options.stdio === undefined ? {} : { stdio: options.stdio }),
+    ...(options.frontChildStdio === undefined ? {} : { frontChildStdio: options.frontChildStdio }),
   });
   return { deps, root, calls };
 }
@@ -1812,7 +1814,7 @@ test('createRunner: output over 64 MiB sets exceeded and a signal exit does not'
   assert.equal('exceeded' in killed, false);
 });
 
-test('buildReleaseDeps: the seven front children run through run with the repository cwd and stdio inherit', async () => {
+test('buildReleaseDeps: the seven front children run through run with the repository cwd and stdio inherit-keep-stderr', async () => {
   const h = frontHarness(verifyScripts('pnpm build'), () => exit0);
   await h.deps.verify();
   await h.deps.changesetVersion();
@@ -1832,7 +1834,7 @@ test('buildReleaseDeps: the seven front children run through run with the reposi
     ]
   );
   for (const call of h.calls) {
-    assert.equal(call.stdio, 'inherit');
+    assert.equal(call.stdio, 'inherit-keep-stderr');
     assert.equal(call.cwd, h.root);
   }
 });
@@ -1864,11 +1866,11 @@ test('buildReleaseDeps: a failed child carries command, status and the stderr it
       captured: true,
     },
   });
-  const inherited = frontHarness(verifyScripts('pnpm build || true'), () => ({
-    status: null,
-    stdout: '',
-    stderr: 'ignored',
-  }));
+  const inherited = frontHarness(
+    verifyScripts('pnpm build || true'),
+    () => ({ status: null, stdout: '', stderr: 'ignored' }),
+    { frontChildStdio: { consumer: 'inherit' } }
+  );
   const failed = await inherited.deps.consumer();
   assert.ok(!failed.ok);
   assert.deepEqual(failed.failure, {
@@ -1997,7 +1999,7 @@ test('front stop: a child whose stderr was not captured says so', async () => {
   const h = frontHarness(
     verifyScripts('pnpm build || true'),
     () => ({ status: 1, stdout: '', stderr: '' }),
-    {}
+    { frontChildStdio: { verify: 'inherit' } }
   );
   const outcome = await runRelease(normal, fakeDeps(repo, { verify: h.deps.verify }).deps);
   assert.ok(
@@ -2393,6 +2395,89 @@ test('entry stop: an injected inconsistent status (row 10) stays inside | lines'
   const fake = fakeMain(repo, { status: { kind: 'inconsistent', reason: EVIL } });
   assert.equal(await runMain([], fake.deps), 1);
   assertContained(fake.lines(), 'release stopped: changeset status is inconsistent');
+});
+
+// --- 子の stdio を inherit-keep-stderr に切り替える (plan-2 T6。plan-1 T1 の確認に合格) ---
+
+// 本物の createRunner の上に偽の spawn を載せ、前半の子の stderr が画面と error の両方でどう見えるか確かめる
+function spawnedFront(
+  respond: (call: SpawnCall) => Promise<void> | void,
+  options: { frontChildStdio?: BuildOptions['frontChildStdio'] } = {}
+): { deps: ReleaseDeps; screen: () => string; calls: SpawnCall[] } {
+  const root = mkdtempSync(join(tmpdir(), PREFIX));
+  roots.push(root);
+  writeFileSync(join(root, 'package.json'), verifyScripts('pnpm build || true'));
+  const { spawn, calls } = fakeSpawn(respond);
+  const screen = lineCollector();
+  const run = createRunner(spawn, screen.output, { env: dirtyEnv });
+  const deps = buildReleaseDeps({
+    cwd: root,
+    output: screen.output,
+    run,
+    env: dirtyEnv,
+    ...(options.frontChildStdio === undefined ? {} : { frontChildStdio: options.frontChildStdio }),
+  });
+  return { deps, screen: screen.text, calls };
+}
+
+test('front child stderr: a verify failure with control sequences is clean on the screen and in error.lines', async () => {
+  const front = spawnedFront((c) => c.child.finish('', '\u001b[2Jfoo', 1));
+  const repo = makeRepo();
+  const outcome = await runRelease(normal, fakeDeps(repo, { verify: front.deps.verify }).deps);
+  assert.deepEqual(front.calls[0]?.options.stdio, ['inherit', 'inherit', 'pipe']);
+  assert.equal(front.screen().includes('\u001b'), false);
+  assert.ok(front.screen().includes('foo'));
+  assert.ok(frontLines(outcome).includes('  | foo'), frontLines(outcome).join('\n'));
+});
+
+test('front child stderr: a child that ends on a signal prints the signal-or-not-started exit', async () => {
+  const front = spawnedFront((c) => {
+    c.child.stdout?.end();
+    c.child.stderr?.end();
+    setImmediate(() => c.child.emit('close', null, 'SIGTERM'));
+  });
+  const repo = makeRepo();
+  const outcome = await runRelease(normal, fakeDeps(repo, { verify: front.deps.verify }).deps);
+  const stop = stopOf(outcome);
+  assert.equal(stop.error.exit, null);
+  const lines = frontLines(outcome);
+  assert.ok(lines.includes('  $ pnpm verify (exit: signal or not started)'), lines.join('\n'));
+  assert.ok(lines.includes('  | (no error output)'), lines.join('\n'));
+});
+
+test('front child stderr: a child put back on inherit says its stderr was not captured', async () => {
+  const front = spawnedFront((c) => c.child.finish('', '', 1), {
+    frontChildStdio: { verify: 'inherit' },
+  });
+  const repo = makeRepo();
+  const outcome = await runRelease(normal, fakeDeps(repo, { verify: front.deps.verify }).deps);
+  assert.deepEqual(front.calls[0]?.options.stdio, ['inherit', 'inherit', 'inherit']);
+  assert.ok(
+    frontLines(outcome).includes('  | (stderr was not captured; the output is shown above)'),
+    frontLines(outcome).join('\n')
+  );
+});
+
+test('verifyTrustWith: a failed interactive lookup carries its stderr, and a web-auth 404 reaches the stage 1 stop', async () => {
+  const calls: { stdio: string }[] = [];
+  const run: Runner = async (_cmd, _args, options) => {
+    calls.push({ stdio: options.stdio });
+    return {
+      status: 1,
+      stdout: '',
+      stderr: 'npm error 404 Not Found - GET https://registry.npmjs.org/-/v1/done?sessionId=abc',
+    };
+  };
+  const trust = await verifyTrustWith(run, () => '/x', lineCollector().output, SIX);
+  assert.deepEqual(calls, [{ stdio: 'inherit-keep-stderr' }]);
+  assert.equal(trust.kind, 'command-failed');
+  const repo = makeRepo();
+  const outcome = await runRelease(normal, fakeDeps(repo, { verifyTrust: async () => trust }).deps);
+  const lines = frontLines(outcome);
+  const text = lines.join('\n');
+  assert.ok(text.includes('The browser authentication did not finish in time'), text);
+  assert.equal(text.includes('abc'), false, text);
+  assert.ok(lines.includes('  $ npm trust list @fx/n0 (exit 1)'), text);
 });
 
 // --- 実際の changesets での検証 (K18) ---

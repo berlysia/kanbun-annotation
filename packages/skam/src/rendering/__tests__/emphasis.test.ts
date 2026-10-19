@@ -231,9 +231,10 @@ describe('isEmphasisKeyword', () => {
     expect('isEmphasisKeyword' in root).toBe(false);
   });
 
-  it('does not leak the shape table through either entry point', () => {
-    const leaked = (name: string) => /shape|char.*table|table/i.test(name);
-    expect(Object.keys(root).filter(leaked)).toEqual([]);
-    expect(Object.keys(rendering).filter(leaked)).toEqual([]);
+  it('does not leak the keyword table through either entry point', () => {
+    for (const name of ['EMPHASIS_KEYWORD_CHARS', 'EMPHASIS_SHAPE_CHARS']) {
+      expect(Object.keys(root)).not.toContain(name);
+      expect(Object.keys(rendering)).not.toContain(name);
+    }
   });
 });

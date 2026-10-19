@@ -116,6 +116,7 @@ import {
   splitKaeriForTateten,
   // 傍点
   resolveEmphasisCharacter,
+  isEmphasisKeyword,
   // Ref
   formatRefIndex,
   resolveRefValues,

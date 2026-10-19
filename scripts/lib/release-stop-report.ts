@@ -3,7 +3,17 @@
 
 import { sanitizeForTerminal } from './release-check.ts';
 import { NO_COMMAND } from './release-types.ts';
-import type { ErrorExcerpt, ErrorTool } from './release-types.ts';
+import type {
+  Cause,
+  EntryStopRow,
+  EntryWhere,
+  ErrorExcerpt,
+  ErrorTool,
+  FrontStage,
+  NonEmpty,
+  StopObservation,
+  StopSite,
+} from './release-types.ts';
 
 // --- secret のマスク (行の選別と切り詰めの前に呼ぶ) ---
 
@@ -171,4 +181,469 @@ export function prependDetail(error: ErrorExcerpt | undefined, what: string): Er
   const detail = excerptDetail(NO_COMMAND, null, [what]);
   if (error === undefined) return detail;
   return { ...error, lines: [...detail.lines, ...error.lines].slice(0, DISPLAY_LINE_COUNT) };
+}
+
+// --- 診断 (spec K2) ---
+// 規則の表を上から評価し、当たったものを表の順に最大 3 件返す。どれにも当たらなければ場所ごとの
+// 既定の候補を 1 件返す。規則が見るのは site、error.command / source / tool / matched /
+// logUnreadable / rawPath だけで、error.lines (表示用の行) は見ない。
+// 文に入れてよいのは定数だけ (外部の値は補間しない)。`<name>` はパッケージ名の代わりの文字列そのもの。
+
+const MAX_CAUSES = 3;
+
+interface Diagnosis {
+  cause: string;
+  check: string;
+}
+
+interface Rule {
+  id: string;
+  remedy: string;
+  diagnose(site: StopSite, error: ErrorExcerpt): Diagnosis | undefined;
+}
+
+const matchedHas = (error: ErrorExcerpt, ...needles: readonly string[]): boolean =>
+  error.matched.some((line) => needles.some((needle) => line.includes(needle)));
+
+const isNpmStageJobFailure = (site: StopSite): boolean =>
+  site.side === 'after-push' && site.where === 'job-failed' && site.job === 'npm-stage';
+
+const TRUST_EXPIRED_CHECK =
+  'On npmjs.com, open each package: Settings > Trusted publishing, and look for "This trusted publisher configuration has expired"';
+const TRUST_EXPIRED_REMEDY =
+  'npmjs.com で期限切れと確かめたパッケージだけ: `npm trust list <name> --json` で id を見て `npm trust revoke <name> --id <id>`。続けて `npm trust github <name> --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish -y`。その後は F2 の手順 (docs/releasing.md)。コマンドは表示するだけで、この script は実行しない';
+
+const RULES: readonly Rule[] = [
+  {
+    id: 'trust-expired',
+    remedy: TRUST_EXPIRED_REMEDY,
+    diagnose(site, error) {
+      if (!isNpmStageJobFailure(site)) return undefined;
+      const common = { check: TRUST_EXPIRED_CHECK };
+      const sign = matchedHas(
+        error,
+        'npm error code E401',
+        'npm error code ENEEDAUTH',
+        'package not found'
+      );
+      if (sign) {
+        const strong = matchedHas(error, 'package not found');
+        return {
+          ...common,
+          cause: strong
+            ? 'The trusted publisher setting of a package has expired or was deleted (the log has `package not found`, a strong sign)'
+            : 'The trusted publisher setting of a package has expired or was deleted (the log has an authentication error)',
+        };
+      }
+      if (error.logUnreadable === true) {
+        return {
+          ...common,
+          cause:
+            'The job log could not be read, so this cause from 0.2.0 is checked first: the trusted publisher setting of a package has expired or was deleted',
+        };
+      }
+      return undefined;
+    },
+  },
+  {
+    id: 'web-auth-timeout',
+    remedy: 'Run the same command again and finish the authentication in the page that opens',
+    diagnose(_site, error) {
+      if (error.source !== 'local-stderr' || error.tool !== 'npm') return undefined;
+      const hit = error.matched.some((l) => l.includes('/-/v1/done') && l.includes('404'));
+      if (!hit) return undefined;
+      return {
+        cause: 'The browser authentication did not finish in time',
+        check: 'Did you finish the authentication in the page npm opened?',
+      };
+    },
+  },
+  {
+    id: 'npm-login',
+    remedy: 'Run `npm login`, then run the same command again',
+    diagnose(_site, error) {
+      if (error.source !== 'local-stderr' || error.tool !== 'npm') return undefined;
+      if (!matchedHas(error, 'npm error code E401', 'npm error code ENEEDAUTH')) return undefined;
+      return {
+        cause: 'The local npm is not logged in, or its token has expired',
+        check: '`npm whoami`',
+      };
+    },
+  },
+  {
+    id: 'git-remote',
+    remedy:
+      'Fix the connection, the credentials or the remote setting, then run the same command again',
+    diagnose(_site, error) {
+      const remoteCommand =
+        error.command.startsWith('git ls-remote') || error.command.startsWith('git fetch');
+      if (error.tool !== 'git' || !remoteCommand) return undefined;
+      return {
+        cause: 'origin cannot be reached (network, authentication or the remote setting)',
+        check: '`git ls-remote origin`',
+      };
+    },
+  },
+  {
+    id: 'output-shape',
+    remedy:
+      'Record it under "結果" in ADR-029, then continue with "## 手作業の手順" in docs/releasing.md',
+    diagnose(site, error) {
+      const afterPushShape =
+        site.side === 'after-push' &&
+        (site.where === 'shape-unknown' || site.where === 'unexpected-run-shape');
+      const trustShape = error.command.startsWith('npm trust list') && error.rawPath !== undefined;
+      if (!afterPushShape && !trustShape) return undefined;
+      return {
+        cause:
+          'The shape of the npm or gh output differs from what this script expects (as the `npm view` array did in 0.2.0)',
+        check:
+          'Open the saved raw output in an editor (it is neither masked nor sanitized, so do not cat it to a terminal)',
+      };
+    },
+  },
+];
+
+// --- 場所ごとの既定の候補 (型で網羅を強制する) ---
+
+interface Default extends Diagnosis {
+  id: string;
+  remedy: string;
+}
+
+const RERUN_REMEDY = 'Run the same command again; if it repeats, read the lines under error:';
+
+const def = (id: string, cause: string, check: string, remedy: string): Default => ({
+  id,
+  cause,
+  check,
+  remedy,
+});
+
+const SHAPE_DEFAULT = (id: string): Default =>
+  def(
+    id,
+    'The shape of the npm or gh output differs from what this script expects',
+    'Open the saved raw output in an editor (it is neither masked nor sanitized, so do not cat it to a terminal)',
+    'Record it under "結果" in ADR-029, then continue with "## 手作業の手順" in docs/releasing.md'
+  );
+
+type PlainAfterPushKind = Exclude<StopObservation['kind'], 'job-failed' | 'post-check'>;
+
+const AFTER_PUSH_DEFAULTS: Readonly<Record<PlainAfterPushKind, Default>> = {
+  'run-not-found': def(
+    'default:after-push:run-not-found',
+    'No Release run exists for the tag commit: the workflow did not start or has not appeared yet',
+    'Open the Actions tab and look for a Release run on the tag; check the trigger conditions in release.yml',
+    'With 0 published, check the workflow trigger (F4); otherwise check the published packages and the stage list by hand'
+  ),
+  'unexpected-run-shape': SHAPE_DEFAULT('default:after-push:unexpected-run-shape'),
+  'shape-unknown': SHAPE_DEFAULT('default:after-push:shape-unknown'),
+  'staged-mismatch': def(
+    'default:after-push:staged-mismatch',
+    'A staged package differs from the validated content',
+    'Read the lines under error: and compare with `npm stage list <name> --json`',
+    'Reject what is staged and retag (F1 steps 3-4); if some packages are published, follow F3'
+  ),
+  'stage-none': def(
+    'default:after-push:stage-none',
+    'No package is staged on npm',
+    'Read the npm-stage job log in the Actions tab',
+    'There is nothing to reject; fix the cause and retag (F1 steps 3-4)'
+  ),
+  'published-out-of-order': def(
+    'default:after-push:published-out-of-order',
+    'The published packages are not a prefix of the manifest order; the registry read may lag',
+    '`npm view <name> versions --json` for each package, in the manifest order',
+    'Run again in a few minutes; if it is unchanged, follow F3'
+  ),
+  'published-wrong': def(
+    'default:after-push:published-wrong',
+    'A package is published with an integrity that differs from the validated one',
+    '`npm view <name>@<version> dist.integrity` against the validate job log',
+    'Follow F3: reject what is unapproved, deprecate what is published, and release a patch'
+  ),
+  'approve-failed': def(
+    'default:after-push:approve-failed',
+    '`npm stage approve` failed (a cancelled or mistyped 2FA, or E409 retries used up); the stage stays valid',
+    'Read the lines under error:',
+    'Run the same command again; it continues from where it stopped'
+  ),
+  interrupted: def(
+    'default:after-push:interrupted',
+    'The run was interrupted (Ctrl-C) at a wait or retry boundary',
+    'Nothing is broken',
+    'Run the same command again'
+  ),
+  'attempt-changed': def(
+    'default:after-push:attempt-changed',
+    'The workflow run was re-run while it was being checked',
+    'Open the run in the Actions tab and look at its attempts',
+    'Run the same command again'
+  ),
+  'command-failed': def(
+    'default:after-push:command-failed',
+    'A command failed while checking the release',
+    'Read the command and the lines under error:',
+    RERUN_REMEDY
+  ),
+  'trust-eotp': def(
+    'default:after-push:trust-eotp',
+    'The npm 2FA skip expired (or was not chosen)',
+    'Did you choose "skip 2FA for 5 minutes" in the interactive authentication?',
+    'Run again and choose "skip 2FA for 5 minutes" in the interactive authentication'
+  ),
+  'trust-mismatch': def(
+    'default:after-push:trust-mismatch',
+    'The trusted publisher settings differ from the expected single entry',
+    'Read the six outputs shown above',
+    'Follow steps 3 / 3a of the one-time migration in docs/releasing.md'
+  ),
+};
+
+const JOB_FAILED_DEFAULTS: Readonly<Record<'validate' | 'npm-stage', Default>> = {
+  validate: def(
+    'default:after-push:job-failed:validate',
+    'The validate job failed',
+    'Read the lines under error:; if the log could not be read, open the run in the Actions tab',
+    'Fix the cause and retag with --tag-only (F1); if the cause is release.yml, follow F4'
+  ),
+  'npm-stage': def(
+    'default:after-push:job-failed:npm-stage',
+    'The npm-stage job failed for a reason other than a trust or authentication error',
+    'Read the lines under error:, then check what is staged with `npm stage list <name> --json`',
+    'Reject what is staged and retag (F1 steps 3-4); if some packages are published, follow F3'
+  ),
+};
+
+const POST_CHECK_DEFAULTS: Readonly<
+  Record<'integrity' | 'dist-tag' | 'release' | 'shape', Default>
+> = {
+  integrity: def(
+    'default:after-push:post-check:integrity',
+    'The published tarball differs from the validated bytes',
+    '`npm view <name>@<version> dist.integrity` against the validate job log',
+    'Deprecate what is published and release a patch (F3)'
+  ),
+  'dist-tag': def(
+    'default:after-push:post-check:dist-tag',
+    'A dist-tag does not point at the released version',
+    '`npm view <name> dist-tags --json`',
+    'Fix it with `npm dist-tag add <name>@<version> <tag>`'
+  ),
+  release: def(
+    'default:after-push:post-check:release',
+    'The GitHub Release does not exist',
+    'Open the github-release job in the Actions tab',
+    'Re-run the github-release job; if the tag has to be created again, delete the Release first'
+  ),
+  shape: def(
+    'default:after-push:post-check:shape',
+    'The registry answer for a package could not be read in the expected shape',
+    'Read the lines under error:',
+    'Do the "### approve の後の確認" steps in docs/releasing.md by hand'
+  ),
+};
+
+const FRONT_DEFAULTS: Readonly<Record<FrontStage, Default>> = {
+  '1 prerequisites': def(
+    'default:front:1 prerequisites',
+    'A prerequisite check failed (git state, trust settings or `pnpm verify`)',
+    'Read the command and the lines under error:; run a failed verify step alone (see try:)',
+    'Fix what the lines under error: show, then run the same command again; nothing has been changed yet'
+  ),
+  '2 versioning': def(
+    'default:front:2 versioning',
+    '`changeset version` or a check after it failed; the working tree may hold version changes',
+    'Read the command and the lines under error:; `git status`',
+    'Restore the working tree with the undo command shown, fix the cause, then run again'
+  ),
+  '3 publish preconditions': def(
+    'default:front:3 publish preconditions',
+    'A publish precondition failed (package versions, CHANGELOG, registry or tag)',
+    'Read the command and the lines under error:',
+    'Restore the working tree with the undo command shown, fix the cause, then run again'
+  ),
+  '4 consumer test': def(
+    'default:front:4 consumer test',
+    'The consumer test with the new tarballs failed',
+    'Run `pnpm test:consumer` alone and read its output',
+    'Restore the working tree with the undo command shown, fix the cause, then run again'
+  ),
+  '5 confirmation': def(
+    'default:front:5 confirmation',
+    'The confirmation was declined or could not be asked',
+    'Did you answer N?',
+    'Restore the working tree with the undo command shown; run again when you are ready'
+  ),
+  '6 record': def(
+    'default:front:6 record',
+    'The release commit or the tag could not be created',
+    '`git status` and `git log -1`',
+    'Restore with the undo command shown, fix the cause, then run again'
+  ),
+  '7 push': def(
+    'default:front:7 push',
+    '`git push` was rejected or failed; origin is unchanged',
+    'Read the lines under error:; `git ls-remote origin`',
+    'Undo the local commit and tag with the command shown (`git tag -d vX.Y.Z && git reset --hard origin/master`), fix the cause, then run again'
+  ),
+};
+
+const ENTRY_ROW_DEFAULTS: Readonly<Record<EntryStopRow, Default>> = {
+  0: def(
+    'default:entry:row0',
+    'The state of origin or the registry could not be read',
+    'Read the lines under error:; `git ls-remote origin`, `npm view <name> versions --json`',
+    'Fix the network or the authentication, then run the same command again'
+  ),
+  2: def(
+    'default:entry:row2',
+    'The release of this version is unfinished',
+    '`git ls-remote --tags origin` and `npm view <name> versions --json`',
+    'Run `git switch --detach vX.Y.Z` if HEAD differs from the tag, then run again without flags to finish it'
+  ),
+  3: def(
+    'default:entry:row3',
+    'The local tag exists at HEAD but not on origin: the push failed',
+    '`git tag -l vX.Y.Z` and `git ls-remote --tags origin`',
+    'Run `git tag -d vX.Y.Z && git reset --hard origin/master`; to tag again with --tag-only, delete the tag first'
+  ),
+  4: def(
+    'default:entry:row4',
+    'A stale local tag exists',
+    '`git tag -l vX.Y.Z` and `git rev-parse vX.Y.Z`',
+    'Run `git tag -d vX.Y.Z`, then run again'
+  ),
+  5: def(
+    'default:entry:row5',
+    '--tag-only was given but the tag is already released',
+    '`git ls-remote --tags origin`',
+    'To tag it again, delete the tag by the F1 steps in docs/releasing.md first'
+  ),
+  6: def(
+    'default:entry:row6',
+    '--tag-only was given but some packages are already published',
+    '`npm view <name> versions --json` for each package',
+    'Retagging (F1) needs 0 published packages; follow the F3 steps'
+  ),
+  9: def(
+    'default:entry:row9',
+    '`changeset status` failed',
+    'Read the lines under error:',
+    'Fix the cause shown, then run the same command again'
+  ),
+  10: def(
+    'default:entry:row10',
+    '`changeset status` is inconsistent with the repository',
+    'Read the lines under error:',
+    'Fix the cause shown, then run the same command again'
+  ),
+  12: def(
+    'default:entry:row12',
+    'The version is bumped but there is no tag',
+    '`git tag -l vX.Y.Z`',
+    'Run `pnpm run release -- --tag-only`'
+  ),
+  13: def(
+    'default:entry:row13',
+    'Pre mode has only consumed changesets',
+    '`.changeset/pre.json` and the pending changesets',
+    'Add a new changeset, or run `pnpm run release -- --exit-pre` to release the stable version'
+  ),
+  14: def(
+    'default:entry:row14',
+    'There is nothing to release',
+    '`pnpm changeset status`',
+    'Write a changeset, then run again'
+  ),
+};
+
+const ENTRY_KIND_DEFAULTS: Readonly<Record<Exclude<EntryWhere['kind'], 'row'>, Default>> = {
+  flags: def(
+    'default:entry:flags',
+    'The arguments are unknown or conflict with each other',
+    'Read the lines under error:',
+    'Fix the arguments; --tag-only, --pre <tag> and --exit-pre cannot be combined'
+  ),
+  tty: def(
+    'default:entry:tty',
+    'stdin and stdout are not both a terminal',
+    'Is the command run from a terminal (not a pipe or a redirect)?',
+    'Run it in a terminal'
+  ),
+  tooling: def(
+    'default:entry:tooling',
+    'The npm or gh version, or the registry setting, is outside the supported range',
+    '`npm --version`, `gh --version`, `npm config get registry`',
+    'Update the tool or fix the setting, then run again'
+  ),
+  repo: def(
+    'default:entry:repo',
+    'The repository or the package metadata is inconsistent (for example, the six package versions differ)',
+    'Read the lines under error:',
+    'Check the versions; do not bump `package.json` versions by hand'
+  ),
+  'pre-state': def(
+    'default:entry:pre-state',
+    'The state of git, the tags or the registry could not be combined into a decision',
+    'Read the lines under error:',
+    'Fix the cause shown, then run the same command again'
+  ),
+  dirty: def(
+    'default:entry:dirty',
+    'The working tree is not clean',
+    '`git status`',
+    'Revert or commit the changes, then run again'
+  ),
+  'after-push-input': def(
+    'default:entry:after-push-input',
+    'The input for the second half (the tag commit or the manifest order) could not be prepared',
+    'Read the lines under error:',
+    'Fix the cause shown, then run the same command again'
+  ),
+};
+
+function defaultFor(site: StopSite): Default {
+  if (site.side === 'front') return FRONT_DEFAULTS[site.where];
+  if (site.side === 'entry') {
+    return site.where.kind === 'row'
+      ? ENTRY_ROW_DEFAULTS[site.where.row]
+      : ENTRY_KIND_DEFAULTS[site.where.kind];
+  }
+  if (site.where === 'job-failed') return JOB_FAILED_DEFAULTS[site.job ?? 'npm-stage'];
+  if (site.where === 'post-check') return POST_CHECK_DEFAULTS[site.check ?? 'shape'];
+  return AFTER_PUSH_DEFAULTS[site.where];
+}
+
+// remediesFor が id から対処を引くための表 (規則と既定の候補の対処を 1 か所に集める)
+const REMEDY_BY_ID: ReadonlyMap<string, string> = new Map<string, string>([
+  ...RULES.map((rule): [string, string] => [rule.id, rule.remedy]),
+  ...[
+    ...Object.values(AFTER_PUSH_DEFAULTS),
+    ...Object.values(JOB_FAILED_DEFAULTS),
+    ...Object.values(POST_CHECK_DEFAULTS),
+    ...Object.values(FRONT_DEFAULTS),
+    ...Object.values(ENTRY_ROW_DEFAULTS),
+    ...Object.values(ENTRY_KIND_DEFAULTS),
+  ].map((d): [string, string] => [d.id, d.remedy]),
+]);
+
+export function diagnose(site: StopSite, error: ErrorExcerpt): NonEmpty<Cause> {
+  const hits: Cause[] = [];
+  for (const rule of RULES) {
+    const hit = rule.diagnose(site, error);
+    if (hit !== undefined) hits.push({ id: rule.id, cause: hit.cause, check: hit.check });
+    if (hits.length === MAX_CAUSES) break;
+  }
+  const [first, ...rest] = hits;
+  if (first !== undefined) return [first, ...rest];
+  const fallback = defaultFor(site);
+  return [{ id: fallback.id, cause: fallback.cause, check: fallback.check }];
+}
+
+export function remediesFor(causes: NonEmpty<Cause>): NonEmpty<string> {
+  const remedies = causes.map((c) => REMEDY_BY_ID.get(c.id) ?? RERUN_REMEDY);
+  const [first, ...rest] = remedies;
+  return [first ?? RERUN_REMEDY, ...rest];
 }

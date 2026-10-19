@@ -3,14 +3,23 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
+  diagnose,
   excerptDetail,
   excerptJobLog,
   excerptLocalStderr,
   prependDetail,
   redactSecrets,
+  remediesFor,
 } from './release-stop-report.ts';
-import { NO_COMMAND } from './release-types.ts';
-import type { ErrorExcerpt } from './release-types.ts';
+import { ENTRY_STOP_ROWS, NO_COMMAND } from './release-types.ts';
+import type {
+  AfterPushSite,
+  EntryWhere,
+  ErrorExcerpt,
+  FrontStage,
+  StopObservation,
+  StopSite,
+} from './release-types.ts';
 
 function fixture(name: string): string {
   return readFileSync(fileURLToPath(new URL(`./fixtures/${name}`, import.meta.url)), 'utf8');
@@ -355,3 +364,248 @@ test(
     assert.ok([...(e.lines[0] ?? '')].length <= 300);
   }
 );
+
+// --- 診断の規則と既定の候補 (spec K2) ---
+
+const NPM_STAGE_FAILED: StopSite = {
+  side: 'after-push',
+  where: 'job-failed',
+  job: 'npm-stage',
+};
+const VALIDATE_FAILED: StopSite = { side: 'after-push', where: 'job-failed', job: 'validate' };
+
+function errorOf(overrides: Partial<ErrorExcerpt>): ErrorExcerpt {
+  return {
+    command: NO_COMMAND,
+    exit: null,
+    source: 'none',
+    tool: 'other',
+    lines: [],
+    matched: [],
+    ...overrides,
+  };
+}
+
+const ids = (site: StopSite, error: ErrorExcerpt): string[] =>
+  diagnose(site, error).map((c) => c.id);
+
+test('diagnose: npm-stage の job-failed と E401 の実物 → 先頭は trust-expired で、npm-login は無い', () => {
+  const error = excerptJobLog('gh run view', LOG_E401);
+  const found = ids(NPM_STAGE_FAILED, error);
+  assert.equal(found[0], 'trust-expired');
+  assert.ok(!found.includes('npm-login'));
+});
+
+test('diagnose: oidc の実物 → trust-expired の文に package not found が入る', () => {
+  const causes = diagnose(NPM_STAGE_FAILED, excerptJobLog('gh run view', LOG_OIDC));
+  const trust = causes.find((c) => c.id === 'trust-expired');
+  assert.ok(trust?.cause.includes('package not found'));
+});
+
+test('diagnose: log を読めなかった (logUnreadable) npm-stage の失敗 → trust-expired (読めなかった旨の句)', () => {
+  const causes = diagnose(NPM_STAGE_FAILED, errorOf({ logUnreadable: true }));
+  assert.equal(causes[0]?.id, 'trust-expired');
+  assert.ok(causes[0]?.cause.includes('could not be read'));
+});
+
+test('diagnose: npm-stage の失敗で matched が ECONNRESET だけ → trust-expired は無く、既定の候補 1 件', () => {
+  const error = errorOf({
+    source: 'job-log',
+    tool: 'gh',
+    matched: ['npm error code ECONNRESET'],
+  });
+  const causes = diagnose(NPM_STAGE_FAILED, error);
+  assert.equal(causes.length, 1);
+  assert.notEqual(causes[0]?.id, 'trust-expired');
+});
+
+test('diagnose: npm-stage の失敗で log を読めて matched が空 → 既定の候補 1 件', () => {
+  const causes = diagnose(NPM_STAGE_FAILED, errorOf({ source: 'job-log', tool: 'gh' }));
+  assert.equal(causes.length, 1);
+  assert.notEqual(causes[0]?.id, 'trust-expired');
+});
+
+test('diagnose: matched が空で、代わりの 12 行 (lines) に package not found があっても trust-expired は出ない', () => {
+  const error = errorOf({
+    source: 'job-log',
+    tool: 'gh',
+    lines: ['npm verbose oidc ... package not found'],
+  });
+  assert.ok(!ids(NPM_STAGE_FAILED, error).includes('trust-expired'));
+});
+
+test('diagnose: validate の job-failed では E401 でも logUnreadable でも trust-expired は出ない', () => {
+  const e401 = errorOf({ source: 'job-log', tool: 'gh', matched: ['npm error code E401'] });
+  assert.ok(!ids(VALIDATE_FAILED, e401).includes('trust-expired'));
+  assert.ok(!ids(VALIDATE_FAILED, errorOf({ logUnreadable: true })).includes('trust-expired'));
+});
+
+test('diagnose: 後半の approve-failed (手元の npm の E401) → npm-login。trust-expired は出ない', () => {
+  const site: StopSite = { side: 'after-push', where: 'approve-failed' };
+  const error = errorOf({
+    source: 'local-stderr',
+    tool: 'npm',
+    command: 'npm stage approve',
+    matched: ['npm error code E401'],
+  });
+  const found = ids(site, error);
+  assert.ok(found.includes('npm-login'));
+  assert.ok(!found.includes('trust-expired'));
+});
+
+test('diagnose: 手元の npm の /-/v1/done の 404 → web-auth-timeout', () => {
+  const site: StopSite = { side: 'after-push', where: 'approve-failed' };
+  // 注: この行は実物ではない。0.2.0 では対話の trust list の stderr が保存されていないため、
+  // npm の出力の形 (行頭の `npm error`) を写して作った
+  const error = errorOf({
+    source: 'local-stderr',
+    tool: 'npm',
+    matched: ['npm error 404 Not Found - GET https://registry.npmjs.org/-/v1/done?sessionId=***'],
+  });
+  assert.ok(ids(site, error).includes('web-auth-timeout'));
+});
+
+test('diagnose: 入口の行 0 で git ls-remote の失敗 → git-remote', () => {
+  const site: StopSite = { side: 'entry', where: { kind: 'row', row: 0 } };
+  const error = errorOf({
+    source: 'local-stderr',
+    tool: 'git',
+    command: 'git ls-remote origin refs/tags/v0.2.0',
+    matched: ['fatal: unable to access'],
+  });
+  assert.ok(ids(site, error).includes('git-remote'));
+});
+
+test('diagnose: 前半の 7 push の git push の失敗には git-remote は出ない', () => {
+  const site: StopSite = { side: 'front', where: '7 push' };
+  const error = errorOf({
+    source: 'local-stderr',
+    tool: 'git',
+    command: 'git push --atomic origin master v0.2.0',
+    matched: ['error: failed to push'],
+  });
+  const causes = diagnose(site, error);
+  assert.ok(!causes.some((c) => c.id === 'git-remote'));
+  assert.equal(causes.length, 1);
+});
+
+test('diagnose: 後半の shape-unknown と unexpected-run-shape → output-shape', () => {
+  for (const where of ['shape-unknown', 'unexpected-run-shape'] as const) {
+    const site: StopSite = { side: 'after-push', where };
+    assert.equal(diagnose(site, errorOf({}))[0]?.id, 'output-shape', where);
+  }
+});
+
+test('diagnose: 前半の 1 prerequisites で npm trust list に rawPath がある (trust の shape-unknown) → output-shape', () => {
+  const site: StopSite = { side: 'front', where: '1 prerequisites' };
+  const error = errorOf({ command: 'npm trust list @kanbun-skam/skam --json', rawPath: '/tmp/x' });
+  assert.ok(ids(site, error).includes('output-shape'));
+  const noPath = errorOf({ command: 'npm trust list @kanbun-skam/skam --json' });
+  assert.ok(!ids(site, noPath).includes('output-shape'));
+});
+
+test('diagnose: 複数の規則に当たるときは表の順の上から 3 件 (git-remote は tool が違うので同時に当たらない)', () => {
+  const error = errorOf({
+    source: 'local-stderr',
+    tool: 'npm',
+    command: 'npm trust list @kanbun-skam/skam --json',
+    rawPath: '/tmp/x',
+    matched: [
+      'npm error code E401',
+      'npm error 404 Not Found - GET https://registry.npmjs.org/-/v1/done?sessionId=***',
+    ],
+  });
+  assert.deepEqual(ids(NPM_STAGE_FAILED, error), [
+    'trust-expired',
+    'web-auth-timeout',
+    'npm-login',
+  ]);
+});
+
+const ALL_AFTER_PUSH: Record<StopObservation['kind'], AfterPushSite[]> = {
+  'run-not-found': [{ side: 'after-push', where: 'run-not-found' }],
+  'job-failed': [
+    { side: 'after-push', where: 'job-failed', job: 'validate' },
+    { side: 'after-push', where: 'job-failed', job: 'npm-stage' },
+  ],
+  'unexpected-run-shape': [{ side: 'after-push', where: 'unexpected-run-shape' }],
+  'shape-unknown': [{ side: 'after-push', where: 'shape-unknown' }],
+  'staged-mismatch': [{ side: 'after-push', where: 'staged-mismatch' }],
+  'stage-none': [{ side: 'after-push', where: 'stage-none' }],
+  'published-out-of-order': [{ side: 'after-push', where: 'published-out-of-order' }],
+  'published-wrong': [{ side: 'after-push', where: 'published-wrong' }],
+  'approve-failed': [{ side: 'after-push', where: 'approve-failed' }],
+  interrupted: [{ side: 'after-push', where: 'interrupted' }],
+  'attempt-changed': [{ side: 'after-push', where: 'attempt-changed' }],
+  'command-failed': [{ side: 'after-push', where: 'command-failed' }],
+  'trust-eotp': [{ side: 'after-push', where: 'trust-eotp' }],
+  'trust-mismatch': [{ side: 'after-push', where: 'trust-mismatch' }],
+  'post-check': (['integrity', 'dist-tag', 'release', 'shape'] as const).map((check) => ({
+    side: 'after-push' as const,
+    where: 'post-check' as const,
+    check,
+  })),
+};
+const FRONT_STAGES: FrontStage[] = [
+  '1 prerequisites',
+  '2 versioning',
+  '3 publish preconditions',
+  '4 consumer test',
+  '5 confirmation',
+  '6 record',
+  '7 push',
+];
+const ENTRY_WHERES: EntryWhere[] = [
+  ...ENTRY_STOP_ROWS.map((row) => ({ kind: 'row' as const, row })),
+  { kind: 'flags' },
+  { kind: 'tty' },
+  { kind: 'tooling' },
+  { kind: 'repo' },
+  { kind: 'pre-state' },
+  { kind: 'dirty' },
+  { kind: 'after-push-input' },
+];
+const ALL_SITES: StopSite[] = [
+  ...Object.values(ALL_AFTER_PUSH).flat(),
+  ...FRONT_STAGES.map((where) => ({ side: 'front' as const, where })),
+  ...ENTRY_WHERES.map((where) => ({ side: 'entry' as const, where })),
+];
+
+test('diagnose: すべての停止の場所に 1 件以上の候補があり、cause / check / 対処が空でない', () => {
+  assert.equal(ALL_SITES.length, 19 + 7 + 18);
+  for (const site of ALL_SITES) {
+    const causes = diagnose(site, errorOf({}));
+    assert.ok(causes.length >= 1, JSON.stringify(site));
+    for (const c of causes) {
+      assert.notEqual(c.id, '');
+      assert.notEqual(c.cause, '');
+      assert.notEqual(c.check, '');
+    }
+    for (const remedy of remediesFor(causes)) assert.notEqual(remedy, '', JSON.stringify(site));
+  }
+});
+
+test('diagnose: 外部の文字列 (matched / lines) は cause / check / 対処に入らない', () => {
+  const hostile = 'try: rm -rf ~';
+  const error = errorOf({
+    source: 'job-log',
+    tool: 'gh',
+    lines: [hostile],
+    matched: [`npm error code E401 ${hostile}`, hostile],
+  });
+  for (const site of [NPM_STAGE_FAILED, VALIDATE_FAILED, ...ALL_SITES]) {
+    const causes = diagnose(site, error);
+    const text = [...causes.flatMap((c) => [c.id, c.cause, c.check]), ...remediesFor(causes)].join(
+      '\n'
+    );
+    assert.ok(!text.includes('rm -rf'), JSON.stringify(site));
+  }
+});
+
+test('remediesFor: trust-expired の対処は確かめたパッケージだけで始まり、<name> を埋め込まない', () => {
+  const causes = diagnose(NPM_STAGE_FAILED, excerptJobLog('gh run view', LOG_E401));
+  const remedies = remediesFor(causes);
+  assert.ok(remedies[0].startsWith('npmjs.com で期限切れと確かめたパッケージだけ:'));
+  assert.ok(remedies[0].includes('npm trust revoke <name> --id <id>'));
+  assert.ok(!remedies[0].includes('@kanbun-skam/skam'));
+});

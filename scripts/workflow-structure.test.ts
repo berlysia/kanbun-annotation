@@ -4,6 +4,7 @@
 import { after, afterEach, before, describe, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   chmodSync,
   cpSync,
@@ -565,6 +566,145 @@ describe('release.yml steps, executed', () => {
     assert.equal(readFileSync(summaryFile, 'utf8').trimEnd(), expected);
     assert.equal(r.stdout.trimEnd(), expected);
   });
+
+  // summary step を流す。表の integrity は manifest の写しではなく tgz から計算した値でなければならない
+  function runSummary(cwd: string) {
+    const summaryFile = join(scratchDir(), 'summary.md');
+    writeFileSync(summaryFile, '');
+    const r = runShell(runOf(validate(), 'summary'), {
+      cwd,
+      env: { RUNNER_TEMP: cwd, GITHUB_STEP_SUMMARY: summaryFile, TAG_NAME: stable.tag },
+    });
+    return { ...r, summary: readFileSync(summaryFile, 'utf8') };
+  }
+
+  const sha512Of = (file: string): string =>
+    `sha512-${createHash('sha512').update(readFileSync(file)).digest('base64')}`;
+
+  // 1 行目の表の行 (`| 1 | name | file | integrity |`) の integrity 列
+  const integrityOfRow = (text: string, row: number): string | undefined =>
+    text
+      .split('\n')
+      .find((l) => l.startsWith(`| ${row} |`))
+      ?.split(' | ')
+      .at(-1)
+      ?.replace(/ \|$/, '');
+
+  test('summary prints the integrity computed from the tarball, not the one the manifest claims', () => {
+    const { cwd, tarballs } = workDir(stable);
+    const manifest = readManifest(tarballs);
+    const claimed = `sha512-${Buffer.alloc(64, 1).toString('base64')}`;
+    writeManifest(tarballs, {
+      ...manifest,
+      packages: manifest.packages.map((p, i) => (i === 0 ? { ...p, integrity: claimed } : p)),
+    });
+    const r = runSummary(cwd);
+    assert.equal(r.status, 0, r.stderr);
+    const first = manifest.packages[0]!;
+    assert.equal(integrityOfRow(r.summary, 1), sha512Of(join(tarballs, first.file)));
+    assert.ok(!r.summary.includes(claimed));
+    assert.ok(!r.stdout.includes(claimed));
+  });
+
+  test('summary prints the integrity of the tarball as it is on disk even when the manifest differs', () => {
+    const { cwd, tarballs } = workDir(stable);
+    const manifest = readManifest(tarballs);
+    const target = manifest.packages[1]!;
+    const file = join(tarballs, target.file);
+    const bytes = readFileSync(file);
+    bytes[bytes.length - 1] = bytes[bytes.length - 1]! ^ 0xff;
+    writeFileSync(file, bytes);
+    const r = runSummary(cwd);
+    assert.equal(r.status, 0, r.stderr);
+    const printed = integrityOfRow(r.summary, 2);
+    assert.equal(printed, sha512Of(file));
+    assert.notEqual(printed, target.integrity);
+    assert.equal(integrityOfRow(r.stdout, 2), printed);
+  });
+
+  const summaryRejections: {
+    label: string;
+    reason: RegExp;
+    mutate: (tarballs: string, manifest: ManifestShape) => unknown;
+  }[] = [
+    {
+      label: 'a file that climbs out of the directory',
+      reason: /"\.\.\/x\.tgz"/,
+      mutate: (_t, m) => ({
+        ...m,
+        packages: m.packages.map((p, i) => (i === 0 ? { ...p, file: '../x.tgz' } : p)),
+      }),
+    },
+    {
+      label: 'a file name with a newline',
+      reason: /"a\\nb\.tgz"/,
+      mutate: (_t, m) => ({
+        ...m,
+        packages: m.packages.map((p, i) => (i === 0 ? { ...p, file: 'a\nb.tgz' } : p)),
+      }),
+    },
+    {
+      label: 'a numeric file',
+      reason: /file/,
+      mutate: (_t, m) => ({
+        ...m,
+        packages: m.packages.map((p, i) => (i === 0 ? { ...p, file: 1 } : p)),
+      }),
+    },
+    {
+      label: 'packages that is not an array',
+      reason: /packages/,
+      mutate: (_t, m) => ({ ...m, packages: {} }),
+    },
+    {
+      label: 'a package name with a pipe',
+      reason: /name/,
+      mutate: (_t, m) => ({
+        ...m,
+        packages: m.packages.map((p, i) => (i === 0 ? { ...p, name: 'a|b' } : p)),
+      }),
+    },
+    {
+      label: 'a version that injects a line',
+      reason: /version/,
+      mutate: (_t, m) => ({ ...m, version: '0.2.0\n- tag: x' }),
+    },
+    {
+      label: 'a distTag with a pipe',
+      reason: /distTag/,
+      mutate: (_t, m) => ({ ...m, distTag: 'a|b' }),
+    },
+    {
+      label: 'a missing second tarball',
+      reason: /@fx\/b|fx-b/,
+      mutate: (t, m) => {
+        rmSync(join(t, m.packages[1]!.file));
+        return undefined;
+      },
+    },
+    {
+      label: 'a missing manifest',
+      reason: /manifest/,
+      mutate: (t) => {
+        rmSync(join(t, 'manifest.json'));
+        return undefined;
+      },
+    },
+  ];
+
+  for (const { label, reason, mutate } of summaryRejections) {
+    test(`summary writes nothing and exits 1 for ${label}`, () => {
+      const { cwd, tarballs } = workDir(stable);
+      const changed = mutate(tarballs, readManifest(tarballs));
+      if (changed !== undefined) writeManifest(tarballs, changed);
+      const r = runSummary(cwd);
+      assert.equal(r.status, 1, r.stderr);
+      assert.equal(r.summary, '');
+      assert.equal(r.stdout, '');
+      assert.match(r.stderr, reason);
+      assert.equal(r.stderr.trimEnd().split('\n').length, 1, r.stderr);
+    });
+  }
 });
 
 describe('ci.yml', () => {

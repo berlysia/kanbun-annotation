@@ -70,26 +70,63 @@ jobs:
           retention-days: 7
 
       # Shown so the maintainer can compare it with `npm stage view` before approving.
+      # The integrity column is computed here from the tarballs, not copied from the manifest,
+      # so the table the after-push check compares against is not the manifest writer's claim.
+      # Nothing is written until every package is computed; any problem exits 1 with one stderr line.
       - name: Print the release manifest
         id: summary
         run: |
           node --input-type=module <<'EOF'
           import { appendFileSync, readFileSync } from 'node:fs';
+          import { createHash } from 'node:crypto';
 
-          const manifest = JSON.parse(
-            readFileSync(`${process.env.RUNNER_TEMP}/npm-tarball/manifest.json`, 'utf8')
-          );
+          const fail = (reason) => {
+            console.error(`summary: ${reason}`);
+            process.exit(1);
+          };
+          // 表と Actions の log の行を崩す文字 (改行・制御文字・`|`)
+          const unsafe = /[\u0000-\u001f\u007f|]/;
+          const cell = (label, value) => {
+            if (typeof value !== 'string' || unsafe.test(value)) {
+              fail(`manifest ${label} is not a plain string: ${JSON.stringify(value)}`);
+            }
+            return value;
+          };
+
+          const dir = `${process.env.RUNNER_TEMP}/npm-tarball`;
+          let manifest;
+          try {
+            manifest = JSON.parse(readFileSync(`${dir}/manifest.json`, 'utf8'));
+          } catch (error) {
+            fail(`cannot read manifest.json: ${JSON.stringify(String(error.message))}`);
+          }
+          if (!Array.isArray(manifest?.packages)) fail('manifest packages is not an array');
+
+          const filePattern = /^[A-Za-z0-9._-]+\.tgz$/;
+          const rows = manifest.packages.map((p, i) => {
+            const name = cell(`packages[${i}].name`, p?.name);
+            const file = p?.file;
+            if (typeof file !== 'string' || !filePattern.test(file)) {
+              fail(`manifest file of ${JSON.stringify(name)} is not a plain .tgz name: ${JSON.stringify(file)}`);
+            }
+            let bytes;
+            try {
+              bytes = readFileSync(`${dir}/${file}`);
+            } catch {
+              fail(`cannot read the tarball of ${JSON.stringify(name)}: ${JSON.stringify(file)}`);
+            }
+            const integrity = `sha512-${createHash('sha512').update(bytes).digest('base64')}`;
+            return `| ${i + 1} | ${name} | ${file} | ${integrity} |`;
+          });
           const lines = [
             '## Release manifest',
-            `- tag: ${manifest.tag}`,
-            `- version: ${manifest.version}`,
-            `- distTag: ${manifest.distTag}`,
+            `- tag: ${cell('tag', manifest.tag)}`,
+            `- version: ${cell('version', manifest.version)}`,
+            `- distTag: ${cell('distTag', manifest.distTag)}`,
             '',
             '| # | name | file | integrity |',
             '| --- | --- | --- | --- |',
-            ...manifest.packages.map(
-              (p, i) => `| ${i + 1} | ${p.name} | ${p.file} | ${p.integrity} |`
-            ),
+            ...rows,
           ];
           const text = `${lines.join('\n')}\n`;
           appendFileSync(process.env.GITHUB_STEP_SUMMARY, text);

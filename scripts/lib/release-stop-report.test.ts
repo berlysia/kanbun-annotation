@@ -15,9 +15,9 @@ import {
   formatStopReport,
   formatWaiting,
   prependDetail,
-  redactSecrets,
   remediesFor,
 } from './release-stop-report.ts';
+import { redactSecrets } from './release-sanitize.ts';
 import { ENTRY_STOP_ROWS, NO_COMMAND } from './release-types.ts';
 import type {
   AfterPushSite,

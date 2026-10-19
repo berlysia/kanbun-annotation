@@ -124,6 +124,10 @@ export function parseNpmView(status: number | null, stdout: string): RegistryRes
     if (code === 'E404') return { kind: 'not-found' };
     return { kind: 'error', message: `npm view failed with ${String(code ?? 'unknown error')}` };
   }
+  // npm 12 は複数フィールドの view を要素 1 つの配列で返す (`[{ versions, dist-tags }]`)
+  if (Array.isArray(json)) {
+    json = json.length === 1 ? json[0] : undefined;
+  }
   if (!isRecord(json)) return { kind: 'error', message: 'npm view returned unexpected JSON' };
   const rawVersions = json['versions'];
   const versions =

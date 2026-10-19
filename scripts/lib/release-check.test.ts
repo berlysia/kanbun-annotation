@@ -218,6 +218,24 @@ test('parseNpmView: found with versions and latest', () => {
   });
 });
 
+// 実物 (npm 12.2.0、2026-10-19): `npm view @kanbun-skam/skam versions dist-tags --json` は
+// 要素 1 つの配列で返る
+test('parseNpmView: npm 12 wraps the fields in a one-element array (実物)', () => {
+  const stdout =
+    '[\n  {\n    "versions": [\n      "0.1.0"\n    ],\n    "dist-tags": {\n      "latest": "0.1.0"\n    }\n  }\n]\n';
+  assert.deepEqual(parseNpmView(0, stdout), {
+    kind: 'found',
+    versions: ['0.1.0'],
+    latest: '0.1.0',
+  });
+});
+
+for (const stdout of ['[]', '[{"versions":["0.1.0"]},{"versions":["0.2.0"]}]', '["0.1.0"]']) {
+  test(`parseNpmView: an array that is not exactly one object is an error: ${stdout}`, () => {
+    assert.equal(parseNpmView(0, stdout).kind, 'error');
+  });
+}
+
 test('parseNpmView: a single version arrives as a string', () => {
   const stdout = '{"versions":"0.1.0","dist-tags":{"latest":"0.1.0"}}';
   assert.deepEqual(parseNpmView(0, stdout), {

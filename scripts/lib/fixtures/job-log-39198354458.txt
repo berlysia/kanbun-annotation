@@ -1,0 +1,83 @@
+Stage on npm	Stage publish	﻿2026-10-19T04:15:10.6174256Z ##[group]Run node --input-type=module <<'EOF'
+Stage on npm	Stage publish	2026-10-19T04:15:10.6174762Z [36;1mnode --input-type=module <<'EOF'[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6175162Z [36;1mimport { spawnSync } from 'node:child_process';[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6175566Z [36;1mimport { readFileSync } from 'node:fs';[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6175906Z [36;1m[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6176331Z [36;1mconst manifest = JSON.parse(readFileSync('npm-tarball/manifest.json', 'utf8'));[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6176889Z [36;1mfor (const { file } of manifest.packages) {[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6177459Z [36;1m  // The ./ prefix is required: without it npm reads the path as a GitHub shorthand, not a file.[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6177990Z [36;1m  const args = [[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6178294Z [36;1m    'stage',[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6178566Z [36;1m    'publish',[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6178855Z [36;1m    `./npm-tarball/${file}`,[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6179573Z [36;1m    '--access',[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6179904Z [36;1m    'public',[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6180210Z [36;1m    '--tag',[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6180481Z [36;1m    manifest.distTag,[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6180770Z [36;1m  ];[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6181056Z [36;1m  console.log(`npm ${args.join(' ')}`);[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6181494Z [36;1m  const result = spawnSync('npm', args, { stdio: 'inherit' });[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6181919Z [36;1m  if (result.status !== 0) {[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6182437Z [36;1m    console.error(`staging ${file} failed (${result.status ?? result.signal ?? result.error})`);[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6182966Z [36;1m    process.exit(1);[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6183255Z [36;1m  }[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6183490Z [36;1m}[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6183720Z [36;1mEOF[0m
+Stage on npm	Stage publish	2026-10-19T04:15:10.6251382Z shell: /usr/bin/bash -e {0}
+Stage on npm	Stage publish	2026-10-19T04:15:10.6251721Z env:
+Stage on npm	Stage publish	2026-10-19T04:15:10.6251967Z   TAG_NAME: v0.2.0
+Stage on npm	Stage publish	2026-10-19T04:15:10.6252249Z   NPM_CONFIG_LOGLEVEL: verbose
+Stage on npm	Stage publish	2026-10-19T04:15:10.6252548Z ##[endgroup]
+Stage on npm	Stage publish	2026-10-19T04:15:10.6612541Z npm stage publish ./npm-tarball/kanbun-skam-skam-0.2.0.tgz --access public --tag latest
+Stage on npm	Stage publish	2026-10-19T04:15:10.7429083Z npm verbose cli /opt/hostedtoolcache/node/24.21.0/x64/bin/node /opt/hostedtoolcache/node/24.21.0/x64/bin/npm
+Stage on npm	Stage publish	2026-10-19T04:15:10.7432201Z npm info using npm@12.1.0
+Stage on npm	Stage publish	2026-10-19T04:15:10.7433049Z npm info using node@v24.21.0
+Stage on npm	Stage publish	2026-10-19T04:15:10.7442849Z npm verbose title npm stage publish ./npm-tarball/kanbun-skam-skam-0.2.0.tgz
+Stage on npm	Stage publish	2026-10-19T04:15:10.7444501Z npm verbose argv "stage" "publish" "./npm-tarball/kanbun-skam-skam-0.2.0.tgz" "--access" "public" "--tag" "latest"
+Stage on npm	Stage publish	2026-10-19T04:15:10.7446194Z npm verbose logfile logs-max:10 dir:/home/runner/.npm/_logs/2026-10-19T04_15_10_716Z-
+Stage on npm	Stage publish	2026-10-19T04:15:10.7457919Z npm verbose logfile /home/runner/.npm/_logs/2026-10-19T04_15_10_716Z-debug-0.log
+Stage on npm	Stage publish	2026-10-19T04:15:10.9884361Z npm verbose stage [ './npm-tarball/kanbun-skam-skam-0.2.0.tgz' ]
+Stage on npm	Stage publish	2026-10-19T04:15:11.0516052Z npm http cache file:/home/runner/work/kanbun-annotation/kanbun-annotation/npm-tarball/kanbun-skam-skam-0.2.0.tgz 1ms (cache hit)
+Stage on npm	Stage publish	2026-10-19T04:15:11.0676498Z npm notice
+Stage on npm	Stage publish	2026-10-19T04:15:11.0773461Z npm notice 📦  @kanbun-skam/skam@0.2.0
+Stage on npm	Stage publish	2026-10-19T04:15:11.0773956Z npm notice Tarball Contents
+Stage on npm	Stage publish	2026-10-19T04:15:11.0774269Z npm notice 1.1kB LICENSE
+Stage on npm	Stage publish	2026-10-19T04:15:11.0774577Z npm notice 16.5kB README.md
+Stage on npm	Stage publish	2026-10-19T04:15:11.0774936Z npm notice 45.9kB dist/chunk-4AVUJLP7.js
+Stage on npm	Stage publish	2026-10-19T04:15:11.0775300Z npm notice 28.8kB dist/index.d.ts
+Stage on npm	Stage publish	2026-10-19T04:15:11.0775638Z npm notice 1.7kB dist/index.js
+Stage on npm	Stage publish	2026-10-19T04:15:11.0775980Z npm notice 21.6kB dist/rendering/index.d.ts
+Stage on npm	Stage publish	2026-10-19T04:15:11.0776368Z npm notice 42.7kB dist/rendering/index.js
+Stage on npm	Stage publish	2026-10-19T04:15:11.0776701Z npm notice 1.2kB package.json
+Stage on npm	Stage publish	2026-10-19T04:15:11.0777000Z npm notice Tarball Details
+Stage on npm	Stage publish	2026-10-19T04:15:11.0777335Z npm notice name: @kanbun-skam/skam
+Stage on npm	Stage publish	2026-10-19T04:15:11.0777705Z npm notice version: 0.2.0
+Stage on npm	Stage publish	2026-10-19T04:15:11.0778075Z npm notice filename: kanbun-skam-skam-0.2.0.tgz
+Stage on npm	Stage publish	2026-10-19T04:15:11.0778755Z npm notice package size: 39.0 kB
+Stage on npm	Stage publish	2026-10-19T04:15:11.0779468Z npm notice unpacked size: 159.4 kB
+Stage on npm	Stage publish	2026-10-19T04:15:11.0779907Z npm notice shasum: f44cd53b4cdf9ed77f43955dd9fc2287d26439cc
+Stage on npm	Stage publish	2026-10-19T04:15:11.0780426Z npm notice integrity: sha512-jg67ylF8HOoCe[...]xEkvuz9Nhyd1A==
+Stage on npm	Stage publish	2026-10-19T04:15:11.0780815Z npm notice total files: 8
+Stage on npm	Stage publish	2026-10-19T04:15:11.0781056Z npm notice
+Stage on npm	Stage publish	2026-10-19T04:15:11.1721780Z npm http fetch GET https://run-actions-3-azure-eastus.actions.githubusercontent.com/29//idtoken/***/***?api-version=2.0&audience=npm%3Aregistry.npmjs.org 200 100ms
+Stage on npm	Stage publish	2026-10-19T04:15:11.6496178Z npm notice npm tokens that bypass 2FA are being restricted for account changes and direct publishing. Learn how to prepare: https://gh.io/npm-gat-bypass2fa-deprecation
+Stage on npm	Stage publish	2026-10-19T04:15:11.6499186Z npm http fetch POST 404 https://registry.npmjs.org/-/npm/v1/oidc/token/exchange/package/@kanbun-skam%2fskam 475ms
+Stage on npm	Stage publish	2026-10-19T04:15:11.6512509Z npm verbose oidc Failed token exchange request with body message: OIDC token exchange error - package not found
+Stage on npm	Stage publish	2026-10-19T04:15:11.6539234Z npm verbose stack Error: This command requires you to be logged in to https://registry.npmjs.org/
+Stage on npm	Stage publish	2026-10-19T04:15:11.6541318Z npm verbose stack     at #publish (/opt/hostedtoolcache/node/24.21.0/x64/lib/node_modules/npm/lib/commands/publish.js:171:29)
+Stage on npm	Stage publish	2026-10-19T04:15:11.6543313Z npm verbose stack     at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+Stage on npm	Stage publish	2026-10-19T04:15:11.6545499Z npm verbose stack     at async StagePublish.exec (/opt/hostedtoolcache/node/24.21.0/x64/lib/node_modules/npm/lib/commands/publish.js:51:5)
+Stage on npm	Stage publish	2026-10-19T04:15:11.6547642Z npm verbose stack     at async Npm.exec (/opt/hostedtoolcache/node/24.21.0/x64/lib/node_modules/npm/lib/npm.js:194:9)
+Stage on npm	Stage publish	2026-10-19T04:15:11.6548751Z npm verbose stack     at async module.exports (/opt/hostedtoolcache/node/24.21.0/x64/lib/node_modules/npm/lib/cli/entry.js:67:5)
+Stage on npm	Stage publish	2026-10-19T04:15:11.6549596Z npm error code ENEEDAUTH
+Stage on npm	Stage publish	2026-10-19T04:15:11.6550180Z npm error need auth This command requires you to be logged in to https://registry.npmjs.org/
+Stage on npm	Stage publish	2026-10-19T04:15:11.6551104Z npm error need auth You need to authorize this machine using `npm login`
+Stage on npm	Stage publish	2026-10-19T04:15:11.6552112Z npm verbose cwd /home/runner/work/kanbun-annotation/kanbun-annotation
+Stage on npm	Stage publish	2026-10-19T04:15:11.6552912Z npm verbose os Linux 6.17.0-1022-azure
+Stage on npm	Stage publish	2026-10-19T04:15:11.6553617Z npm verbose node v24.21.0
+Stage on npm	Stage publish	2026-10-19T04:15:11.6554368Z npm verbose npm  v12.1.0
+Stage on npm	Stage publish	2026-10-19T04:15:11.6555674Z npm verbose exit 1
+Stage on npm	Stage publish	2026-10-19T04:15:11.6556732Z npm verbose code 1
+Stage on npm	Stage publish	2026-10-19T04:15:11.6561502Z npm error A complete log of this run can be found in: /home/runner/.npm/_logs/2026-10-19T04_15_10_716Z-debug-0.log
+Stage on npm	Stage publish	2026-10-19T04:15:11.6744837Z staging kanbun-skam-skam-0.2.0.tgz failed (1)
+Stage on npm	Stage publish	2026-10-19T04:15:11.6787256Z ##[error]Process completed with exit code 1.

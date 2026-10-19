@@ -85,7 +85,19 @@ el.xmlContent = xmlString;
 
 未知のキー、真偽値でない値、空文字、JSON の `null` / 配列 / 数値は不正で、**描画しない**（下の `skam-error`、`recoverable: false`）。`include-reading-layer` も `true` / `false` / 空文字以外は描画しない。`profile` 属性を外すと、full で描画する。
 
-`reading-layer-source` (`@experimental`) は、読み層の出どころを選ぶ。`readings`（既定）は作者が書いた読みを、`display` は `profile` で画面に見えている注記だけを言葉にする。`readings` と白文は参照しない。`readings` / `display` 以外は不正で、描画しない。**`reading-layer-source=""` は不正（描画しない）だが、`include-reading-layer=""` は真偽値の属性として true になる。** 読み上げの言葉を変える `accessibleLabels` は関数なので、属性からは渡せない。`render()` を直接呼ぶ。
+`reading-layer-source` (`@experimental`) は、読み層の出どころを選ぶ。`readings`（既定）は作者が書いた読みを、`display` は `profile` で画面に見えている注記だけを言葉にする。`readings` と白文は参照しない。`readings` / `display` 以外は不正で、描画しない。**`reading-layer-source=""` は不正（描画しない）だが、`include-reading-layer=""` は真偽値の属性として true になる。**
+
+読み上げの言葉を変える `accessibleLabels` (`@experimental`) は関数を含むので、属性ではなくプロパティで渡す。
+
+```js
+const el = document.querySelector('skam-renderer');
+el.accessibleLabels = { kaeri: () => '返り点' };
+```
+
+- ラベルは `reading-layer-source="display"` のときだけ効く。
+- 不正な値 (関数でない値、未知のキー、プレーンでないオブジェクトなど) は、ラベルなしで描画し、`recoverable: true` の `skam-error` で通知する。
+- 変えるときは新しいオブジェクトを代入する。同じオブジェクトの中身を書き換えて再代入しても、再描画しない。
+- ラベルの関数が例外を投げたり、空文字や文字列でない値を返したりしたときは、その注記だけが出ない。通知はない。
 
 ### 出題に使うとき
 
@@ -118,10 +130,12 @@ el.xmlContent = xmlString;
 
 `skam-error` には 2 種類ある。
 
-- `recoverable: false`: 描画に失敗した。内容を消して `role="alert"` を表示する。`profile` / `include-reading-layer` / `reading-layer-source` が不正なときも、この形で発火する（`attribute` に属性名が入り、`detail` に属性の生の値は入らない。値は 64 文字に切り詰めて、メッセージに含まれる）。描画の失敗は再描画のたびに発火する。属性が不正な間は、`<script>` の内容が変わっても空のままで、同じ属性の同じ値では再び発火しない。
-- `recoverable: true`: `writing-mode` / `copyable` / `class-prefix` / `display-lang` の値が不正だったため、その属性だけ既定値に戻して描画を続けた（`copyable` は有効な要素名だけを使う）。`attribute` に属性名が入る。`skam-render` より前に、`writing-mode` → `copyable` → `class-prefix` → `display-lang` の順で発火する。`class-prefix` / `display-lang` では、`error.message` に属性の値は含まれない。
+- `recoverable: false`: 描画に失敗した。内容を消して `role="alert"` を表示する。`profile` / `include-reading-layer` / `reading-layer-source` が不正なときも、この形で発火する（`attribute` に属性名が入り、`detail` に属性の生の値は入らない。値は 64 文字に切り詰めて、メッセージに含まれる）。同じ内容で同じエラーが続く間は 1 回だけ発火する。内容かエラーが変わる、描画が成功する、要素を外す、のいずれかで、次の失敗は再び発火する。属性が不正な間は、`<script>` の内容が変わっても空のままで、同じ属性の同じ値では再び発火しない。
+- `recoverable: true`: `writing-mode` / `copyable` / `class-prefix` / `display-lang` の値が不正だったため、その属性だけ既定値に戻して描画を続けた（`copyable` は有効な要素名だけを使う）。不正な `accessibleLabels` (プロパティ) は、ラベルなしで描画を続ける。`attribute` に属性名が入る。`skam-render` より前に、`writing-mode` → `copyable` → `class-prefix` → `display-lang` → `accessibleLabels` の順で発火する。`class-prefix` / `display-lang` では、`error.message` に属性の値は含まれない。
 
 回復可能なエラーは、同じ属性に同じ不正値が残っている間は再描画しても再び発火しない。値が変わったときだけ発火する。値が有効になった場合と、要素を DOM から外した場合は、記録が消える。ハンドラが属性を毎回違う不正値に書き換えると、エラー → 再描画 → エラーの連鎖は止まらない。これはハンドラ側の誤りとして扱う。
+
+`skam-error` のハンドラの中で、同じ要素の内容を書き換えないこと。書き換えると、内容が変わるたびに通知と再描画が続く。
 
 ### SSR
 

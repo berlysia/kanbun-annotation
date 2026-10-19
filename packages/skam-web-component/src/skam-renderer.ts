@@ -6,7 +6,12 @@
  */
 
 import { parse } from '@kanbun-skam/skam-xml-parser';
-import { render, calibrateGridBaseline } from '@kanbun-skam/skam-html-renderer';
+import {
+  render,
+  calibrateGridBaseline,
+  validateRenderOptions,
+  type AccessibleLabels,
+} from '@kanbun-skam/skam-html-renderer';
 import {
   buildRenderOptions,
   type AttributeValues,
@@ -92,12 +97,23 @@ export class SkamRendererElement extends BaseElement {
   #contentDiv: HTMLDivElement;
 
   #xmlContent: string | undefined;
+  #accessibleLabels: Partial<AccessibleLabels> | undefined;
+  /** skam-error で通知した不正な accessibleLabels の参照。同じ参照では再通知しない */
+  #reportedLabels: { ref: unknown } | null = null;
   #observer: MutationObserver | null = null;
   #rafId: number | null = null;
   /** 最後に skam-error で通知した不正値 (属性名 → 値)。同じ値では再通知しない */
   #reportedInvalid = new Map<string, string>();
   /** fail closed で通知済みの属性 → 値。同じ値では再通知しない */
   #reportedBlocked = new Map<string, string>();
+  /**
+   * 直前に通知した致命的エラー (抽出した XML・name・message)。
+   * 同じ内容で同じエラーが続く間は、再描画のたびに通知しない。ハンドラが内容を書き換えたときの
+   * エラー → 再描画 → エラーの連鎖と、MutationObserver による重複通知を避けるため。
+   */
+  #reportedFatal: { xml: string; name: string; message: string } | null = null;
+  /** #reportedFatal と対になる alert の要素。同じエラーの間は使い回して DOM に触らない */
+  #fatalAlert: HTMLDivElement | null = null;
 
   constructor() {
     super();
@@ -136,6 +152,25 @@ export class SkamRendererElement extends BaseElement {
     this.#scheduleRender();
   }
 
+  /**
+   * 読み上げ層の言葉を上書きするラベル。関数を含むので属性では渡せない。
+   * `reading-layer-source="display"` のときだけ描画に効く。不正な値はラベルなしで描画し、
+   * `recoverable: true` の skam-error で通知する。変えるときは新しいオブジェクトを代入する
+   * (同じ参照の再代入は再描画しない)。null は指定なしとして扱う。
+   *
+   * @experimental
+   */
+  get accessibleLabels(): Partial<AccessibleLabels> | undefined {
+    return this.#accessibleLabels;
+  }
+
+  set accessibleLabels(value: Partial<AccessibleLabels> | undefined) {
+    const next = value ?? undefined;
+    if (Object.is(next, this.#accessibleLabels)) return;
+    this.#accessibleLabels = next;
+    this.#scheduleRender();
+  }
+
   connectedCallback(): void {
     // auto-font 属性があれば Google Fonts を注入
     this.#ensureFont();
@@ -164,6 +199,8 @@ export class SkamRendererElement extends BaseElement {
 
     this.#reportedInvalid.clear();
     this.#reportedBlocked.clear();
+    this.#reportedLabels = null;
+    this.#clearFatal();
   }
 
   attributeChangedCallback(
@@ -187,6 +224,7 @@ export class SkamRendererElement extends BaseElement {
     // 注記を隠す属性が不正な間は、内容が変わっても描画しない (fail closed)
     const { options, invalid, blocked } = buildRenderOptions(attrs);
     if (blocked.length > 0) {
+      this.#clearFatal();
       this.#renderBlocked(blocked, attrs);
       return;
     }
@@ -195,12 +233,25 @@ export class SkamRendererElement extends BaseElement {
     const xml = extractXml(this.#xmlContent, this);
 
     if (!xml) {
+      this.#clearFatal();
       this.#contentDiv.innerHTML = '';
       this.#mainStyle.textContent = '';
       return;
     }
 
     try {
+      // 読み上げ層の source にかかわらず検証する。不正ならラベルなしで描画を続ける
+      const labels = this.#accessibleLabels;
+      let labelsError: TypeError | null = null;
+      if (labels !== undefined) {
+        try {
+          validateRenderOptions({ accessibleLabels: labels });
+          options.accessibleLabels = labels;
+        } catch (error) {
+          labelsError = error instanceof TypeError ? error : new TypeError(String(error));
+        }
+      }
+
       const doc = parse(xml);
       const { html, css } = render(doc, options);
 
@@ -217,6 +268,7 @@ export class SkamRendererElement extends BaseElement {
       });
 
       this.#reportInvalid(invalid, attrs);
+      this.#reportInvalidLabels(labels, labelsError);
 
       this.dispatchEvent(
         new CustomEvent('skam-render', {
@@ -225,8 +277,9 @@ export class SkamRendererElement extends BaseElement {
           composed: true,
         })
       );
+      this.#clearFatal();
     } catch (error) {
-      this.#handleError(error);
+      this.#handleError(error, xml);
     }
   }
 
@@ -254,6 +307,26 @@ export class SkamRendererElement extends BaseElement {
         })
       );
     }
+  }
+
+  /**
+   * 不正な accessibleLabels を回復可能なエラーとして通知する (描画は続けている)。
+   * 同じ参照では再通知しない。正しい値か指定なしになったら記憶を消す。
+   */
+  #reportInvalidLabels(labels: unknown, error: TypeError | null): void {
+    if (error === null) {
+      this.#reportedLabels = null;
+      return;
+    }
+    if (this.#reportedLabels !== null && Object.is(this.#reportedLabels.ref, labels)) return;
+    this.#reportedLabels = { ref: labels };
+    this.dispatchEvent(
+      new CustomEvent('skam-error', {
+        detail: { error, recoverable: true, attribute: 'accessibleLabels' },
+        bubbles: true,
+        composed: true,
+      })
+    );
   }
 
   /**
@@ -288,14 +361,38 @@ export class SkamRendererElement extends BaseElement {
     }
   }
 
-  #handleError(error: unknown): void {
+  /**
+   * 致命的エラーを表示して通知する。XML・name・message がすべて直前の通知と同じなら通知しない。
+   * Error でない値は name を空文字、message を String(値) として比べる。
+   */
+  #handleError(error: unknown, xml: string): void {
+    const name = error instanceof Error ? error.name : '';
     const message = error instanceof Error ? error.message : String(error);
+    const last = this.#reportedFatal;
+    const alert = this.#fatalAlert;
 
-    this.#contentDiv.innerHTML = '';
-    const alert = document.createElement('div');
-    alert.setAttribute('role', 'alert');
-    alert.textContent = message;
-    this.#contentDiv.appendChild(alert);
+    if (
+      last !== null &&
+      alert !== null &&
+      last.xml === xml &&
+      last.name === name &&
+      last.message === message
+    ) {
+      // 本文が書き込まれた後に例外が出た場合 (calibrateGridBaseline など) だけ、alert だけに戻す
+      if (this.#contentDiv.childNodes.length !== 1 || this.#contentDiv.firstChild !== alert) {
+        this.#contentDiv.replaceChildren(alert);
+      }
+      return;
+    }
+
+    const next = alert ?? document.createElement('div');
+    next.setAttribute('role', 'alert');
+    next.textContent = message;
+    this.#fatalAlert = next;
+    this.#contentDiv.replaceChildren(next);
+
+    // 通知のハンドラが同期的に内容を書き換えても連鎖しないよう、通知の前に覚える
+    this.#reportedFatal = { xml, name, message };
 
     this.dispatchEvent(
       new CustomEvent('skam-error', {
@@ -304,6 +401,11 @@ export class SkamRendererElement extends BaseElement {
         composed: true,
       })
     );
+  }
+
+  #clearFatal(): void {
+    this.#reportedFatal = null;
+    this.#fatalAlert = null;
   }
 
   /** auto-font 属性があれば Google Fonts <link> を document.head に注入 */

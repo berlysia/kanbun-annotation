@@ -726,11 +726,11 @@ const NO_SPAWN: SpawnRules = {
 };
 
 // release.ts の実際の構造: 直接の spawn は nodeSpawn (async) と nodeSpawnSync (同期) だけ。
-// 実行は createRunner (spawnFn)、spawnChecked / git の dep / ghRelease (sync) を通る
+// 実行は createRunner (spawnFn)、git の dep / ghRelease (sync) を通る
 const RELEASE_SPAWN_RULES: SpawnRules = {
   literal: ['nodeSpawn', 'nodeSpawnSync'],
   spawnFn: ['createRunner'],
-  sync: { top: 'buildReleaseDeps', nested: ['spawnChecked', 'git', 'ghRelease'] },
+  sync: { top: 'buildReleaseDeps', nested: ['git', 'ghRelease'] },
   allowChildProcessImport: true,
 };
 
@@ -922,7 +922,7 @@ describe('release scripts: module boundaries', () => {
     const good = [
       'const nodeSpawn = (cmd) =>\n  spawn(cmd, []);\n',
       "export function createRunner(spawnFn) {\n  return () => spawnFn('npm', []);\n}\n",
-      "export function buildReleaseDeps(o) {\n  const sync = o.sync;\n  const spawnChecked = () => {\n    const r = sync('x', []);\n  };\n}\n",
+      "export function buildReleaseDeps(o) {\n  const sync = o.sync;\n  const git = () => {\n    const r = sync('x', []);\n  };\n}\n",
       'const found = PATTERN.exec(line);\n',
     ];
     for (const source of good) {
@@ -937,6 +937,7 @@ describe('release scripts: module boundaries', () => {
       "export function sneaky() {\n  return execFileSync('gh', []);\n}\n",
       "export function runIt() {\n  return sync('npm', []);\n}\n",
       "export function buildReleaseDeps(o) {\n  const sync = o.sync;\n  const other = () => sync('x', []);\n}\n",
+      "export function buildReleaseDeps(o) {\n  const sync = o.sync;\n  const spawnChecked = () => sync('x', []);\n}\n",
       "export function other(spawnFn) {\n  return spawnFn('npm', []);\n}\n",
     ];
     for (const source of bad) {

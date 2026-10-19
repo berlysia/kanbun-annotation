@@ -51,12 +51,14 @@ import {
   orderByDependencies,
   parseToolVersion,
   planIgnoredRestore,
+  planVerifySteps,
 } from './lib/release-check.ts';
 import type {
   ChangesetStatus,
   EntryObservation,
   ReleaseFlags,
   ReleaseLookup,
+  VerifyPlan,
   WorkspacePackage,
 } from './lib/release-check.ts';
 import {
@@ -72,6 +74,7 @@ import type {
   Check,
   ClassifiedStop,
   CommandResult,
+  FrontCheck,
   GitResult,
   Outcome,
   TrustResult,
@@ -222,6 +225,7 @@ export function createRunner(
               status: null,
               stdout: '',
               stderr: `command-failed: ${cmd} output exceeded ${PIPE_CAP_BYTES / MIB} MiB`,
+              exceeded: true,
             });
             return;
           }
@@ -352,13 +356,13 @@ function describeTrustStop(result: Exclude<TrustResult, { kind: 'ok' }>): string
 export interface ReleaseDeps {
   git(args: string[]): GitResult;
   verifyTrust(): Promise<TrustResult>;
-  changesetStatus(): Check<ChangesetStatus>;
-  changesetPre(args: string[]): Check<void>;
-  verify(): Check<void>;
-  changesetVersion(): Check<void>;
-  prettier(files: string[]): Check<void>;
-  checkRelease(tag: string): Check<void>;
-  consumer(): Check<void>;
+  changesetStatus(): Promise<FrontCheck<ChangesetStatus>>;
+  changesetPre(args: string[]): Promise<FrontCheck<void>>;
+  verify(): Promise<FrontCheck<void>>;
+  changesetVersion(): Promise<FrontCheck<void>>;
+  prettier(files: string[]): Promise<FrontCheck<void>>;
+  checkRelease(tag: string): Promise<FrontCheck<void>>;
+  consumer(): Promise<FrontCheck<void>>;
   ghRelease(tag: string): ReleaseLookup;
   confirm(question: string): Promise<boolean>;
   log(line: string): void;
@@ -511,7 +515,7 @@ function checkTagOnlyState(s: FrontState): StageResult {
   return undefined;
 }
 
-function describeStatusStop(status: Check<ChangesetStatus>): string | undefined {
+function describeStatusStop(status: FrontCheck<ChangesetStatus>): string | undefined {
   if (!status.ok) return `changeset status failed: ${errorText(status)}`;
   if (status.value.kind === 'none') return 'no pending changeset';
   if (status.value.kind === 'inconsistent') {
@@ -520,7 +524,7 @@ function describeStatusStop(status: Check<ChangesetStatus>): string | undefined 
   return undefined;
 }
 
-function checkPlannedVersion(s: FrontState): StageResult {
+async function checkPlannedVersion(s: FrontState): Promise<StageResult> {
   const { flags, deps } = s;
   const pre = readPreState(s.root);
   if (!pre.ok) return s.stop('1 prerequisites', errorText(pre));
@@ -531,7 +535,7 @@ function checkPlannedVersion(s: FrontState): StageResult {
     );
   }
   if (flags.mode !== 'normal') return undefined;
-  const status = deps.changesetStatus();
+  const status = await deps.changesetStatus();
   const stopped = describeStatusStop(status);
   if (stopped !== undefined) return s.stop('1 prerequisites', stopped);
   return undefined;
@@ -546,9 +550,9 @@ async function checkPrerequisites(s: FrontState): Promise<StageResult> {
   }
   const trust = await s.deps.verifyTrust();
   if (trust.kind !== 'ok') return s.stop('1 prerequisites', describeTrustStop(trust));
-  const planned = checkPlannedVersion(s);
+  const planned = await checkPlannedVersion(s);
   if (planned) return planned;
-  const verified = s.deps.verify();
+  const verified = await s.deps.verify();
   if (!verified.ok) return s.stop('1 prerequisites', `pnpm verify failed: ${errorText(verified)}`);
   // verify が作業ツリーを汚すと、段 2 の許可リストの停止に化けるので、ここで止める
   const dirty = s.deps.git(['status', '--porcelain']);
@@ -563,7 +567,7 @@ function planPreCommands(before: PreState, tag: string): string[][] {
   return before.tag === tag ? [] : [['exit'], ['enter', tag]];
 }
 
-function changePreMode(s: FrontState): StageResult {
+async function changePreMode(s: FrontState): Promise<StageResult> {
   const { flags, deps } = s;
   if (flags.mode !== 'pre' && flags.mode !== 'exit-pre') return undefined;
   const before = readPreState(s.root);
@@ -571,11 +575,11 @@ function changePreMode(s: FrontState): StageResult {
   const commands =
     flags.mode === 'exit-pre' ? [['exit']] : planPreCommands(before.value, flags.tag);
   for (const args of commands) {
-    const changed = deps.changesetPre(args);
+    const changed = await deps.changesetPre(args);
     if (!changed.ok) return s.stop('2 versioning', errorText(changed), REVERT_VERSIONING);
   }
   // mode を変えると出す版が変わるので、status で決め直す
-  const status = deps.changesetStatus();
+  const status = await deps.changesetStatus();
   const stopped = describeStatusStop(status);
   if (stopped !== undefined) return s.stop('2 versioning', stopped, REVERT_VERSIONING);
   return undefined;
@@ -632,11 +636,11 @@ function checkAllowedChanges(s: FrontState): Check<string[]> {
   return checkVersionedChanges(porcelain.stdout, dirs);
 }
 
-function versionStage(s: FrontState): StageResult {
+async function versionStage(s: FrontState): Promise<StageResult> {
   const { deps } = s;
-  const moded = changePreMode(s);
+  const moded = await changePreMode(s);
   if (moded) return moded;
-  const versioned = deps.changesetVersion();
+  const versioned = await deps.changesetVersion();
   if (!versioned.ok) return s.stop('2 versioning', errorText(versioned), REVERT_VERSIONING);
   const version = readVersion(s.root, deps.git);
   if (!version.ok) return s.stop('2 versioning', errorText(version), REVERT_VERSIONING);
@@ -645,7 +649,7 @@ function versionStage(s: FrontState): StageResult {
   fillChangelogs(s, version.value);
   const before = checkAllowedChanges(s);
   if (!before.ok) return s.stop('2 versioning', errorText(before), REVERT_VERSIONING);
-  const formatted = deps.prettier(before.value.filter((p) => existsSync(join(s.root, p))));
+  const formatted = await deps.prettier(before.value.filter((p) => existsSync(join(s.root, p))));
   if (!formatted.ok) return s.stop('2 versioning', errorText(formatted), REVERT_VERSIONING);
   // prettier や他のプロセスが、検査の後に別の変更を足していないかをもう一度確かめる
   const after = checkAllowedChanges(s);
@@ -696,13 +700,13 @@ export async function runRelease(flags: ReleaseFlags, deps: ReleaseDeps): Promis
 
   // 段 2: 版上げ (--tag-only は飛ばす)
   if (!tagOnly) {
-    const versioned = versionStage(s);
+    const versioned = await versionStage(s);
     if (versioned) return versioned;
   }
   const recovery = tagOnly ? undefined : REVERT_VERSIONING;
 
   // 段 3: 公開前提
-  const checked = deps.checkRelease(s.tag);
+  const checked = await deps.checkRelease(s.tag);
   if (!checked.ok) return stop('3 publish preconditions', errorText(checked), recovery);
   if (!tagOnly) {
     const state = tagState(git, s.tag);
@@ -710,7 +714,7 @@ export async function runRelease(flags: ReleaseFlags, deps: ReleaseDeps): Promis
   }
 
   // 段 4: 利用者テスト (新しい版の tarball で)
-  const consumed = deps.consumer();
+  const consumed = await deps.consumer();
   if (!consumed.ok) return stop('4 consumer test', errorText(consumed), recovery);
 
   // 段 5: 確認
@@ -942,7 +946,7 @@ async function runEntry(argv: readonly string[], deps: MainDeps): Promise<Outcom
 
   let decision = decideEntry(observed);
   if (decision.kind === 'need-status') {
-    decision = decideEntryWithStatus(observed, deps.release.changesetStatus());
+    decision = decideEntryWithStatus(observed, await deps.release.changesetStatus());
   }
   switch (decision.kind) {
     case 'stop':
@@ -1178,12 +1182,52 @@ export type SpawnSyncFn = (
 
 const nodeSpawnSync: SpawnSyncFn = (cmd, args, options) => spawnSync(cmd, args, options);
 
+// 前半の子ごとの stdio。崩れた子を inherit に戻すのは、その子の行 1 か所の変更で済む。
+// verify のキーは 1 つで、段ごとに流すときも全段に同じ stdio を使う
+type FrontChild =
+  | 'changesetStatus'
+  | 'changesetPre'
+  | 'verify'
+  | 'changesetVersion'
+  | 'prettier'
+  | 'checkRelease'
+  | 'consumer';
+
+const FRONT_CHILD_STDIO: Readonly<Record<FrontChild, RunStdio>> = {
+  changesetStatus: 'inherit',
+  changesetPre: 'inherit',
+  verify: 'inherit',
+  changesetVersion: 'inherit',
+  prettier: 'inherit',
+  checkRelease: 'inherit',
+  consumer: 'inherit',
+};
+
+// リポジトリの package.json の scripts.verify を、流す時点で読む。読めない、JSON でない、
+// scripts が object でないときは、丸ごと流す側に倒す
+function readVerifyPlan(root: string): VerifyPlan {
+  try {
+    const json: unknown = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+    const scripts =
+      typeof json === 'object' && json !== null
+        ? (json as Record<string, unknown>)['scripts']
+        : undefined;
+    if (typeof scripts !== 'object' || scripts === null || Array.isArray(scripts)) {
+      return { kind: 'whole' };
+    }
+    const body = (scripts as Record<string, unknown>)['verify'];
+    return planVerifySteps(typeof body === 'string' ? body : undefined, Object.keys(scripts));
+  } catch {
+    return { kind: 'whole' };
+  }
+}
+
 export interface BuildOptions {
   cwd: string;
   output: Output;
   env?: Readonly<Record<string, string | undefined>>;
   spawnSync?: SpawnSyncFn;
-  // 子の出力を端末に流す (inherit) か、集める (pipe)。テストは pipe
+  // 'pipe' なら、前半の子の stdio の表 (FRONT_CHILD_STDIO) を上書きして全部を集める。テストが使う
   stdio?: 'inherit' | 'pipe';
   // changeset を呼ぶコマンド。テストは fixture の repo の node_modules/.bin/changeset を絶対パスで指す
   changesetCmd?: readonly string[];
@@ -1198,20 +1242,32 @@ export function buildReleaseDeps(
   const { cwd, output } = options;
   const sync = options.spawnSync ?? nodeSpawnSync;
   const env = (): Record<string, string> => childEnv(options.env ?? process.env);
-  const stdio = options.stdio ?? 'inherit';
   const changeset = options.changesetCmd ?? ['pnpm', 'changeset'];
   const run = options.run ?? createRunner(nodeSpawn, output, { env: options.env ?? process.env });
 
-  // 前半の同期の実行は、この spawnChecked と git と ghRelease の 3 か所だけ
-  const spawnChecked = (cmd: string, args: string[]): Check<void> => {
-    const r = sync(cmd, args, { cwd, env: env(), encoding: 'utf8', stdio });
-    if (r.status === 0) return { ok: true, value: undefined };
-    const tail = (r.stderr ?? '').trim().split('\n').slice(-5).join('\n');
+  // 前半の子は run (createRunner) で実行する。cwd はリポジトリの root、環境変数は run が childEnv を通す。
+  // 失敗には子の結果 (コマンド、exit code、受けた stderr) を載せる。停止の表示はそれを使う
+  const runChild = async (
+    child: FrontChild,
+    cmd: string,
+    args: string[],
+    rerun?: string
+  ): Promise<FrontCheck<void>> => {
+    const stdio = options.stdio === 'pipe' ? 'pipe' : FRONT_CHILD_STDIO[child];
+    const result = await run(cmd, args, { stdio, cwd });
+    if (result.status === 0) return { ok: true, value: undefined };
+    const command = [cmd, ...args].join(' ');
+    const captured = stdio !== 'inherit';
     return {
       ok: false,
-      errors: [
-        `${cmd} ${args.join(' ')} exited with ${r.status ?? 'a signal'}${tail === '' ? '' : `: ${tail}`}`,
-      ],
+      errors: [`${command} exited with ${result.status ?? 'a signal'}`],
+      failure: {
+        command,
+        status: result.status,
+        stderr: captured ? result.stderr : '',
+        captured,
+        ...(rerun === undefined ? {} : { rerun }),
+      },
     };
   };
   const git: ReleaseDeps['git'] = (args) => {
@@ -1244,13 +1300,17 @@ export function buildReleaseDeps(
   const deps: ReleaseDeps = {
     git,
     verifyTrust: () => verifyTrustWith(run, saveRaw, output, publicNames()),
-    changesetStatus: () => {
+    changesetStatus: async () => {
       mkdirSync(join(cwd, '.tmp', 'release'), { recursive: true });
       // --output は repo root からの相対で解釈される
       const rel = `.tmp/release/status-${process.pid}.json`;
       const file = join(cwd, rel);
       try {
-        const ran = spawnChecked(changesetBin, [...changesetRest, 'status', `--output=${rel}`]);
+        const ran = await runChild('changesetStatus', changesetBin, [
+          ...changesetRest,
+          'status',
+          `--output=${rel}`,
+        ]);
         if (!ran.ok) return ran;
         const json: unknown = JSON.parse(readFileSync(file, 'utf8'));
         return parseChangesetStatus(json, publicNames());
@@ -1260,16 +1320,33 @@ export function buildReleaseDeps(
         rmSync(file, { force: true });
       }
     },
-    changesetPre: (args) => spawnChecked(changesetBin, [...changesetRest, 'pre', ...args]),
-    verify: () => spawnChecked('pnpm', ['verify']),
-    changesetVersion: () => spawnChecked(changesetBin, [...changesetRest, 'version']),
-    prettier: (files) =>
+    changesetPre: (args) =>
+      runChild('changesetPre', changesetBin, [...changesetRest, 'pre', ...args]),
+    verify: async () => {
+      const plan = readVerifyPlan(cwd);
+      if (plan.kind === 'whole') return runChild('verify', 'pnpm', ['verify']);
+      // 段ごとに流す。失敗した段で止まり、その段だけを流し直すコマンドを rerun に載せる
+      for (const name of plan.names) {
+        const step = await runChild('verify', 'pnpm', [name], `pnpm ${name}`);
+        if (!step.ok) return step;
+      }
+      return { ok: true, value: undefined };
+    },
+    changesetVersion: () =>
+      runChild('changesetVersion', changesetBin, [...changesetRest, 'version']),
+    prettier: async (files) =>
       files.length === 0
         ? { ok: true, value: undefined }
-        : spawnChecked('pnpm', ['exec', 'prettier', '--write', ...files]),
+        : runChild('prettier', 'pnpm', ['exec', 'prettier', '--write', ...files]),
     checkRelease: (tag) =>
-      spawnChecked(process.execPath, [checkReleaseScript, 'check', '--tag', tag, '--registry']),
-    consumer: () => spawnChecked('pnpm', ['test:consumer']),
+      runChild('checkRelease', process.execPath, [
+        checkReleaseScript,
+        'check',
+        '--tag',
+        tag,
+        '--registry',
+      ]),
+    consumer: () => runChild('consumer', 'pnpm', ['test:consumer']),
     ghRelease,
     confirm:
       options.confirm ??

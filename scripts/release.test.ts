@@ -27,6 +27,7 @@ import {
   createRunner,
   createTempFs,
   nodeFsApi,
+  nodeSpawn,
   pumpSanitizedStderr,
   readPreState,
   reportOutcome,
@@ -233,11 +234,11 @@ function fakeDeps(repo: Repo, overrides: Partial<ReleaseDeps> = {}): Fake {
       calls.push('verifyTrust');
       return { kind: 'ok' };
     },
-    changesetStatus: () => {
+    changesetStatus: async () => {
       calls.push('changesetStatus');
       return { ok: true, value: plannedStatus(repo) };
     },
-    changesetPre: (args) => {
+    changesetPre: async (args) => {
       calls.push(`pre:${args.join(' ')}`);
       if (args[0] === 'enter') writePre(repo.work, 'pre', args[1] ?? '');
       if (args[0] === 'exit') {
@@ -246,11 +247,11 @@ function fakeDeps(repo: Repo, overrides: Partial<ReleaseDeps> = {}): Fake {
       }
       return ok;
     },
-    verify: () => {
+    verify: async () => {
       calls.push('verify');
       return ok;
     },
-    changesetVersion: () => {
+    changesetVersion: async () => {
       calls.push('changesetVersion');
       const planned = plannedStatus(repo);
       const version = planned.kind === 'release' ? planned.version : '0.2.0';
@@ -269,15 +270,15 @@ function fakeDeps(repo: Repo, overrides: Partial<ReleaseDeps> = {}): Fake {
       if (existsSync(preFile) && !(inPre.ok && inPre.value.mode === 'pre')) unlinkSync(preFile);
       return ok;
     },
-    prettier: () => {
+    prettier: async () => {
       calls.push('prettier');
       return ok;
     },
-    checkRelease: () => {
+    checkRelease: async () => {
       calls.push('checkRelease');
       return ok;
     },
-    consumer: () => {
+    consumer: async () => {
       calls.push('consumer');
       return ok;
     },
@@ -396,15 +397,15 @@ test('stage 1: stops when there is no changeset other than README', async () => 
 const REVERT = 'git checkout -- . && git clean -fd .changeset packages';
 
 const stopCases: [string, (repo: Repo) => Partial<ReleaseDeps>][] = [
-  ['changesetVersion fails', () => ({ changesetVersion: () => failing })],
-  ['prettier fails', () => ({ prettier: () => failing })],
-  ['checkRelease fails', () => ({ checkRelease: () => failing })],
-  ['consumer fails', () => ({ consumer: () => failing })],
+  ['changesetVersion fails', () => ({ changesetVersion: async () => failing })],
+  ['prettier fails', () => ({ prettier: async () => failing })],
+  ['checkRelease fails', () => ({ checkRelease: async () => failing })],
+  ['consumer fails', () => ({ consumer: async () => failing })],
   ['confirm is declined', () => ({ confirm: async () => false })],
   [
     'the tag exists only locally',
     (repo) => ({
-      changesetVersion: () => {
+      changesetVersion: async () => {
         mustGit(repo.work, ['tag', 'v0.2.0']);
         return fakeDeps(repo).deps.changesetVersion();
       },
@@ -413,7 +414,7 @@ const stopCases: [string, (repo: Repo) => Partial<ReleaseDeps>][] = [
   [
     'the tag exists only on origin',
     (repo) => ({
-      changesetVersion: () => {
+      changesetVersion: async () => {
         mustGit(repo.other, ['tag', 'v0.2.0']);
         mustGit(repo.other, ['push', 'origin', 'v0.2.0']);
         return fakeDeps(repo).deps.changesetVersion();
@@ -548,7 +549,7 @@ const tagOnlyStops: [string, (repo: Repo) => Partial<ReleaseDeps> | undefined][]
       return undefined;
     },
   ],
-  ['checkRelease fails', () => ({ checkRelease: () => failing })],
+  ['checkRelease fails', () => ({ checkRelease: async () => failing })],
 ];
 for (const [label, setup] of tagOnlyStops) {
   test(`tag-only: changes nothing when ${label}`, async () => {
@@ -652,7 +653,7 @@ test('stage 1: pnpm verify also runs for --tag-only', async () => {
 test('stage 1: stops when pnpm verify leaves a file behind, before any versioning', async () => {
   const repo = makeRepo();
   const fake = fakeDeps(repo, {
-    verify: () => {
+    verify: async () => {
       writeFileSync(join(repo.work, 'junk.txt'), 'x');
       return ok;
     },
@@ -680,7 +681,7 @@ test('stage 2: restores ignored packages one path per line and keeps them out of
   const privBefore = readFileSync(join(repo.work, 'packages', 'priv', 'package.json'), 'utf8');
   const base = fakeDeps(repo).deps.changesetVersion;
   const fake = fakeDeps(repo, {
-    changesetVersion: () => {
+    changesetVersion: async () => {
       writeFileSync(
         join(repo.work, 'packages', 'priv', 'package.json'),
         `${JSON.stringify({ name: '@fx/priv', version: '0.0.1', private: true })}\n`
@@ -707,7 +708,7 @@ test('stage 2: stops and prints the revert command when changeset version touche
   const repo = makeRepo();
   const base = fakeDeps(repo).deps.changesetVersion;
   const fake = fakeDeps(repo, {
-    changesetVersion: () => {
+    changesetVersion: async () => {
       mkdirSync(join(repo.work, 'scripts'), { recursive: true });
       writeFileSync(join(repo.work, 'scripts', 'x.ts'), 'export {};\n');
       return base();
@@ -722,7 +723,7 @@ test('stage 2: stops and prints the revert command when changeset version touche
 test('stage 2: stops at the second allow-list check when prettier changes unexpected files', async () => {
   const repo = makeRepo();
   const fake = fakeDeps(repo, {
-    prettier: () => {
+    prettier: async () => {
       mkdirSync(join(repo.work, 'scripts'), { recursive: true });
       writeFileSync(join(repo.work, 'scripts', 'stray.txt'), 'x');
       writeFileSync(join(repo.work, 'packages', 'a', 'README.md'), 'changed\n');
@@ -771,7 +772,7 @@ test('--exit-pre: the revert command also restores a deleted pre.json', async ()
   const repo = makeRepo({ preTag: 'beta' });
   const fake = fakeDeps(repo, {
     // exit 後の版を 0.3.0 にして、段 5 で止める
-    changesetStatus: () => ({ ok: true, value: { kind: 'release', version: '0.3.0' } }),
+    changesetStatus: async () => ({ ok: true, value: { kind: 'release', version: '0.3.0' } }),
     confirm: async () => false,
   });
   const outcome = await runRelease({ mode: 'exit-pre' }, fake.deps);
@@ -1194,7 +1195,7 @@ function fakeMain(repo: Repo, options: MainOptions = {}): MainFake {
   const release: ReleaseDeps = {
     ...base.deps,
     git,
-    ...(status === undefined ? {} : { changesetStatus: () => ({ ok: true, value: status }) }),
+    ...(status === undefined ? {} : { changesetStatus: async () => ({ ok: true, value: status }) }),
     confirm: async (q) => {
       confirmCalls.push(q);
       return true;
@@ -1587,6 +1588,205 @@ test('ghRelease: the sync gh call is pinned to the repo and drops GH_HOST', () =
   assert.equal(calls[0]?.env['npm_config_foo'], undefined);
 });
 
+// --- 前半の子は run (createRunner) を通り、失敗に子の結果を載せる (plan-2 T1) ---
+
+interface FrontHarness {
+  deps: ReleaseDeps;
+  root: string;
+  calls: { line: string; stdio: string; cwd: string | undefined }[];
+}
+
+// package.json を cwd に置き、run を偽にして buildReleaseDeps を作る。respond は子の結果を返す
+function frontHarness(
+  packageJson: string,
+  respond: (line: string) => CommandResult,
+  options: { stdio?: 'inherit' | 'pipe' } = {}
+): FrontHarness {
+  const root = mkdtempSync(join(tmpdir(), PREFIX));
+  roots.push(root);
+  writeFileSync(join(root, 'package.json'), packageJson);
+  const calls: FrontHarness['calls'] = [];
+  const run: Runner = async (cmd, args, runOptions) => {
+    const line = [cmd, ...args].join(' ');
+    calls.push({ line, stdio: runOptions.stdio, cwd: runOptions.cwd });
+    return respond(line);
+  };
+  const deps = buildReleaseDeps({
+    cwd: root,
+    output: lineCollector().output,
+    run,
+    env: dirtyEnv,
+    ...(options.stdio === undefined ? {} : { stdio: options.stdio }),
+  });
+  return { deps, root, calls };
+}
+
+const verifyScripts = (verify: string): string =>
+  JSON.stringify({
+    scripts: { verify, build: 'x', typecheck: 'x', lint: 'x' },
+  });
+
+const exit0: CommandResult = { status: 0, stdout: '', stderr: '' };
+
+test('createRunner: output over 64 MiB sets exceeded and a signal exit does not', async () => {
+  const over = fakeSpawn((c) => {
+    c.child.stdout?.write(Buffer.alloc(64 * 1024 * 1024 + 1));
+    setImmediate(() => c.child.emit('close', 0, null));
+  });
+  const exceeded = await createRunner(over.spawn, lineCollector().output, { env: dirtyEnv })(
+    'npm',
+    ['view', 'x'],
+    { stdio: 'pipe' }
+  );
+  assert.equal(exceeded.status, null);
+  assert.equal(exceeded.exceeded, true);
+  const signalled = fakeSpawn((c) => {
+    c.child.stdout?.end();
+    c.child.stderr?.end();
+    setImmediate(() => c.child.emit('close', null, 'SIGTERM'));
+  });
+  const killed = await createRunner(signalled.spawn, lineCollector().output, { env: dirtyEnv })(
+    'npm',
+    ['view', 'x'],
+    { stdio: 'pipe' }
+  );
+  assert.equal(killed.status, null);
+  assert.equal('exceeded' in killed, false);
+});
+
+test('buildReleaseDeps: the seven front children run through run with the repository cwd and stdio inherit', async () => {
+  const h = frontHarness(verifyScripts('pnpm build'), () => exit0);
+  await h.deps.verify();
+  await h.deps.changesetVersion();
+  await h.deps.changesetPre(['exit']);
+  await h.deps.prettier(['a.md']);
+  await h.deps.checkRelease('v0.2.0');
+  await h.deps.consumer();
+  assert.deepEqual(
+    h.calls.map((c) => c.line.split(' ').slice(0, 2).join(' ')),
+    [
+      'pnpm build',
+      'pnpm changeset',
+      'pnpm changeset',
+      'pnpm exec',
+      `${process.execPath} ${new URL('./check-release.ts', import.meta.url).pathname}`,
+      'pnpm test:consumer',
+    ]
+  );
+  for (const call of h.calls) {
+    assert.equal(call.stdio, 'inherit');
+    assert.equal(call.cwd, h.root);
+  }
+});
+
+test('buildReleaseDeps: options.stdio pipe overrides the per-child table', async () => {
+  const h = frontHarness(verifyScripts('pnpm build'), () => exit0, { stdio: 'pipe' });
+  await h.deps.verify();
+  await h.deps.consumer();
+  assert.deepEqual(
+    h.calls.map((c) => c.stdio),
+    ['pipe', 'pipe']
+  );
+});
+
+test('buildReleaseDeps: a failed child carries command, status and the stderr it kept', async () => {
+  const h = frontHarness(
+    verifyScripts('pnpm build || true'),
+    () => ({ status: 3, stdout: '', stderr: 'Error: boom' }),
+    { stdio: 'pipe' }
+  );
+  const result = await h.deps.consumer();
+  assert.deepEqual(result, {
+    ok: false,
+    errors: ['pnpm test:consumer exited with 3'],
+    failure: {
+      command: 'pnpm test:consumer',
+      status: 3,
+      stderr: 'Error: boom',
+      captured: true,
+    },
+  });
+  const inherited = frontHarness(verifyScripts('pnpm build || true'), () => ({
+    status: null,
+    stdout: '',
+    stderr: 'ignored',
+  }));
+  const failed = await inherited.deps.consumer();
+  assert.ok(!failed.ok);
+  assert.deepEqual(failed.failure, {
+    command: 'pnpm test:consumer',
+    status: null,
+    stderr: '',
+    captured: false,
+  });
+  assert.deepEqual(failed.errors, ['pnpm test:consumer exited with a signal']);
+});
+
+test('verify: a chain of pnpm scripts runs step by step and stops at the first failure', async () => {
+  const h = frontHarness(verifyScripts('pnpm build && pnpm typecheck && pnpm lint'), (line) =>
+    line === 'pnpm typecheck' ? { status: 2, stdout: '', stderr: 'tsc failed' } : exit0
+  );
+  const result = await h.deps.verify();
+  assert.deepEqual(
+    h.calls.map((c) => c.line),
+    ['pnpm build', 'pnpm typecheck']
+  );
+  assert.ok(!result.ok);
+  assert.equal(result.failure?.command, 'pnpm typecheck');
+  assert.equal(result.failure?.rerun, 'pnpm typecheck');
+  assert.equal(result.failure?.status, 2);
+});
+
+test('verify: a body that cannot be split runs pnpm verify once and has no rerun', async () => {
+  const h = frontHarness(verifyScripts('pnpm build || true'), () => ({
+    status: 1,
+    stdout: '',
+    stderr: '',
+  }));
+  const result = await h.deps.verify();
+  assert.deepEqual(
+    h.calls.map((c) => c.line),
+    ['pnpm verify']
+  );
+  assert.ok(!result.ok);
+  assert.equal(result.failure?.command, 'pnpm verify');
+  assert.equal('rerun' in (result.failure ?? {}), false);
+});
+
+test('verify: every step passing runs the steps and never pnpm verify', async () => {
+  const h = frontHarness(verifyScripts('pnpm build && pnpm typecheck && pnpm lint'), () => exit0);
+  assert.deepEqual(await h.deps.verify(), { ok: true, value: undefined });
+  assert.deepEqual(
+    h.calls.map((c) => c.line),
+    ['pnpm build', 'pnpm typecheck', 'pnpm lint']
+  );
+});
+
+test('verify: a package.json that is not JSON, or has no scripts object, runs pnpm verify once', async () => {
+  for (const text of ['{ not json', JSON.stringify({ scripts: 'x' }), JSON.stringify([])]) {
+    const h = frontHarness(text, () => exit0);
+    await h.deps.verify();
+    assert.deepEqual(
+      h.calls.map((c) => c.line),
+      ['pnpm verify'],
+      text
+    );
+  }
+  const root = mkdtempSync(join(tmpdir(), PREFIX));
+  roots.push(root);
+  const calls: string[] = [];
+  const deps = buildReleaseDeps({
+    cwd: root,
+    output: lineCollector().output,
+    run: async (cmd, args) => {
+      calls.push([cmd, ...args].join(' '));
+      return exit0;
+    },
+  });
+  await deps.verify();
+  assert.deepEqual(calls, ['pnpm verify']);
+});
+
 // --- 実際の changesets での検証 (K18) ---
 // SAFETY: 実 git と実際の changeset は os.tmpdir() の下の fixture の中だけで動かす。cwd は常に明示し、
 // process.chdir は使わない。npm / gh / verify / consumer / trust は偽で、spawnSync は git と changeset 以外を拒否する。
@@ -1599,6 +1799,15 @@ const guardedSpawnSync: SpawnSyncFn = (cmd, args, options) => {
   assert.equal(options.env['GIT_DIR'], undefined);
   assert.equal(options.env['GIT_WORK_TREE'], undefined);
   return spawnSync(cmd, args, options);
+};
+
+// 子 (changeset) は createRunner を通る。起動してよいのは changeset だけ
+const guardedSpawn: SpawnFn = (cmd, args, options) => {
+  assert.ok(cmd === CHANGESET_BIN, `refusing to run ${cmd} in a test`);
+  assertUnderTmp(options.cwd ?? '');
+  assert.equal(options.env['GIT_DIR'], undefined);
+  assert.equal(options.env['GIT_WORK_TREE'], undefined);
+  return nodeSpawn(cmd, args, options);
 };
 
 function makeChangesetRepo(version = '0.1.0'): Repo {
@@ -1666,16 +1875,18 @@ function realDeps(repo: Repo): RealFake {
       spawnSync: guardedSpawnSync,
       stdio: 'pipe',
       changesetCmd: [CHANGESET_BIN],
-      run: async () => {
-        throw new Error('run is not available in tests');
-      },
+      run: createRunner(
+        guardedSpawn,
+        createOutput(() => {}),
+        { env: gitEnv }
+      ),
     },
     {
       verifyTrust: async () => ({ kind: 'ok' }),
-      verify: () => ok,
-      prettier: () => ok,
+      verify: async () => ok,
+      prettier: async () => ok,
       // 段 3 の checkChangelog を、fixture の実際の CHANGELOG に当てる
-      checkRelease: (tag) => {
+      checkRelease: async (tag) => {
         const errors: string[] = [];
         for (const dir of ['a', 'b']) {
           const text = readFileSync(join(repo.work, 'packages', dir, 'CHANGELOG.md'), 'utf8');
@@ -1684,7 +1895,7 @@ function realDeps(repo: Repo): RealFake {
         }
         return errors.length > 0 ? { ok: false, errors } : ok;
       },
-      consumer: () => ok,
+      consumer: async () => ok,
       ghRelease: () => ({ kind: 'not-found' }),
       confirm: async () => true,
       log: (line) => logs.push(line),

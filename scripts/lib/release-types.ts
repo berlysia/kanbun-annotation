@@ -42,7 +42,23 @@ export interface CommandResult {
   status: number | null;
   stdout: string;
   stderr: string;
+  // pipe の上限を超えて子を止めたとき。シグナルで終わった場合と区別するための印
+  exceeded?: true;
 }
+
+// 前半の子のコマンドの失敗。停止の表示が error の欄を作る材料 (外部の文字列は stderr だけ)
+export interface ChildFailure {
+  command: string; // `<cmd> <args>` (リポジトリが組み立てた文字列)
+  status: number | null;
+  stderr: string; // 保持した stderr (inherit のときは '')
+  captured: boolean; // stderr を受けたか (inherit なら false)
+  rerun?: string; // 段ごとに流した verify の失敗した段 (`pnpm <名前>`、package.json の値)
+}
+
+// 子の出力の解析の失敗 (changeset status の JSON など) は failure 無しで errors だけ
+export type FrontCheck<T> =
+  | { ok: true; value: T }
+  | { ok: false; errors: string[]; failure?: ChildFailure };
 
 export type StopRoute = 'F1' | 'F2' | 'F3' | 'F4' | 'rerun' | 'manual';
 

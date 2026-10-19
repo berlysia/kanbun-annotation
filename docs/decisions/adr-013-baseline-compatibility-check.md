@@ -1,11 +1,10 @@
 ---
 status: Complete
-plan: plan-baseline-compatibility-check.md
 ---
 
 # ADR-013: Web Platform Baseline 互換性チェックの導入
 
-実装計画: [Plan](../plans/plan-baseline-compatibility-check.md)
+実装計画: `git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/plan-baseline-compatibility-check.md`
 
 ## コンテキスト
 

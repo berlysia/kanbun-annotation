@@ -1,11 +1,10 @@
 ---
 status: Complete
-plan: plan-complexity-metrics-ci-integration.md
 ---
 
 # ADR-027: Complexity Metrics CI 統合
 
-実装計画: [Plan](../plans/plan-complexity-metrics-ci-integration.md)
+実装計画: `git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/plan-complexity-metrics-ci-integration.md`
 
 ## コンテキスト
 

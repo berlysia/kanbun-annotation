@@ -1,6 +1,5 @@
 ---
 status: Complete
-plan: plan-operation-renderer-integration-tests.md
 ---
 
 # ADR-001: オペレーション→レンダラー統合テストの導入

@@ -1,11 +1,10 @@
 ---
 status: Complete
-plan: plan-consumer-feedback.md
 ---
 
 # ADR-030: 利用者フィードバックへの対応 (出題用途の非表示・読み上げ・エラー位置)
 
-実装計画: [Plan](../plans/plan-consumer-feedback.md)
+実装計画: `git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/plan-consumer-feedback.md`
 
 ## コンテキスト
 
@@ -142,6 +141,8 @@ master (`8a32077`、0.2.0 は未公開) で 17 項目を確かめた結果は次
 | R6 既定の `'readings'`                      | 互換のため残した。既定の見直しを Followup に記録した |
 | R7 属性を外すと full                        | README に書いた                                      |
 | R8 すべての注記が出ないと読み上げ層が出ない | JSDoc に書き、テストで固定した                       |
+
+以後は docs/plans/backlog.md で追う。
 
 ## 根拠の計測
 

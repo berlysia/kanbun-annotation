@@ -6,7 +6,7 @@
  * 操作内容を正しく反映しているかを検証する。
  *
  * 関連: docs/decisions/adr-001-operation-renderer-integration-tests.md
- * 計画: docs/plans/plan-operation-renderer-integration-tests.md
+ * 計画: `git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/plan-operation-renderer-integration-tests.md`
  */
 import { describe, it, expect } from 'vitest';
 import type { SKAMDocument, Mark } from '@kanbun-skam/skam';

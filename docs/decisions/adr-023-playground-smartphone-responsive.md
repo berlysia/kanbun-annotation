@@ -1,6 +1,5 @@
 ---
 status: Complete
-plan: plan-playground-smartphone-responsive.md
 ---
 
 # ADR-023: Playground スマートフォン対応
@@ -80,4 +79,4 @@ playground 側 (main.ts) で SP 向けの 2 タップ範囲選択を実装。
 
 ## 参考
 
-- [Plan: Playground スマートフォン対応](../plans/plan-playground-smartphone-responsive.md)
+- Plan: Playground スマートフォン対応 (`git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/plan-playground-smartphone-responsive.md`)

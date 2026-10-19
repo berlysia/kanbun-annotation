@@ -43,14 +43,16 @@ packages/
 ### 仕様書・設計文書
 
 - `SKAM-draft.md` / `SKAM-ML-draft.md` — 仕様書
-- `docs/decisions/` — ADR、`docs/plans/` — 実装計画
+- `docs/decisions/` — ADR、`docs/plans/` — 実装中の計画と残件の一覧 (backlog.md)
 - `docs/releasing.md` — リリース手順
 
 ### ADR-Plan ワークフロー
 
-- ADR と Plan は 1:1 対応必須（独立 Plan は許容）
-- 双方向リンク必須: Plan → ADR / ADR → Plan
+- 実装中の ADR と Plan は 1:1 で対応させ、双方向にリンクする（独立 Plan は許容）。ADR の frontmatter に `plan:` を書き、Plan 本文の `<!-- validated -->` で `pnpm adr:status` の phase が進む
 - 命名: ADR 連動は `plan-{adr-slug}.md`、配置は `docs/plans/`
+- ADR を Complete にする PR で Plan を消し、frontmatter の `plan:` を外し、本文の Plan への参照を `git show <SHA>:docs/plans/<名前>` の形にする。SHA は Plan を最後に含む master 上の commit の完全な値で、短縮しない。独立 Plan も完了したら消す
+- Plan に残った作業は `docs/plans/backlog.md` に移す。ADR に残る当時の Followup の記述は書き換えず、「以後は docs/plans/backlog.md で追う。」と添える
+- `docs/plans/` には TEMPLATE.md、backlog.md、実装中の Plan だけを置く
 
 ## TypeScript Configuration
 

@@ -1,6 +1,5 @@
 ---
 status: Complete
-plan: plan-aki-gumi-spacing.md
 substatus:
   html: Complete
   canvas: Complete
@@ -8,7 +7,7 @@ substatus:
 
 # ADR-008: アキ組み（字間スペーシング）の導入
 
-実装計画: [Plan](../plans/plan-aki-gumi-spacing.md)
+実装計画: `git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/plan-aki-gumi-spacing.md`
 
 ## コンテキスト
 

@@ -1,11 +1,10 @@
 ---
 status: Complete
-plan: plan-validator-complexity-reduction.md
 ---
 
 # ADR-024: Validator 複雑度削減
 
-実装計画: [Plan](../plans/plan-validator-complexity-reduction.md)
+実装計画: `git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/plan-validator-complexity-reduction.md`
 
 ## コンテキスト
 

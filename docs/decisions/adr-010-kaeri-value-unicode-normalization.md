@@ -1,11 +1,10 @@
 ---
 status: Complete
-plan: plan-kaeri-value-unicode-normalization.md
 ---
 
 # ADR-010: 返り点 value の Unicode Kanbun ブロック正規化
 
-実装計画: [Plan](../plans/plan-kaeri-value-unicode-normalization.md)
+実装計画: `git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/plan-kaeri-value-unicode-normalization.md`
 
 ## コンテキスト
 

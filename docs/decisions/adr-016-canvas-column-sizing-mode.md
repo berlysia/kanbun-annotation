@@ -1,6 +1,5 @@
 ---
 status: Complete
-plan: plan-canvas-3level-layout.md
 ---
 
 # ADR-016: Canvas レンダラー列幅モード（uniform / adaptive）

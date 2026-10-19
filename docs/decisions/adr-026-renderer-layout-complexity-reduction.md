@@ -1,12 +1,11 @@
 ---
 status: Complete
 deps: [18]
-plan: plan-renderer-layout-complexity-reduction.md
 ---
 
 # ADR-026: Renderer Layout 複雑度削減
 
-実装計画: [Plan](../plans/plan-renderer-layout-complexity-reduction.md)
+実装計画: `git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/plan-renderer-layout-complexity-reduction.md`
 
 ## コンテキスト
 

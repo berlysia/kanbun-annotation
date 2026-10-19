@@ -1,11 +1,10 @@
 ---
-status: Accepted
-plan: plan-release-automation.md
+status: Complete
 ---
 
 # ADR-031: `pnpm run release` で公開の最後まで進める
 
-実装計画: [Plan](../plans/plan-release-automation.md)
+実装計画: `git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/plan-release-automation.md`
 手順: [releasing.md](../releasing.md)
 置き換え: [ADR-029](adr-029-staged-release-flow.md) の K1、K8 (受入基準の確かめ方と真正性の錨)、K12 を、この ADR が置き換える
 
@@ -47,6 +46,8 @@ ADR-029 の `pnpm run release` は、tag の push で終わる。その後は、
 - approve の後の `npm view` の反映の遅延の長さ。
 - `release.yml` が一度も実行されていないこと。OIDC、artifact の受け渡し、`npm stage publish` の結線は未実行である。
 - `npm stage` が scope の registry 設定を参照するか。validate を re-run したときに artifact が同名で衝突するか。job の log の保持期間 (R7)。stage の `actor` / `createdAt` の形。
+
+以後は docs/plans/backlog.md で追う。
 
 ## 検討した選択肢
 
@@ -169,6 +170,8 @@ ADR-029 の本文は変えない。ADR-029 の冒頭に、この ADR への注�
 2. release.yml の summary step で、tgz から sha512 を再計算して log に出す。log の integrity を、manifest の写しではなく、独立に計算した値にする。release.yml はこの作業の範囲の外。
 3. stage の来歴 (`actor`、`createdAt`) の表示 (R9)。形を 0.2.0 で確かめてから、y/N の表示に出すことを検討する。
 4. `dist.attestations` があれば検証する。
+
+以後は docs/plans/backlog.md で追う。
 
 ## 受容するリスク
 

@@ -1,11 +1,10 @@
 ---
 status: Complete
-plan: plan-practical-readiness.md
 ---
 
 # ADR-028: ライブラリ群の実用化 (データ欠落・入力安全性・利用者契約)
 
-実装計画: [Plan](../plans/plan-practical-readiness.md)
+実装計画: `git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/plan-practical-readiness.md`
 
 ## コンテキスト
 
@@ -213,6 +212,8 @@ TS 型の表明 (mark の `id` は string、`ext` は plain object、`placementH
 - **`package.json` の version は、release workflow を実行するまで 0.1.1 のままである。手で上げてはいけない。** 0.2.0 への更新は changesets の version コマンドが行う。`check-version-bump.mjs` が scratch のコピーで 0.2.0 になることを確かめている。
 - コミット `a33edaf` (plan-3 T4) は、単体では lint (complexity) を通らない。直後の `e6ecb2e` で直っている。PR を作るときに squash するかどうかを決める (Followup)。
 - 意図して提供しなかったもの: 範囲の重なり・部分交差の XML 表現 (JSON なら表現できる)、IVS と結合文字を 1 token にまとめること (現状は code point 単位。注記を基底文字の token に付ければ回避できる)、JSON Schema の配布と未知の mark type を保持する読み込み。
+
+以後は docs/plans/backlog.md で追う。
 
 ### リスク R1〜R7 の結果
 

@@ -1,6 +1,5 @@
 ---
 status: Complete
-plan: plan-html-renderer-colocation-and-named-grid-areas.md
 ---
 
 # ADR-019: HTML Renderer のコロケーション再編と CSS Grid 名前参照化
@@ -175,7 +174,7 @@ plan: plan-html-renderer-colocation-and-named-grid-areas.md
 
 ## 参考
 
-- 実装計画: [plan-html-renderer-colocation-and-named-grid-areas.md](../plans/plan-html-renderer-colocation-and-named-grid-areas.md)
+- 実装計画: `git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/plan-html-renderer-colocation-and-named-grid-areas.md`
 - `packages/skam-html-renderer/src/renderer.ts`
 - `packages/skam-html-renderer/src/build-render-tree.ts`
 - `packages/skam-html-renderer/src/render-tree.ts`

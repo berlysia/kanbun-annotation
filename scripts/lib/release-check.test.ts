@@ -33,7 +33,10 @@ import {
   combineTrustResults,
   sanitizeForTerminal,
   createStreamSanitizer,
+  planVerifySteps,
 } from './release-check.ts';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { ENTRY_STOP_ROWS, NO_COMMAND } from './release-types.ts';
 import * as afterPushCheck from './release-after-push-check.ts';
 import type {
@@ -1265,4 +1268,56 @@ test('sanitizeForTerminal / createStreamSanitizer: APC の再公開は RC の関
 test('ENTRY_STOP_ROWS: decideEntry / decideEntryWithStatus が止まる行の一覧と NO_COMMAND', () => {
   assert.deepEqual([...ENTRY_STOP_ROWS], [0, 2, 3, 4, 5, 6, 9, 10, 12, 13, 14]);
   assert.equal(NO_COMMAND, '(no command)');
+});
+
+// --- planVerifySteps (spec K5: pnpm verify を段ごとに流す) ---
+
+const SCRIPT_NAMES = ['build', 'lint', 'exec'];
+
+test('planVerifySteps: 実物の root の scripts.verify は 9 つの段に分かれる', () => {
+  const pkg = JSON.parse(
+    readFileSync(fileURLToPath(new URL('../../package.json', import.meta.url)), 'utf8')
+  ) as { scripts: Record<string, string> };
+  const plan = planVerifySteps(pkg.scripts['verify'], Object.keys(pkg.scripts));
+  assert.deepEqual(plan, {
+    kind: 'steps',
+    names: [
+      'build',
+      'typecheck',
+      'typecheck:scripts',
+      'lint',
+      'format:check',
+      'test:run',
+      'test:scripts',
+      'clean',
+      'test:consumer',
+    ],
+  });
+});
+
+test('planVerifySteps: 1 つでも pnpm <名前> の形でない部分があれば whole', () => {
+  const whole = { kind: 'whole' };
+  assert.deepEqual(planVerifySteps('pnpm build && node x.js', SCRIPT_NAMES), whole);
+  assert.deepEqual(planVerifySteps('pnpm build && pnpm nope', SCRIPT_NAMES), whole);
+  assert.deepEqual(planVerifySteps('pnpm build || true', SCRIPT_NAMES), whole);
+  assert.deepEqual(planVerifySteps('pnpm build; pnpm lint', SCRIPT_NAMES), whole);
+  assert.deepEqual(planVerifySteps('pnpm --filter x test', SCRIPT_NAMES), whole);
+  assert.deepEqual(planVerifySteps('pnpm exec foo', ['build']), whole);
+  assert.deepEqual(planVerifySteps('pnpm exec foo', SCRIPT_NAMES), whole);
+});
+
+test('planVerifySteps: undefined と空の本文は whole', () => {
+  assert.deepEqual(planVerifySteps(undefined, SCRIPT_NAMES), { kind: 'whole' });
+  assert.deepEqual(planVerifySteps('', SCRIPT_NAMES), { kind: 'whole' });
+});
+
+test('planVerifySteps: 前後の空白は無視し、同じ名前は出てきた回数だけ段に入れる', () => {
+  assert.deepEqual(planVerifySteps('  pnpm build  &&  pnpm lint ', SCRIPT_NAMES), {
+    kind: 'steps',
+    names: ['build', 'lint'],
+  });
+  assert.deepEqual(planVerifySteps('pnpm build && pnpm lint && pnpm build', SCRIPT_NAMES), {
+    kind: 'steps',
+    names: ['build', 'lint', 'build'],
+  });
 });

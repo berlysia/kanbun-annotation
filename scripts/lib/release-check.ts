@@ -5,8 +5,9 @@ import { StringDecoder } from 'node:string_decoder';
 import type {
   Check,
   CommandResult,
-  EntryStopRow,
   DistTag,
+  EntryStopRow,
+  NonEmpty,
   RegistryResponse,
   ReleaseLookup,
   ReleaseManifest,
@@ -898,4 +899,29 @@ export function combineTrustResults(results: readonly TrustResult[]): TrustResul
     if (found) return found;
   }
   return { kind: 'ok' };
+}
+
+// --- pnpm verify を段ごとに流すための分解 (K5) ---
+
+export type VerifyPlan = { kind: 'steps'; names: NonEmpty<string> } | { kind: 'whole' };
+
+// `pnpm <名前>` だけ (フラグも引数も無い)。名前は空白を含まない 1 語
+const PNPM_SCRIPT_STEP = /^pnpm ([^\s]+)$/;
+
+// scripts.verify の本文が `pnpm <script 名> && pnpm <script 名> ...` の連鎖で、全部の名前が
+// scripts に実在するときだけ段に分ける。それ以外 (`||`、`;`、フラグ、引数、実在しない名前) は
+// 丸ごと流す側に倒す。同じ名前が何度も出たら、`pnpm verify` と同じ回数だけ段に入れる
+export function planVerifySteps(
+  verifyBody: string | undefined,
+  scriptNames: readonly string[]
+): VerifyPlan {
+  if (verifyBody === undefined || verifyBody.trim() === '') return { kind: 'whole' };
+  const names: string[] = [];
+  for (const part of verifyBody.split(' && ')) {
+    const name = PNPM_SCRIPT_STEP.exec(part.trim())?.[1];
+    if (name === undefined || !scriptNames.includes(name)) return { kind: 'whole' };
+    names.push(name);
+  }
+  const [first, ...rest] = names;
+  return first === undefined ? { kind: 'whole' } : { kind: 'steps', names: [first, ...rest] };
 }

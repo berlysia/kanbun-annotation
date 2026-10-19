@@ -48,7 +48,6 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 - **竪点のグループからはみ出す読みの範囲 (#16)**: はみ出す読みの範囲は、先頭の字の読みとして出る。2 回目の読みが無い再読文字は、読み仮名として読まれる。扱いを決める。出典: plan-consumer-feedback.md L64、ADR-030「既知の制約」、#16。規模: 小。
 - **readingLayerSource の既定の見直し**: 次の破壊的リリースで、profile を指定して `readingLayerSource` を省いたときの既定 (`'readings'`) を見直す。出典: plan-consumer-feedback.md L62、ADR-030「リスク R1〜R8 の結果」の R6。規模: 小。
 - **'display' の読み上げ層の実機確認**: NVDA (Windows、日本語) と VoiceOver (macOS) で確かめる (未確認)。合格の条件は 2 つある。`習、送り仮名 フ、レ点。` の各語が言葉として発話されること。表示層のルビや返り点が、読み上げ層と重ねて読まれないこと。確かめたら、experimental を外すかを決める。出典: plan-consumer-feedback.md L61、ADR-030「リスク R1〜R8 の結果」の R1。規模: 中。
-- **複合返り点のアンカーの不整合**: `value: '一レ'` 等の複合返り点には、不整合がある。フィクスチャ kaeri-compound.xml の一部で、一レが上のトークン、レが下のトークンにアンカーする。plan は ADR-004 に記録済みと書くが、ADR-004 に該当する記述が見当たらない (未確認)。出典: plan-kaeri-re-anchor-convention.md L208。規模: 小。
 
 ## レンダラー
 

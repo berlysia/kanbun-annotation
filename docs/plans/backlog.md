@@ -53,7 +53,6 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 
 ## レンダラー
 
-- **Issue #4 を閉じる**: multi-token ruby-grid の range の字間のアキは、commit e6d55e2 で直っている。`spacing: 'full'` の春曉の「啼鳥」で、range 内の字のピッチを range 外の「處處」と比べた。font-size 32px で、どちらも 64px (2em) だった。`range-spacing.spec.ts` がこの測定を回帰テストにしている。Issue は open のままなので、利用者が確かめて閉じる。閉じたらこの項目を消す。出典: #4。規模: 小。
 - **grid baseline 補正の構造的課題 (#2)**: Chromium の補正に構造的な課題がある。補正は `--skam-grid-baseline-fix` と `calibrateGridBaseline()` が担う。Issue は open。出典: #2。規模: 大。
 - **highlight の傍線がアキ部分をカバーしない**: `highlight-content` は inline-block で、letter-spacing のアキが box に含まれない。そのため `box-shadow: inset` の傍線がアキ部分に描かれず、途切れて見える。ADR-008 で既知の制約とし、別 ADR で対応するとした。出典: plan-aki-gumi-spacing.md L70、ADR-008「検証 4: エッジケース」。規模: 中。
 - **分析結果キャッシュ (DocumentAnalysis) の再利用**: Canvas の縦書きレイアウトで、分析結果 (`DocumentAnalysis`) を再利用するかを決める。現行のコードで再利用されているかは未確認。出典: ADR-018「未決事項（残件）」。規模: 中。

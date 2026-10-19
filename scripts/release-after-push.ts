@@ -50,6 +50,7 @@ import {
   excerptDetail,
   excerptJobLog,
   excerptLocalStderr,
+  formatWaiting,
   prependDetail,
 } from './lib/release-stop-report.ts';
 import { NO_COMMAND } from './lib/release-types.ts';
@@ -147,6 +148,9 @@ export async function pollUntil<T>(
     budget: Budget;
     // true なら最初の probe の前にも待つ (直前に観測済みで、すぐの再観測に意味がないとき)
     delayFirst?: boolean;
+    // 待つ対象の名前。sleep の直前の行 (`waiting for <label>: ...`) に出る
+    label: string;
+    onWait: (line: string) => void;
     probe(): Promise<{ done: true; value: T } | { done: false }>;
   }
 ): Promise<PollResult<T>> {
@@ -159,6 +163,16 @@ export async function pollUntil<T>(
           ? n >= input.budget.attempts
           : clock.now() - start + input.intervalMs > input.budget.ms;
       if (spent) return { kind: 'exhausted' };
+      // 経過は、これから入る sleep が終わる時点。attempt は終えた probe の回数
+      input.onWait(
+        formatWaiting(
+          input.label,
+          clock.now() - start + input.intervalMs,
+          'attempts' in input.budget
+            ? { attempts: input.budget.attempts, attempt: n }
+            : { ms: input.budget.ms }
+        )
+      );
       await clock.sleep(input.intervalMs);
       if (clock.interrupted()) return { kind: 'interrupted' };
     }
@@ -315,10 +329,13 @@ function cleanupTemps(ctx: Ctx): void {
 async function pollOrHalt<T>(
   ctx: Ctx,
   wait: WaitSpec,
+  label: string,
   probe: () => Promise<{ done: true; value: T } | { done: false }>,
   delayFirst = false
 ): Promise<T | undefined> {
   const result = await pollUntil(ctx.deps, {
+    label,
+    onWait: ctx.deps.output.emit,
     intervalMs: wait.intervalMs,
     budget: 'attempts' in wait ? { attempts: wait.attempts } : { ms: wait.budgetMs },
     delayFirst,
@@ -338,15 +355,20 @@ function markPublished(ctx: Ctx, name: string): void {
 
 async function findRun(ctx: Ctx): Promise<number> {
   const args = ghRunListArgs(ctx.input.tagCommit);
-  const found = await pollOrHalt(ctx, WAIT.runAppear, async () => {
-    const result = await runCommandOk(ctx, 'gh', args, 'gh run list');
-    saveEvidence(ctx, EVIDENCE_FILES.run, result.stdout);
-    const selected = selectRun(parseJson(result.stdout), ctx.input.tagCommit);
-    if (selected.kind === 'shape-unknown') {
-      halt({ kind: 'shape-unknown', what: selected.what, ...withRaw(ctx) });
+  const found = await pollOrHalt(
+    ctx,
+    WAIT.runAppear,
+    `the Release run for ${ctx.input.tagCommit.slice(0, 12)} to appear`,
+    async () => {
+      const result = await runCommandOk(ctx, 'gh', args, 'gh run list');
+      saveEvidence(ctx, EVIDENCE_FILES.run, result.stdout);
+      const selected = selectRun(parseJson(result.stdout), ctx.input.tagCommit);
+      if (selected.kind === 'shape-unknown') {
+        halt({ kind: 'shape-unknown', what: selected.what, ...withRaw(ctx) });
+      }
+      return selected.kind === 'found' ? { done: true, value: selected.id } : { done: false };
     }
-    return selected.kind === 'found' ? { done: true, value: selected.id } : { done: false };
-  });
+  );
   if (found === undefined) halt({ kind: 'run-not-found' });
   ctx.runUrl = `${RUN_URL}/${found}`;
   return found;
@@ -363,6 +385,7 @@ async function fetchRunView(ctx: Ctx, runId: number): Promise<unknown> {
 async function readFailedJobLog(
   ctx: Ctx,
   runId: number,
+  job: 'validate' | 'npm-stage',
   jobId: number | undefined
 ): Promise<ErrorExcerpt> {
   const unreadable = (exit: number | null, stderr: string): ErrorExcerpt => {
@@ -380,7 +403,7 @@ async function readFailedJobLog(
   if (jobId === undefined) return unreadable(null, '');
   const args = argsOrHalt(ghRunLogFailedArgs(runId, jobId));
   const results: CommandResult[] = [];
-  const text = await pollOrHalt(ctx, WAIT.logFetch, async () => {
+  const text = await pollOrHalt(ctx, WAIT.logFetch, `the ${job} job log`, async () => {
     const result = await runCommand(ctx, 'gh', args, { stdio: 'pipe' });
     results.push(result);
     // 上限を超えた結果は、待っても変わらないので再試行しない
@@ -417,7 +440,7 @@ async function judgeRun(ctx: Ctx, runId: number): Promise<number> {
       return halt({
         kind: 'job-failed',
         job: judged.job,
-        error: await readFailedJobLog(ctx, runId, judged.jobId),
+        error: await readFailedJobLog(ctx, runId, judged.job, judged.jobId),
       });
     case 'shape-unknown':
       return halt({ kind: 'unexpected-run-shape', what: judged.what, ...withRaw(ctx) });
@@ -464,7 +487,7 @@ function expectedOf(ctx: Ctx): {
 async function readLogManifest(ctx: Ctx, run: RunInfo): Promise<LogManifest> {
   let lastWhat = 'the log could not be read';
   const args = argsOrHalt(ghRunLogArgs(run.id, run.validateJobId));
-  const manifest = await pollOrHalt(ctx, WAIT.logFetch, async () => {
+  const manifest = await pollOrHalt(ctx, WAIT.logFetch, 'the validate job log', async () => {
     const result = await ctx.deps.run('gh', args, { stdio: 'pipe' });
     if (result.status !== 0) {
       if (ctx.deps.interrupted()) halt({ kind: 'interrupted' });
@@ -575,6 +598,7 @@ async function planStage(ctx: Ctx, log: LogManifest): Promise<StagePlan> {
     const settled = await pollOrHalt(
       ctx,
       WAIT.settle,
+      `the stage of ${plan.names[0] ?? 'the packages'} to appear`,
       async () => {
         states = await readStates(ctx, log);
         const next = planApprove(states, false);
@@ -827,6 +851,7 @@ async function afterApproveFailure(
     await pollOrHalt(
       ctx,
       WAIT.settle,
+      `${name} to be published or staged`,
       async () => {
         state = await readState(ctx, name, log);
         return state.kind === 'missing' ? { done: false } : { done: true, value: true };
@@ -893,6 +918,7 @@ async function approveOne(
   const retried = await pollOrHalt(
     ctx,
     WAIT.conflict,
+    `the npm stage conflict (E409) on ${name} to clear`,
     async () => {
       const result = await attempt();
       const done =
@@ -999,7 +1025,7 @@ async function stage11(ctx: Ctx, log: LogManifest): Promise<AfterPushResult> {
   const integrities = new Map(log.packages.map((p) => [p.name, p.integrity]));
   let snapshot: PostSnapshot | undefined;
   let found: StopObservation[] = [];
-  await pollOrHalt(ctx, WAIT.settle, async () => {
+  await pollOrHalt(ctx, WAIT.settle, 'the registry to reflect the release', async () => {
     snapshot = await readPostCheck(ctx);
     found = judgePostCheck(
       snapshot.items,

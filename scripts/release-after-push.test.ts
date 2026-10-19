@@ -573,6 +573,8 @@ test('pollUntil: 時間の予算は now() と sleep() だけで測り、使い�
   const { clock, sleeps } = clockOf();
   let probes = 0;
   const r = await pollUntil(clock, {
+    label: 'x',
+    onWait: () => {},
     intervalMs: 10,
     budget: { ms: 30 },
     probe: async () => {
@@ -589,6 +591,8 @@ test('pollUntil: 回数の予算は probe の総数で、sleep はその間だ�
   const { clock, sleeps } = clockOf();
   let probes = 0;
   const r = await pollUntil(clock, {
+    label: 'x',
+    onWait: () => {},
     intervalMs: 5,
     budget: { attempts: 3 },
     probe: async () => {
@@ -604,6 +608,8 @@ test('pollUntil: 回数の予算は probe の総数で、sleep はその間だ�
 test('pollUntil: delayFirst は probe の前に sleep する', async () => {
   const { clock, sleeps } = clockOf();
   const r = await pollUntil(clock, {
+    label: 'x',
+    onWait: () => {},
     intervalMs: 5,
     budget: { attempts: 2 },
     delayFirst: true,
@@ -617,6 +623,8 @@ test('pollUntil: done の値を返す', async () => {
   const { clock } = clockOf();
   let n = 0;
   const r = await pollUntil(clock, {
+    label: 'x',
+    onWait: () => {},
     intervalMs: 1,
     budget: { attempts: 5 },
     probe: async () => {
@@ -634,6 +642,8 @@ test('pollUntil: 毎回 interrupted() を先に見る (probe の前、probe の�
   const before = await pollUntil(
     { ...clock, interrupted: () => flag },
     {
+      label: 'x',
+      onWait: () => {},
       intervalMs: 1,
       budget: { attempts: 5 },
       probe: async () => {
@@ -648,6 +658,8 @@ test('pollUntil: 毎回 interrupted() を先に見る (probe の前、probe の�
   const after = await pollUntil(
     { ...clock, interrupted: () => probes > 0 },
     {
+      label: 'x',
+      onWait: () => {},
       intervalMs: 1,
       budget: { attempts: 5 },
       probe: async () => {
@@ -658,6 +670,119 @@ test('pollUntil: 毎回 interrupted() を先に見る (probe の前、probe の�
   );
   assert.equal(after.kind, 'interrupted');
   assert.equal(probes, 1);
+});
+
+function waitLines(
+  run: (
+    clock: ReturnType<typeof clockOf>['clock'],
+    onWait: (line: string) => void
+  ) => Promise<{ kind: string }>
+): Promise<{ kind: string; lines: string[] }> {
+  const { clock } = clockOf();
+  const lines: string[] = [];
+  return run(clock, (line) => lines.push(line)).then((r) => ({ kind: r.kind, lines }));
+}
+
+test('pollUntil: 待機の行は sleep の直前に毎回出し、経過は sleep が終わる時点 (時間の予算)', async () => {
+  let probes = 0;
+  const r = await waitLines((clock, onWait) =>
+    pollUntil(clock, {
+      label: 'the thing',
+      onWait,
+      intervalMs: 10_000,
+      budget: { ms: 180_000 },
+      probe: async () => {
+        probes += 1;
+        return probes === 3 ? { done: true, value: 1 } : { done: false };
+      },
+    })
+  );
+  assert.equal(r.kind, 'done');
+  assert.deepEqual(r.lines, [
+    '  waiting for the thing: 10s / 180s',
+    '  waiting for the thing: 20s / 180s',
+  ]);
+});
+
+test('pollUntil: 回数の予算の行は終えた probe の回数を出し、使い切ったら足さない', async () => {
+  const r = await waitLines((clock, onWait) =>
+    pollUntil(clock, {
+      label: 'x',
+      onWait,
+      intervalMs: 30_000,
+      budget: { attempts: 3 },
+      probe: async () => ({ done: false }),
+    })
+  );
+  assert.equal(r.kind, 'exhausted');
+  assert.deepEqual(r.lines, [
+    '  waiting for x: 30s / attempt 1/3',
+    '  waiting for x: 60s / attempt 2/3',
+  ]);
+});
+
+test('pollUntil: delayFirst の最初の待機も出す (時間の予算)', async () => {
+  const r = await waitLines((clock, onWait) =>
+    pollUntil(clock, {
+      label: 'x',
+      onWait,
+      intervalMs: 30_000,
+      budget: { ms: 300_000 },
+      delayFirst: true,
+      probe: async () => ({ done: true, value: 1 }),
+    })
+  );
+  assert.deepEqual(r.lines, ['  waiting for x: 30s / 300s']);
+});
+
+test('pollUntil: delayFirst の最初の待機は attempt 0 (回数の予算)', async () => {
+  const r = await waitLines((clock, onWait) =>
+    pollUntil(clock, {
+      label: 'x',
+      onWait,
+      intervalMs: 30_000,
+      budget: { attempts: 20 },
+      delayFirst: true,
+      probe: async () => ({ done: true, value: 1 }),
+    })
+  );
+  assert.deepEqual(r.lines, ['  waiting for x: 30s / attempt 0/20']);
+});
+
+test('pollUntil: sleep の後の interrupted では行を足さない', async () => {
+  const { clock } = clockOf();
+  const lines: string[] = [];
+  let slept = 0;
+  const r = await pollUntil(
+    {
+      ...clock,
+      sleep: async (ms) => {
+        slept += 1;
+        await clock.sleep(ms);
+      },
+      interrupted: () => slept > 0,
+    },
+    {
+      label: 'x',
+      onWait: (line) => lines.push(line),
+      intervalMs: 10_000,
+      budget: { ms: 100_000 },
+      probe: async () => ({ done: false }),
+    }
+  );
+  assert.equal(r.kind, 'interrupted');
+  assert.deepEqual(lines, ['  waiting for x: 10s / 100s']);
+});
+
+test('待機の行: run が 40 秒後に現れる world では 10s から 40s までの 4 行が出る', async () => {
+  const w = makeWorld({ runListEmptyCalls: 4 });
+  const result = await go(w);
+  assert.deepEqual(result, { kind: 'completed' }, w.lines.join('\n'));
+  const label = `the Release run for ${COMMIT.slice(0, 12)} to appear`;
+  assert.deepEqual(
+    w.lines.filter((l) => l.startsWith('  waiting for')),
+    [10, 20, 30, 40].map((s) => `  waiting for ${label}: ${s}s / 180s`)
+  );
 });
 
 test('EVIDENCE_FILES: 名前に / を含まない (パッケージ名の @scope/ は除く)', () => {

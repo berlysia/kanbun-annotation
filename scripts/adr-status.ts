@@ -7,7 +7,13 @@
  *   node scripts/adr-status.ts --output x   # Also write to file
  */
 import { writeFileSync } from 'node:fs';
-import { parseAllAdrs, getPhase, getActionableAdrs, formatPlan } from './lib/adr-parser.ts';
+import {
+  parseAllAdrs,
+  getPhase,
+  getActionableAdrs,
+  formatPlan,
+  getCompleteWithPlanWarnings,
+} from './lib/adr-parser.ts';
 import type { AdrInfo, AdrPhase, AdrStatus } from './lib/types.ts';
 
 const REPO_ROOT = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
@@ -85,6 +91,10 @@ function main(): void {
   const outputPath = outputIdx !== -1 ? args[outputIdx + 1] : undefined;
 
   const allAdrs = parseAllAdrs(REPO_ROOT);
+
+  for (const line of getCompleteWithPlanWarnings(allAdrs)) {
+    console.error(line);
+  }
 
   let adrs: AdrInfo[];
   let title: string;

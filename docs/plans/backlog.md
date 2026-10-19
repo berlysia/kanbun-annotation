@@ -31,8 +31,8 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 
 ## Web Component
 
-- **attribute-validation.test.ts の flaky なテスト**: 2026-10-15 に `pnpm test` で 1 回だけ落ちた。落ちたのは `renders vertically and reports writing-mode once` である。2026-10-19 に 120 回流したが、再現しなかった。内訳は、8 コアすべてに CPU 負荷をかけた `attribute-validation.test.ts` が 100 回、`turbo run test:run --force` が 20 回である。vitest 4.0.18、happy-dom 20.3.9。失敗率が 2.5% (3/120) 以上なら 95% の確からしさで検出できたので、それ未満の失敗率は否定できない。元の失敗との関係は未確認だが、下の happy-dom の MutationObserver の件が候補である。出典: plan-release-automation.md L77。規模: 小。
-- **happy-dom の MutationObserver が GC で通知を落とす**: happy-dom 20.3.9 は MutationObserver のコールバックを `WeakRef` で持つ。該当するのは `MutationObserverListener.js` である。GC で回収されると、light DOM の変更の通知が捨てられる。`--expose-gc` で毎回 GC を走らせると、素の `<div>` でも 300 回中 299 回届かなかった。`textContent` で再描画を起こすテストは、GC のタイミング次第で落ちる。既存のテスト (attribute-validation.test.ts など) で `textContent` を使って再描画している箇所は、`xmlContent` の setter に替える。MutationObserver の経路そのものは、実ブラウザのテストで確かめる。happy-dom の新しい版で直っているかも確かめる。出典: fix/web-component-errors-and-labels の調査 (2026-10-19)。規模: 小。
+- **attribute-validation.test.ts の flaky なテスト**: 2026-10-15 に `pnpm test` で 1 回だけ落ちた。落ちたのは `renders vertically and reports writing-mode once` である。2026-10-19 に 120 回流したが、再現しなかった。内訳は、8 コアすべてに CPU 負荷をかけた `attribute-validation.test.ts` が 100 回、`turbo run test:run --force` が 20 回である。vitest 4.0.18、happy-dom 20.3.9。失敗率が 2.5% (3/120) 以上なら 95% の確からしさで検出できたので、それ未満の失敗率は否定できない。候補だった happy-dom の MutationObserver の件 (GC で通知を落とす) は 20.14.6 で直っている (#24)。再発しなければ、この行を消す。出典: plan-release-automation.md L77。規模: 小。
+- **light DOM の変更で再描画する経路の実ブラウザのテスト**: `<skam-renderer>` の light DOM の `textContent` を接続後に変えると再描画する経路を、playground の e2e (Playwright) で確かめる。happy-dom のテスト (attribute-validation.test.ts) は付随的に通っているだけで、e2e にこの経路の検査は無い。出典: chore/bump-happy-dom の spec K4。規模: 小。
 - **mount() 関数 (#11)**: DOM へ描く `mount()` 関数を足し、CSS の 1 回だけの注入とフォント読み込み後の補正をまとめる。出典: plan-consumer-feedback.md L65、#11。規模: 中。
 
 ## データモデルと仕様
@@ -63,9 +63,8 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 - **VRT (pnpm test:visual) の実行**: Playwright のブラウザがある環境で `pnpm test:visual` を実行し、ベースラインの差分を確かめる。白文のフォールバックと ref の番号順が見た目を変えないことが、未確認のままである。出典: plan-practical-readiness.md L105、ADR-028「既知の制約と未実施の確認」。規模: 小。
 - **移行表の機械可読化**: 移行表を機械可読形式 (YAML など) にして、各 README の移行の節を生成する。`migration-table.test.ts` は、README の旧挙動・新挙動・回避策の列が正本と一字一句同じかを検査しない。手編集によるずれを検出できない。出典: plan-practical-readiness.md L103、ADR-028「既知の制約と未実施の確認」。規模: 中。
 - **html-renderer の仕様テストの意味論化**: 文字列一致のテストを減らし、意味を検査するテストに置き換える。基盤は ADR-022 と `css-slot-semantics.test.ts` にある。ただし docs/testing/no-test-gap-matrix.md の 4 件はすべて `dual` で、`migrated` は 0 件である。`comprehensive-rendering.test.ts` には、`toContain` などの文字列一致の行が 267 行ある。出典: plan-html-renderer-colocation-and-named-grid-areas.md L295、ADR-020「完了時点で残る作業（Phase3 以降）」。規模: 大。
-- **Complete の ADR に残った plan の検出**: Complete の ADR に plan が残っていたら、`pnpm adr:status` が警告する。いまは PLAN 列に `exists` や `validated` を出すだけで、消し忘れに気づけない。出典: docs/plans/ を今後の作業だけにした整理。規模: 小。
-- **parseFrontmatter の数字でない deps**: `parseFrontmatter` は `deps: [a]` のような数字でない値を NaN にする。扱いを決めてテストで固定する。出典: adr-parser のテストの追加。規模: 小。
-- **scripts/adr-migrate-fm.ts の削除の検討**: 旧形式の本文リンクから frontmatter を作る一回限りの移行スクリプトで、knip の entry になっている。消すかどうかを決める。出典: docs/plans/ を今後の作業だけにした整理。規模: 小。
+- **adr:status の警告を verify か CI に入れる**: Complete の ADR に plan: が残ったときの警告は、`pnpm adr:status` を手で走らせたときしか見えない。verify か CI に入れるかを決める。出典: chore/adr-tooling-checks の spec K2。規模: 小。
+- **ADR の不正な status の扱い**: `parseFrontmatter` は不正な status (`Complet` など) を黙って Proposed にする (adr-parser.test.ts が固定している)。deps と同じく throw にするかを決める。出典: chore/adr-tooling-checks のレビュー。規模: 小。
 - **傍点のキーワードの判定を 1 か所にまとめる**: 傍点のキーワードの判定が 4 か所に分かれている。1 つ目は validator、2 つ目は html-renderer の safe.ts である。3 つ目は skam の emphasis.ts の対応表で、4 つ目は skam-screenshot の canvas-page-builder.ts の対応表である。canvas-page-builder.ts はページの中で `resolveEmphasisCharacter` を呼べないため、対応表を複製したまま残した。validator がキーワードと文字の対応表を export し、ほかがそれを使う形にまとめる。出典: 傍点のカスタム文字の修正 (fix/grid-emphasis-custom-char)。規模: 小。
 - **TypeScript 7 系への移行**: このリポジトリを TypeScript 7 系 (native の `typescript` パッケージ) に移す。tsgo (`@typescript/native-preview`) との関係、typescript-eslint などの JS 実装を要る道具の扱いを決める。consumer の検査の `typescript5` (5.9.3) は、利用者の 5 系の代表として残す。出典: 利用者の方針 (2026-10-19)。規模: 中。
 

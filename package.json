@@ -44,7 +44,7 @@
     "@changesets/cli": "2.29.8",
     "@types/node": "25.0.10",
     "@typescript/native-preview": "7.0.0-dev.20260122.4",
-    "happy-dom": "20.3.9",
+    "happy-dom": "20.14.6",
     "husky": "9.1.7",
     "knip": "5.82.1",
     "lint-staged": "16.2.7",

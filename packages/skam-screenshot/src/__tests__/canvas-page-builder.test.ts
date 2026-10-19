@@ -23,6 +23,18 @@ const MINIMAL_DOC = {
   readings: [],
 };
 
+type CanvasRenderOptions = NonNullable<Parameters<typeof buildCanvasPage>[1]>;
+
+/** 生成したページから、id を持つ JSON の script 要素の中身を取り出す */
+function extractJsonScript(page: string, id: string): string {
+  const open = `<script type="application/json" id="${id}">`;
+  const from = page.indexOf(open);
+  expect(from).toBeGreaterThanOrEqual(0);
+  const to = page.indexOf('</script>', from);
+  expect(to).toBeGreaterThan(from);
+  return page.slice(from + open.length, to);
+}
+
 describe('buildCanvasPage', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -83,11 +95,54 @@ describe('buildCanvasPage', () => {
     };
     const result = await buildCanvasPage(docWithScript);
 
-    // The literal </script> must be escaped as <\/script>
-    expect(result).not.toMatch(
-      /<script type="application\/json"[^>]*>[^<]*<\/script>[^<]*<\/script>/
+    const docBody = extractJsonScript(result, 'skam-doc');
+    expect(docBody).not.toContain('</script>');
+    expect(JSON.parse(docBody).tokens[0].text).toBe('</script>');
+  });
+
+  it('round-trips hostile doc and options through the embedded JSON', async () => {
+    const doc = {
+      ...MINIMAL_DOC,
+      tokens: [
+        { id: 't1', text: '<!--<script>' },
+        { id: 't2', text: 'a\\<b-->\u2028' },
+      ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
+      marks: [
+        { type: 'ref', anchor: { from: 't1', to: 't1' }, label: 'x', content: '</script><b>' },
+      ],
+    } as unknown as SampleDoc;
+    const options = { fontFamily: '</script><!--' } as unknown as CanvasRenderOptions;
+    const page = await buildCanvasPage(doc, options);
+
+    const docBody = extractJsonScript(page, 'skam-doc');
+    const optionsBody = extractJsonScript(page, 'skam-options');
+    const sampleBody = extractJsonScript(page, 'skam-font-sample');
+    expect(JSON.parse(docBody)).toEqual(doc);
+    expect(JSON.parse(optionsBody)).toEqual(options);
+    expect(JSON.parse(sampleBody)).toBe(collectFontSampleText(doc));
+    for (const body of [docBody, optionsBody, sampleBody]) {
+      expect(body).not.toContain('<');
+    }
+    // 5 script elements: bundle, 3 JSON, the final page script
+    expect(page.match(/<\/script/g)).toHaveLength(5);
+  });
+
+  it('the canvas-renderer browser bundle contains no </script', async () => {
+    const { readFile: realReadFile } =
+      await vi.importActual<typeof import('node:fs/promises')>('node:fs/promises');
+    const { createRequire: realCreateRequire } =
+      await vi.importActual<typeof import('node:module')>('node:module');
+    const bundlePath = realCreateRequire(import.meta.url).resolve(
+      '@kanbun-skam/skam-canvas-renderer/browser-bundle'
     );
-    expect(result).toContain('<\\/script>');
+    expect(await realReadFile(bundlePath, 'utf-8')).not.toContain('</script');
+  });
+
+  it('reads the font sample from the JSON script, not from an embedded function', async () => {
+    const page = await buildCanvasPage(MINIMAL_DOC);
+    expect(page).toContain("getElementById('skam-font-sample')");
+    expect(page).not.toContain('collectFontSampleText');
   });
 });
 
@@ -136,20 +191,6 @@ const CUSTOM_CHARS = [
   '\u2764',
   '\u{20BB7}',
 ];
-
-/** ページに埋め込まれた関数のソースを、目印のコメントの間から取り出して関数にする */
-function extractEmbeddedCollector(page: string): (doc: SampleDoc) => string {
-  const begin = '/* collectFontSampleText:begin */';
-  const end = '/* collectFontSampleText:end */';
-  const from = page.indexOf(begin);
-  const to = page.indexOf(end);
-  expect(from).toBeGreaterThanOrEqual(0);
-  expect(to).toBeGreaterThan(from);
-  const source = page.slice(from + begin.length, to);
-  expect(source).not.toContain('__name');
-  expect(source).not.toContain('cov_');
-  return new Function(`${source}; return collectFontSampleText;`)() as (doc: SampleDoc) => string;
-}
 
 describe('collectFontSampleText', () => {
   it('collects token text and mark strings', () => {
@@ -205,7 +246,27 @@ describe('collectFontSampleText', () => {
     expect(text).toContain('\u2022');
   });
 
-  it.each([['<'], ['\u0000'], ['\uD800']])('does not throw for style %j', (style) => {
+  it('does not add "<" for style "<" and uses the default dot (differs from the former looser rule)', () => {
+    const text = collectFontSampleText(docWithEmphasisStyle('<'));
+    expect(text).toContain('\u2022');
+    expect(text).not.toContain('<');
+  });
+
+  it('does not resolve "Circle" to the filled circle', () => {
+    const text = collectFontSampleText(docWithEmphasisStyle('Circle'));
+    expect(text).toContain('\u2022');
+    expect(text).not.toContain('\u25CF');
+  });
+
+  it.each([['\u2605\u2605'], [''], [123], [undefined], ['__proto__']])(
+    'does not throw and adds the default dot for style %j',
+    (style) => {
+      const text = collectFontSampleText(docWithEmphasisStyle(style));
+      expect(text).toContain('\u2022');
+    }
+  );
+
+  it.each([['\u0000'], ['\uD800']])('does not throw for style %j', (style) => {
     expect(() => collectFontSampleText(docWithEmphasisStyle(style))).not.toThrow();
   });
 
@@ -213,26 +274,6 @@ describe('collectFontSampleText', () => {
     for (const style of [...EMPHASIS_KEYWORDS, ...CUSTOM_CHARS]) {
       const text = collectFontSampleText(docWithEmphasisStyle(style));
       expect(text, `style ${JSON.stringify(style)}`).toContain(resolveEmphasisCharacter(style));
-    }
-  });
-
-  it('is embedded in the page as a self-contained function that behaves the same', async () => {
-    const page = await buildCanvasPage(MINIMAL_DOC);
-    const embedded = extractEmbeddedCollector(page);
-    const styles: unknown[] = [
-      ...EMPHASIS_KEYWORDS,
-      ...CUSTOM_CHARS,
-      undefined,
-      123,
-      'constructor',
-      '__proto__',
-      'Circle',
-      '\u2605\u2605',
-      '<',
-    ];
-    for (const style of styles) {
-      const doc = docWithEmphasisStyle(style);
-      expect(embedded(doc), `style ${JSON.stringify(style)}`).toBe(collectFontSampleText(doc));
     }
   });
 });

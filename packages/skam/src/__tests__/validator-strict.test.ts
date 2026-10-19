@@ -187,3 +187,50 @@ describe('duplicate same-type marks on the same anchor (K3)', () => {
     expect(errs(d)).toEqual([]);
   });
 });
+
+describe('isValidEmphasisStyle against the legacy implementation', () => {
+  const LEGACY_KEYWORD = /^(?:(?:filled|open) )?(?:dot|circle|double-circle|triangle|sesame)$/;
+  const LEGACY_CUSTOM = /^[\p{L}\p{N}\p{S}\p{P}]$/u;
+  const LEGACY_UNSAFE = new Set(['\\', '"', "'", ';', '{', '}', '<', '>', '&']);
+  const legacy = (style: string) =>
+    LEGACY_KEYWORD.test(style) || (LEGACY_CUSTOM.test(style) && !LEGACY_UNSAFE.has(style));
+
+  const shapes = ['dot', 'circle', 'double-circle', 'triangle', 'sesame'];
+  const inputs = [
+    ...['', 'filled ', 'open '].flatMap((p) => shapes.map((s) => `${p}${s}`)),
+    '',
+    'open',
+    'filled',
+    'Circle',
+    ' circle',
+    'circle ',
+    'circle\n',
+    'dot\n',
+    'filled  dot',
+    'open-dot',
+    '\u2605',
+    '<',
+    'constructor',
+    '__proto__',
+    'toString',
+    'dotdot',
+    'open constructor',
+    'filled __proto__',
+    '"',
+    '\\',
+    ';',
+    '&',
+    'a',
+    '1',
+    '\u0301',
+    ' ',
+    '\u2605\u2605',
+  ];
+
+  it('matches on 42 inputs', () => {
+    expect(inputs).toHaveLength(42);
+    for (const s of inputs) {
+      expect(isValidEmphasisStyle(s), JSON.stringify(s)).toBe(legacy(s));
+    }
+  });
+});

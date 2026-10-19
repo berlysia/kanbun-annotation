@@ -2,31 +2,11 @@
  * 傍点スタイル解決
  */
 
-import { isValidEmphasisStyle } from '../validator.js';
+import { EMPHASIS_KEYWORD_CHARS, isEmphasisKeyword, isValidEmphasisStyle } from '../validator.js';
+
+export { isEmphasisKeyword };
 
 const DEFAULT_EMPHASIS_CHAR = '•';
-
-/**
- * CSS text-emphasis-style のキーワード (validator の EMPHASIS_KEYWORD が受ける 15 の形) と
- * 描画する文字の対応。Map にして Object.prototype のキーを拾わないようにする。
- */
-const EMPHASIS_KEYWORD_CHARS: ReadonlyMap<string, string> = new Map([
-  ['dot', '•'],
-  ['filled dot', '•'],
-  ['open dot', '◦'],
-  ['circle', '●'],
-  ['filled circle', '●'],
-  ['open circle', '○'],
-  ['double-circle', '◉'],
-  ['filled double-circle', '◉'],
-  ['open double-circle', '◎'],
-  ['triangle', '▲'],
-  ['filled triangle', '▲'],
-  ['open triangle', '△'],
-  ['sesame', '﹅'],
-  ['filled sesame', '﹅'],
-  ['open sesame', '﹆'],
-]);
 
 /**
  * EmphasisMark.style から、描画する傍点の文字を解決する。

@@ -59,7 +59,7 @@ export { DEFAULT_ACCESSIBLE_LABELS, type AccessibleLabels } from './accessible-l
 export { splitKaeriForTateten } from './kaeri.js';
 
 // 傍点
-export { resolveEmphasisCharacter } from './emphasis.js';
+export { resolveEmphasisCharacter, isEmphasisKeyword } from './emphasis.js';
 
 // Ref
 export { formatRefIndex, resolveRefValues } from './ref.js';

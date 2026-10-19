@@ -613,7 +613,7 @@ test('diagnose: 外部の文字列 (matched / lines) は cause / check / 対処�
 test('remediesFor: trust-expired の対処は確かめたパッケージだけで始まり、<name> を埋め込まない', () => {
   const causes = diagnose(NPM_STAGE_FAILED, excerptJobLog('gh run view', LOG_E401));
   const remedies = remediesFor(causes);
-  assert.ok(remedies[0].startsWith('npmjs.com で期限切れと確かめたパッケージだけ:'));
+  assert.ok(remedies[0].startsWith('Only for packages confirmed expired on npmjs.com:'));
   assert.ok(remedies[0].includes('npm trust revoke <name> --id <id>'));
   assert.ok(!remedies[0].includes('@kanbun-skam/skam'));
 });

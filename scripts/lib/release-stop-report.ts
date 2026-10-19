@@ -212,7 +212,7 @@ const isNpmStageJobFailure = (site: StopSite): boolean =>
 const TRUST_EXPIRED_CHECK =
   'On npmjs.com, open each package: Settings > Trusted publishing, and look for "This trusted publisher configuration has expired"';
 const TRUST_EXPIRED_REMEDY =
-  'npmjs.com で期限切れと確かめたパッケージだけ: `npm trust list <name> --json` で id を見て `npm trust revoke <name> --id <id>`。続けて `npm trust github <name> --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish -y`。その後は F2 の手順 (docs/releasing.md)。コマンドは表示するだけで、この script は実行しない';
+  'Only for packages confirmed expired on npmjs.com: find the id with `npm trust list <name> --json`, run `npm trust revoke <name> --id <id>`, then `npm trust github <name> --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish -y`, and continue with F2 in docs/releasing.md (this script does not run these commands)';
 
 const RULES: readonly Rule[] = [
   {

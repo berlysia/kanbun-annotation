@@ -252,7 +252,7 @@ const RULES: readonly Rule[] = [
         cause:
           'The shape of the npm or gh output differs from what this script expects (as the `npm view` array did in 0.2.0)',
         check:
-          'Open the saved raw output in an editor (it is neither masked nor sanitized, so do not cat it to a terminal)',
+          'Open the saved raw output (escape sequences are removed and known token shapes are masked; a secret spanning lines, such as a PEM body, is not)',
       };
     },
   },
@@ -278,7 +278,7 @@ const SHAPE_DEFAULT = (id: string): Default =>
   def(
     id,
     'The shape of the npm or gh output differs from what this script expects',
-    'Open the saved raw output in an editor (it is neither masked nor sanitized, so do not cat it to a terminal)',
+    'Open the saved raw output (escape sequences are removed and known token shapes are masked; a secret spanning lines, such as a PEM body, is not)',
     'Record it under "結果" in ADR-029, then continue with "## 手作業の手順" in docs/releasing.md'
   );
 
@@ -620,7 +620,9 @@ function formatErrorLines(error: ErrorExcerpt): string[] {
   if (external.length === 0) out.push('  | (no error output)');
   for (const line of external) out.push(`  | ${line}`);
   if (error.rawPath !== undefined) {
-    out.push(`  raw output (unredacted, do not cat to a terminal): ${error.rawPath}`);
+    out.push(
+      `  raw output (escape sequences removed, known token shapes masked): ${error.rawPath}`
+    );
   }
   return out;
 }

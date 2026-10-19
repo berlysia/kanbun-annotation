@@ -201,7 +201,7 @@ git tag -d vX.Y.Z && git reset --hard origin/master
 error:
   $ <失敗したコマンド> (exit <N>)
   | <stderr または job の log の該当行>
-  raw output (unredacted, do not cat to a terminal): <保存先>
+  raw output (escape sequences removed, known token shapes masked): <保存先>
 possible causes:
   - <原因の候補>
     check: <確かめ方>
@@ -214,7 +214,7 @@ note: this may be an F3 situation (some packages are published)    (公開済み
 見出しの行は、入口なら `release stopped: <理由>`、前半なら `release stopped at <段>: <理由>`、後半なら `[<route>] <理由>` である。
 
 - `error:` の `|` で始まる行は、外部 (npm、gh、git、job の log) の出力から、制御文字と token を除いて切り出したものである。コマンドが無い停止 (判定だけの停止) では、`$` の行を出さず、判定の理由を 1 行出す。
-- `raw output` の保存物はマスクも無害化もしていない。端末に `cat` せず、エディタで開く。
+- `raw output` の保存物は、エスケープ列と制御文字を除き、既知の形の token を伏せてある。行をまたぐ秘密 (PEM) と、JSON でラベルと値が別の項目に分かれた秘密は伏せていない。ファイルは 0600、ディレクトリは 0700 である。ただし 0600 / 0700 は Linux のファイルシステムの上でだけ成り立つ (WSL の `/mnt/c` のような drvfs では chmod が効かない)。
 - `possible causes:` は最大 3 件で、既知の原因を決まった優先度の順に並べる。既知の原因に当たらなければ、場所ごとの既定の候補が 1 件出る。
 - `pnpm verify` は、前半の段 1 で段ごとに流れる。失敗した段は `pnpm <名前>` として表示されるので、同じコマンドを流し直すと、その段の出力だけを見られる。tsc と oxlint の診断は stdout に出るため `error:` には写らず、画面の上に残る。
 - 手元の npm の認証 (`npm trust list` の対話、`npm stage approve`) で `npm error 404 ... /-/v1/done` が出たら、ブラウザの認証が時間内に終わらなかったということである。同じコマンドを再実行し、開いた画面で認証を最後まで終える。

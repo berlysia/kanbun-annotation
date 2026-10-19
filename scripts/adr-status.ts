@@ -5,6 +5,7 @@
  *   node scripts/adr-status.ts              # Full table
  *   node scripts/adr-status.ts --actionable # Only actionable ADRs
  *   node scripts/adr-status.ts --output x   # Also write to file
+ *   node scripts/adr-status.ts --check      # Lint only: warnings to stderr, exit 1 if any
  */
 import { writeFileSync } from 'node:fs';
 import {
@@ -13,6 +14,7 @@ import {
   getActionableAdrs,
   formatPlan,
   getCompleteWithPlanWarnings,
+  checkAdrs,
 } from './lib/adr-parser.ts';
 import type { AdrInfo, AdrPhase, AdrStatus } from './lib/types.ts';
 
@@ -91,6 +93,16 @@ function main(): void {
   const outputPath = outputIdx !== -1 ? args[outputIdx + 1] : undefined;
 
   const allAdrs = parseAllAdrs(REPO_ROOT);
+
+  // --check takes precedence over --actionable and --output: no table, no file.
+  if (args.includes('--check')) {
+    const { lines, exitCode } = checkAdrs(allAdrs);
+    for (const line of lines) {
+      console.error(line);
+    }
+    process.exitCode = exitCode;
+    return;
+  }
 
   for (const line of getCompleteWithPlanWarnings(allAdrs)) {
     console.error(line);

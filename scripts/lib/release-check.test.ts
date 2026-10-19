@@ -13,9 +13,32 @@ import {
   orderByDependencies,
   checkPackedPackageJson,
   verifyManifest,
-  parseReleaseArgs,
+  parseNpmViewVersions,
+  parseReleaseFlags,
+  decideEntry,
+  decideEntryWithStatus,
+  parseChangesetStatus,
+  ignoredPackageDirs,
+  planIgnoredRestore,
+  checkVersionedChanges,
+  fillEmptyChangelogSection,
+  parseToolVersion,
+  checkToolVersions,
+  buildNpmArgs,
+  buildGhArgs,
+  childEnv,
+  checkNpmRegistryConfig,
+  isInteractiveStreams,
+  checkTrustList,
+  combineTrustResults,
 } from './release-check.ts';
-import type { WorkspacePackage } from './release-check.ts';
+import type {
+  WorkspacePackage,
+  EntryObservation,
+  ChangesetStatus,
+  Check,
+  TrustResult,
+} from './release-check.ts';
 
 const NAMES = [
   '@kanbun-skam/skam',
@@ -501,11 +524,713 @@ for (const [label, value] of [
   });
 }
 
-// parseReleaseArgs
+// parseNpmViewVersions
 
-test('parseReleaseArgs: reads --tag-only, skips a leading --, rejects the unknown', () => {
-  assert.deepEqual(parseReleaseArgs([]), { ok: true, value: { tagOnly: false } });
-  assert.deepEqual(parseReleaseArgs(['--tag-only']), { ok: true, value: { tagOnly: true } });
-  assert.deepEqual(parseReleaseArgs(['--', '--tag-only']), { ok: true, value: { tagOnly: true } });
-  assert.equal(parseReleaseArgs(['--force']).ok, false);
+test('parseNpmViewVersions: reads the versions array (実物の形: 1 版でも配列)', () => {
+  assert.deepEqual(parseNpmViewVersions({ status: 0, stdout: '[\n  "0.1.0"\n]\n', stderr: '' }), {
+    kind: 'found',
+    versions: ['0.1.0'],
+    latest: undefined,
+  });
+});
+
+test('parseNpmViewVersions: E404 is not-found, other shapes are errors', () => {
+  const e404 = '{"error":{"code":"E404","summary":"Not Found"}}';
+  assert.deepEqual(parseNpmViewVersions({ status: 1, stdout: e404, stderr: '' }), {
+    kind: 'not-found',
+  });
+  assert.equal(parseNpmViewVersions({ status: 0, stdout: '"0.1.0"', stderr: '' }).kind, 'error');
+  assert.equal(parseNpmViewVersions({ status: 0, stdout: 'not json', stderr: '' }).kind, 'error');
+  assert.equal(parseNpmViewVersions({ status: 1, stdout: '["0.1.0"]', stderr: '' }).kind, 'error');
+});
+
+// parseReleaseFlags
+
+test('parseReleaseFlags: reads each single mode and skips a leading --', () => {
+  const ok = (value: unknown) => ({ ok: true, value });
+  assert.deepEqual(parseReleaseFlags([]), ok({ mode: 'normal' }));
+  assert.deepEqual(parseReleaseFlags(['--', '--tag-only']), ok({ mode: 'tag-only' }));
+  assert.deepEqual(parseReleaseFlags(['--pre', 'beta']), ok({ mode: 'pre', tag: 'beta' }));
+  assert.deepEqual(parseReleaseFlags(['--pre=rc']), ok({ mode: 'pre', tag: 'rc' }));
+  assert.deepEqual(parseReleaseFlags(['--exit-pre']), ok({ mode: 'exit-pre' }));
+});
+
+for (const [label, argv] of [
+  ['--pre without a value', ['--pre']],
+  ['an uppercase --pre value', ['--pre', 'Beta']],
+  ['a --pre value with a digit', ['--pre', 'rc1']],
+  ['--pre followed by a flag', ['--pre', '--tag-only']],
+  ['--tag-only with --exit-pre', ['--tag-only', '--exit-pre']],
+  ['--pre with --tag-only', ['--pre', 'beta', '--tag-only']],
+  ['an unknown flag', ['--yes']],
+  ['a bare word', ['beta']],
+] as const) {
+  test(`parseReleaseFlags: rejects ${label}`, () => {
+    assert.equal(parseReleaseFlags(argv).ok, false);
+  });
+}
+
+// decideEntry / decideEntryWithStatus
+
+const SHA_HEAD = 'a'.repeat(40);
+const SHA_OTHER = 'b'.repeat(40);
+
+function observed(overrides: Partial<EntryObservation> = {}): EntryObservation {
+  return {
+    flags: { mode: 'normal' },
+    head: SHA_HEAD,
+    versions: { ok: true, value: '0.2.0' },
+    originTag: { kind: 'absent' },
+    localTagCommit: undefined,
+    published: { kind: 'counts', published: 0, total: 6 },
+    preMode: false,
+    ...overrides,
+  };
+}
+
+const counts = (published: number, total = 6) => ({ kind: 'counts' as const, published, total });
+const present = (commit: string) => ({ kind: 'present' as const, commit });
+const releaseStatus: Check<ChangesetStatus> = {
+  ok: true,
+  value: { kind: 'release', version: '0.2.0' },
+};
+const noneStatus: Check<ChangesetStatus> = { ok: true, value: { kind: 'none' } };
+
+function stopRow(d: ReturnType<typeof decideEntry>): number {
+  assert.equal(d.kind, 'stop');
+  return d.kind === 'stop' ? d.row : -1;
+}
+
+function stopReason(d: ReturnType<typeof decideEntry>): string {
+  assert.equal(d.kind, 'stop');
+  return d.kind === 'stop' ? d.reason : '';
+}
+
+for (const [label, o] of [
+  ['ls-remote failed', observed({ originTag: { kind: 'error' } })],
+  ['npm view failed', observed({ published: { kind: 'error' } })],
+  [
+    'versions differ',
+    observed({ versions: { ok: false, errors: ['skam-xml-parser: version 0.2.1 differs'] } }),
+  ],
+  ['version is not a semver', observed({ versions: { ok: true, value: '0.2.0/../x' } })],
+] as const) {
+  test(`decideEntry: row 0 stops when ${label}`, () => {
+    assert.equal(stopRow(decideEntry(o)), 0);
+  });
+}
+
+test('decideEntry: row 1 resumes the second half when the tag is at HEAD and unfinished', () => {
+  const d = decideEntry(observed({ originTag: present(SHA_HEAD), published: counts(3) }));
+  assert.deepEqual(d, { kind: 'after-push' });
+});
+
+test('decideEntry: row 2 with --pre at HEAD does not mention git switch', () => {
+  const d = decideEntry(
+    observed({
+      flags: { mode: 'pre', tag: 'beta' },
+      originTag: present(SHA_HEAD),
+      published: counts(3),
+    })
+  );
+  assert.equal(stopRow(d), 2);
+  assert.doesNotMatch(stopReason(d), /git switch/);
+});
+
+test('decideEntry: row 2 away from HEAD tells how to switch to the tag', () => {
+  const d = decideEntry(observed({ originTag: present(SHA_OTHER), published: counts(0) }));
+  assert.equal(stopRow(d), 2);
+  assert.match(stopReason(d), /git switch --detach v0\.2\.0/);
+});
+
+test('decideEntry: row 2 with --tag-only and an unpublished origin tag', () => {
+  const d = decideEntry(
+    observed({
+      flags: { mode: 'tag-only' },
+      originTag: present(SHA_HEAD),
+      published: counts(0),
+    })
+  );
+  assert.equal(stopRow(d), 2);
+});
+
+test('decideEntry: row 3 when only a local tag at HEAD exists', () => {
+  const d = decideEntry(observed({ localTagCommit: SHA_HEAD }));
+  assert.equal(stopRow(d), 3);
+  assert.match(stopReason(d), /git tag -d v0\.2\.0/);
+});
+
+test('decideEntry: row 4 when a local tag points elsewhere', () => {
+  const d = decideEntry(observed({ localTagCommit: SHA_OTHER }));
+  assert.equal(stopRow(d), 4);
+  assert.match(stopReason(d), new RegExp(SHA_OTHER));
+});
+
+test('decideEntry: row 5 stops --tag-only for a completed release', () => {
+  const d = decideEntry(
+    observed({
+      flags: { mode: 'tag-only' },
+      originTag: present(SHA_HEAD),
+      published: counts(6),
+    })
+  );
+  assert.equal(stopRow(d), 5);
+});
+
+test('decideEntry: row 6 stops --tag-only when some packages are published', () => {
+  const d = decideEntry(observed({ flags: { mode: 'tag-only' }, published: counts(2) }));
+  assert.equal(stopRow(d), 6);
+});
+
+test('decideEntry: row 6a enters the first half for --tag-only with nothing published', () => {
+  const d = decideEntry(observed({ flags: { mode: 'tag-only' }, published: counts(0) }));
+  assert.deepEqual(d, { kind: 'front', mode: { mode: 'tag-only' } });
+});
+
+test('decideEntry: row 7 enters the first half for --exit-pre and --pre', () => {
+  assert.deepEqual(decideEntry(observed({ flags: { mode: 'exit-pre' } })), {
+    kind: 'front',
+    mode: { mode: 'exit-pre' },
+  });
+  const d = decideEntry(
+    observed({
+      flags: { mode: 'pre', tag: 'beta' },
+      originTag: present(SHA_HEAD),
+      published: counts(6),
+    })
+  );
+  assert.deepEqual(d, { kind: 'front', mode: { mode: 'pre', tag: 'beta' } });
+});
+
+test('decideEntry: a completed release without flags needs the changeset status', () => {
+  for (const commit of [SHA_HEAD, SHA_OTHER]) {
+    const d = decideEntry(observed({ originTag: present(commit), published: counts(6) }));
+    assert.deepEqual(d, { kind: 'need-status' });
+  }
+});
+
+test('decideEntryWithStatus: row 8 only checks the second half when nothing is pending', () => {
+  const o = observed({ originTag: present(SHA_HEAD), published: counts(6) });
+  assert.deepEqual(decideEntryWithStatus(o, noneStatus), { kind: 'after-push-check-only' });
+  assert.deepEqual(decideEntryWithStatus(o, releaseStatus), {
+    kind: 'front',
+    mode: { mode: 'normal' },
+  });
+});
+
+test('decideEntryWithStatus: rows 9 to 14 for a completed release away from HEAD', () => {
+  const o = observed({ originTag: present(SHA_OTHER), published: counts(6) });
+  assert.equal(stopRow(decideEntryWithStatus(o, { ok: false, errors: ['bad shape'] })), 9);
+  const inconsistent: Check<ChangesetStatus> = {
+    ok: true,
+    value: { kind: 'inconsistent', reason: 'only 3 packages have a release' },
+  };
+  assert.equal(stopRow(decideEntryWithStatus(o, inconsistent)), 10);
+  assert.deepEqual(decideEntryWithStatus(o, releaseStatus), {
+    kind: 'front',
+    mode: { mode: 'normal' },
+  });
+  assert.equal(stopRow(decideEntryWithStatus({ ...o, preMode: true }, noneStatus)), 13);
+  assert.equal(stopRow(decideEntryWithStatus(o, noneStatus)), 14);
+});
+
+test('decideEntryWithStatus: the current master state enters the first half (row 11)', () => {
+  // 0.1.1、npm には 0.1.0 だけ、tag なし
+  const o = observed({ versions: { ok: true, value: '0.1.1' }, published: counts(0) });
+  assert.deepEqual(decideEntry(o), { kind: 'need-status' });
+  assert.deepEqual(decideEntryWithStatus(o, releaseStatus), {
+    kind: 'front',
+    mode: { mode: 'normal' },
+  });
+});
+
+test('decideEntryWithStatus: row 12 when the version is bumped but there is no tag anywhere', () => {
+  for (const preMode of [false, true]) {
+    const d = decideEntryWithStatus(observed({ preMode, published: counts(0) }), noneStatus);
+    assert.equal(stopRow(d), 12);
+    assert.match(stopReason(d), /--tag-only/);
+  }
+});
+
+test('decideEntryWithStatus: row 14 for a partly published version with no tag names the count', () => {
+  const d = decideEntryWithStatus(observed({ published: counts(3) }), noneStatus);
+  assert.equal(stopRow(d), 14);
+  assert.match(stopReason(d), /3\/6/);
+});
+
+test('decideEntry: the same table works for a different package total', () => {
+  const o = observed({ originTag: present(SHA_HEAD), published: counts(2, 2) });
+  assert.deepEqual(decideEntry(o), { kind: 'need-status' });
+  assert.deepEqual(decideEntryWithStatus(o, noneStatus), { kind: 'after-push-check-only' });
+  assert.deepEqual(decideEntry({ ...o, published: counts(1, 2) }), { kind: 'after-push' });
+});
+
+test('decideEntryWithStatus: passes a decision made before the status is needed through', () => {
+  const o = observed({ flags: { mode: 'exit-pre' } });
+  assert.deepEqual(decideEntryWithStatus(o, { ok: false, errors: ['x'] }), {
+    kind: 'front',
+    mode: { mode: 'exit-pre' },
+  });
+});
+
+// parseChangesetStatus
+
+function statusJson(
+  versions: Record<string, string>,
+  extra: { name: string; type: string; newVersion: string }[] = []
+): unknown {
+  return {
+    changesets: [{ id: 'consumer-feedback', summary: 'x', releases: [] }],
+    releases: [
+      ...Object.entries(versions).map(([name, newVersion]) => ({
+        name,
+        type: 'minor',
+        oldVersion: '0.1.1',
+        changesets: ['consumer-feedback'],
+        newVersion,
+      })),
+      ...extra.map((e) => ({ ...e, oldVersion: '0.0.0', changesets: [] })),
+    ],
+  };
+}
+
+const allAt = (v: string) => Object.fromEntries(NAMES.map((n) => [n, v]));
+const PRIVATE_NONE = ['playground', 'integration-tests', 'skam-screenshot'].map((n) => ({
+  name: `@kanbun-skam/${n}`,
+  type: 'none',
+  newVersion: '0.0.0',
+}));
+
+test('parseChangesetStatus: before the version bump the release is 0.2.0', () => {
+  const r = parseChangesetStatus(statusJson(allAt('0.2.0'), PRIVATE_NONE), NAMES);
+  assert.deepEqual(r, { ok: true, value: { kind: 'release', version: '0.2.0' } });
+});
+
+test('parseChangesetStatus: right after pre enter beta the release is 0.2.0-beta.0', () => {
+  const r = parseChangesetStatus(statusJson(allAt('0.2.0-beta.0'), PRIVATE_NONE), NAMES);
+  assert.deepEqual(r, { ok: true, value: { kind: 'release', version: '0.2.0-beta.0' } });
+});
+
+test('parseChangesetStatus: after the beta.0 commit there is nothing to release', () => {
+  const r = parseChangesetStatus({ changesets: [], releases: [] }, NAMES);
+  assert.deepEqual(r, { ok: true, value: { kind: 'none' } });
+});
+
+test('parseChangesetStatus: right after pre exit ignores the private baseline-check patch', () => {
+  const r = parseChangesetStatus(
+    statusJson(allAt('0.2.0'), [
+      ...PRIVATE_NONE,
+      { name: '@kanbun-skam/baseline-check', type: 'patch', newVersion: '0.0.1' },
+    ]),
+    NAMES
+  );
+  assert.deepEqual(r, { ok: true, value: { kind: 'release', version: '0.2.0' } });
+});
+
+test('parseChangesetStatus: all public packages with type none is none', () => {
+  const releases = NAMES.map((name) => ({ name, type: 'none', newVersion: '0.2.0' }));
+  const r = parseChangesetStatus({ releases }, NAMES);
+  assert.deepEqual(r, { ok: true, value: { kind: 'none' } });
+});
+
+test('parseChangesetStatus: three releases with scattered versions is inconsistent', () => {
+  const versions = {
+    [NAMES[0] as string]: '0.2.0',
+    [NAMES[1] as string]: '0.2.1',
+    [NAMES[2] as string]: '0.3.0',
+  };
+  const r = parseChangesetStatus(statusJson(versions), NAMES);
+  assert.equal(r.ok && r.value.kind, 'inconsistent');
+});
+
+test('parseChangesetStatus: a release for only some public packages is inconsistent', () => {
+  const versions = Object.fromEntries(NAMES.slice(0, 3).map((n) => [n, '0.2.0']));
+  const r = parseChangesetStatus(statusJson(versions), NAMES);
+  assert.equal(r.ok && r.value.kind, 'inconsistent');
+});
+
+for (const [label, json] of [
+  ['releases is not an array', { releases: {} }],
+  ['newVersion is a number', { releases: [{ name: NAMES[0], type: 'minor', newVersion: 2 }] }],
+  ['json is null', null],
+  ['an entry has no name', { releases: [{ type: 'minor', newVersion: '0.2.0' }] }],
+] as const) {
+  test(`parseChangesetStatus: fails when ${label}`, () => {
+    assert.equal(parseChangesetStatus(json, NAMES).ok, false);
+  });
+}
+
+// ignoredPackageDirs / planIgnoredRestore / checkVersionedChanges
+
+const z = (...entries: string[]): string => entries.map((e) => `${e}\0`).join('');
+
+const PUBLIC_DIRS = NAMES.map((n) => `packages/${n.replace('@kanbun-skam/', '')}`);
+const IGNORED_DIRS = ['packages/baseline-check'];
+
+// research §3a: pre exit の後の version で出る変更
+const AFTER_PRE_EXIT = z(
+  ' D .changeset/consumer-feedback-parser.md',
+  ' D .changeset/pre.json',
+  ' M packages/baseline-check/package.json',
+  '?? packages/baseline-check/CHANGELOG.md',
+  ' M packages/skam/CHANGELOG.md',
+  ' M packages/skam/package.json',
+  ' M packages/skam-xml-parser/CHANGELOG.md',
+  ' M packages/skam-xml-parser/package.json'
+);
+
+test('ignoredPackageDirs: maps ignore names to workspace directories', () => {
+  const workspace = [...currentWorkspace(), ...privatePackages()];
+  const r = ignoredPackageDirs({ ignore: ['@kanbun-skam/baseline-check'] }, workspace);
+  assert.deepEqual(r, { ok: true, value: ['packages/baseline-check'] });
+});
+
+test('ignoredPackageDirs: an absent ignore means no directories', () => {
+  assert.deepEqual(ignoredPackageDirs({}, currentWorkspace()), { ok: true, value: [] });
+});
+
+for (const [label, config, dir] of [
+  ['a name that is not in the workspace', { ignore: ['@kanbun-skam/ghost'] }, undefined],
+  ['a directory with ..', { ignore: ['@kanbun-skam/skam'] }, '../x'],
+  ['an absolute directory', { ignore: ['@kanbun-skam/skam'] }, '/etc'],
+  ['ignore that is not a list of names', { ignore: [1] }, undefined],
+] as const) {
+  test(`ignoredPackageDirs: fails on ${label}`, () => {
+    const workspace = currentWorkspace().map((p) =>
+      dir !== undefined && p.name === '@kanbun-skam/skam' ? { ...p, dir } : p
+    );
+    assert.equal(ignoredPackageDirs(config, workspace).ok, false);
+  });
+}
+
+test('planIgnoredRestore: splits the baseline-check changes into checkout and remove', () => {
+  assert.deepEqual(planIgnoredRestore(AFTER_PRE_EXIT, IGNORED_DIRS), {
+    checkout: ['packages/baseline-check/package.json'],
+    remove: ['packages/baseline-check/CHANGELOG.md'],
+  });
+});
+
+test('planIgnoredRestore: keeps spaces and non-ASCII paths as they are', () => {
+  const porcelain = z(
+    ' M packages/baseline-check/a b.md',
+    '?? packages/baseline-check/日本.md',
+    ' M packages/skam/package.json'
+  );
+  assert.deepEqual(planIgnoredRestore(porcelain, IGNORED_DIRS), {
+    checkout: ['packages/baseline-check/a b.md'],
+    remove: ['packages/baseline-check/日本.md'],
+  });
+});
+
+test('planIgnoredRestore: does not match a directory that only shares the prefix', () => {
+  const porcelain = z(' M packages/baseline-check-extra/package.json');
+  assert.deepEqual(planIgnoredRestore(porcelain, IGNORED_DIRS), { checkout: [], remove: [] });
+});
+
+test('checkVersionedChanges: after the restore it returns the paths to add', () => {
+  const restored = z(
+    ' D .changeset/consumer-feedback-parser.md',
+    ' D .changeset/pre.json',
+    ' M packages/skam/CHANGELOG.md',
+    ' M packages/skam/package.json',
+    '?? packages/skam-xml-parser/CHANGELOG.md'
+  );
+  assert.deepEqual(checkVersionedChanges(restored, PUBLIC_DIRS), {
+    ok: true,
+    value: [
+      '.changeset/consumer-feedback-parser.md',
+      '.changeset/pre.json',
+      'packages/skam/CHANGELOG.md',
+      'packages/skam/package.json',
+      'packages/skam-xml-parser/CHANGELOG.md',
+    ],
+  });
+});
+
+test('checkVersionedChanges: pre.json may be added, modified or deleted', () => {
+  for (const line of [
+    '?? .changeset/pre.json',
+    'A  .changeset/pre.json',
+    ' M .changeset/pre.json',
+  ]) {
+    assert.deepEqual(checkVersionedChanges(z(line), PUBLIC_DIRS), {
+      ok: true,
+      value: ['.changeset/pre.json'],
+    });
+  }
+});
+
+test('checkVersionedChanges: leftover baseline-check changes are rejected', () => {
+  assert.equal(checkVersionedChanges(AFTER_PRE_EXIT, PUBLIC_DIRS).ok, false);
+});
+
+for (const [label, porcelain] of [
+  ['a modified script', z(' M scripts/release.ts')],
+  ['a rename inside .changeset', z('R  .changeset/b.md', '.changeset/a.md')],
+  ['a modified config.json', z(' M .changeset/config.json')],
+  ['a modified README.md', z(' M .changeset/README.md')],
+  ['an edited changeset md', z(' M .changeset/a.md')],
+  ['a deleted changeset README', z(' D .changeset/README.md')],
+  ['a package file other than package.json', z(' M packages/skam/src/index.ts')],
+  ['a deleted package.json', z(' D packages/skam/package.json')],
+  ['a nested md under .changeset', z(' D .changeset/sub/a.md')],
+] as const) {
+  test(`checkVersionedChanges: rejects ${label}`, () => {
+    assert.equal(checkVersionedChanges(porcelain, PUBLIC_DIRS).ok, false);
+  });
+}
+
+// fillEmptyChangelogSection
+
+const BUMP_LINE =
+  '- Version bump only. Released together with the other @kanbun-skam packages at the same version.';
+
+test('fillEmptyChangelogSection: fills an empty ## 0.2.1 section and passes checkChangelog', () => {
+  const text = '# @kanbun-skam/skam\n\n## 0.2.1\n\n## 0.2.0\n\n### Minor Changes\n\n- a: x\n';
+  const r = fillEmptyChangelogSection(text, '0.2.1');
+  assert.equal(r.filled, true);
+  assert.equal(
+    r.text,
+    `# @kanbun-skam/skam\n\n## 0.2.1\n\n${BUMP_LINE}\n\n## 0.2.0\n\n### Minor Changes\n\n- a: x\n`
+  );
+  assert.equal(checkChangelog('@kanbun-skam/skam', r.text, '0.2.1').ok, true);
+});
+
+test('fillEmptyChangelogSection: fills a prerelease section that is the only section', () => {
+  const r = fillEmptyChangelogSection('# x\n\n## 0.2.0-beta.1\n', '0.2.0-beta.1');
+  assert.equal(r.filled, true);
+  assert.equal(r.text, `# x\n\n## 0.2.0-beta.1\n\n${BUMP_LINE}\n`);
+  assert.equal(checkChangelog('x', r.text, '0.2.0-beta.1').ok, true);
+});
+
+test('fillEmptyChangelogSection: leaves a section with a body alone', () => {
+  const text = '# x\n\n## 0.2.0\n\n### Minor Changes\n\n- a: x\n';
+  assert.deepEqual(fillEmptyChangelogSection(text, '0.2.0'), { text, filled: false });
+});
+
+test('fillEmptyChangelogSection: leaves the text alone when the first heading is another version', () => {
+  const text = '# x\n\n## 0.2.0\n\n## 0.1.0\n\n- a\n';
+  assert.deepEqual(fillEmptyChangelogSection(text, '0.2.1'), { text, filled: false });
+});
+
+test('fillEmptyChangelogSection: keeps CRLF line endings', () => {
+  const r = fillEmptyChangelogSection(
+    '# x\r\n\r\n## 0.2.1\r\n\r\n## 0.2.0\r\n\r\n- a\r\n',
+    '0.2.1'
+  );
+  assert.equal(r.filled, true);
+  assert.equal(r.text, `# x\r\n\r\n## 0.2.1\r\n\r\n${BUMP_LINE}\r\n\r\n## 0.2.0\r\n\r\n- a\r\n`);
+  assert.doesNotMatch(r.text, /[^\r]\n/);
+});
+
+// parseToolVersion / checkToolVersions
+
+test('parseToolVersion: reads npm and gh versions', () => {
+  assert.deepEqual(parseToolVersion('12.2.0\n', 'npm'), { ok: true, value: [12, 2, 0] });
+  assert.deepEqual(
+    parseToolVersion(
+      'gh version 2.45.0 (2024-03-04)\nhttps://github.com/cli/cli/releases/tag/v2.45.0\n',
+      'gh'
+    ),
+    { ok: true, value: [2, 45, 0] }
+  );
+});
+
+for (const [label, out, tool] of [
+  ['an npm prerelease', '12.2.0-pre\n', 'npm'],
+  ['an npm beta', '12.2.0-beta', 'npm'],
+  ['an empty npm output', '', 'npm'],
+  ['a gh prerelease', 'gh version 2.45.0-rc1 (2024-03-04)\n', 'gh'],
+  ['a gh output in the npm shape', '2.45.0\n', 'gh'],
+] as const) {
+  test(`parseToolVersion: rejects ${label}`, () => {
+    assert.equal(parseToolVersion(out, tool).ok, false);
+  });
+}
+
+test('checkToolVersions: accepts the supported ranges', () => {
+  assert.equal(checkToolVersions([12, 2, 0], [2, 45, 0]).ok, true);
+  assert.equal(checkToolVersions([12, 9, 9], [3, 0, 0]).ok, true);
+});
+
+test('checkToolVersions: rejects old npm and old gh', () => {
+  assert.equal(checkToolVersions([12, 1, 0], [2, 45, 0]).ok, false);
+  assert.equal(checkToolVersions([12, 1, 9], [2, 45, 0]).ok, false);
+  assert.equal(checkToolVersions([12, 2, 0], [2, 44, 9]).ok, false);
+});
+
+test('checkToolVersions: npm 13 is rejected with the reason for the upper bound', () => {
+  const r = checkToolVersions([13, 0, 0], [2, 45, 0]);
+  assert.match(errorsOf(r), /stage/);
+  assert.match(errorsOf(r), /13/);
+});
+
+// buildNpmArgs / buildGhArgs / childEnv
+
+test('buildNpmArgs: pins both registries at the end', () => {
+  assert.deepEqual(buildNpmArgs(['view', 'x', 'versions', '--json']), [
+    'view',
+    'x',
+    'versions',
+    '--json',
+    '--registry',
+    'https://registry.npmjs.org/',
+    '--@kanbun-skam:registry=https://registry.npmjs.org/',
+  ]);
+});
+
+test('buildGhArgs: gh api takes --hostname and no --repo', () => {
+  const args = buildGhArgs(['api', 'repos/berlysia/kanbun-annotation/actions/runs']);
+  assert.deepEqual(args, [
+    'api',
+    'repos/berlysia/kanbun-annotation/actions/runs',
+    '--hostname',
+    'github.com',
+  ]);
+  assert.equal(args.includes('--repo'), false);
+});
+
+test('buildGhArgs: other commands take --repo with the host', () => {
+  assert.deepEqual(buildGhArgs(['run', 'list']), [
+    'run',
+    'list',
+    '--repo',
+    'github.com/berlysia/kanbun-annotation',
+  ]);
+});
+
+test('childEnv: drops gh overrides and npm_config_ in any letter case', () => {
+  assert.deepEqual(
+    childEnv({
+      PATH: 'p',
+      NPM_CONFIG_REGISTRY: 'x',
+      Npm_Config_Foo: 'y',
+      npm_config_cache: 'z',
+      GH_HOST: 'h',
+      GH_REPO: 'r',
+      GH_ENTERPRISE_TOKEN: 't',
+    }),
+    { PATH: 'p' }
+  );
+});
+
+test('childEnv: keeps other variables and drops undefined values', () => {
+  assert.deepEqual(childEnv({ HOME: '/h', GH_CONFIG_DIR: '/c', EMPTY: undefined }), {
+    HOME: '/h',
+    GH_CONFIG_DIR: '/c',
+  });
+});
+
+// checkNpmRegistryConfig
+
+test('checkNpmRegistryConfig: accepts the default registry with an unset or equal scope', () => {
+  const url = 'https://registry.npmjs.org/';
+  assert.equal(checkNpmRegistryConfig(url, undefined).ok, true);
+  assert.equal(checkNpmRegistryConfig(url, url).ok, true);
+  assert.equal(checkNpmRegistryConfig(`${url}\n`, 'undefined\n').ok, true);
+});
+
+test('checkNpmRegistryConfig: rejects other registries', () => {
+  assert.equal(checkNpmRegistryConfig('http://registry.npmjs.org/', undefined).ok, false);
+  assert.equal(
+    checkNpmRegistryConfig('https://registry.npmjs.org/', 'https://example.com/').ok,
+    false
+  );
+});
+
+// isInteractiveStreams
+
+test('isInteractiveStreams: only true when both are TTYs', () => {
+  assert.equal(isInteractiveStreams({ stdinIsTTY: true, stdoutIsTTY: true }), true);
+  assert.equal(isInteractiveStreams({ stdinIsTTY: true, stdoutIsTTY: false }), false);
+  assert.equal(isInteractiveStreams({ stdinIsTTY: false, stdoutIsTTY: true }), false);
+  assert.equal(isInteractiveStreams({ stdinIsTTY: false, stdoutIsTTY: false }), false);
+  assert.equal(isInteractiveStreams({ stdinIsTTY: undefined, stdoutIsTTY: true }), false);
+  assert.equal(isInteractiveStreams({ stdinIsTTY: true, stdoutIsTTY: undefined }), false);
+});
+
+// checkTrustList / combineTrustResults
+
+const TRUST_ENTRY = {
+  id: 'abc123',
+  type: 'github',
+  file: 'release.yml',
+  repository: 'berlysia/kanbun-annotation',
+  environment: 'npm',
+  permissions: ['createStagedPackage'],
+};
+
+const cmd = (stdout: string, status: number | null = 0, stderr = '') => ({
+  status,
+  stdout,
+  stderr,
+});
+
+test('checkTrustList: the expected single entry is ok as an object and as an array', () => {
+  assert.deepEqual(checkTrustList(cmd(JSON.stringify(TRUST_ENTRY))), { kind: 'ok' });
+  assert.deepEqual(checkTrustList(cmd(JSON.stringify([TRUST_ENTRY]))), { kind: 'ok' });
+});
+
+test('checkTrustList: unknown extra fields are tolerated', () => {
+  assert.deepEqual(checkTrustList(cmd(JSON.stringify({ ...TRUST_ENTRY, extra: 1 }))), {
+    kind: 'ok',
+  });
+});
+
+test('checkTrustList: two entries (the old publish.yml trust) are a mismatch', () => {
+  const old = { ...TRUST_ENTRY, id: 'old', file: 'publish.yml', permissions: ['createPackage'] };
+  assert.equal(checkTrustList(cmd(JSON.stringify([TRUST_ENTRY, old]))).kind, 'mismatch');
+});
+
+test('checkTrustList: createPackage in permissions is a mismatch', () => {
+  const r = checkTrustList(cmd(JSON.stringify({ ...TRUST_ENTRY, permissions: ['createPackage'] })));
+  assert.equal(r.kind, 'mismatch');
+});
+
+test('checkTrustList: an empty list is a mismatch, not a shape error', () => {
+  assert.equal(checkTrustList(cmd('[]')).kind, 'mismatch');
+});
+
+for (const [label, value] of [
+  ['repository is missing', { ...TRUST_ENTRY, repository: undefined }],
+  ['permissions is a string', { ...TRUST_ENTRY, permissions: 'createStagedPackage' }],
+  ['id is missing', { ...TRUST_ENTRY, id: undefined }],
+  ['permissions has a non-string', { ...TRUST_ENTRY, permissions: [1] }],
+] as const) {
+  test(`checkTrustList: ${label} is shape-unknown`, () => {
+    assert.equal(checkTrustList(cmd(JSON.stringify(value))).kind, 'shape-unknown');
+  });
+}
+
+test('checkTrustList: EOTP in the stdout JSON or in stderr is eotp', () => {
+  assert.equal(checkTrustList(cmd('{"error":{"code":"EOTP"}}', 1)).kind, 'eotp');
+  assert.equal(checkTrustList(cmd('', 1, 'npm error code EOTP\n')).kind, 'eotp');
+});
+
+test('checkTrustList: EOTP wins even when the exit status is 0', () => {
+  assert.equal(checkTrustList(cmd('', 0, 'npm error code EOTP')).kind, 'eotp');
+});
+
+test('checkTrustList: a non-zero exit without EOTP is command-failed', () => {
+  assert.equal(checkTrustList(cmd('', 1, 'npm error 500')).kind, 'command-failed');
+  assert.equal(checkTrustList(cmd('', null)).kind, 'command-failed');
+});
+
+test('checkTrustList: empty or non-JSON output is shape-unknown', () => {
+  assert.equal(checkTrustList(cmd('')).kind, 'shape-unknown');
+  assert.equal(checkTrustList(cmd('not json')).kind, 'shape-unknown');
+  assert.equal(checkTrustList(cmd('"text"')).kind, 'shape-unknown');
+});
+
+test('combineTrustResults: eotp > command-failed > shape-unknown > mismatch > ok', () => {
+  const ok: TrustResult = { kind: 'ok' };
+  const mismatch: TrustResult = { kind: 'mismatch', what: 'm' };
+  const shape: TrustResult = { kind: 'shape-unknown', what: 's' };
+  const failed: TrustResult = { kind: 'command-failed', what: 'c' };
+  const eotp: TrustResult = { kind: 'eotp' };
+  assert.equal(combineTrustResults([ok, mismatch, eotp]).kind, 'eotp');
+  assert.equal(combineTrustResults([ok, shape, mismatch]).kind, 'shape-unknown');
+  assert.equal(combineTrustResults([mismatch, failed, shape]).kind, 'command-failed');
+  assert.equal(combineTrustResults([ok, mismatch]).kind, 'mismatch');
+  assert.deepEqual(combineTrustResults(Array.from({ length: 6 }, () => ok)), { kind: 'ok' });
 });

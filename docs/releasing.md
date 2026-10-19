@@ -6,8 +6,8 @@
 
 ## 手元の前提
 
-- npm 11.15.0 以上 (`npm trust` と `npm stage` の前提。`npm --version` で確かめる)。
-- `gh` でログイン済み (`gh auth status`)。リポジトリの admin 権限がある。
+- npm 12.2.0 以上 13 未満 (`npm trust` と `npm stage` の前提。`pnpm run release` が入口で `npm --version` を確かめる。上限の理由は「入口の確認」)。
+- gh 2.45.0 以上で、ログイン済み (`gh auth status`)。リポジトリの admin 権限がある。
 - npm にログイン済み (`npm whoami`)。アカウントで 2FA が有効。
 - master のクリーンな作業ツリー (リリース時)。
 
@@ -128,45 +128,191 @@ merge から最初の tag (v0.2.0) までの間に、`v*` tag を打たない。
 
 ## 毎回のリリース
 
-1. tag を打つ前に、6 パッケージの trust が一度きりの設定のままであることを確かめる。「一度だけの移行」の手順 3 の読み戻し (`npm trust list` を 6 つ) を再実行し、期待と変わっていないことを確かめる。
-2. `pnpm changeset` で changeset を書き、commit する。changeset の本文が、6 つのパッケージの CHANGELOG の本文になる。
-3. master で `pnpm run release` を実行する。段は次のとおり (定義は ADR-029、実装は `scripts/release.ts`)。
-   1. 前提の確認: branch が master、作業ツリーが clean、`git fetch` 後に HEAD が `origin/master` と同じ、未消費の changeset がある。外れたら何も変えずに止まる。
-   2. 版上げ: `pnpm changeset version` と、変更したファイルへの prettier。
-   3. 公開前提の検査 (`check-release check --registry`): 6 つの版が等しい、6 つの CHANGELOG の先頭が新しい版、npm に未公開、stable なら現在の `latest` より新しい。tag `vX.Y.Z` が local にも origin にもない。
-   4. 利用者テスト: 新しい版の tarball を空のプロジェクトに入れて確かめる (`pnpm test:consumer`)。
-   5. 確認: 版と変更ファイルの一覧が出る。`y` で進み、`N` なら止まる。
-   6. 記録: `chore: release vX.Y.Z` の commit と、annotated tag `vX.Y.Z`。
-   7. 送信: `git push --atomic origin master vX.Y.Z`。拒否されたら origin は変わらない。
+changeset を書いて commit し、`pnpm run release` を 1 回実行する。手で打つコマンドはこの 3 つだけである。
 
-   段 2〜5 で止まったとき (確認で `N` を答えたときを含む) は、作業ツリーに版上げの変更が残る。表示されたコマンドで戻す。
+```bash
+pnpm changeset
+git add .changeset && git commit
+pnpm run release
+```
 
-   ```bash
-   git checkout -- . && git clean -fd .changeset packages
-   ```
+changeset の本文が、6 つのパッケージの CHANGELOG の本文になる。`pnpm run release` は、版上げから tag の push、Release workflow の待機、approve の前の確認、6 回の approve、approve の後の確認までを続けて行う (定義は [ADR-031](decisions/adr-031-release-command-to-the-end.md)、実装は `scripts/release.ts` と `scripts/release-after-push.ts`)。端末で実行する。stdin と stdout のどちらかが端末でないと、入口で止まる (approve が 2FA を求めるため)。
 
-   段 7 の push が拒否されたときは、local に commit と tag が残り、origin は変わらない。表示されたコマンドで local を戻す (自動では実行されない)。
+実行にかかる時間の大半は、段 1 の `pnpm verify` と、段 8 の workflow の完了待ちである。
 
-   ```bash
-   git tag -d vX.Y.Z && git reset --hard origin/master
-   ```
+### 入口の確認
 
-4. tag が push されると `Release` workflow が始まる。完了まで待つ (validate、npm-stage、github-release の 3 job)。
-5. 0.2.0 に限り、手順 3 の前に次を実行する。移行表 ([移行表](migration-0.1-to-0.2.md)) の全 ID と URL が 6 つの CHANGELOG に入ることの検査で、0.2.0 専用である。
+段に入る前に、次を確かめる。外れたら何も変えずに止まる。
 
-   ```bash
-   node packages/integration-tests/scripts/check-version-bump.mjs
-   ```
+- `npm --version` が 12.2.0 以上 13 未満、`gh --version` が 2.45.0 以上。npm の上限は、`npm stage` の出力の形が major で変わりうるため。npm 13 が出たら、stage の出力の形を確かめ直してから上限を上げる。
+- `npm config get registry` と `npm config get @kanbun-skam:registry` が `https://registry.npmjs.org/` (後者は未設定でもよい)。
+- git の状態 (HEAD、origin と local の tag `vX.Y.Z`)、6 パッケージが npm に公開済みか、`changeset status`。これで、新しいリリースを始める (前半)、途中まで進んだリリースを続ける (後半)、完了済みの確認だけ行う、止まる、のどれかを決める。
 
-   ネットワークを使うことがあり、常設の検査には入れていない。0.2.0 の公開後に消す (`docs/plans/plan-staged-release-flow.md` の Followup)。
+`pnpm run release` は、`npm` と `gh` を呼ぶときに、registry と repo を引数で固定し、`npm_config_*` と `GH_HOST` などの環境変数を渡さない。
 
-prerelease (`X.Y.Z-rc.N` など) は、tag に `-` を含めば release.yml が dist-tag `next` と GitHub の prerelease にする。ただし、prerelease の版を作る手順 (changesets の pre mode) は検証していないので、この文書には書かない。
+### 段の一覧
 
-## approve の前の確認
+| 段  | 内容                     | 自動で確かめること                                                                                                                                                                                                                                                | 人が答えること                                                    |
+| --- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| 1   | 前提の確認               | branch が master、作業ツリーが clean、`git fetch` 後に HEAD が `origin/master` と同じ。6 パッケージの trust が 1 件ずつ期待どおり。`changeset status` で出す版が決まる。0.2.0 のときだけ `check-version-bump.mjs`。`pnpm verify` が通り、作業ツリーが汚れていない | trust の確認で 2FA (「次の 5 分間は 2FA を省略する」を選ぶ)       |
+| 2   | 版上げ                   | `changeset version`、ignore 済みパッケージの変更の復元、本文のない CHANGELOG の節の補完、変更が許可リストに収まること、prettier                                                                                                                                   | なし                                                              |
+| 3   | 公開前提の検査           | `check-release check --tag vX.Y.Z --registry`: 6 つの版が等しい、6 つの CHANGELOG の先頭が新しい版で本文がある、npm に未公開、stable なら現在の `latest` より新しい。tag が local にも origin にもない                                                            | なし                                                              |
+| 4   | 利用者テスト             | 新しい版の tarball を空のプロジェクトに入れて確かめる (`pnpm test:consumer`)                                                                                                                                                                                      | なし                                                              |
+| 5   | 確認                     | 版と変更ファイルの一覧を出す                                                                                                                                                                                                                                      | y/N。`y` で進み、`N` なら止まる                                   |
+| 6   | 記録                     | `chore: release vX.Y.Z` の commit (許可リストのパスだけ) と、annotated tag `vX.Y.Z`                                                                                                                                                                               | なし                                                              |
+| 7   | 送信                     | `git push --atomic origin master vX.Y.Z`。拒否されたら origin は変わらない                                                                                                                                                                                        | なし                                                              |
+| 8   | run の待機               | tag の commit の `Release` run を `gh run list` で探し (10 秒おきに最大 3 分)、未完了なら `gh run watch` で待つ。3 つの job (`Validate and pack`、`Stage on npm`、`GitHub Release`) の結論を判定する                                                              | なし                                                              |
+| 9   | approve の前の判定       | validate の job の log の manifest を錨に、6 パッケージの stage の tarball (`npm stage list` / `npm stage download`) の sha512 と中身を照合する。artifact は取れれば追加で照合する。公開済みのパッケージは対象から外す                                            | なし                                                              |
+| 10  | trust の再確認と approve | trust の再確認の後、判定結果を表示する。manifest の順 (依存の根から) に、検証した stage id だけを approve する。各回の直前に、そのパッケージが stage のままか確かめ直す。E409 は 30 秒おきに最大 20 回再試行する                                                  | trust の確認で 2FA。y/N (approve の前)。approve の 1 回ごとに 2FA |
+| 11  | approve の後の判定       | 6 つの `dist-tags`、`dist.integrity` (log の integrity と一致)、`dist.attestations` の有無 (表示のみ)、GitHub Release の有無。外れたら 30 秒おきに最大 5 分読み直す                                                                                               | なし                                                              |
 
-`npm stage publish` は 2FA を求めず、approve だけが 2FA を求める (`npm help stage`)。tag 起点で自動で stage されるので、これが人間による唯一の内容確認になる。次の 4 項目をすべて確かめ、1 つでも外れたら approve せず、「失敗したとき」に進む。
+y/N を聞くのは、段 5 (版と変更ファイル) と段 10 (approve の前) の 2 回だけである。approve を飛ばすフラグはない。
 
-validate job の Step Summary (step id `summary`、`$GITHUB_STEP_SUMMARY` と log の両方に出る) に manifest がある。書式は次のとおり。
+trust の確認は、最初に `npm trust list` を対話で 1 回実行し、続けて 6 パッケージ分を `--json` で取る。対話のときに「次の 5 分間は 2FA を省略する」を選ばないと、続く取得が `EOTP` で止まる (何も変えていないので、再実行すればよい)。
+
+完了すると `release completed` と表示して exit 0 で終わる。
+
+### 段 2〜7 で止まったとき
+
+前半の段が止まると、`release stopped at <段>: <理由>` と、戻すコマンド (`to undo: ...`) が表示される。
+
+段 2〜5 で止まったとき (段 5 で `N` を答えたときを含む) は、作業ツリーに版上げの変更が残る (pre mode の `.changeset/pre.json` の追加・変更・削除を含む)。表示されたコマンドで戻す。
+
+```bash
+git checkout -- . && git clean -fd .changeset packages
+```
+
+段 7 の push が拒否されたときは、local に commit と tag が残り、origin は変わらない。表示されたコマンドで local を戻す (自動では実行されない)。
+
+```bash
+git tag -d vX.Y.Z && git reset --hard origin/master
+```
+
+## 止まったとき
+
+同じコマンド (`pnpm run release`) を再実行すると、続きから進む。進捗のファイルはなく、毎回 git、GitHub、npm の状態を読んで、どの段から再開するかを決める。tag を push した後に止まったときは、origin に tag があるので、再実行は後半 (段 8) から始まる。
+
+後半で止まると、次の形で表示する。exit code は 1 である。
+
+```
+[<route>] <理由>
+next: <次の手>
+see docs/releasing.md: <この文書の見出し>
+note: this may be an F3 situation (some packages are published)    (公開済みのパッケージがある可能性があるとき)
+```
+
+`route` の意味は次のとおり。
+
+| route      | 意味                                                           | 進む先                                     |
+| ---------- | -------------------------------------------------------------- | ------------------------------------------ |
+| `F1`〜`F4` | 「失敗したとき」の対応する節                                   | `### F1:` 〜 `### F4:`                     |
+| `rerun`    | 一時的な失敗か中断。何も壊れていない                           | 同じコマンドを再実行する                   |
+| `manual`   | 自動の判定が形を読めなかった、または状態が自動では決められない | `## 手作業の手順` の、停止の場所に合う小節 |
+
+`note: this may be an F3 situation` が付いたときは、公開済みのパッケージがあるかもしれない。`npm view <name> versions --json` を 6 つ実行して、公開済みの数を確かめてから、route の節に進む。
+
+### 止まった理由と route
+
+後半の停止の理由 (表示の先頭の英文の断片)、公開済みのパッケージが 0 件のときと 1 件以上のときの route、次の手を示す。公開済みの件数を読めなかったときは、route が分かれる行は `manual` になり、F3 の可能性が併記される。
+
+| 理由の断片                                                                                                    | 公開 0 | 公開 1 以上 | 次の手                                                                                              |
+| ------------------------------------------------------------------------------------------------------------- | ------ | ----------- | --------------------------------------------------------------------------------------------------- |
+| `No Release workflow run was found for the tag commit within the wait`                                        | F4     | manual      | 公開 0: workflow の起動条件を確かめる (F4)。公開 1 以上: 公開済みの一覧と stage list を手で確かめる |
+| `The validate job failed`                                                                                     | F1     | manual      | 修正して `--tag-only` (F1)。原因が release.yml なら F4                                              |
+| `The npm-stage job failed`                                                                                    | F2     | F3          | stage list を確かめ、あれば reject して F1 の 3〜4                                                  |
+| `Unexpected output shape`                                                                                     | manual | manual      | 保存した生の出力を読み、ADR-029 の「結果」に書き、`## 手作業の手順` で続ける                        |
+| `Staged content check failed`                                                                                 | F2     | F3          | F2: reject して F1 の 3〜4。F3: 未承認を reject、公開済みを deprecate、patch で出し直す             |
+| `No package is staged`                                                                                        | F2     | manual      | reject するものはない。npm-stage の job の log を確かめ、F1 の 3〜4                                 |
+| `Published packages are not a prefix of the manifest order`                                                   | manual | F3          | 数分後に再実行 (registry の反映が遅れている可能性)。変わらなければ F3                               |
+| `is published with an integrity that differs from the validated one`                                          | manual | F3          | F3                                                                                                  |
+| `Trusted publisher settings differ`                                                                           | manual | manual      | 表示された 6 つの出力を読み、「一度だけの移行」の手順 3 / 3a                                        |
+| `post-approve check (integrity) failed`                                                                       | manual | F3          | 公開物が検査済みのバイト列と違う。deprecate して patch で出し直す (F3)                              |
+| `post-approve check (dist-tag) failed`                                                                        | manual | manual      | `npm dist-tag add` で直す                                                                           |
+| `post-approve check (release) failed`                                                                         | manual | rerun       | github-release の job の re-run。tag を打ち直すことになったら先に Release を消す                    |
+| `post-approve check (shape) failed`                                                                           | manual | manual      | `### approve の後の確認` を手で行う                                                                 |
+| `npm stage approve failed`、`Interrupted`、`The workflow run was re-run during the check`、`A command failed` | rerun  | rerun       | 同じコマンドを再実行。`A command failed` が繰り返すときは出力を読む                                 |
+| `The npm 2FA skip expired (or was not chosen)`                                                                | rerun  | rerun       | 再実行し、対話の認証で「5 分間 2FA を省略」を選ぶ                                                   |
+
+`post-approve check` は段 11 だけで出て、外れをすべて集めて表示する (先頭に最も重い route を 1 つ、最後に ADR-029 の「結果」の欄に写せる形の一覧)。`npm stage approve failed` は、2FA のキャンセル、誤入力、E409 の使い切りで出る。stage は有効なままなので、再実行すれば続きから進む。
+
+Ctrl-C は 1 回目で、待機と再試行の区切りで止まり (`Interrupted`、route は `rerun`)、2 回目で即座に終わる。
+
+### 入口の停止
+
+入口の判定で止まったときは `release stopped: <理由>` と表示し、何も変えずに exit 1 で終わる。理由の英文の断片と、次の手は次のとおり。
+
+| 状態                                                                      | 理由の断片                                                                                             | 次の手                                                                                                       |
+| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
+| 端末でない                                                                | `stdin and stdout must both be a terminal`                                                             | 端末で実行する                                                                                               |
+| npm / gh の版、registry の設定                                            | `is older than`、`is 13 or newer`、`npm registry is`                                                   | 版を上げる、または設定を直す                                                                                 |
+| 引数                                                                      | `unknown argument`、`cannot be combined`、`--pre needs a tag`                                          | 引数を直す。`--tag-only`、`--pre <tag>`、`--exit-pre` は同時に使えない                                       |
+| 観測の失敗                                                                | `git ls-remote failed`、`npm view failed`                                                              | 原因 (ネットワーク、認証) を直して再実行                                                                     |
+| 6 パッケージの版が一致しない                                              | `version ... differs from`                                                                             | 版を確かめる。手で `package.json` の版を上げない                                                             |
+| tag が origin にあり、公開が未完了で、HEAD が tag の commit でない        | `is unfinished (published ...); run git switch --detach vX.Y.Z, then rerun without flags to finish it` | `git switch --detach vX.Y.Z` の後に、フラグなしで再実行                                                      |
+| tag が origin にあり、公開が未完了で、フラグが付いている                  | `is unfinished (published ...); rerun without flags to finish it`                                      | フラグなしで再実行して、まず完了させる                                                                       |
+| tag が local だけにあり、HEAD と同じ commit (段 7 の push が失敗した状態) | `exists at HEAD but not on origin (the push failed)`                                                   | `git tag -d vX.Y.Z && git reset --hard origin/master`。`--tag-only` で打ち直すなら、先に `git tag -d vX.Y.Z` |
+| tag が local だけにあり、HEAD と違う commit                               | `a stale local tag`                                                                                    | `git tag -d vX.Y.Z` の後に再実行                                                                             |
+| `--tag-only` で、tag がすでにあり、公開が完了している                     | `is already released`                                                                                  | 打ち直すなら、先に「失敗したとき」の F1 の手順で tag を消す                                                  |
+| `--tag-only` で、一部が公開済み                                           | `is partly published`                                                                                  | F1 の打ち直しは公開 0 が前提。F3 の手順へ                                                                    |
+| `changeset status` の失敗、不整合                                         | `changeset status failed`、`changeset status is inconsistent`                                          | 理由を読んで直す                                                                                             |
+| 版上げ済みで tag がない                                                   | `the version is bumped to ... but there is no tag`                                                     | `pnpm run release -- --tag-only`                                                                             |
+| pre mode 中で、消費済みの changeset しかない                              | `in pre mode with only consumed changesets`                                                            | 新しい changeset を足す、または `pnpm run release -- --exit-pre` で stable を出す                            |
+| 出すものがない                                                            | `nothing to release (no pending changeset`                                                             | changeset を書く                                                                                             |
+| 後半に入るとき、作業ツリーが clean でない                                 | `working tree is not clean`                                                                            | 変更を戻すか commit する                                                                                     |
+
+### 待つ時間
+
+待つ時間は `scripts/release-after-push.ts` の `WAIT` にまとめてある。0.2.0 の実測で見直す。
+
+| 待つ対象                                            | 間隔  | 上限                         |
+| --------------------------------------------------- | ----- | ---------------------------- |
+| tag の commit の run が現れるまで (段 8)            | 10 秒 | 3 分                         |
+| validate の job の log を読めるまで (段 9)          | 30 秒 | 3 回                         |
+| stage が見えるまで、approve 後の反映 (段 9、10、11) | 30 秒 | 5 分                         |
+| E409 が解けるまで (段 10)                           | 30 秒 | 1 つの stage id につき 20 回 |
+
+### 判定の根拠の保存先
+
+判定の結果にかかわらず、生の出力を保存する。形を誤読して通っていないかを、後から人が確かめられるようにするためである。
+
+- `.tmp/release/v<版>/<時刻>/` (1 回の実行につき 1 つのディレクトリ)
+  - `run.json`: `gh run list` の出力。
+  - `jobs.json`: `gh run view --json jobs,status,conclusion` の出力。3 つの job の結論はここにある。
+  - `run-attempt.json`: `gh api` の `run_attempt`。
+  - `log-manifest.txt`: validate の job の log のうち、manifest を出した step の行。
+  - `stage-list-<名前>.json`、`view-<名前>.json`: パッケージごとの `npm stage list --json` と `npm view` の出力。
+- `.tmp/release/trust-<時刻>/`: `npm trust list --json` の 6 つの生の出力。
+
+`.tmp/` は gitignore されているので、作業ツリーは汚れない。
+
+## 手作業の手順
+
+自動の判定が「形の不一致」で止まったときに使う。コマンドが期待と違う形の出力を返したとき (`[manual]` と表示されたとき) に、人の目視で同じ確認を行い、approve まで進める。出力の書式が期待と違った点は、ADR-029 の「最初のリリースで確かめること」の「結果」の欄に書く。
+
+停止の場所に合う小節から始める。
+
+| 止まった場所                                                                                               | 始める小節                                                                                                                                                                                                                                            |
+| ---------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| 段 1 または段 10 の trust の確認で、出力の形が読めない (`trust list output has an unexpected shape`)       | `### trust の確認`。保存した生の出力 (`.tmp/release/trust-<時刻>/`) を読む。中身が期待どおりなら、`pnpm run release` の判定 (`scripts/lib/release-check.ts` の `checkTrustList`) の側を、実物の形に合わせて直してから再実行する。迂回するフラグはない |
+| 段 1 または段 10 の trust の中身が期待と違う (`trust does not match`、`Trusted publisher settings differ`) | 「一度だけの移行」の手順 3 / 3a。6 つの出力を読んでから、設定し直すか、旧 trust を消す                                                                                                                                                                |
+| 段 8 の run の形が想定外 (job の数、結論が想定外)                                                          | Actions の画面と `jobs.json` で run を確かめる。validate と npm-stage が success なら `### approve の前の確認` から。そうでなければ「失敗したとき」の原因に合う節                                                                                     |
+| 段 9 の形の不一致 (log の manifest、`npm stage list` の item、stage の `tag` が省かれている、tar の形)     | `### approve の前の確認` から                                                                                                                                                                                                                         |
+| 公開済みの一覧が読めない (`published` が不明)                                                              | `### approve の前の確認` の 4 (`npm view <name> versions --json` を 6 つ)。公開済みがあれば F3 の可能性を考える                                                                                                                                       |
+| 段 11 の形の不一致 (`post-approve check (shape)`)                                                          | `### approve の後の確認`                                                                                                                                                                                                                              |
+
+内容の不一致 (`Staged content check failed` など) は、手作業ではなく F2 / F3 である。
+
+### trust の確認
+
+「一度だけの移行」の手順 3 の読み戻し (`npm trust list` を 6 つ) を再実行し、出力が手順 3 の期待と変わっていないことを確かめる。`npm trust list` は読み取りでも 2FA を求める。
+
+```bash
+for p in skam skam-canvas-renderer skam-html-renderer skam-xml-parser skam-xml-stringify skam-web-component; do echo "== $p"; npm trust list "@kanbun-skam/$p" --json; done
+```
+
+### Release manifest の書式
+
+validate の job は、manifest の表を Step Summary (`$GITHUB_STEP_SUMMARY`) と job の log の両方に出す (step id `summary`、step 名 `Print the release manifest`)。書式は次のとおり。
 
 ```
 ## Release manifest
@@ -179,6 +325,16 @@ validate job の Step Summary (step id `summary`、`$GITHUB_STEP_SUMMARY` と lo
 | 1 | @kanbun-skam/skam | kanbun-skam-skam-X.Y.Z.tgz | sha512-... |
 ```
 
+log は書かれた後に編集できず、artifact の保存領域とは別にある。`pnpm run release` は、この log の表を錨にしている。手で読むときは、Step Summary でも log でもよい。log は次のコマンドで取る。
+
+```bash
+gh run view <run-id> --log --job <validate の job の id>
+```
+
+### approve の前の確認
+
+`npm stage publish` は 2FA を求めず、approve だけが 2FA を求める (`npm help stage`)。tag 起点で自動で stage されるので、approve の前の確認が、公開物を決める唯一の確認になる。次の 4 項目をすべて確かめ、1 つでも外れたら approve せず、「失敗したとき」に進む。
+
 1. **6 つが stage されている**: `npm stage list` を 6 パッケージそれぞれに実行し、各パッケージに、この版が 1 件ずつある。
 
    ```bash
@@ -190,7 +346,7 @@ validate job の Step Summary (step id `summary`、`$GITHUB_STEP_SUMMARY` と lo
    npm stage list @kanbun-skam/skam-web-component
    ```
 
-2. **integrity が manifest と一致する**: `npm stage view <stage-id>` の integrity を、Step Summary の manifest の同じパッケージの `integrity` (`sha512-...`) と照合する。`npm stage view` の出力に integrity がなければ `--json` を付ける。それでも出なければ、手順 3 でダウンロードした tgz から計算して照合する。
+2. **integrity が manifest と一致する**: `npm stage view <stage-id>` の integrity を、Step Summary か log の manifest の同じパッケージの `integrity` (`sha512-...`) と照合する。`npm stage view` の出力に integrity がなければ `--json` を付ける。それでも出なければ、手順 3 でダウンロードした tgz から計算して照合する。
 
    ```bash
    npm stage view <stage-id>
@@ -210,11 +366,11 @@ validate job の Step Summary (step id `summary`、`$GITHUB_STEP_SUMMARY` と lo
    npm view @kanbun-skam/skam versions --json
    ```
 
-Step Summary は validate job が書いたもので、tgz と manifest は同じ artifact (`npm-tarball`、保持 7 日) にある。この照合は、取得時の欠落と改変を検出するもので、真正性の最終確認は人間のこの照合である。
+この照合は、取得時の欠落と改変を検出するものである。照合の錨は validate の job の log (または Step Summary) で、tgz と manifest が入った artifact は錨にしない (artifact は validate の job の外から書き換えられうるため)。
 
-## approve
+### approve
 
-manifest の順 (依存の根から) に、6 回続けて approve する。現在の依存では、`skam` → `skam-canvas-renderer` → `skam-html-renderer` → `skam-xml-parser` → `skam-xml-stringify` → `skam-web-component` の順である。実際の順は、validate の Step Summary の manifest の `#` の並びに従う。`skam-web-component` を先に approve すると、依存先が未承認の間はインストールできない。
+manifest の順 (依存の根から) に、6 回続けて approve する。現在の依存では、`skam` → `skam-canvas-renderer` → `skam-html-renderer` → `skam-xml-parser` → `skam-xml-stringify` → `skam-web-component` の順である。実際の順は、manifest の `#` の並びに従う。`skam-web-component` を先に approve すると、依存先が未承認の間はインストールできない。
 
 ```bash
 npm stage approve <stage-id>   # manifest の 1 番目
@@ -244,18 +400,54 @@ npm view @kanbun-skam/skam-web-component dist-tags.latest
 
 期待: 6 つとも公開した版 (prerelease なら `dist-tags.next`)。
 
-## approve の後の確認
+### approve の後の確認
 
-失敗しても、公開は取り消さない。結果は ADR-029 の「最初のリリースで確かめること」の「結果」の欄に書く。
+失敗しても、公開は取り消さない。結果は ADR-029 の「最初のリリースで確かめること」の「結果」の欄に書く。`pnpm run release` は、段 11 でこの 4 項目を判定し、`post-approve results (for the Results section of ADR-029):` に続けて結果を表示する。
 
 - `dist-tags`: `npm view <name> dist-tags` が 6 つとも期待どおり。
 - `dist.integrity`: `npm view <name>@X.Y.Z dist.integrity` が、manifest の `integrity` と一致する。
 - `dist.attestations`: `npm view <name>@X.Y.Z dist.attestations` の有無を、6 つとも確かめる。staged publishing と trusted publishing の組み合わせで provenance が付くかは、npm の docs に記載がなく、未確認である (ADR-029 の R3)。このリポジトリは public なので、確かめられる。0.1.0 には付いていない (2026-10-15 に確認)。
 - GitHub Release: `gh release view vX.Y.Z` で存在を確かめる。
 
+## prerelease
+
+prerelease (`X.Y.Z-beta.N`、`X.Y.Z-rc.N` など) は、changesets の pre mode で作り、`pnpm run release` のフラグで出す。tag に `-` を含めば、release.yml が dist-tag `next` と GitHub の prerelease にする。
+
+```bash
+pnpm run release -- --pre beta   # pre mode に入り (または tag を切り替え)、prerelease を出す
+pnpm run release -- --pre rc     # beta から rc に切り替えて出す
+pnpm run release -- --exit-pre   # pre mode を抜けて、stable を出す
+```
+
+どのフラグも、出す変更の changeset (`pnpm changeset`) を commit してから実行する。フラグは同時に使えない。先頭の `--` は付けても付けなくてもよい。
+
+- `--pre <tag>`: pre mode でなければ `changeset pre enter <tag>`。別の tag の pre mode なら `pre exit` の後に `pre enter <tag>`。同じ tag の pre mode なら何もしない。その後は通常のリリースと同じ。
+- フラグなしで pre mode 中に実行すると、今の tag の次の prerelease を出す。新しい changeset が要る。なければ入口で止まる (`in pre mode with only consumed changesets`)。
+- `--exit-pre`: pre mode でなければ段 1 で止まる。pre mode なら `changeset pre exit` の後に `version` で stable の版にする。
+
+### 検証で分かった挙動
+
+scratch のコピー (2026-10-15、`@changesets/cli` 2.29.8) で観察した。`pnpm run release` (`release.ts`) を通した確認は、`scripts/release.test.ts` の実際の `changeset` を使うテストである。
+
+- beta から rc に切り替えると、番号を引き継ぐ。beta.1 の次の rc は `rc.0` でなく `rc.2` になる。
+- pre mode では、`changeset version` の後も changeset の md が消えずに残り、`.changeset/pre.json` の `changesets` に名前が入る。残った md は、次の `changeset status` では未消費と数えない。
+- `--exit-pre` の stable の CHANGELOG には、先頭に `## X.Y.Z` が足され、prerelease の節がその下に残る (畳まれない)。
+- changeset に名前のないパッケージの CHANGELOG には、本文のない見出し (`## X.Y.Z-beta.1` など) ができる。これは pre mode でなく、`fixed` グループの性質である。stable の patch でも起きる。`checkChangelog` は本文のない節を失敗にするので、`pnpm run release` が段 2 で次の 1 行を補う。
+
+  ```
+  - Version bump only. Released together with the other @kanbun-skam packages at the same version.
+  ```
+
+- `--exit-pre` の後の `changeset version` は、`ignore` に載った private パッケージのうち、内部依存を持たないもの (`baseline-check`) の版を上げ、空の CHANGELOG.md を作る。`@changesets/assemble-release-plan` 6.0.9 の不具合である。`pnpm run release` は、`ignore` 済みパッケージの変更を戻し (`restored <path> (ignored by changesets)` と表示する)、その後の変更が「6 公開パッケージの `package.json` と `CHANGELOG.md`、`.changeset/*.md` の削除、`.changeset/pre.json`」に収まらなければ段 2 で止める。release commit は、この許可リストのパスだけを add する。`scripts/release.test.ts` の「changesets bug (K7)」のテストが、不具合が直ったときに落ちて知らせる。
+- dist-tag は `next` になる。pre.json の tag 名 (`beta`、`rc`) は、dist-tag に影響しない。
+
+### 守ること
+
+- 0.2.0 は pre mode を経ずに出す。pre mode から出す版が 0.2.0 になる (`--exit-pre` を含む) と、段 1 または段 2 で止まる。`check-version-bump.mjs` は scratch で `changeset version` を実行して 0.2.0 を期待するが、pre mode の HEAD では prerelease の版ができ、成り立たないため。
+
 ## 失敗したとき
 
-版番号を守る (0.2.0 を欠番にしない) ことを優先し、npm に 1 つも公開されていない間は、同じ版で出し直す。
+版番号を守る (0.2.0 を欠番にしない) ことを優先し、npm に 1 つも公開されていない間は、同じ版で出し直す。`pnpm run release` が `[F1]` から `[F4]` を表示して、この節を案内したときは、案内された節の手順に従う。自分で原因を見て選ぶときも、手順は同じである。
 
 ### 共通の最初の手順
 
@@ -275,6 +467,8 @@ git tag -d vX.Y.Z
 
 ### F1: validate が失敗した (stage は 0、Release もない)
 
+`pnpm run release` が `[F1]` と表示してこの節を案内したとき。
+
 1. master で修正を commit して push する。
 2. 6 つとも未公開であることを確かめる (`npm view <name> versions --json` を 6 つ)。
 3. admin が tag を消す (上の「tag の削除」)。
@@ -284,9 +478,11 @@ git tag -d vX.Y.Z
    pnpm run release -- --tag-only
    ```
 
-   `--tag-only` は、HEAD の 6 つの version が等しいこと、tag が local にも origin にもないこと、GitHub Release がないことを確かめ、版上げを飛ばして tag だけを push する。前提が外れたら何も変えずに止まる。push が拒否されたら、local の tag を消すコマンド (`git tag -d vX.Y.Z`) が表示される。
+   `--tag-only` は、段 1 の trust の再確認と `pnpm verify` を行い、HEAD の 6 つの version が等しいこと、tag が local にも origin にもないこと、GitHub Release がないことを確かめ、版上げを飛ばして tag だけを push する。前提が外れたら何も変えずに止まる。push が拒否されたら、local の tag を消すコマンド (`git tag -d vX.Y.Z`) が表示される。tag を push できたら、そのまま後半 (段 8〜11) に進む。
 
 ### F2: npm-stage が途中で失敗した、または stage 済みで approve 前に問題が見つかった
+
+`pnpm run release` が `[F2]` と表示してこの節を案内したとき。表示された理由 (どのパッケージの何が外れたか) を先に読む。
 
 1. `npm stage list <name>` で stage 済みのものを探し、`npm stage reject <stage-id>` で取り消す (2FA を求められる)。
 2. 共通の最初の手順で Release を消す。
@@ -295,6 +491,8 @@ git tag -d vX.Y.Z
 reject 後に、同じ版を stage し直せるかは未確認である。`npm help stage` には、stage 済みの版は公開済みの版と同じ semver の一意性を共有する、とある (reject した版が再び stage できるかは書かれていない)。stage し直せなかったら F3 に進む。
 
 ### F3: 6 つのうち一部が approve 済み (公開済み)、または同じ版を stage し直せない
+
+`pnpm run release` が `[F3]` と表示してこの節を案内したとき。
 
 1. 未承認の stage をすべて `npm stage reject <stage-id>` する。
 2. 公開済みのものに、理由を添えて deprecate する。
@@ -306,15 +504,17 @@ reject 後に、同じ版を stage し直せるかは未確認である。`npm h
 3. 6 つすべてに patch の changeset を足し (changesets の `fixed` により、1 つ足せば 6 つの版が上がる)、X.Y.(Z+1) を、通常の手順で出す。
 4. X.Y.Z の GitHub Release は残し、本文に欠番の旨を書く。
 
-0.2.0 で F3 になった場合、0.2.0 専用の `check-version-bump.mjs` は版を 0.2.0 に固定しているので、0.2.1 では使えない。移行表 (`docs/migration-0.1-to-0.2.md`) は 0.1 → 0.2 系の表として有効なまま。このずれは ADR-029 の A6 として受容している。
+0.2.0 で F3 になった場合、0.2.1 では `pnpm run release` は `check-version-bump.mjs` を実行しない (版が 0.2.0 のときだけ実行する)。移行表 (`docs/migration-0.1-to-0.2.md`) は 0.1 → 0.2 系の表として有効なまま。このずれは ADR-029 の A6 として受容している。
 
 ### F4: workflow の定義を直す必要がある
+
+`pnpm run release` が `[F4]` と表示してこの節を案内したとき (Release workflow の run が 3 分待っても現れなかったときを含む)。
 
 tag の commit の `release.yml` が使われるので、re-run では直らない。共通の最初の手順で Release を消し、F1 と同じく、修正後の commit に tag を打ち直す。
 
 ### re-run を使ってよいとき
 
-失敗した job の re-run (artifact の保持は 7 日) は、原因が一時的で、stage が 0 件のときだけ使う。stage が 1 件でも済んでいたら、F2 に進む。
+失敗した job の re-run (artifact の保持は 7 日) は、原因が一時的で、stage が 0 件のときだけ使う。stage が 1 件でも済んでいたら、F2 に進む。re-run の後に `pnpm run release` を再実行すると、run の試行が変わったことを検出して (`The workflow run was re-run during the check`)、一度止まる。そのまま再実行すればよい。
 
 ### その他
 
@@ -323,16 +523,34 @@ tag の commit の `release.yml` が使われるので、re-run では直らな�
 
 ## 最初のリリース (0.2.0) で確かめること
 
-0.2.0 の最初の run が本番であり、リハーサルはしない。次の受入基準を、approve の前に確かめ、1 つでも外れたら approve せず「失敗したとき」に進む。
+0.2.0 の最初の run が本番であり、リハーサルはしない。`pnpm run release` の後半 (段 8〜11) は、0.2.0 で初めて本物の GitHub と npm につながる。npm や log の出力の形が想定と違えば、推測で読み替えずに止まる。そのため、最初の実行は、次の順で進める。
 
-- npm-stage が 6 つとも stage した (`npm stage list` で 6 パッケージに 0.2.0 が 1 件ずつ)。
-- 各 stage の integrity が、Step Summary の manifest と一致する (`npm stage view`)。
-- `npm stage download` の中身のファイル一覧が、`package.json` / `README.md` / `LICENSE` / `CHANGELOG.md` / `dist/` に収まる。
-- approve 前は、`npm view <name> versions` に 0.2.0 が出ない。
-- リリースのたびの、`npm trust list` の再確認 (6 つ) が期待どおり。
-- `pnpm run release` の前に、`check-version-bump.mjs` が通っている。
+1. 0.2.0 は pre mode を経ずに出す。changeset を書いて commit し、`pnpm run release` を実行する。
+2. 段 1 で `check-version-bump.mjs` が走る。これは移行表 ([移行表](migration-0.1-to-0.2.md)) の全 ID と URL が 6 つの CHANGELOG に入ることの検査で、0.2.0 専用である。
+3. 段 5 の y/N は `y`。
+4. 段 10 の y/N (trust の再確認と、判定結果の表示の後) で `N` を答える。exit 0 で終わり、approve はされない。
+5. `.tmp/release/v0.2.0/<時刻>/` の保存物から、次を確かめる。
+   - `log-manifest.txt` の 6 つの integrity が、段 10 の表示の integrity (先頭 16 文字と末尾 8 文字) と一致する。
+   - `jobs.json` の 3 つの job (`Validate and pack`、`Stage on npm`、`GitHub Release`) の結論が `success` である。
 
-approve の後に確かめること (「approve の後の確認」) の結果と、手順書の出力の書式が期待と違った点は、ADR-029 の「最初のリリースで確かめること」の「結果」の欄に書く。
+   ```bash
+   cat .tmp/release/v0.2.0/<時刻>/log-manifest.txt
+   jq '.jobs[] | {name, conclusion}' .tmp/release/v0.2.0/<時刻>/jobs.json
+   ```
+
+6. 確かめたら、`pnpm run release` を再実行する。tag が origin にあり HEAD と同じなので、前半は飛ばされて後半から始まる。trust の確認で 2FA がもう一度要る。段 10 の y/N に `y` を答える。
+
+想定内の別の分岐がある。stable の stage で `tag` が省かれていると、段 9 で形の不一致として止まり、y/N は出ない (`[manual]`、`stage item for <名前> has no string tag`)。これは失敗ではない。推測で `latest` とみなして prerelease を `latest` に載せる事故を避けるため、止まるようにしてある (ADR-031 の R1)。`## 手作業の手順` の `### approve の前の確認` から進む。
+
+approve の後に確かめること (「approve の後の確認」) の結果と、手順書の出力の書式が期待と違った点は、ADR-029 の「最初のリリースで確かめること」の「結果」の欄に書く。段 11 が表示する `post-approve results (for the Results section of ADR-029):` の行を写せる。あわせて、ADR-031 の「未確認の事項」(registry の `stage list` の item の形、E409 の実際の stderr、承認済みの stage が `stage list` に残るか、approve 後の反映の遅延の長さ、release.yml の実行) のうち、確かめられたものを書く。待機の値 (上の「待つ時間」) も、実測で見直す。
+
+### 0.2.0 の後に消すもの
+
+0.2.0 の公開の後に、0.2.0 専用のものを消す (`docs/plans/plan-staged-release-flow.md` の Followup)。
+
+- `packages/integration-tests/scripts/check-version-bump.mjs`。
+- `scripts/release.ts` の 0.2.0 の分岐 (`NEEDS_NO_PRE_MODE_VERSION`、`checkZeroTwoZero`、deps の `checkVersionBump`) と、そのテスト。
+- この文書の、`check-version-bump.mjs` への言及 (「最初のリリース (0.2.0) で確かめること」の手順 2、F3 の注意書き)。
 
 ## 最後の手段
 

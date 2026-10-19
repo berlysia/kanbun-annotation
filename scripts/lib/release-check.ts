@@ -1,37 +1,28 @@
 // リリース前提の検査の純粋関数。ファイル・ネットワーク・子プロセスには触れない
 // (読み込みと実行は check-release.ts と release.ts が行い、結果をここへ渡す)。
 
-export type Check<T> = { ok: true; value: T } | { ok: false; errors: string[] };
+import type {
+  Check,
+  CommandResult,
+  DistTag,
+  RegistryResponse,
+  ReleaseLookup,
+  ReleaseManifest,
+  TrustResult,
+  WorkspacePackage,
+} from './release-types.ts';
 
-export interface WorkspacePackage {
-  name: string;
-  dir: string;
-  version: string;
-  private: boolean;
-  dependencies: Record<string, string>;
-  peerDependencies: Record<string, string>;
-  optionalDependencies: Record<string, string>;
-}
-
-export type RegistryResponse =
-  | { kind: 'found'; versions: string[]; latest: string | undefined }
-  | { kind: 'not-found' }
-  | { kind: 'error'; message: string };
-
-export type ReleaseLookup =
-  | { kind: 'found' }
-  | { kind: 'not-found' }
-  | { kind: 'error'; message: string };
-
-export type DistTag = 'latest' | 'next';
-
-export interface ReleaseManifest {
-  schemaVersion: 1;
-  tag: string;
-  version: string;
-  distTag: DistTag;
-  packages: { name: string; file: string; integrity: string }[];
-}
+// 型の定義は release-types.ts にある。既存の import 元を変えないために同じ名前で再公開する
+export type {
+  Check,
+  DistTag,
+  GitResult,
+  RegistryResponse,
+  ReleaseLookup,
+  ReleaseManifest,
+  TrustResult,
+  WorkspacePackage,
+} from './release-types.ts';
 
 const INTERNAL_SCOPE = '@kanbun-skam/';
 const DEPENDENCY_FIELDS = ['dependencies', 'peerDependencies', 'optionalDependencies'] as const;
@@ -370,12 +361,503 @@ export function verifyManifest(
   return ok({ schemaVersion: 1, tag, version, distTag: distTag as DistTag, packages: entries });
 }
 
-export function parseReleaseArgs(argv: readonly string[]): Check<{ tagOnly: boolean }> {
-  const args = argv[0] === '--' ? argv.slice(1) : argv;
-  let tagOnly = false;
-  for (const arg of args) {
-    if (arg === '--tag-only') tagOnly = true;
-    else return fail(`unknown argument: ${arg}`);
+// `npm view <name> versions --json` は版の配列を返す (1 版でも配列、research §5b)。
+// parseNpmView は dist-tags を含む object を前提にしているので、配列だけをここで読み、
+// それ以外 (E404 の JSON、非 JSON) は parseNpmView に任せる
+export function parseNpmViewVersions(result: CommandResult): RegistryResponse {
+  try {
+    const json: unknown = JSON.parse(result.stdout);
+    if (result.status === 0 && isStringArray(json)) {
+      return { kind: 'found', versions: json, latest: undefined };
+    }
+  } catch {
+    // 非 JSON は parseNpmView が error にする
   }
-  return ok({ tagOnly });
+  return parseNpmView(result.status, result.stdout);
+}
+
+// --- フラグ (K2) ---
+
+export type ReleaseFlags =
+  | { mode: 'normal' }
+  | { mode: 'tag-only' }
+  | { mode: 'pre'; tag: string }
+  | { mode: 'exit-pre' };
+
+export function parseReleaseFlags(argv: readonly string[]): Check<ReleaseFlags> {
+  const args = argv[0] === '--' ? argv.slice(1) : argv;
+  const found: ReleaseFlags[] = [];
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i] ?? '';
+    if (arg === '--tag-only') found.push({ mode: 'tag-only' });
+    else if (arg === '--exit-pre') found.push({ mode: 'exit-pre' });
+    else if (arg === '--pre' || arg.startsWith('--pre=')) {
+      // 値は次の引数でも `=` の右でもよい。`--pre --tag-only` の後者は値ではないので弾く
+      const value = arg === '--pre' ? args[++i] : arg.slice('--pre='.length);
+      if (value === undefined || !/^[a-z]+$/.test(value)) {
+        return fail(`--pre needs a tag of lowercase letters, got ${JSON.stringify(value)}`);
+      }
+      found.push({ mode: 'pre', tag: value });
+    } else return fail(`unknown argument: ${arg}`);
+  }
+  if (found.length > 1) return fail('--tag-only, --pre and --exit-pre cannot be combined');
+  return ok(found[0] ?? { mode: 'normal' });
+}
+
+// --- 入口の判定 (K3) ---
+
+export type ChangesetStatus =
+  | { kind: 'release'; version: string }
+  | { kind: 'none' }
+  | { kind: 'inconsistent'; reason: string };
+
+export interface EntryObservation {
+  flags: ReleaseFlags;
+  head: string;
+  // 公開パッケージの版が等しいか (checkSameVersion の結果)
+  versions: Check<string>;
+  originTag: { kind: 'present'; commit: string } | { kind: 'absent' } | { kind: 'error' };
+  localTagCommit: string | undefined;
+  // total は公開パッケージの数 (6 に固定しない)
+  published: { kind: 'counts'; published: number; total: number } | { kind: 'error' };
+  preMode: boolean;
+}
+
+export type EntryDecision =
+  | { kind: 'front'; mode: ReleaseFlags }
+  | { kind: 'after-push' }
+  | { kind: 'after-push-check-only' }
+  | { kind: 'stop'; row: number; reason: string }
+  | { kind: 'need-status' };
+
+const HEAD_VERSION_PATTERN = /^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/;
+
+const stopAt = (row: number, reason: string): Extract<EntryDecision, { kind: 'stop' }> => ({
+  kind: 'stop',
+  row,
+  reason,
+});
+
+// changeset status が要る行 (8 以降) の手前までを決める。要るときは need-status を返し、
+// 呼び出し側が status を読んで decideEntryWithStatus を呼ぶ (status の失敗が後半の再開を止めないため)。
+export function decideEntry(observed: EntryObservation): EntryDecision {
+  const { flags, head, versions, originTag, localTagCommit, published } = observed;
+  // 行 0: 観測の失敗
+  if (originTag.kind === 'error') {
+    return stopAt(0, 'git ls-remote failed; cannot tell whether the tag exists on origin');
+  }
+  if (published.kind === 'error') {
+    return stopAt(0, 'npm view failed; cannot tell which packages are published');
+  }
+  if (!versions.ok) return stopAt(0, versions.errors.join('; '));
+  const version = versions.value;
+  if (!HEAD_VERSION_PATTERN.test(version)) {
+    return stopAt(0, `package version ${JSON.stringify(version)} is not a plain semver`);
+  }
+  const tag = `v${version}`;
+  const count = `${published.published}/${published.total}`;
+  const complete = published.total > 0 && published.published === published.total;
+
+  if (originTag.kind === 'present') {
+    if (!complete) {
+      if (originTag.commit === head && flags.mode === 'normal') return { kind: 'after-push' }; // 行 1
+      // 行 2: 未完了のリリースの上に新しいリリースを積まない
+      const switchHint = originTag.commit === head ? '' : `run git switch --detach ${tag}, then `;
+      return stopAt(
+        2,
+        `release ${tag} is unfinished (published ${count}); ${switchHint}rerun without flags to finish it`
+      );
+    }
+  } else if (localTagCommit !== undefined) {
+    if (localTagCommit === head) {
+      // 行 3: 段 7 の push が失敗した状態
+      return stopAt(
+        3,
+        `local tag ${tag} exists at HEAD but not on origin (the push failed); undo with: git tag -d ${tag} && git reset --hard origin/master. To tag again with --tag-only, run git tag -d ${tag} first`
+      );
+    }
+    // 行 4
+    return stopAt(
+      4,
+      `a stale local tag ${tag} exists (${localTagCommit}); run git tag -d ${tag}, then rerun`
+    );
+  }
+
+  if (flags.mode === 'tag-only') {
+    if (originTag.kind === 'present') {
+      // 行 5: ここに来るのは完了済み (未完了は行 2 で止まっている)
+      return stopAt(
+        5,
+        `${tag} is already released; to tag it again, delete the tag first by the F1 steps in releasing.md`
+      );
+    }
+    if (published.published > 0) {
+      // 行 6
+      return stopAt(
+        6,
+        `${tag} is partly published (${count}); retagging (F1) needs 0 published, follow the F3 steps`
+      );
+    }
+    return { kind: 'front', mode: flags }; // 行 6a
+  }
+  if (flags.mode === 'pre' || flags.mode === 'exit-pre') return { kind: 'front', mode: flags }; // 行 7
+
+  return { kind: 'need-status' };
+}
+
+export function decideEntryWithStatus(
+  observed: EntryObservation,
+  status: Check<ChangesetStatus>
+): Exclude<EntryDecision, { kind: 'need-status' }> {
+  const early = decideEntry(observed);
+  if (early.kind !== 'need-status') return early;
+  // need-status は観測が全部正常なときだけ返る
+  const { head, originTag, published, preMode } = observed;
+  const version = observed.versions.ok ? observed.versions.value : '';
+  const tag = `v${version}`;
+  const count = published.kind === 'counts' ? `${published.published}/${published.total}` : '?';
+  const publishedNone = published.kind === 'counts' && published.published === 0;
+
+  if (!status.ok) return stopAt(9, `changeset status failed: ${status.errors.join('; ')}`);
+  if (status.value.kind === 'inconsistent') {
+    return stopAt(10, `changeset status is inconsistent: ${status.value.reason}`);
+  }
+  if (status.value.kind === 'release') return { kind: 'front', mode: { mode: 'normal' } }; // 行 11
+  // release がない。完了済みで tag が HEAD なら後半の確認だけ (行 8)
+  if (originTag.kind === 'present' && originTag.commit === head) {
+    return { kind: 'after-push-check-only' };
+  }
+  if (originTag.kind === 'absent' && publishedNone) {
+    return stopAt(
+      12,
+      `the version is bumped to ${version} but there is no tag; to tag it, run with --tag-only`
+    );
+  }
+  if (preMode) {
+    return stopAt(
+      13,
+      'in pre mode with only consumed changesets; add a new changeset, or run with --exit-pre to release the stable version'
+    );
+  }
+  return stopAt(14, `nothing to release (no pending changeset; ${tag} published ${count})`);
+}
+
+// --- changeset status の解析 (K6) ---
+
+export function parseChangesetStatus(
+  json: unknown,
+  publicNames: readonly string[]
+): Check<ChangesetStatus> {
+  if (!isRecord(json) || !Array.isArray(json['releases'])) {
+    return fail('changeset status: "releases" is not an array');
+  }
+  if (publicNames.length === 0) return fail('changeset status: no public packages to look for');
+  const entries = new Map<string, { type: string; newVersion: string }>();
+  for (const raw of json['releases'] as unknown[]) {
+    if (!isRecord(raw)) return fail('changeset status: a release entry is not an object');
+    const { name, type, newVersion } = raw;
+    if (typeof name !== 'string' || typeof type !== 'string' || typeof newVersion !== 'string') {
+      return fail('changeset status: a release entry needs string name, type and newVersion');
+    }
+    entries.set(name, { type, newVersion });
+  }
+  // 非公開の release は見ない (ignore 済みの baseline-check の不具合は K7 が戻す)
+  const active = publicNames.flatMap((name) => {
+    const e = entries.get(name);
+    return e !== undefined && e.type !== 'none' ? [{ name, newVersion: e.newVersion }] : [];
+  });
+  if (active.length === 0) return ok({ kind: 'none' });
+  if (active.length < publicNames.length) {
+    const missing = publicNames.filter((n) => !active.some((a) => a.name === n));
+    return ok({
+      kind: 'inconsistent',
+      reason: `only ${active.length}/${publicNames.length} public packages have a release (no release for ${missing.join(', ')})`,
+    });
+  }
+  const first = active[0];
+  const differing = active.filter((a) => a.newVersion !== first?.newVersion);
+  if (first === undefined || differing.length > 0) {
+    return ok({
+      kind: 'inconsistent',
+      reason: `new versions differ: ${active.map((a) => `${a.name}@${a.newVersion}`).join(', ')}`,
+    });
+  }
+  return ok({ kind: 'release', version: first.newVersion });
+}
+
+// --- ignore 済みパッケージの復元と、変更の許可リスト (K7) ---
+
+interface PorcelainEntry {
+  x: string;
+  y: string;
+  path: string;
+  // rename / copy の元のパス
+  from: string | undefined;
+}
+
+// `git status --porcelain=v1 -z --untracked-files=all` の出力。パスは引用符も変換もない
+function parsePorcelainZ(porcelainZ: string): PorcelainEntry[] {
+  const parts = porcelainZ.split('\0');
+  if (parts[parts.length - 1] === '') parts.pop();
+  const entries: PorcelainEntry[] = [];
+  for (let i = 0; i < parts.length; i++) {
+    const part = parts[i] ?? '';
+    const x = part[0] ?? '';
+    const y = part[1] ?? '';
+    const isMove = x === 'R' || x === 'C' || y === 'R' || y === 'C';
+    entries.push({ x, y, path: part.slice(3), from: isMove ? parts[++i] : undefined });
+  }
+  return entries;
+}
+
+export function ignoredPackageDirs(
+  changesetConfig: unknown,
+  workspace: readonly WorkspacePackage[]
+): Check<string[]> {
+  const ignore = isRecord(changesetConfig) ? changesetConfig['ignore'] : undefined;
+  if (ignore === undefined) return ok([]);
+  if (!Array.isArray(ignore) || !ignore.every((n) => typeof n === 'string')) {
+    return fail('.changeset/config.json: "ignore" must be a list of names');
+  }
+  const byName = new Map(workspace.map((p) => [p.name, p]));
+  const errors: string[] = [];
+  const dirs: string[] = [];
+  for (const name of ignore as string[]) {
+    const found = byName.get(name);
+    if (!found) {
+      errors.push(`ignore lists ${name}, which is not a workspace package`);
+      continue;
+    }
+    const unsafe =
+      found.dir === '' || found.dir.startsWith('/') || found.dir.split('/').includes('..');
+    if (unsafe) errors.push(`${name}: directory ${JSON.stringify(found.dir)} is outside the repo`);
+    else dirs.push(found.dir);
+  }
+  return errors.length > 0 ? fail(...errors) : ok(dirs);
+}
+
+export function planIgnoredRestore(
+  porcelainZ: string,
+  ignoredDirs: readonly string[]
+): { checkout: string[]; remove: string[] } {
+  const checkout: string[] = [];
+  const remove: string[] = [];
+  for (const e of parsePorcelainZ(porcelainZ)) {
+    if (!ignoredDirs.some((dir) => e.path.startsWith(`${dir}/`))) continue;
+    if (e.x === '?' && e.y === '?') remove.push(e.path);
+    else if ('MD'.includes(e.x) || 'MD'.includes(e.y)) checkout.push(e.path);
+  }
+  return { checkout, remove };
+}
+
+export function checkVersionedChanges(
+  porcelainZ: string,
+  publicDirs: readonly string[]
+): Check<string[]> {
+  const errors: string[] = [];
+  const paths: string[] = [];
+  const dirOf = (path: string, file: string): boolean =>
+    publicDirs.some((dir) => path === `${dir}/${file}`);
+  for (const e of parsePorcelainZ(porcelainZ)) {
+    const status = `${e.x}${e.y}`;
+    const untracked = status === '??';
+    const modified =
+      !untracked && !status.includes('D') && !status.includes('A') && !/[RC]/.test(status);
+    let allowed = false;
+    if (e.from === undefined) {
+      if (dirOf(e.path, 'package.json')) allowed = modified;
+      else if (dirOf(e.path, 'CHANGELOG.md')) allowed = modified || untracked;
+      else if (e.path === '.changeset/pre.json') allowed = true;
+      else if (/^\.changeset\/[^/]+\.md$/.test(e.path) && e.path !== '.changeset/README.md') {
+        allowed = status.includes('D') && !untracked;
+      }
+    }
+    if (allowed) paths.push(e.path);
+    else errors.push(`unexpected change after versioning: ${status} ${e.path}`);
+  }
+  return errors.length > 0 ? fail(...errors) : ok(paths);
+}
+
+// --- 本文のない CHANGELOG の節の補完 (K9) ---
+
+const BUMP_ONLY_LINE =
+  '- Version bump only. Released together with the other @kanbun-skam packages at the same version.';
+
+export function fillEmptyChangelogSection(
+  text: string,
+  version: string
+): { text: string; filled: boolean } {
+  const eol = text.includes('\r\n') ? '\r\n' : '\n';
+  const lines = text.split(/\r?\n/);
+  const heading = lines.findIndex((l) => l.startsWith('## '));
+  if (heading < 0 || (lines[heading] ?? '').trimEnd() !== `## ${version}`) {
+    return { text, filled: false };
+  }
+  const next = lines.findIndex((l, i) => i > heading && l.startsWith('## '));
+  const end = next < 0 ? lines.length : next;
+  if (lines.slice(heading + 1, end).some((l) => l.trim() !== '')) return { text, filled: false };
+  lines.splice(heading + 1, end - heading - 1, '', BUMP_ONLY_LINE, '');
+  return { text: lines.join(eol), filled: true };
+}
+
+// --- 外部コマンドの版、引数、環境 (K16) ---
+
+export type ToolVersion = readonly [number, number, number];
+
+export function parseToolVersion(stdout: string, tool: 'npm' | 'gh'): Check<ToolVersion> {
+  const firstLine = stdout.split(/\r?\n/)[0] ?? '';
+  const match =
+    tool === 'npm'
+      ? /^(\d+)\.(\d+)\.(\d+)$/.exec(firstLine)
+      : /^gh version (\d+)\.(\d+)\.(\d+)(?: \(.*\))?$/.exec(firstLine);
+  if (!match) return fail(`${tool} --version: unexpected output ${JSON.stringify(firstLine)}`);
+  return ok([Number(match[1]), Number(match[2]), Number(match[3])] as const);
+}
+
+function atLeast(v: ToolVersion, min: ToolVersion): boolean {
+  for (let i = 0; i < 3; i++) {
+    const d = (v[i] ?? 0) - (min[i] ?? 0);
+    if (d !== 0) return d > 0;
+  }
+  return true;
+}
+
+export function checkToolVersions(npm: ToolVersion, gh: ToolVersion): Check<void> {
+  const errors: string[] = [];
+  if (npm[0] >= 13) {
+    errors.push(
+      `npm ${npm.join('.')} is 13 or newer; the output shape of npm stage must be checked again for npm 13, then raise the upper bound`
+    );
+  } else if (!atLeast(npm, [12, 2, 0])) {
+    errors.push(`npm ${npm.join('.')} is older than 12.2.0 (npm stage is required)`);
+  }
+  if (!atLeast(gh, [2, 45, 0])) errors.push(`gh ${gh.join('.')} is older than 2.45.0`);
+  return errors.length > 0 ? fail(...errors) : ok(undefined);
+}
+
+const NPM_REGISTRY = 'https://registry.npmjs.org/';
+const GH_REPO_SLUG = 'github.com/berlysia/kanbun-annotation';
+
+export function buildNpmArgs(args: readonly string[]): string[] {
+  // scope の registry 設定は --registry より優先されるので、両方を固定する
+  return [...args, '--registry', NPM_REGISTRY, `--@kanbun-skam:registry=${NPM_REGISTRY}`];
+}
+
+export function buildGhArgs(args: readonly string[]): string[] {
+  // gh api は --repo を受け付けない (path の repos/<owner>/<repo>/... で固定する)
+  return args[0] === 'api'
+    ? [...args, '--hostname', 'github.com']
+    : [...args, '--repo', GH_REPO_SLUG];
+}
+
+export function childEnv(
+  env: Readonly<Record<string, string | undefined>>
+): Record<string, string> {
+  const result: Record<string, string> = {};
+  for (const [key, value] of Object.entries(env)) {
+    if (value === undefined) continue;
+    if (key === 'GH_HOST' || key === 'GH_REPO' || key === 'GH_ENTERPRISE_TOKEN') continue;
+    // npm はこの前置詞を大文字小文字を区別せずに読む
+    if (key.toLowerCase().startsWith('npm_config_')) continue;
+    result[key] = value;
+  }
+  return result;
+}
+
+// registry / scoped は `npm config get` の出力 (buildNpmArgs を通さずに取ったもの)。
+// 未設定の scoped は `undefined` (値の欠落、または npm が出す文字列)。
+export function checkNpmRegistryConfig(registry: string, scoped: string | undefined): Check<void> {
+  const errors: string[] = [];
+  if (registry.trim() !== NPM_REGISTRY) {
+    errors.push(`npm registry is ${JSON.stringify(registry.trim())}, expected ${NPM_REGISTRY}`);
+  }
+  const scopedValue = scoped?.trim();
+  if (scopedValue !== undefined && scopedValue !== 'undefined' && scopedValue !== NPM_REGISTRY) {
+    errors.push(
+      `npm @kanbun-skam:registry is ${JSON.stringify(scopedValue)}, expected ${NPM_REGISTRY}`
+    );
+  }
+  return errors.length > 0 ? fail(...errors) : ok(undefined);
+}
+
+export function isInteractiveStreams(streams: {
+  stdinIsTTY: boolean | undefined;
+  stdoutIsTTY: boolean | undefined;
+}): boolean {
+  return streams.stdinIsTTY === true && streams.stdoutIsTTY === true;
+}
+
+// --- trust の判定 (K5) ---
+
+function isStringArray(value: unknown): value is string[] {
+  return Array.isArray(value) && value.every((v) => typeof v === 'string');
+}
+
+export function checkTrustList(result: CommandResult): TrustResult {
+  // EOTP がどちらに出るかは未観察なので、stdout の JSON と stderr の両方を見る
+  let json: unknown;
+  let parsed = false;
+  try {
+    json = JSON.parse(result.stdout);
+    parsed = true;
+  } catch {
+    // 下で扱う
+  }
+  const errorCode =
+    parsed && isRecord(json) && isRecord(json['error']) ? json['error']['code'] : undefined;
+  if (errorCode === 'EOTP' || result.stderr.includes('EOTP')) return { kind: 'eotp' };
+  if (result.status !== 0) {
+    return {
+      kind: 'command-failed',
+      what: `npm trust list exited ${result.status ?? 'not started'}: ${result.stderr.trim()}`,
+    };
+  }
+  if (!parsed) return { kind: 'shape-unknown', what: 'npm trust list output is not JSON' };
+  const entries: unknown[] = Array.isArray(json) ? json : [json];
+  if (!entries.every(isTrustEntryShape)) {
+    return {
+      kind: 'shape-unknown',
+      what: 'a trust entry lacks string id/type/file/repository/environment or a permissions list',
+    };
+  }
+  const only = entries.length === 1 ? entries[0] : undefined;
+  if (!isExpectedTrust(only)) {
+    return {
+      kind: 'mismatch',
+      what: `expected exactly one github release.yml trust for berlysia/kanbun-annotation (environment npm, createStagedPackage only), got ${entries.length} entr${entries.length === 1 ? 'y' : 'ies'}`,
+    };
+  }
+  return { kind: 'ok' };
+}
+
+function isTrustEntryShape(entry: unknown): boolean {
+  return (
+    isRecord(entry) &&
+    ['id', 'type', 'file', 'repository', 'environment'].every(
+      (k) => typeof entry[k] === 'string'
+    ) &&
+    isStringArray(entry['permissions'])
+  );
+}
+
+function isExpectedTrust(entry: unknown): boolean {
+  if (!isRecord(entry)) return false;
+  const permissions = entry['permissions'];
+  return (
+    entry['type'] === 'github' &&
+    entry['file'] === 'release.yml' &&
+    entry['repository'] === 'berlysia/kanbun-annotation' &&
+    entry['environment'] === 'npm' &&
+    isStringArray(permissions) &&
+    permissions.length === 1 &&
+    permissions[0] === 'createStagedPackage'
+  );
+}
+
+export function combineTrustResults(results: readonly TrustResult[]): TrustResult {
+  for (const kind of ['eotp', 'command-failed', 'shape-unknown', 'mismatch'] as const) {
+    const found = results.find((r) => r.kind === kind);
+    if (found) return found;
+  }
+  return { kind: 'ok' };
 }

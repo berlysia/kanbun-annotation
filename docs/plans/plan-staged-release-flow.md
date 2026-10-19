@@ -71,5 +71,4 @@ plan-3 は文書だけの変更である。`pnpm exec prettier --check` で対�
 次の作業は、この plan の範囲外とする。片付いたら、この節から消す。
 
 - 0.2.0 の公開 (releasing.md の手順。「最初のリリース (0.2.0) で確かめること」を実施し、結果を ADR-029 に書く)。
-- 0.2.0 の公開後に、0.2.0 専用の `packages/integration-tests/scripts/check-version-bump.mjs` を消す。
-- prerelease を作る手順 (changesets の pre mode) を検証して、releasing.md に足す。
+- 0.2.0 の公開後に、0.2.0 専用の `packages/integration-tests/scripts/check-version-bump.mjs` と、`scripts/release.ts` の 0.2.0 の分岐も消す。

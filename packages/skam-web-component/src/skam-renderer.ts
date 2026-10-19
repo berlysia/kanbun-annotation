@@ -6,7 +6,12 @@
  */
 
 import { parse } from '@kanbun-skam/skam-xml-parser';
-import { render, calibrateGridBaseline } from '@kanbun-skam/skam-html-renderer';
+import {
+  render,
+  calibrateGridBaseline,
+  validateRenderOptions,
+  type AccessibleLabels,
+} from '@kanbun-skam/skam-html-renderer';
 import {
   buildRenderOptions,
   type AttributeValues,
@@ -92,6 +97,9 @@ export class SkamRendererElement extends BaseElement {
   #contentDiv: HTMLDivElement;
 
   #xmlContent: string | undefined;
+  #accessibleLabels: Partial<AccessibleLabels> | undefined;
+  /** skam-error で通知した不正な accessibleLabels の参照。同じ参照では再通知しない */
+  #reportedLabels: { ref: unknown } | null = null;
   #observer: MutationObserver | null = null;
   #rafId: number | null = null;
   /** 最後に skam-error で通知した不正値 (属性名 → 値)。同じ値では再通知しない */
@@ -144,6 +152,25 @@ export class SkamRendererElement extends BaseElement {
     this.#scheduleRender();
   }
 
+  /**
+   * 読み上げ層の言葉を上書きするラベル。関数を含むので属性では渡せない。
+   * `reading-layer-source="display"` のときだけ描画に効く。不正な値はラベルなしで描画し、
+   * `recoverable: true` の skam-error で通知する。変えるときは新しいオブジェクトを代入する
+   * (同じ参照の再代入は再描画しない)。null は指定なしとして扱う。
+   *
+   * @experimental
+   */
+  get accessibleLabels(): Partial<AccessibleLabels> | undefined {
+    return this.#accessibleLabels;
+  }
+
+  set accessibleLabels(value: Partial<AccessibleLabels> | undefined) {
+    const next = value ?? undefined;
+    if (Object.is(next, this.#accessibleLabels)) return;
+    this.#accessibleLabels = next;
+    this.#scheduleRender();
+  }
+
   connectedCallback(): void {
     // auto-font 属性があれば Google Fonts を注入
     this.#ensureFont();
@@ -172,6 +199,7 @@ export class SkamRendererElement extends BaseElement {
 
     this.#reportedInvalid.clear();
     this.#reportedBlocked.clear();
+    this.#reportedLabels = null;
     this.#clearFatal();
   }
 
@@ -212,6 +240,18 @@ export class SkamRendererElement extends BaseElement {
     }
 
     try {
+      // 読み上げ層の source にかかわらず検証する。不正ならラベルなしで描画を続ける
+      const labels = this.#accessibleLabels;
+      let labelsError: TypeError | null = null;
+      if (labels !== undefined) {
+        try {
+          validateRenderOptions({ accessibleLabels: labels });
+          options.accessibleLabels = labels;
+        } catch (error) {
+          labelsError = error instanceof TypeError ? error : new TypeError(String(error));
+        }
+      }
+
       const doc = parse(xml);
       const { html, css } = render(doc, options);
 
@@ -228,6 +268,7 @@ export class SkamRendererElement extends BaseElement {
       });
 
       this.#reportInvalid(invalid, attrs);
+      this.#reportInvalidLabels(labels, labelsError);
 
       this.dispatchEvent(
         new CustomEvent('skam-render', {
@@ -266,6 +307,26 @@ export class SkamRendererElement extends BaseElement {
         })
       );
     }
+  }
+
+  /**
+   * 不正な accessibleLabels を回復可能なエラーとして通知する (描画は続けている)。
+   * 同じ参照では再通知しない。正しい値か指定なしになったら記憶を消す。
+   */
+  #reportInvalidLabels(labels: unknown, error: TypeError | null): void {
+    if (error === null) {
+      this.#reportedLabels = null;
+      return;
+    }
+    if (this.#reportedLabels !== null && Object.is(this.#reportedLabels.ref, labels)) return;
+    this.#reportedLabels = { ref: labels };
+    this.dispatchEvent(
+      new CustomEvent('skam-error', {
+        detail: { error, recoverable: true, attribute: 'accessibleLabels' },
+        bubbles: true,
+        composed: true,
+      })
+    );
   }
 
   /**

@@ -96,7 +96,7 @@ describe('fatal error notification (K2)', () => {
   it('notifies again when the broken XML changes', async () => {
     const { el, errors } = mount(BROKEN_A);
     await waitParseCalls(1);
-    el.textContent = BROKEN_B;
+    el.xmlContent = BROKEN_B;
     await waitParseCalls(2);
     expect(errors).toHaveLength(2);
   });
@@ -104,9 +104,9 @@ describe('fatal error notification (K2)', () => {
   it('notifies again after a successful render', async () => {
     const { el, errors, renders } = mount(BROKEN_A);
     await waitParseCalls(1);
-    el.textContent = VALID;
+    el.xmlContent = VALID;
     await vi.waitFor(() => expect(renders).toHaveLength(1));
-    el.textContent = BROKEN_A;
+    el.xmlContent = BROKEN_A;
     await waitParseCalls(3);
     expect(errors).toHaveLength(2);
     expect(renders).toHaveLength(1);
@@ -135,10 +135,11 @@ describe('fatal error notification (K2)', () => {
   it('notifies again after the XML was emptied', async () => {
     const { el, errors } = mount(BROKEN_A);
     await waitParseCalls(1);
-    el.textContent = '';
+    // happy-dom の MutationObserver は通知を落とすことがあるため、再描画は setter で起こす
+    el.xmlContent = '';
     await nextFrames();
     expect(parseMock).toHaveBeenCalledTimes(1);
-    el.textContent = BROKEN_A;
+    el.xmlContent = undefined;
     await waitParseCalls(2);
     expect(errors).toHaveLength(2);
   });
@@ -149,7 +150,7 @@ describe('fatal error notification (K2)', () => {
     });
     const { el, errors } = mount(VALID);
     await waitParseCalls(1);
-    el.textContent = VALID;
+    el.xmlContent = VALID;
     await waitParseCalls(2);
     expect(errors).toHaveLength(1);
     expect(errors[0]!.detail.error).toBe('boom');
@@ -163,7 +164,7 @@ describe('fatal error notification (K2)', () => {
     });
     const { el, errors } = mount(VALID);
     await waitParseCalls(1);
-    el.textContent = VALID;
+    el.xmlContent = VALID;
     await waitParseCalls(2);
     expect(errors).toHaveLength(1);
     expect(errors[0]!.detail.error).toBe(thrown);
@@ -175,9 +176,9 @@ describe('fatal error notification (K2)', () => {
     });
     const { el, errors, renders } = mount(VALID);
     await waitParseCalls(1);
-    el.textContent = VALID;
+    el.xmlContent = VALID;
     await waitParseCalls(2);
-    el.textContent = VALID;
+    el.xmlContent = VALID;
     await waitParseCalls(3);
     expect(errors).toHaveLength(1);
     expect(renders).toHaveLength(0);

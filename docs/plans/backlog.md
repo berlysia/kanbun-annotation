@@ -54,11 +54,9 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 
 ## レンダラー
 
-- **multi-token ruby-grid の字間のアキ (#4)**: アキを設定しても、ruby-grid 内の multi-token range の base text の文字間にアキが入らない。`.skam-base` の `letter-spacing: 0` の副作用である。Issue は open。出典: #4。規模: 中。
+- **Issue #4 を閉じる**: multi-token ruby-grid の range の字間のアキは、commit e6d55e2 で直っている。`spacing: 'full'` の春曉の「啼鳥」で、range 内の字のピッチを range 外の「處處」と比べた。font-size 32px で、どちらも 64px (2em) だった。`range-spacing.spec.ts` がこの測定を回帰テストにしている。Issue は open のままなので、利用者が確かめて閉じる。閉じたらこの項目を消す。出典: #4。規模: 小。
 - **grid baseline 補正の構造的課題 (#2)**: Chromium の補正に構造的な課題がある。補正は `--skam-grid-baseline-fix` と `calibrateGridBaseline()` が担う。Issue は open。出典: #2。規模: 大。
-- **grid モードの emphasis のカスタム文字**: grid モードで emphasis のカスタム文字が固定の `•` になる。`packages/skam/src/rendering/emphasis.ts` の `resolveEmphasisCharacter` は、列挙したスタイル名以外を `•` にする。ruby モードでは CSS の `text-emphasis-style` でカスタム文字が出る。機能の欠落で、安全性の問題ではない。出典: plan-practical-readiness.md L98。規模: 小。
 - **highlight の傍線がアキ部分をカバーしない**: `highlight-content` は inline-block で、letter-spacing のアキが box に含まれない。そのため `box-shadow: inset` の傍線がアキ部分に描かれず、途切れて見える。ADR-008 で既知の制約とし、別 ADR で対応するとした。出典: plan-aki-gumi-spacing.md L70、ADR-008「検証 4: エッジケース」。規模: 中。
-- **suffix-kana への letter-spacing の二重適用**: suffix-kana では letter-spacing が二重にかかる。将来の構造変更で対応するとされた。出典: plan-aki-gumi-spacing.md L71。規模: 小。
 - **分析結果キャッシュ (DocumentAnalysis) の再利用**: Canvas の縦書きレイアウトで、分析結果 (`DocumentAnalysis`) を再利用するかを決める。現行のコードで再利用されているかは未確認。出典: ADR-018「未決事項（残件）」。規模: 中。
 - **highlight の group 走査の最適化**: highlight まわりの group の走査を最適化するかを決める。現行のコードで必要かは未確認。出典: ADR-018「未決事項（残件）」。規模: 中。
 - **range ruby overflow 計算の重複排除**: tateten 内と block-level に、約 120 行の類似ロジックがある。`computeRangeRubyOverflow()` ヘルパーに抽出する余地がある。このヘルパーは現行のコードに見当たらず、重複が残るかは未確認。出典: ADR-018「未決事項（残件）」。規模: 小。
@@ -71,6 +69,7 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 - **Complete の ADR に残った plan の検出**: Complete の ADR に plan が残っていたら、`pnpm adr:status` が警告する。いまは PLAN 列に `exists` や `validated` を出すだけで、消し忘れに気づけない。出典: docs/plans/ を今後の作業だけにした整理。規模: 小。
 - **parseFrontmatter の数字でない deps**: `parseFrontmatter` は `deps: [a]` のような数字でない値を NaN にする。扱いを決めてテストで固定する。出典: adr-parser のテストの追加。規模: 小。
 - **scripts/adr-migrate-fm.ts の削除の検討**: 旧形式の本文リンクから frontmatter を作る一回限りの移行スクリプトで、knip の entry になっている。消すかどうかを決める。出典: docs/plans/ を今後の作業だけにした整理。規模: 小。
+- **傍点のキーワードの判定を 1 か所にまとめる**: 傍点のキーワードの判定が 4 か所に分かれている。1 つ目は validator、2 つ目は html-renderer の safe.ts である。3 つ目は skam の emphasis.ts の対応表で、4 つ目は skam-screenshot の canvas-page-builder.ts の対応表である。canvas-page-builder.ts はページの中で `resolveEmphasisCharacter` を呼べないため、対応表を複製したまま残した。validator がキーワードと文字の対応表を export し、ほかがそれを使う形にまとめる。出典: 傍点のカスタム文字の修正 (fix/grid-emphasis-custom-char)。規模: 小。
 - **TypeScript 7 系への移行**: このリポジトリを TypeScript 7 系 (native の `typescript` パッケージ) に移す。tsgo (`@typescript/native-preview`) との関係、typescript-eslint などの JS 実装を要る道具の扱いを決める。consumer の検査の `typescript5` (5.9.3) は、利用者の 5 系の代表として残す。出典: 利用者の方針 (2026-10-19)。規模: 中。
 
 ## 外部利用

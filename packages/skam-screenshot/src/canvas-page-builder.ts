@@ -22,6 +22,78 @@ function escapeJsonForScript(json: string): string {
   return json.replace(/<\//g, '<\\/');
 }
 
+/** collectFontSampleText が読む mark の形 (型を問わず来うる値を unknown で受ける) */
+interface SampleMark {
+  type?: string;
+  value?: string;
+  label?: string;
+  content?: string;
+  style?: unknown;
+  forms?: { yomi?: string; okuri?: string }[];
+}
+
+/**
+ * Collects every character the Canvas renderer draws, so the font subsets covering
+ * them can be loaded before rendering.
+ *
+ * This function is embedded into the generated page via Function.prototype.toString(),
+ * so it must stay self-contained: no references to variables or imports outside its body
+ * (including the emphasis table below), and no "</script" in its source.
+ */
+export function collectFontSampleText(doc: SKAMDocument): string {
+  var parts: string[] = doc.tokens.map(function (t) {
+    return t.text;
+  });
+  // resolveEmphasisCharacter() is inside the bundle but not exposed to the page, so the
+  // keyword table is duplicated here. Keys are looked up strictly (own keys, exact match)
+  // like resolveEmphasisCharacter does.
+  var emphasisChars: Record<string, string> = {
+    sesame: '\uFE45',
+    'filled sesame': '\uFE45',
+    'open sesame': '\uFE46',
+    dot: '\u2022',
+    'filled dot': '\u2022',
+    'open dot': '\u25E6',
+    circle: '\u25CF',
+    'filled circle': '\u25CF',
+    'open circle': '\u25CB',
+    'double-circle': '\u25C9',
+    'filled double-circle': '\u25C9',
+    'open double-circle': '\u25CE',
+    triangle: '\u25B2',
+    'filled triangle': '\u25B2',
+    'open triangle': '\u25B3',
+  };
+  var marks = (doc.marks || []) as unknown as SampleMark[];
+  marks.forEach(function (m) {
+    if (m.value) parts.push(m.value);
+    if (m.label) parts.push(m.label);
+    if (m.content) parts.push(m.content);
+    if (m.forms) {
+      m.forms.forEach(function (f) {
+        if (f.yomi) parts.push(f.yomi);
+        if (f.okuri) parts.push(f.okuri);
+      });
+    }
+    // emphasis: resolve style to the rendered character
+    if (m.type === 'emphasis') {
+      var style = m.style;
+      var ch = '\u2022';
+      if (typeof style === 'string') {
+        if (Object.prototype.hasOwnProperty.call(emphasisChars, style)) {
+          ch = emphasisChars[style] as string;
+        } else if (Array.from(style).length === 1) {
+          // custom single character (looser than resolveEmphasisCharacter; it only
+          // makes the page load an extra font subset and is never drawn from here)
+          ch = style;
+        }
+      }
+      parts.push(ch);
+    }
+  });
+  return parts.join('');
+}
+
 /**
  * Builds a self-contained HTML page that renders a SKAM document
  * using the Canvas renderer IIFE bundle inside a browser context.
@@ -60,38 +132,12 @@ body { padding: ${PADDING}px; }
 
     // Collect ALL rendered characters for font loading.
     // Google Fonts serves Noto Serif JP as unicode-range subsets; fonts.load()
-    // only downloads subsets matching the given text. We must include:
-    //   - token text (kanji)
-    //   - mark values (okurigana/yomigana/soegana: hiragana/katakana,
-    //     kaeri: レ一二三上下甲乙 etc, kutoten: 。、etc)
-    //   - ref labels/content
-    //   - saidoku forms (yomi/okuri)
-    var parts = doc.tokens.map(function(t) { return t.text; });
-    // Resolve emphasis style to actual rendered character for font loading.
-    // resolveEmphasisCharacter() is inside the bundle but not exposed, so we
-    // duplicate the minimal mapping here.
-    var emphasisChars = {
-      'sesame': '\uFE45', 'open sesame': '\uFE46',
-      'dot': '\u2022', 'filled dot': '\u2022', 'open dot': '\u25E6',
-      'circle': '\u25CF', 'filled circle': '\u25CF', 'open circle': '\u25CB',
-      'double-circle': '\u25C9', 'filled double-circle': '\u25C9', 'open double-circle': '\u25CE',
-      'triangle': '\u25B2', 'filled triangle': '\u25B2', 'open triangle': '\u25B3'
-    };
-    (doc.marks || []).forEach(function(m) {
-      if (m.value) parts.push(m.value);
-      if (m.label) parts.push(m.label);
-      if (m.content) parts.push(m.content);
-      if (m.forms) m.forms.forEach(function(f) {
-        if (f.yomi) parts.push(f.yomi);
-        if (f.okuri) parts.push(f.okuri);
-      });
-      // emphasis: resolve style to rendered character
-      if (m.type === 'emphasis') {
-        var ch = m.style ? emphasisChars[m.style.trim().toLowerCase()] : '\u2022';
-        if (ch) parts.push(ch);
-      }
-    });
-    var sampleText = parts.join('');
+    // only downloads subsets matching the given text, so the sample text must
+    // include every character the renderer draws (see collectFontSampleText).
+    /* collectFontSampleText:begin */
+    ${collectFontSampleText.toString()}
+    /* collectFontSampleText:end */
+    var sampleText = collectFontSampleText(doc);
 
     // loadDefaultFont() injects the <link> if needed but its internal
     // fonts.load() uses space text, which may miss CJK subsets.

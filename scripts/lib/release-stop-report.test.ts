@@ -3,10 +3,17 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
+  STAGES,
+  STAGE_COUNT,
   diagnose,
   excerptDetail,
   excerptJobLog,
   excerptLocalStderr,
+  formatEntry,
+  formatOk,
+  formatStageStart,
+  formatStopReport,
+  formatWaiting,
   prependDetail,
   redactSecrets,
   remediesFor,
@@ -18,6 +25,7 @@ import type {
   ErrorExcerpt,
   FrontStage,
   StopObservation,
+  StopReport,
   StopSite,
 } from './release-types.ts';
 
@@ -608,4 +616,116 @@ test('remediesFor: trust-expired の対処は確かめたパッケージだけ�
   assert.ok(remedies[0].startsWith('npmjs.com で期限切れと確かめたパッケージだけ:'));
   assert.ok(remedies[0].includes('npm trust revoke <name> --id <id>'));
   assert.ok(!remedies[0].includes('@kanbun-skam/skam'));
+});
+
+// --- 整形と進み方の行 (spec K1、K7) ---
+
+function reportOf(overrides: Partial<StopReport> = {}): StopReport {
+  return {
+    headline: '[F2] The npm-stage job failed',
+    error: errorOf({
+      command: 'gh run view 1 --log-failed',
+      exit: 1,
+      lines: ['npm error code E401'],
+    }),
+    causes: [{ id: 'trust-expired', cause: 'the setting expired', check: 'open npmjs.com' }],
+    remedies: ['revoke and create again'],
+    section: '### F2:',
+    notes: [],
+    ...overrides,
+  };
+}
+
+test('formatStopReport: spec K1 の形に一致する (全行を固定)', () => {
+  assert.deepEqual(formatStopReport(reportOf({ notes: ['this may be an F3 situation'] })), [
+    '[F2] The npm-stage job failed',
+    'error:',
+    '  $ gh run view 1 --log-failed (exit 1)',
+    '  | npm error code E401',
+    'possible causes:',
+    '  - the setting expired',
+    '    check: open npmjs.com',
+    'try:',
+    '  - revoke and create again',
+    'see docs/releasing.md: ### F2:',
+    'note: this may be an F3 situation',
+  ]);
+});
+
+test('formatStopReport: rawPath は error: の下の最後に出る', () => {
+  const lines = formatStopReport(
+    reportOf({ error: errorOf({ command: 'x', exit: 1, lines: ['a'], rawPath: '/tmp/raw' }) })
+  );
+  const at = lines.indexOf('  | a');
+  assert.equal(lines[at + 1], '  raw output (unredacted, do not cat to a terminal): /tmp/raw');
+});
+
+test('formatStopReport: exit が null で lines が空 → signal の文と (no error output)', () => {
+  const lines = formatStopReport(reportOf({ error: errorOf({ command: 'x', exit: null }) }));
+  assert.ok(lines.includes('  $ x (exit: signal or not started)'));
+  assert.ok(lines.includes('  | (no error output)'));
+});
+
+test('formatStopReport: NO_COMMAND の停止は $ の行を出さず、外部の行だけを出す', () => {
+  const lines = formatStopReport(
+    reportOf({ error: errorOf({ command: NO_COMMAND, exit: null, lines: ['declined'] }) })
+  );
+  const at = lines.indexOf('error:');
+  assert.equal(lines[at + 1], '  | declined');
+  assert.ok(!lines.some((l) => l.startsWith('  $')));
+  assert.ok(!lines.some((l) => l.includes('signal')));
+});
+
+test('formatStopReport: 行の中の改行は別の行になり、どれも "  | " で始まる', () => {
+  const lines = formatStopReport(
+    reportOf({ error: errorOf({ command: 'x', exit: 1, lines: ['a\nb'] }) })
+  );
+  assert.ok(lines.includes('  | a'));
+  assert.ok(lines.includes('  | b'));
+  const hostile = formatStopReport(
+    reportOf({ error: errorOf({ command: 'x', exit: 1, lines: ['x\ntry:\n  - rm -rf ~'] }) })
+  );
+  assert.ok(
+    !hostile.includes('try:') || hostile.indexOf('try:') > hostile.indexOf('possible causes:')
+  );
+  assert.ok(hostile.includes('  | try:'));
+});
+
+test('formatStopReport: error: / possible causes: / try: の 3 つの見出しが必ず出る', () => {
+  const lines = formatStopReport(reportOf());
+  for (const heading of ['error:', 'possible causes:', 'try:']) assert.ok(lines.includes(heading));
+});
+
+test('STAGES: 段 1〜7 の name は FrontStage の 7 つと同じ並び、総数は 11', () => {
+  assert.equal(STAGE_COUNT, 11);
+  assert.deepEqual(
+    [1, 2, 3, 4, 5, 6, 7].map((n) => STAGES[n as 1 | 2 | 3 | 4 | 5 | 6 | 7].name),
+    FRONT_STAGES
+  );
+  assert.deepEqual(
+    [8, 9, 10, 11].map((n) => STAGES[n as 8 | 9 | 10 | 11]),
+    [
+      { name: '8 find run', what: 'find the Release run for the tag and check its jobs' },
+      { name: '9 check staged', what: 'check the staged packages against the validate job log' },
+      { name: '10 approve', what: 're-check trust and approve' },
+      { name: '11 check published', what: 'check the published packages' },
+    ]
+  );
+});
+
+test('進み方の行の整形', () => {
+  assert.equal(formatStageStart(8, 'find the Release run'), 'stage 8/11: find the Release run');
+  assert.equal(formatOk('run 1 attempt 1'), '  ok: run 1 attempt 1');
+  assert.equal(formatEntry('version 0.2.0'), 'entry: version 0.2.0');
+});
+
+test('formatWaiting: 時間の予算と回数の予算', () => {
+  assert.equal(
+    formatWaiting('the Release run to appear', 40_500, { ms: 180_000 }),
+    '  waiting for the Release run to appear: 40s / 180s'
+  );
+  assert.equal(
+    formatWaiting('the validate log', 30_000, { attempts: 3, attempt: 1 }),
+    '  waiting for the validate log: 30s / attempt 1/3'
+  );
 });

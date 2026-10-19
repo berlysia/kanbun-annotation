@@ -12,6 +12,7 @@ import type {
   FrontStage,
   NonEmpty,
   StopObservation,
+  StopReport,
   StopSite,
 } from './release-types.ts';
 
@@ -646,4 +647,83 @@ export function remediesFor(causes: NonEmpty<Cause>): NonEmpty<string> {
   const remedies = causes.map((c) => REMEDY_BY_ID.get(c.id) ?? RERUN_REMEDY);
   const [first, ...rest] = remedies;
   return [first ?? RERUN_REMEDY, ...rest];
+}
+
+// --- 停止の整形 (spec K1) ---
+// 外部の行 (error.lines) は必ず `  | ` で始まる。利用者向けの行 (`try:` や `$ `) を装えない。
+
+const EXTERNAL_LINE_BREAK = /\r\n|[\n\r\u{2028}\u{2029}]/u;
+
+function formatErrorLines(error: ErrorExcerpt): string[] {
+  const out: string[] = [];
+  if (error.command !== NO_COMMAND) {
+    const exit = error.exit === null ? 'exit: signal or not started' : `exit ${error.exit}`;
+    out.push(`  $ ${error.command} (${exit})`);
+  }
+  const external = error.lines.flatMap((line) => line.split(EXTERNAL_LINE_BREAK));
+  if (external.length === 0) out.push('  | (no error output)');
+  for (const line of external) out.push(`  | ${line}`);
+  if (error.rawPath !== undefined) {
+    out.push(`  raw output (unredacted, do not cat to a terminal): ${error.rawPath}`);
+  }
+  return out;
+}
+
+export function formatStopReport(report: StopReport): string[] {
+  return [
+    report.headline,
+    'error:',
+    ...formatErrorLines(report.error),
+    'possible causes:',
+    ...report.causes.flatMap((c) => [`  - ${c.cause}`, `    check: ${c.check}`]),
+    'try:',
+    ...report.remedies.map((remedy) => `  - ${remedy}`),
+    ...(report.section === undefined ? [] : [`see docs/releasing.md: ${report.section}`]),
+    ...report.notes.map((note) => `note: ${note}`),
+  ];
+}
+
+// --- 進み方の行 (spec K7) ---
+
+export const STAGE_COUNT = 11;
+
+// 段の名前と、段の始めに出す内容の SSoT。前半の stop(stage, ...) は name、後半の段の始めは what を使う。
+// 段 8 の tag は表に埋めず、呼び出し側が検証済みの値で足す
+export const STAGES = {
+  1: { name: '1 prerequisites', what: 'check git, trust and pnpm verify' },
+  2: { name: '2 versioning', what: 'bump versions with changesets' },
+  3: { name: '3 publish preconditions', what: 'check publish preconditions' },
+  4: { name: '4 consumer test', what: 'run the consumer test with the new tarballs' },
+  5: { name: '5 confirmation', what: 'confirm' },
+  6: { name: '6 record', what: 'commit and tag' },
+  7: { name: '7 push', what: 'push' },
+  8: { name: '8 find run', what: 'find the Release run for the tag and check its jobs' },
+  9: { name: '9 check staged', what: 'check the staged packages against the validate job log' },
+  10: { name: '10 approve', what: 're-check trust and approve' },
+  11: { name: '11 check published', what: 'check the published packages' },
+} as const satisfies Record<1 | 2 | 3 | 4 | 5 | 6 | 7, { name: FrontStage; what: string }> &
+  Record<8 | 9 | 10 | 11, { name: string; what: string }>;
+
+export function formatStageStart(n: number, what: string): string {
+  return `stage ${n}/${STAGE_COUNT}: ${what}`;
+}
+
+export function formatOk(evidence: string): string {
+  return `  ok: ${evidence}`;
+}
+
+export function formatEntry(text: string): string {
+  return `entry: ${text}`;
+}
+
+// elapsedMs は、これから入る sleep が終わる時点の値 (now() - start + intervalMs)。
+// attempt は終えた probe の回数 (この行の直後に attempt + 1 回目の probe が走る)
+export function formatWaiting(
+  label: string,
+  elapsedMs: number,
+  budget: { ms: number } | { attempts: number; attempt: number }
+): string {
+  const limit =
+    'ms' in budget ? `${budget.ms / 1000}s` : `attempt ${budget.attempt}/${budget.attempts}`;
+  return `  waiting for ${label}: ${Math.floor(elapsedMs / 1000)}s / ${limit}`;
 }

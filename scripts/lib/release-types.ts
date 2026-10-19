@@ -130,6 +130,8 @@ export interface StopReport {
   notes: readonly string[];
 }
 
+// plan-2 が ReleaseOutcome の front-stopped に載せる。それまで knip の未使用の export に数えないための @public
+/** @public */
 export interface FrontStop {
   stage: FrontStage;
   reason: string;

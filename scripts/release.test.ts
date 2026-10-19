@@ -992,6 +992,83 @@ test('createRunner: inherit-keep-stderr inherits stdin and stdout, sanitizes std
   assert.ok(out.text().includes('E409'));
 });
 
+// close が来ない子 (孫のプロセスが stderr を握ったまま) の打ち切り
+function fakeTimer(): {
+  setTimer: (fn: () => void, ms: number) => () => void;
+  fire: () => void;
+  ms: number[];
+  cleared: number;
+} {
+  const state = { fn: undefined as (() => void) | undefined, ms: [] as number[], cleared: 0 };
+  return {
+    setTimer: (fn, ms) => {
+      state.fn = fn;
+      state.ms.push(ms);
+      return () => {
+        state.cleared += 1;
+        state.fn = undefined;
+      };
+    },
+    fire: () => state.fn?.(),
+    get ms() {
+      return state.ms;
+    },
+    get cleared() {
+      return state.cleared;
+    },
+  };
+}
+
+test('createRunner: without close, 5 seconds after exit the result returns with what was kept, and a late close does not resolve twice', async () => {
+  const timer = fakeTimer();
+  let child: FakeChild | undefined;
+  let unrefs = 0;
+  const { spawn } = fakeSpawn((c) => {
+    child = c.child;
+    (c.child as unknown as { unref: () => void }).unref = () => {
+      unrefs += 1;
+    };
+    c.child.stderr?.write('npm error partial');
+    setImmediate(() => c.child.emit('exit', 1, null));
+  });
+  const run = createRunner(spawn, lineCollector().output, {
+    env: dirtyEnv,
+    setTimer: timer.setTimer,
+  });
+  const pending = run('npm', ['x'], { stdio: 'inherit-keep-stderr' });
+  let resolved = 0;
+  void pending.then(() => {
+    resolved += 1;
+  });
+  await new Promise((resolve) => setTimeout(resolve, 20));
+  assert.equal(resolved, 0);
+  assert.deepEqual(timer.ms, [5000]);
+  timer.fire();
+  const result = await pending;
+  assert.equal(result.status, 1);
+  assert.equal(result.stderr, 'npm error partial');
+  assert.equal(child?.stderr?.destroyed, true);
+  assert.equal(unrefs, 1);
+  child?.emit('close', 1, null);
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(resolved, 1);
+});
+
+test('createRunner: a close that arrives in time cancels the 5 second timer', async () => {
+  const timer = fakeTimer();
+  const { spawn } = fakeSpawn((c) => {
+    c.child.emit('exit', 0, null);
+    return c.child.finish('', '', 0);
+  });
+  const run = createRunner(spawn, lineCollector().output, {
+    env: dirtyEnv,
+    setTimer: timer.setTimer,
+  });
+  const result = await run('npm', ['x'], { stdio: 'inherit-keep-stderr' });
+  assert.equal(result.status, 0);
+  assert.ok(timer.cleared >= 1);
+});
+
 test('createRunner: a spawn that throws becomes a failed result', async () => {
   const run = createRunner(
     () => {
@@ -1024,11 +1101,41 @@ test('pumpSanitizedStderr: ESC never reaches the output but the raw text keeps E
   assert.ok(kept.includes('E409'));
 });
 
-test('pumpSanitizedStderr: the kept text stops at the cap', async () => {
+test('pumpSanitizedStderr: the kept text is the tail of the stream, not its head', async () => {
   const mib = 1024 * 1024;
-  const { kept } = await pump(['a'.repeat(mib), 'b'.repeat(mib)], mib);
+  const filler = `${'x'.repeat(99)}\n`.repeat(Math.ceil((2 * mib) / 100));
+  const { kept } = await pump([`HEAD-MARK\n${filler}Error: TAIL-MARK`], mib);
+  assert.ok(kept.endsWith('Error: TAIL-MARK'));
+  assert.equal(kept.includes('HEAD-MARK'), false);
+  assert.ok(Buffer.byteLength(kept) <= mib);
+  // 途中で切れた最初の行は捨てる
+  assert.ok(kept.startsWith('x'.repeat(99)), kept.slice(0, 120));
+});
+
+test('pumpSanitizedStderr: 2 MiB without a newline keeps exactly the last 1 MiB of bytes', async () => {
+  const mib = 1024 * 1024;
+  const { kept } = await pump(['x'.repeat(mib), 'x'.repeat(mib)], mib);
   assert.equal(Buffer.byteLength(kept), mib);
-  assert.equal(kept.includes('b'), false);
+  assert.equal(kept, 'x'.repeat(mib));
+});
+
+test('pumpSanitizedStderr: when only an empty tail follows the first newline, the partial line is kept', async () => {
+  const mib = 1024 * 1024;
+  const { kept } = await pump(['x'.repeat(mib), 'x'.repeat(mib), '\n'], mib);
+  assert.notEqual(kept, '');
+  assert.ok(kept.endsWith('\n'));
+});
+
+test('pumpSanitizedStderr: a prompt without a newline reaches the output before the stream ends', async () => {
+  const source = new PassThrough();
+  const shown: string[] = [];
+  const output: Output = { emit: (l) => shown.push(l), emitChunk: (t) => shown.push(t) };
+  const done = pumpSanitizedStderr(source as Readable, output, 1024);
+  source.write('Enter OTP: ');
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(shown.join(''), 'Enter OTP: ');
+  source.end();
+  await done;
 });
 
 test('pumpSanitizedStderr: a 3-byte character split across two chunks comes out as one character', async () => {

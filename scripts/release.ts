@@ -142,6 +142,8 @@ export interface ChildLike {
   stderr: Readable | null;
   on(event: string, listener: (...args: unknown[]) => void): unknown;
   kill(): unknown;
+  // close が来ない子を打ち切るとき、Node の終了を止めないために手放す
+  unref?(): unknown;
 }
 
 export interface SpawnOptionsLike {
@@ -160,7 +162,9 @@ export const nodeSpawn: SpawnFn = (cmd, args, options) =>
     ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
   });
 
-// 受けたそばから無害化して流しつつ、無害化前の文字列を capBytes まで保持して返す (E409 の判定用)
+// 受けたそばから無害化して流しつつ、無害化前の文字列の末尾を capBytes (バイト) まで保持して返す。
+// 失敗の行は stderr の終わりに出るので、先頭ではなく末尾を残す (E409 の判定も末尾の行を見る)。
+// 捨てたことがあるときは、先頭の途中で切れた行を捨てる (ただし、それで空になるなら捨てない)
 export async function pumpSanitizedStderr(
   source: Readable,
   output: Output,
@@ -169,21 +173,36 @@ export async function pumpSanitizedStderr(
   const sanitizer = createStreamSanitizer();
   const kept: Buffer[] = [];
   let keptBytes = 0;
+  let dropped = false;
   try {
     for await (const chunk of source) {
       const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
       output.emitChunk(sanitizer.write(buf));
-      if (keptBytes < capBytes) {
-        const part = buf.subarray(0, capBytes - keptBytes);
-        kept.push(part);
-        keptBytes += part.length;
+      kept.push(buf);
+      keptBytes += buf.length;
+      while (keptBytes > capBytes) {
+        const first = kept[0];
+        if (first === undefined) break;
+        const excess = keptBytes - capBytes;
+        dropped = true;
+        if (first.length <= excess) {
+          kept.shift();
+          keptBytes -= first.length;
+        } else {
+          kept[0] = first.subarray(excess);
+          keptBytes -= excess;
+        }
       }
     }
   } catch {
     // 読み取りの失敗は、そこまでに受けた分を返す
   }
   output.emitChunk(sanitizer.end());
-  return Buffer.concat(kept).toString('utf8');
+  // 先頭が多バイト文字の途中で切れた分は、置換文字になってよい
+  const text = Buffer.concat(kept).toString('utf8');
+  if (!dropped) return text;
+  const newline = text.indexOf('\n');
+  return newline >= 0 && newline + 1 < text.length ? text.slice(newline + 1) : text;
 }
 
 function stdioFor(mode: RunStdio): SpawnOptionsLike['stdio'] {
@@ -204,11 +223,23 @@ function argsFor(cmd: string, args: readonly string[], raw: boolean | undefined)
   return [...args];
 }
 
+// exit の後、この時間たっても close が来ない子 (孫のプロセスが stderr を握ったまま) は、
+// そこまでの保持で結果を返す
+const CLOSE_GRACE_MS = 5000;
+
+export type SetTimer = (fn: () => void, ms: number) => () => void;
+
+const nodeSetTimer: SetTimer = (fn, ms) => {
+  const timer = setTimeout(fn, ms);
+  return () => clearTimeout(timer);
+};
+
 export function createRunner(
   spawnFn: SpawnFn,
   output: Output,
-  options: { env?: Readonly<Record<string, string | undefined>> } = {}
+  options: { env?: Readonly<Record<string, string | undefined>>; setTimer?: SetTimer } = {}
 ): Runner {
+  const setTimer = options.setTimer ?? nodeSetTimer;
   return (cmd, args, runOptions) =>
     new Promise<CommandResult>((resolvePromise) => {
       let settled = false;
@@ -261,15 +292,28 @@ export function createRunner(
       child.on('error', (error) => {
         finish({ status: null, stdout: '', stderr: errorMessage(error) });
       });
+      let cancelGrace: (() => void) | undefined;
+      const complete = async (code: unknown): Promise<void> => {
+        cancelGrace?.();
+        const kept = keepStderr ? await keepStderr : undefined;
+        finish({
+          status: typeof code === 'number' ? code : null,
+          stdout: Buffer.concat(out).toString('utf8'),
+          stderr: kept ?? Buffer.concat(err).toString('utf8'),
+        });
+      };
       child.on('close', (code) => {
-        void (async () => {
-          const kept = keepStderr ? await keepStderr : undefined;
-          finish({
-            status: typeof code === 'number' ? code : null,
-            stdout: Buffer.concat(out).toString('utf8'),
-            stderr: kept ?? Buffer.concat(err).toString('utf8'),
-          });
-        })();
+        void complete(code);
+      });
+      child.on('exit', (code) => {
+        if (settled) return;
+        cancelGrace = setTimer(() => {
+          // 孫が pipe を握っていて close が来ない。pipe を閉じて、ここまでの保持で返す
+          child.stderr?.destroy();
+          if (runOptions.stdio === 'pipe') child.stdout?.destroy();
+          child.unref?.();
+          void complete(code);
+        }, CLOSE_GRACE_MS);
       });
     });
 }

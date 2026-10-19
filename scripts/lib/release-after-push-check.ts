@@ -3,10 +3,10 @@
 
 import { createHash } from 'node:crypto';
 import { posix } from 'node:path';
-import { StringDecoder } from 'node:string_decoder';
 import zlib from 'node:zlib';
 import { checkPackedPackageJson, verifyManifest } from './release-check.ts';
 import type {
+  AfterPushSite,
   Check,
   ClassifiedStop,
   DistTag,
@@ -31,35 +31,8 @@ function isPositiveSafeInteger(value: unknown): value is number {
 
 const MIB = 1024 * 1024;
 
-// --- 表示の無害化 ---
-
-const FORMAT_CHAR = /^\p{Cf}$/u;
-
-// C0 (\t と \n を除く。\r は除く)、DEL、C1、Cf、U+2028 / U+2029 (Cf に入らない行と段落の区切り)
-function isStrippedCodePoint(ch: string): boolean {
-  const cp = ch.codePointAt(0) ?? 0;
-  if (cp === 0x09 || cp === 0x0a) return false;
-  if (cp <= 0x1f || (cp >= 0x7f && cp <= 0x9f)) return true;
-  if (cp === 0x2028 || cp === 0x2029) return true;
-  return FORMAT_CHAR.test(ch);
-}
-
-export function sanitizeForTerminal(text: string): string {
-  let out = '';
-  for (const ch of text) {
-    if (!isStrippedCodePoint(ch)) out += ch;
-  }
-  return out;
-}
-
-// 文字単位の除去なので、チャンクの境界は多バイト文字の持ち越しだけを扱えばよい
-export function createStreamSanitizer(): { write(chunk: Buffer): string; end(): string } {
-  const decoder = new StringDecoder('utf8');
-  return {
-    write: (chunk) => sanitizeForTerminal(decoder.write(chunk)),
-    end: () => sanitizeForTerminal(decoder.end()),
-  };
-}
+// 表示の無害化は release-check.ts に移した。既存の import 元を変えないために再公開する
+export { createStreamSanitizer, sanitizeForTerminal } from './release-check.ts';
 
 // --- 後半の引数の組み立て (npm / gh の固定の引数は実行器が足す) ---
 
@@ -157,6 +130,12 @@ export function ghRunLogArgs(runId: number, jobId: number): Check<string[]> {
   return withId('run id', runId, (id) => ['run', 'view', id, '--log', '--job', job.value]);
 }
 
+export function ghRunLogFailedArgs(runId: number, jobId: number): Check<string[]> {
+  const job = checkId('job id', jobId);
+  if (!job.ok) return job;
+  return withId('run id', runId, (id) => ['run', 'view', id, '--log-failed', '--job', job.value]);
+}
+
 export function ghRunWatchArgs(runId: number): Check<string[]> {
   return withId('run id', runId, (id) => ['run', 'watch', id, '--exit-status']);
 }
@@ -237,7 +216,7 @@ export const RELEASE_JOB_NAMES = {
 export type JudgeJobsResult =
   | { kind: 'in-progress' }
   | { kind: 'ok'; validateJobId: number; githubRelease: 'success' | 'failure' }
-  | { kind: 'job-failed'; job: 'validate' | 'npm-stage' }
+  | { kind: 'job-failed'; job: 'validate' | 'npm-stage'; jobId: number | undefined }
   | { kind: 'shape-unknown'; what: string };
 
 interface JobConclusions {
@@ -245,6 +224,7 @@ interface JobConclusions {
   npmStage: string;
   githubRelease: string;
   validateJobId: number;
+  npmStageJobId: number | undefined;
 }
 
 function readJobConclusions(jobs: unknown): JobConclusions | string {
@@ -267,7 +247,14 @@ function readJobConclusions(jobs: unknown): JobConclusions | string {
     return 'a job name is unknown or a job has no conclusion';
   }
   if (!isPositiveSafeInteger(validateJobId)) return 'the validate job has no usable databaseId';
-  return { validate, npmStage, githubRelease, validateJobId };
+  const npmStageJobId = byName.get(RELEASE_JOB_NAMES.npmStage)?.['databaseId'];
+  return {
+    validate,
+    npmStage,
+    githubRelease,
+    validateJobId,
+    npmStageJobId: isPositiveSafeInteger(npmStageJobId) ? npmStageJobId : undefined,
+  };
 }
 
 function judgeConclusions(c: JobConclusions): JudgeJobsResult {
@@ -279,13 +266,13 @@ function judgeConclusions(c: JobConclusions): JudgeJobsResult {
   } else if (c.validate === 'success' && c.npmStage === 'failure') {
     // github-release は validate にだけ依存するので、npm-stage の失敗と独立に走る
     if (releaseConclusions.includes(c.githubRelease))
-      return { kind: 'job-failed', job: 'npm-stage' };
+      return { kind: 'job-failed', job: 'npm-stage', jobId: c.npmStageJobId };
   } else if (
     c.validate === 'failure' &&
     c.npmStage === 'skipped' &&
     c.githubRelease === 'skipped'
   ) {
-    return { kind: 'job-failed', job: 'validate' };
+    return { kind: 'job-failed', job: 'validate', jobId: c.validateJobId };
   }
   return {
     kind: 'shape-unknown',
@@ -1087,7 +1074,7 @@ const BY_HAND =
 const RERUN_NEXT = { fallback: 'Run the same command again' };
 
 function postCheckRow(obs: Extract<StopObservation, { kind: 'post-check' }>): StopRow {
-  const reason = `post-approve check (${obs.check}) failed: ${obs.what}`;
+  const reason = `post-approve check (${obs.check}) failed${obs.name === undefined ? '' : ` for ${obs.name}`}`;
   switch (obs.check) {
     case 'integrity':
       return {
@@ -1163,14 +1150,14 @@ function describeStop(obs: StopObservation): StopRow {
       return {
         zero: cell('manual'),
         some: MANUAL_F3,
-        reason: `Unexpected output shape: ${obs.what}`,
+        reason: 'Unexpected output shape',
         next: { fallback: 'Read the saved raw output, record it in ADR-029, and continue by hand' },
       };
     case 'staged-mismatch':
       return {
         zero: cell('F2'),
         some: cell('F3'),
-        reason: `Staged content check failed: ${obs.what}`,
+        reason: `Staged content check failed${obs.name === undefined ? '' : ` for ${obs.name}`}`,
         next: F_FAILURE_NEXT,
       };
     case 'stage-none':
@@ -1204,7 +1191,7 @@ function describeStop(obs: StopObservation): StopRow {
       return {
         zero: cell('rerun'),
         some: cell('rerun'),
-        reason: `npm stage approve failed for ${obs.name}: ${obs.what}`,
+        reason: `npm stage approve failed for ${obs.name}`,
         next: RERUN_NEXT,
       };
     case 'interrupted':
@@ -1220,7 +1207,7 @@ function describeStop(obs: StopObservation): StopRow {
       return {
         zero: cell('rerun'),
         some: cell('rerun'),
-        reason: `A command failed: ${obs.what}`,
+        reason: 'A command failed',
         next: { fallback: 'Run the same command again; if it repeats, read the output' },
       };
     case 'trust-eotp':
@@ -1237,7 +1224,7 @@ function describeStop(obs: StopObservation): StopRow {
       return {
         zero: cell('manual'),
         some: cell('manual'),
-        reason: `Trusted publisher settings differ: ${obs.what}`,
+        reason: 'Trusted publisher settings differ',
         next: {
           fallback: 'Read the six outputs, then follow steps 3 / 3a of the one-time migration',
         },
@@ -1261,6 +1248,17 @@ function resolveCell(row: StopRow, published: Published): Cell {
   return published.length === 0 ? row.zero : row.some;
 }
 
+function siteOf(obs: StopObservation): AfterPushSite {
+  return {
+    side: 'after-push',
+    where: obs.kind,
+    ...(obs.kind === 'job-failed' ? { job: obs.job } : {}),
+    ...(obs.kind === 'post-check' ? { check: obs.check } : {}),
+  };
+}
+
+// 理由 (headline) には観測の what を入れない (外部の文字列を含みうるため)。what は呼び出し側が
+// error.lines の先頭に移す。error には触れない
 export function classifyStop(obs: StopObservation): ClassifiedStop {
   const row = describeStop(obs);
   const { route, f3 } = resolveCell(row, obs.published);
@@ -1270,6 +1268,8 @@ export function classifyStop(obs: StopObservation): ClassifiedStop {
     next: row.next[route] ?? row.next.fallback,
     section: RELEASING_SECTIONS[route],
     mayBeF3: f3,
+    site: siteOf(obs),
+    ...('what' in obs ? { what: obs.what } : {}),
   };
 }
 

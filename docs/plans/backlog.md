@@ -14,11 +14,11 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 
 ## リリース運用
 
-- **trust の 48 時間の期限を releasing.md に書く**: npm の trusted publishing の設定は、作ってから 48 時間以内に 1 度使われないと期限切れになる。期限切れは npmjs.com の画面にしか出ない。`npm trust list --json` の出力に印はなく、stage の失敗は `E401` か `ENEEDAUTH` としてしか見えない。releasing.md の trust の手順に、作ったら 48 時間以内に最初のリリースをすることを書く。あわせて、F2 で `package not found` が出たら npmjs.com の表示を見ることも書く。origin/master の releasing.md にこの記述はない (`git grep` で 48 時間と期限を探して 0 件だった)。出典: plan-release-automation.md L80、ADR-029「0.2.0 で見つかったこと」。規模: 小。
 - **reject 後の再 stage の確認 (R1)**: reject した版を同じ版で stage し直せるかは、npm の docs に書かれておらず、0.2.0 でも試していない (未確認)。F2 は「再 stage できなければ F3」の分岐を持つ。再 stage できないと分かったら、ADR-029 と ADR-031 を Accepted に戻して F2 の手順を見直す。出典: ADR-029「未確認の事項」と「結果」、ADR-031「未確認の事項」。規模: 中。
 - **approve の窓の上限の確認**: 0.2.0 では stage から公開まで約 10 分かかり、その間は失効しなかった。窓の上限は調べていない (未確認)。出典: ADR-029「結果」。規模: 小。
-- **release の進み方を画面に出す**: `pnpm run release` は、止まったときの理由と y/N の質問のほかは、子のコマンドの出力が流れるだけである。いま何を確かめ、何を待っているかが分からない。各手順の始めに確かめる内容を出し、通ったときに根拠の値を 1 行で出す。待っている間は、待っている対象と経過時間を出す。0.2.0 の公開の途中で利用者が求めた。出典: plan-release-automation.md L78。規模: 中。
-- **止まったときにエラー・原因・対処を出す**: 止まったときに、毎回 3 つを出す。1 つ目はエラーの内容で、失敗したコマンドと、stderr や job の log の該当行である。2 つ目は推定される原因で、既知の候補と確かめ方である。3 つ目は対処の例で、コマンドか見る画面である。原因の候補は、0.2.0 で実際に起きたものから始める。trust の期限切れ、npm の未ログイン、`npm view` の配列の出力、`/-/v1/done` の 404 である。出典: plan-release-automation.md L79。規模: 中。
+- **release の証拠の保存物を無害化する**: `.tmp/release/` の証拠の保存物 (`scripts/release.ts` の `createEvidenceStore`、`saveRaw`) は、gh / npm の生の出力をそのまま保存している。利用者が `cat` すると、エスケープ列がそのまま端末に出る。token が出力に含まれていれば、そのまま残る。保存の前に、メモリ上の値に無害化と secret のマスクをかけ、ファイルの権限を 0600 にする。出典: ADR-032「提供しない体験」。規模: 小。
+- **release の進み方の行の見え方の確認**: `pnpm run release` の `entry:` の行、`stage N/11:` / `ok:` / `waiting for` の行と、子の stderr (`inherit-keep-stderr` で流れるもの) の並びが、実際の端末で読めるかを確かめる。2026-10-19 の確認は入口で止まる経路だけで、これらの行は出なかった (未確認)。次のリリースで見る。出典: ADR-032「確かめた事実」と R9。規模: 小。
+- **approve が実行のたびに 2FA を求めるかの確認**: `npm stage approve` が実行のたびに 2FA を求めるか (6 パッケージなら 6 回か) を確かめる。0.2.0 では、approve の認証の画面に「次の 5 分間は 2FA を省略する」の選択肢が出なかった (未確認)。確かめたら、releasing.md の段 10 の記述を直す。出典: releasing.md 段 10、PR #16。規模: 小。
 - **判定 (K11 / K12 / K15) と待機の定数の見直し**: 0.2.0 の実測を使って、次の 2 つを見直す。K11 / K12 / K15 の判定と、`scripts/release-after-push.ts` の `WAIT` である。出典: plan-release-automation.md L73、ADR-031「Followup」の 1。規模: 小。
 - **summary step で sha512 を再計算する**: release.yml の summary step で、tgz から sha512 を再計算して log に出す。log の integrity を、manifest の写しではなく、独立して計算した値とする。出典: plan-release-automation.md L74、ADR-031「Followup」の 2。規模: 小。
 - **stage の来歴の表示**: stage の `actor` と `createdAt` を、y/N の表示に出すか検討する (R9)。形は 0.2.0 で確かめた。`actor` は `GitHub Actions`、`actorType` は `trusted automation` だった。出典: plan-release-automation.md L75、ADR-031「Followup」の 3、ADR-029「結果」。規模: 小。
@@ -64,13 +64,13 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 ## テストと CI
 
 - **VRT (pnpm test:visual) の実行**: Playwright のブラウザがある環境で `pnpm test:visual` を実行し、ベースラインの差分を確かめる。白文のフォールバックと ref の番号順が見た目を変えないことが、未確認のままである。出典: plan-practical-readiness.md L105、ADR-028「既知の制約と未実施の確認」。規模: 小。
-- **typescript@5 の tsc による consumer の型検査**: consumer の型検査 (bundler / nodenext) を `typescript@5` の `tsc` でも行う。現状は `tsgo` だけである。出典: plan-practical-readiness.md L102、ADR-028「既知の制約と未実施の確認」。規模: 小。
 - **移行表の機械可読化**: 移行表を機械可読形式 (YAML など) にして、各 README の移行の節を生成する。`migration-table.test.ts` は、README の旧挙動・新挙動・回避策の列が正本と一字一句同じかを検査しない。手編集によるずれを検出できない。出典: plan-practical-readiness.md L103、ADR-028「既知の制約と未実施の確認」。規模: 中。
 - **html-renderer の仕様テストの意味論化**: 文字列一致のテストを減らし、意味を検査するテストに置き換える。基盤は ADR-022 と `css-slot-semantics.test.ts` にある。ただし docs/testing/no-test-gap-matrix.md の 4 件はすべて `dual` で、`migrated` は 0 件である。`comprehensive-rendering.test.ts` には、`toContain` などの文字列一致の行が 267 行ある。出典: plan-html-renderer-colocation-and-named-grid-areas.md L295、ADR-020「完了時点で残る作業（Phase3 以降）」。規模: 大。
-- **adr-parser と adr-status のテスト**: `getPhase` と PLAN 列にテストを足す。前者は `scripts/lib/adr-parser.ts`、後者は `scripts/adr-status.ts` にある。この整理は、Complete で `plan:` がなければ phase が `done`、PLAN 列が `-` となる挙動に依存している。その挙動のテストがない。出典: docs/plans/ を今後の作業だけにした整理。規模: 小。
-- **Complete の ADR に残った plan の検出**: Complete の ADR に plan が残っていたら、`pnpm adr:status` が警告する。いまは PLAN 列に `exists` や `validated` を出すだけで、消し忘れに気づけない。先に、上の adr-parser と adr-status のテストを足す。出典: docs/plans/ を今後の作業だけにした整理。規模: 小。
+- **Complete の ADR に残った plan の検出**: Complete の ADR に plan が残っていたら、`pnpm adr:status` が警告する。いまは PLAN 列に `exists` や `validated` を出すだけで、消し忘れに気づけない。出典: docs/plans/ を今後の作業だけにした整理。規模: 小。
+- **parseFrontmatter の数字でない deps**: `parseFrontmatter` は `deps: [a]` のような数字でない値を NaN にする。扱いを決めてテストで固定する。出典: adr-parser のテストの追加。規模: 小。
 - **scripts/adr-migrate-fm.ts の削除の検討**: 旧形式の本文リンクから frontmatter を作る一回限りの移行スクリプトで、knip の entry になっている。消すかどうかを決める。出典: docs/plans/ を今後の作業だけにした整理。規模: 小。
 - **傍点のキーワードの判定を 1 か所にまとめる**: 傍点のキーワードの判定が 4 か所に分かれている。1 つ目は validator、2 つ目は html-renderer の safe.ts である。3 つ目は skam の emphasis.ts の対応表で、4 つ目は skam-screenshot の canvas-page-builder.ts の対応表である。canvas-page-builder.ts はページの中で `resolveEmphasisCharacter` を呼べないため、対応表を複製したまま残した。validator がキーワードと文字の対応表を export し、ほかがそれを使う形にまとめる。出典: 傍点のカスタム文字の修正 (fix/grid-emphasis-custom-char)。規模: 小。
+- **TypeScript 7 系への移行**: このリポジトリを TypeScript 7 系 (native の `typescript` パッケージ) に移す。tsgo (`@typescript/native-preview`) との関係、typescript-eslint などの JS 実装を要る道具の扱いを決める。consumer の検査の `typescript5` (5.9.3) は、利用者の 5 系の代表として残す。出典: 利用者の方針 (2026-10-19)。規模: 中。
 
 ## 外部利用
 

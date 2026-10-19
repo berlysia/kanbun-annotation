@@ -605,6 +605,7 @@ const RELEASE_SOURCES = [
   'scripts/release-after-push.ts',
   'scripts/lib/release-after-push-check.ts',
   'scripts/lib/release-check.ts',
+  'scripts/lib/release-stop-report.ts',
   'scripts/lib/release-types.ts',
 ] as const;
 
@@ -614,11 +615,13 @@ const ALLOWED_IMPORTS: Readonly<Record<string, readonly string[]>> = {
     'scripts/release-after-push.ts',
     'scripts/lib/release-after-push-check.ts',
     'scripts/lib/release-check.ts',
+    'scripts/lib/release-stop-report.ts',
     'scripts/lib/release-types.ts',
   ],
   'scripts/release-after-push.ts': [
     'scripts/lib/release-after-push-check.ts',
     'scripts/lib/release-check.ts',
+    'scripts/lib/release-stop-report.ts',
     'scripts/lib/release-types.ts',
   ],
   'scripts/lib/release-after-push-check.ts': [
@@ -626,6 +629,10 @@ const ALLOWED_IMPORTS: Readonly<Record<string, readonly string[]>> = {
     'scripts/lib/release-types.ts',
   ],
   'scripts/lib/release-check.ts': ['scripts/lib/release-types.ts'],
+  'scripts/lib/release-stop-report.ts': [
+    'scripts/lib/release-check.ts',
+    'scripts/lib/release-types.ts',
+  ],
   'scripts/lib/release-types.ts': [],
 };
 
@@ -719,11 +726,11 @@ const NO_SPAWN: SpawnRules = {
 };
 
 // release.ts の実際の構造: 直接の spawn は nodeSpawn (async) と nodeSpawnSync (同期) だけ。
-// 実行は createRunner (spawnFn)、spawnChecked / git の dep / ghRelease (sync) を通る
+// 実行は createRunner (spawnFn)、git の dep / ghRelease (sync) を通る
 const RELEASE_SPAWN_RULES: SpawnRules = {
   literal: ['nodeSpawn', 'nodeSpawnSync'],
   spawnFn: ['createRunner'],
-  sync: { top: 'buildReleaseDeps', nested: ['spawnChecked', 'git', 'ghRelease'] },
+  sync: { top: 'buildReleaseDeps', nested: ['git', 'ghRelease'] },
   allowChildProcessImport: true,
 };
 
@@ -838,6 +845,24 @@ describe('release scripts: module boundaries', () => {
       findImportViolations('scripts/release.ts', "import { a } from './release-after-push.ts';"),
       []
     );
+    // release-stop-report.ts は release-check.ts と release-types.ts だけを import できる。
+    // 逆向きに、release-after-push-check.ts は release-stop-report.ts を import できない
+    const stopReport = 'scripts/lib/release-stop-report.ts';
+    const stopReportBad = [
+      [stopReport, "import { a } from './release-after-push-check.ts';"],
+      [stopReport, "import { a } from '../release.ts';"],
+      [stopReport, "import { a } from '../release-after-push.ts';"],
+      ['scripts/lib/release-after-push-check.ts', "import { a } from './release-stop-report.ts';"],
+    ] as const;
+    for (const [from, source] of stopReportBad) {
+      assert.equal(findImportViolations(from, source).length, 1, `${from}: ${source}`);
+    }
+    for (const source of [
+      "import { a } from './release-check.ts';",
+      "import type { B } from './release-types.ts';",
+    ]) {
+      assert.deepEqual(findImportViolations(stopReport, source), [], source);
+    }
   });
 
   test('(7a) the real files write only through the one createOutput sink', () => {
@@ -897,7 +922,7 @@ describe('release scripts: module boundaries', () => {
     const good = [
       'const nodeSpawn = (cmd) =>\n  spawn(cmd, []);\n',
       "export function createRunner(spawnFn) {\n  return () => spawnFn('npm', []);\n}\n",
-      "export function buildReleaseDeps(o) {\n  const sync = o.sync;\n  const spawnChecked = () => {\n    const r = sync('x', []);\n  };\n}\n",
+      "export function buildReleaseDeps(o) {\n  const sync = o.sync;\n  const git = () => {\n    const r = sync('x', []);\n  };\n}\n",
       'const found = PATTERN.exec(line);\n',
     ];
     for (const source of good) {
@@ -912,6 +937,7 @@ describe('release scripts: module boundaries', () => {
       "export function sneaky() {\n  return execFileSync('gh', []);\n}\n",
       "export function runIt() {\n  return sync('npm', []);\n}\n",
       "export function buildReleaseDeps(o) {\n  const sync = o.sync;\n  const other = () => sync('x', []);\n}\n",
+      "export function buildReleaseDeps(o) {\n  const sync = o.sync;\n  const spawnChecked = () => sync('x', []);\n}\n",
       "export function other(spawnFn) {\n  return spawnFn('npm', []);\n}\n",
     ];
     for (const source of bad) {

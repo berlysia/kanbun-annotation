@@ -1,0 +1,61 @@
+Stage on npm	Stage publish	﻿2026-10-19T03:49:34.2644271Z ##[group]Run node --input-type=module <<'EOF'
+Stage on npm	Stage publish	2026-10-19T03:49:34.2644819Z [36;1mnode --input-type=module <<'EOF'[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2645230Z [36;1mimport { spawnSync } from 'node:child_process';[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2645638Z [36;1mimport { readFileSync } from 'node:fs';[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2645979Z [36;1m[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2646387Z [36;1mconst manifest = JSON.parse(readFileSync('npm-tarball/manifest.json', 'utf8'));[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2646927Z [36;1mfor (const { file } of manifest.packages) {[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2647484Z [36;1m  // The ./ prefix is required: without it npm reads the path as a GitHub shorthand, not a file.[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2648027Z [36;1m  const args = [[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2648330Z [36;1m    'stage',[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2648598Z [36;1m    'publish',[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2648886Z [36;1m    `./npm-tarball/${file}`,[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2649203Z [36;1m    '--access',[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2649481Z [36;1m    'public',[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2649790Z [36;1m    '--tag',[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2650058Z [36;1m    manifest.distTag,[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2650345Z [36;1m  ];[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2650626Z [36;1m  console.log(`npm ${args.join(' ')}`);[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2651065Z [36;1m  const result = spawnSync('npm', args, { stdio: 'inherit' });[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2651483Z [36;1m  if (result.status !== 0) {[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2651982Z [36;1m    console.error(`staging ${file} failed (${result.status ?? result.signal ?? result.error})`);[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2652501Z [36;1m    process.exit(1);[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2652781Z [36;1m  }[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2653252Z [36;1m}[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2653497Z [36;1mEOF[0m
+Stage on npm	Stage publish	2026-10-19T03:49:34.2717166Z shell: /usr/bin/bash -e {0}
+Stage on npm	Stage publish	2026-10-19T03:49:34.2717502Z env:
+Stage on npm	Stage publish	2026-10-19T03:49:34.2717753Z   TAG_NAME: v0.2.0
+Stage on npm	Stage publish	2026-10-19T03:49:34.2718085Z   NPM_CONFIG_USERCONFIG: /home/runner/work/_temp/.npmrc
+Stage on npm	Stage publish	2026-10-19T03:49:34.2718468Z ##[endgroup]
+Stage on npm	Stage publish	2026-10-19T03:49:34.3105203Z npm stage publish ./npm-tarball/kanbun-skam-skam-0.2.0.tgz --access public --tag latest
+Stage on npm	Stage publish	2026-10-19T03:49:34.7097000Z npm notice
+Stage on npm	Stage publish	2026-10-19T03:49:34.7101627Z npm notice 📦  @kanbun-skam/skam@0.2.0
+Stage on npm	Stage publish	2026-10-19T03:49:34.7102360Z npm notice Tarball Contents
+Stage on npm	Stage publish	2026-10-19T03:49:34.7105913Z npm notice 1.1kB LICENSE
+Stage on npm	Stage publish	2026-10-19T03:49:34.7106503Z npm notice 16.5kB README.md
+Stage on npm	Stage publish	2026-10-19T03:49:34.7107205Z npm notice 45.9kB dist/chunk-4AVUJLP7.js
+Stage on npm	Stage publish	2026-10-19T03:49:34.7108009Z npm notice 28.8kB dist/index.d.ts
+Stage on npm	Stage publish	2026-10-19T03:49:34.7108739Z npm notice 1.7kB dist/index.js
+Stage on npm	Stage publish	2026-10-19T03:49:34.7109499Z npm notice 21.6kB dist/rendering/index.d.ts
+Stage on npm	Stage publish	2026-10-19T03:49:34.7110394Z npm notice 42.7kB dist/rendering/index.js
+Stage on npm	Stage publish	2026-10-19T03:49:34.7111164Z npm notice 1.2kB package.json
+Stage on npm	Stage publish	2026-10-19T03:49:34.7111808Z npm notice Tarball Details
+Stage on npm	Stage publish	2026-10-19T03:49:34.7112524Z npm notice name: @kanbun-skam/skam
+Stage on npm	Stage publish	2026-10-19T03:49:34.7113348Z npm notice version: 0.2.0
+Stage on npm	Stage publish	2026-10-19T03:49:34.7114086Z npm notice filename: kanbun-skam-skam-0.2.0.tgz
+Stage on npm	Stage publish	2026-10-19T03:49:34.7114813Z npm notice package size: 39.0 kB
+Stage on npm	Stage publish	2026-10-19T03:49:34.7115601Z npm notice unpacked size: 159.4 kB
+Stage on npm	Stage publish	2026-10-19T03:49:34.7116493Z npm notice shasum: f44cd53b4cdf9ed77f43955dd9fc2287d26439cc
+Stage on npm	Stage publish	2026-10-19T03:49:34.7117693Z npm notice integrity: sha512-jg67ylF8HOoCe[...]xEkvuz9Nhyd1A==
+Stage on npm	Stage publish	2026-10-19T03:49:34.7118399Z npm notice total files: 8
+Stage on npm	Stage publish	2026-10-19T03:49:34.7118814Z npm notice
+Stage on npm	Stage publish	2026-10-19T03:49:35.3041048Z npm notice npm tokens that bypass 2FA are being restricted for account changes and direct publishing. Learn how to prepare: https://gh.io/npm-gat-bypass2fa-deprecation
+Stage on npm	Stage publish	2026-10-19T03:49:35.6058287Z npm notice Staging to https://registry.npmjs.org/ with tag latest and public access
+Stage on npm	Stage publish	2026-10-19T03:49:35.7256676Z npm error code E401
+Stage on npm	Stage publish	2026-10-19T03:49:35.7258669Z npm error Unable to authenticate, your authentication token seems to be invalid.
+Stage on npm	Stage publish	2026-10-19T03:49:35.7264426Z npm error To correct this please try logging in again with:
+Stage on npm	Stage publish	2026-10-19T03:49:35.7265451Z npm error   npm login
+Stage on npm	Stage publish	2026-10-19T03:49:35.7275782Z npm error A complete log of this run can be found in: /home/runner/.npm/_logs/2026-10-19T03_49_34_371Z-debug-0.log
+Stage on npm	Stage publish	2026-10-19T03:49:35.7462200Z staging kanbun-skam-skam-0.2.0.tgz failed (1)
+Stage on npm	Stage publish	2026-10-19T03:49:35.7503769Z ##[error]Process completed with exit code 1.

@@ -152,31 +152,31 @@ changeset の本文が、6 つのパッケージの CHANGELOG の本文になる
 
 ### 段の一覧
 
-| 段  | 内容                     | 自動で確かめること                                                                                                                                                                                                     | 人が答えること                                                    |
-| --- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| 1   | 前提の確認               | branch が master、作業ツリーが clean、`git fetch` 後に HEAD が `origin/master` と同じ。6 パッケージの trust が 1 件ずつ期待どおり。`changeset status` で出す版が決まる。`pnpm verify` が通り、作業ツリーが汚れていない | trust の確認で 2FA (「次の 5 分間は 2FA を省略する」を選ぶ)       |
-| 2   | 版上げ                   | `changeset version`、ignore 済みパッケージの変更の復元、本文のない CHANGELOG の節の補完、変更が許可リストに収まること、prettier                                                                                        | なし                                                              |
-| 3   | 公開前提の検査           | `check-release check --tag vX.Y.Z --registry`: 6 つの版が等しい、6 つの CHANGELOG の先頭が新しい版で本文がある、npm に未公開、stable なら現在の `latest` より新しい。tag が local にも origin にもない                 | なし                                                              |
-| 4   | 利用者テスト             | 新しい版の tarball を空のプロジェクトに入れて確かめる (`pnpm test:consumer`)                                                                                                                                           | なし                                                              |
-| 5   | 確認                     | 版と変更ファイルの一覧を出す                                                                                                                                                                                           | y/N。`y` で進み、`N` なら止まる                                   |
-| 6   | 記録                     | `chore: release vX.Y.Z` の commit (許可リストのパスだけ) と、annotated tag `vX.Y.Z`                                                                                                                                    | なし                                                              |
-| 7   | 送信                     | `git push --atomic origin master vX.Y.Z`。拒否されたら origin は変わらない                                                                                                                                             | なし                                                              |
-| 8   | run の待機               | tag の commit の `Release` run を `gh run list` で探し (10 秒おきに最大 3 分)、未完了なら `gh run watch` で待つ。3 つの job (`Validate and pack`、`Stage on npm`、`GitHub Release`) の結論を判定する                   | なし                                                              |
-| 9   | approve の前の判定       | validate の job の log の manifest を錨に、6 パッケージの stage の tarball (`npm stage list` / `npm stage download`) の sha512 と中身を照合する。artifact は取れれば追加で照合する。公開済みのパッケージは対象から外す | なし                                                              |
-| 10  | trust の再確認と approve | trust の再確認の後、判定結果を表示する。manifest の順 (依存の根から) に、検証した stage id だけを approve する。各回の直前に、そのパッケージが stage のままか確かめ直す。E409 は 30 秒おきに最大 20 回再試行する       | trust の確認で 2FA。y/N (approve の前)。approve の 1 回ごとに 2FA |
-| 11  | approve の後の判定       | 6 つの `dist-tags`、`dist.integrity` (log の integrity と一致)、`dist.attestations` の有無 (表示のみ)、GitHub Release の有無。外れたら 30 秒おきに最大 5 分読み直す                                                    | なし                                                              |
+| 段  | 内容                     | 自動で確かめること                                                                                                                                                                                                     | 人が答えること                                                          |
+| --- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| 1   | 前提の確認               | branch が master、作業ツリーが clean、`git fetch` 後に HEAD が `origin/master` と同じ。6 パッケージの trust が 1 件ずつ期待どおり。`changeset status` で出す版が決まる。`pnpm verify` が通り、作業ツリーが汚れていない | trust の確認で 2FA (「次の 5 分間は 2FA を省略する」を選ぶ)             |
+| 2   | 版上げ                   | `changeset version`、ignore 済みパッケージの変更の復元、本文のない CHANGELOG の節の補完、変更が許可リストに収まること、prettier                                                                                        | なし                                                                    |
+| 3   | 公開前提の検査           | `check-release check --tag vX.Y.Z --registry`: 6 つの版が等しい、6 つの CHANGELOG の先頭が新しい版で本文がある、npm に未公開、stable なら現在の `latest` より新しい。tag が local にも origin にもない                 | なし                                                                    |
+| 4   | 利用者テスト             | 新しい版の tarball を空のプロジェクトに入れて確かめる (`pnpm test:consumer`)                                                                                                                                           | なし                                                                    |
+| 5   | 確認                     | 版と変更ファイルの一覧を出す                                                                                                                                                                                           | y/N。`y` で進み、`N` なら止まる                                         |
+| 6   | 記録                     | `chore: release vX.Y.Z` の commit (許可リストのパスだけ) と、annotated tag `vX.Y.Z`                                                                                                                                    | なし                                                                    |
+| 7   | 送信                     | `git push --atomic origin master vX.Y.Z`。拒否されたら origin は変わらない                                                                                                                                             | なし                                                                    |
+| 8   | run の待機               | tag の commit の `Release` run を `gh run list` で探し (10 秒おきに最大 3 分)、未完了なら `gh run watch` で待つ。3 つの job (`Validate and pack`、`Stage on npm`、`GitHub Release`) の結論を判定する                   | なし                                                                    |
+| 9   | approve の前の判定       | validate の job の log の manifest を錨に、6 パッケージの stage の tarball (`npm stage list` / `npm stage download`) の sha512 と中身を照合する。artifact は取れれば追加で照合する。公開済みのパッケージは対象から外す | なし                                                                    |
+| 10  | trust の再確認と approve | trust の再確認の後、判定結果を表示する。manifest の順 (依存の根から) に、検証した stage id だけを approve する。各回の直前に、そのパッケージが stage のままか確かめ直す。E409 は 30 秒おきに最大 20 回再試行する       | trust の確認で 2FA。y/N (approve の前)。approve で 2FA (毎回かは未確認) |
+| 11  | approve の後の判定       | 6 つの `dist-tags`、`dist.integrity` (log の integrity と一致)、`dist.attestations` の有無 (表示のみ)、GitHub Release の有無。外れたら 30 秒おきに最大 5 分読み直す                                                    | なし                                                                    |
 
 y/N を聞くのは、段 5 (版と変更ファイル) と段 10 (approve の前) の 2 回だけである。approve を飛ばすフラグはない。
 
 trust の確認は、最初に `npm trust list` を対話で 1 回実行し、続けて 6 パッケージ分を `--json` で取る。対話のときに「次の 5 分間は 2FA を省略する」を選ばないと、続く取得が `EOTP` で止まる (何も変えていないので、再実行すればよい)。
 
-`npm stage approve` は、実行のたびに 2FA を求める (6 パッケージなら 6 回)。0.2.0 のリリースでは、approve の認証の画面に「次の 5 分間は 2FA を省略する」の選択肢が出なかった。段 10 の approve は、6 回とも手元で認証する前提で進める。
+0.2.0 のリリースでは、`npm stage approve` の認証の画面に「次の 5 分間は 2FA を省略する」の選択肢が出なかった。実行のたびに 2FA を求めるか (6 パッケージなら 6 回か) は、確かめていない (未確認)。段 10 の approve は、省略の選択肢が出ないことがある前提で進める。
 
 完了すると `release completed` と表示して exit 0 で終わる。
 
 ### 段 2〜7 で止まったとき
 
-前半の段が止まると、`release stopped at <段>: <理由>` と、戻すコマンド (`to undo: ...`) が表示される。
+前半の段が止まると、`release stopped at <段>: <理由>` の後に、次の「止まったとき」の形で表示される。戻すコマンドは、`try:` の先頭の行に出る。
 
 段 2〜5 で止まったとき (段 5 で `N` を答えたときを含む) は、作業ツリーに版上げの変更が残る (pre mode の `.changeset/pre.json` の追加・変更・削除を含む)。表示されたコマンドで戻す。
 
@@ -194,16 +194,32 @@ git tag -d vX.Y.Z && git reset --hard origin/master
 
 同じコマンド (`pnpm run release`) を再実行すると、続きから進む。進捗のファイルはなく、毎回 git、GitHub、npm の状態を読んで、どの段から再開するかを決める。tag を push した後に止まったときは、origin に tag があるので、再実行は後半 (段 8) から始まる。
 
-後半で止まると、次の形で表示する。exit code は 1 である。
+入口、前半、後半のどこで止まっても、次の形で表示する。exit code は 1 である。
 
 ```
-[<route>] <理由>
-next: <次の手>
+<見出しの行>
+error:
+  $ <失敗したコマンド> (exit <N>)
+  | <stderr または job の log の該当行>
+  raw output (unredacted, do not cat to a terminal): <保存先>
+possible causes:
+  - <原因の候補>
+    check: <確かめ方>
+try:
+  - <対処の例>
 see docs/releasing.md: <この文書の見出し>
 note: this may be an F3 situation (some packages are published)    (公開済みのパッケージがある可能性があるとき)
 ```
 
-`route` の意味は次のとおり。
+見出しの行は、入口なら `release stopped: <理由>`、前半なら `release stopped at <段>: <理由>`、後半なら `[<route>] <理由>` である。
+
+- `error:` の `|` で始まる行は、外部 (npm、gh、git、job の log) の出力から、制御文字と token を除いて切り出したものである。コマンドが無い停止 (判定だけの停止) では、`$` の行を出さず、判定の理由を 1 行出す。
+- `raw output` の保存物はマスクも無害化もしていない。端末に `cat` せず、エディタで開く。
+- `possible causes:` は最大 3 件で、既知の原因を決まった優先度の順に並べる。既知の原因に当たらなければ、場所ごとの既定の候補が 1 件出る。
+- `pnpm verify` は、前半の段 1 で段ごとに流れる。失敗した段は `pnpm <名前>` として表示されるので、同じコマンドを流し直すと、その段の出力だけを見られる。tsc と oxlint の診断は stdout に出るため `error:` には写らず、画面の上に残る。
+- 手元の npm の認証 (`npm trust list` の対話、`npm stage approve`) で `npm error 404 ... /-/v1/done` が出たら、ブラウザの認証が時間内に終わらなかったということである。同じコマンドを再実行し、開いた画面で認証を最後まで終える。
+
+後半の `[<route>]` の `route` の意味は次のとおり。
 
 | route      | 意味                                                           | 進む先                                     |
 | ---------- | -------------------------------------------------------------- | ------------------------------------------ |
@@ -265,6 +281,8 @@ Ctrl-C は 1 回目で、待機と再試行の区切りで止まり (`Interrupte
 ### 待つ時間
 
 待つ時間は `scripts/release-after-push.ts` の `WAIT` にまとめてある。0.2.0 の実測で見直す。
+
+待っている間は、sleep の前に毎回 `waiting for <待つ対象>: <経過秒>s / <上限>` の行が出る。
 
 | 待つ対象                                            | 間隔  | 上限                         |
 | --------------------------------------------------- | ----- | ---------------------------- |
@@ -481,6 +499,8 @@ git tag -d vX.Y.Z
 ### F2: npm-stage が途中で失敗した、または stage 済みで approve 前に問題が見つかった
 
 `pnpm run release` が `[F2]` と表示してこの節を案内したとき。表示された理由 (どのパッケージの何が外れたか) を先に読む。
+
+npm-stage の job の log に `package not found`、`E401`、`ENEEDAUTH` があるときは、trusted publisher の設定が期限切れか削除されている (0.2.0 の 2 回の失敗は、どちらもこれだった)。`E401` と `ENEEDAUTH` だけで、`package not found` が出ないこともある。npmjs.com の各パッケージの Settings → Trusted publishing に「This trusted publisher configuration has expired」が出ていないかを確かめる。出ていたパッケージは、`npm trust list <name> --json` で id を見て `npm trust revoke <name> --id <id>` で消し、「一度だけの移行」の手順 3 のコマンドで作り直す。その後、次の手順 1 から続ける。
 
 1. `npm stage list <name>` で stage 済みのものを探し、`npm stage reject <stage-id>` で取り消す (2FA を求められる)。
 2. 共通の最初の手順で Release を消す。

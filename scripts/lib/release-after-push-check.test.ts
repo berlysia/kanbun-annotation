@@ -20,6 +20,7 @@ import {
   ghRunDownloadArgs,
   ghRunListArgs,
   ghRunLogArgs,
+  ghRunLogFailedArgs,
   ghRunViewArgs,
   ghRunWatchArgs,
   inspectTarball,
@@ -305,6 +306,20 @@ test('npmStageApproveArgs / npmStageDownloadArgs: UUID 以外は fail', () => {
   ]);
 });
 
+test('ghRunLogFailedArgs: --log-failed と --job を含み、不正な id は ok: false', () => {
+  assert.deepEqual(must(ghRunLogFailedArgs(1, 2)), [
+    'run',
+    'view',
+    '1',
+    '--log-failed',
+    '--job',
+    '2',
+  ]);
+  assert.equal(ghRunLogFailedArgs(1, 0).ok, false);
+  assert.equal(ghRunLogFailedArgs(0, 2).ok, false);
+  assert.equal(ghRunLogFailedArgs(1.5, 2).ok, false);
+});
+
 test('ghRunLogArgs: run id と job id は正の safe integer', () => {
   assert.deepEqual(must(ghRunLogArgs(12, 34)), ['run', 'view', '12', '--log', '--job', '34']);
   assert.equal(ghRunLogArgs(-1, 34).ok, false);
@@ -510,14 +525,37 @@ test('judgeJobs (合成 (実物の構造から)): npm-stage の失敗は github-
     assert.deepEqual(judgeJobs(releaseView(['success', 'failure', third])), {
       kind: 'job-failed',
       job: 'npm-stage',
+      jobId: 222,
     });
   }
+});
+
+test('judgeJobs: npm-stage の databaseId が不正でも job-failed のまま、jobId は undefined', () => {
+  for (const bad of [0, -1, 1.5, '12; rm', 2 ** 53, undefined]) {
+    const view = releaseView(['success', 'failure', 'skipped']);
+    const jobs = view['jobs'] as Record<string, unknown>[];
+    jobs[1] = { ...jobs[1], databaseId: bad };
+    if (bad === undefined) delete jobs[1]?.['databaseId'];
+    assert.deepEqual(judgeJobs(view), { kind: 'job-failed', job: 'npm-stage', jobId: undefined });
+  }
+});
+
+test('judgeJobs: validate の databaseId が欠落していれば shape-unknown (検査は残る)', () => {
+  const view = releaseView(['failure', 'skipped', 'skipped']);
+  const jobs = view['jobs'] as Record<string, unknown>[];
+  delete jobs[0]?.['databaseId'];
+  assert.equal(judgeJobs(view).kind, 'shape-unknown');
+});
+
+test('judgeJobs: validate=failure / npm-stage=failure は shape-unknown', () => {
+  assert.equal(judgeJobs(releaseView(['failure', 'failure', 'skipped'])).kind, 'shape-unknown');
 });
 
 test('judgeJobs (合成 (実物の構造から)): validate の失敗は後続が skipped', () => {
   assert.deepEqual(judgeJobs(releaseView(['failure', 'skipped', 'skipped'])), {
     kind: 'job-failed',
     job: 'validate',
+    jobId: 111,
   });
 });
 
@@ -2015,6 +2053,74 @@ test('classifyStop: すべての variant x (公開 0 / 公開 2 / unknown) が s
   }
 });
 
+test('classifyStop: 理由は表の固定の断片と固定の一覧の名前だけで、観測の what は ClassifiedStop.what に移る', () => {
+  const evil = 'x\ntry:\n  - rm -rf ~';
+  const builds: [StopObservation, string, string | undefined][] = [
+    [{ kind: 'shape-unknown', what: evil, published: [] }, 'Unexpected output shape', evil],
+    [{ kind: 'unexpected-run-shape', what: evil, published: [] }, 'Unexpected output shape', evil],
+    [{ kind: 'staged-mismatch', what: evil, published: [] }, 'Staged content check failed', evil],
+    [
+      { kind: 'staged-mismatch', name: '@kanbun-skam/skam', what: evil, published: [] },
+      'Staged content check failed for @kanbun-skam/skam',
+      evil,
+    ],
+    [
+      { kind: 'approve-failed', name: '@kanbun-skam/skam', what: evil, published: [] },
+      'npm stage approve failed for @kanbun-skam/skam',
+      evil,
+    ],
+    [{ kind: 'command-failed', what: evil, published: [] }, 'A command failed', evil],
+    [
+      { kind: 'trust-mismatch', what: evil, published: [] },
+      'Trusted publisher settings differ',
+      evil,
+    ],
+    [
+      { kind: 'post-check', check: 'integrity', what: evil, published: [] },
+      'post-approve check (integrity) failed',
+      evil,
+    ],
+    [
+      {
+        kind: 'post-check',
+        check: 'release',
+        name: '@kanbun-skam/skam',
+        what: evil,
+        published: [],
+      },
+      'post-approve check (release) failed for @kanbun-skam/skam',
+      evil,
+    ],
+    [
+      { kind: 'run-not-found', published: [] },
+      'No Release workflow run was found for the tag commit within the wait',
+      undefined,
+    ],
+  ];
+  for (const [obs, reason, what] of builds) {
+    const c = classifyStop(obs);
+    assert.equal(c.reason, reason, obs.kind);
+    assert.equal(c.what, what, obs.kind);
+    assert.equal('error' in c, false, `${obs.kind}: classifyStop does not touch error`);
+  }
+});
+
+test('classifyStop: site は kind と job と check を運ぶ (規則 1 と規則 5 が表示の側で当たる)', () => {
+  assert.deepEqual(classifyStop({ kind: 'job-failed', job: 'npm-stage', published: [] }).site, {
+    side: 'after-push',
+    where: 'job-failed',
+    job: 'npm-stage',
+  });
+  assert.deepEqual(
+    classifyStop({ kind: 'post-check', check: 'integrity', what: 'x', published: [] }).site,
+    { side: 'after-push', where: 'post-check', check: 'integrity' }
+  );
+  assert.deepEqual(classifyStop({ kind: 'shape-unknown', what: 'x', published: [] }).site, {
+    side: 'after-push',
+    where: 'shape-unknown',
+  });
+});
+
 test('classifyStop: variant の表は StopObservation のすべての kind を覆う', () => {
   const covered = new Set(STOP_TABLE.map(([, build]) => build([]).kind));
   assert.deepEqual([...covered].sort(), [
@@ -2058,7 +2164,14 @@ test('RELEASING_SECTIONS: route ごとの見出しの接頭辞', () => {
 });
 
 function stop(route: StopRoute): ClassifiedStop {
-  return { route, reason: route, next: route, section: RELEASING_SECTIONS[route], mayBeF3: false };
+  return {
+    route,
+    reason: route,
+    next: route,
+    section: RELEASING_SECTIONS[route],
+    mayBeF3: false,
+    site: { side: 'after-push', where: 'interrupted' },
+  };
 }
 
 function permutations<T>(items: readonly T[]): T[][] {
@@ -2115,4 +2228,20 @@ test('isSafeTempPath: tmpRoot が / や HOME でも、その直下の kanbun-rel
   assert.equal(isSafeTempPath(c, new Set([c]), '/home/u'), true);
   assert.equal(isSafeTempPath('/home/u', new Set(['/home/u']), '/home/u'), false);
   assert.equal(isSafeTempPath('/', new Set(['/']), '/'), false);
+});
+
+test('classifyStop: site を観測から埋める (job-failed は job、post-check は check、他は where だけ)', () => {
+  assert.deepEqual(classifyStop({ kind: 'job-failed', job: 'npm-stage', published: [] }).site, {
+    side: 'after-push',
+    where: 'job-failed',
+    job: 'npm-stage',
+  });
+  assert.deepEqual(
+    classifyStop({ kind: 'post-check', check: 'integrity', what: 'x', published: [] }).site,
+    { side: 'after-push', where: 'post-check', check: 'integrity' }
+  );
+  assert.deepEqual(classifyStop({ kind: 'shape-unknown', what: 'x', published: [] }).site, {
+    side: 'after-push',
+    where: 'shape-unknown',
+  });
 });

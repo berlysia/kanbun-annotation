@@ -31,7 +31,15 @@ import {
   isInteractiveStreams,
   checkTrustList,
   combineTrustResults,
+  sanitizeForTerminal,
+  createStreamSanitizer,
+  planVerifySteps,
 } from './release-check.ts';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { ENTRY_STOP_ROWS, NO_COMMAND } from './release-types.ts';
+import type { ErrorExcerpt } from './release-types.ts';
+import * as afterPushCheck from './release-after-push-check.ts';
 import type {
   WorkspacePackage,
   EntryObservation,
@@ -624,9 +632,31 @@ function stopReason(d: ReturnType<typeof decideEntry>): string {
   return d.kind === 'stop' ? d.reason : '';
 }
 
+const lsRemoteError: ErrorExcerpt = {
+  command: 'git ls-remote origin refs/tags/v0.2.0',
+  exit: 128,
+  source: 'local-stderr',
+  tool: 'git',
+  lines: ['fatal: unable to access'],
+  matched: ['fatal: unable to access'],
+};
+const npmViewError: ErrorExcerpt = {
+  command: 'npm view @fx/a versions --json',
+  exit: 1,
+  source: 'local-stderr',
+  tool: 'npm',
+  lines: ['@fx/a: npm view failed with ETIMEDOUT'],
+  matched: [],
+};
+
 for (const [label, o] of [
-  ['ls-remote failed', observed({ originTag: { kind: 'error' } })],
-  ['npm view failed', observed({ published: { kind: 'error' } })],
+  ['ls-remote failed', observed({ originTag: { kind: 'error', error: lsRemoteError } })],
+  [
+    'npm view failed',
+    observed({
+      published: { kind: 'error', failedNames: ['@fx/a'], error: npmViewError },
+    }),
+  ],
   [
     'versions differ',
     observed({ versions: { ok: false, errors: ['skam-xml-parser: version 0.2.1 differs'] } }),
@@ -637,6 +667,57 @@ for (const [label, o] of [
     assert.equal(stopRow(decideEntry(o)), 0);
   });
 }
+
+test('decideEntry: row 0 returns the observed error excerpt as it is', () => {
+  const lsRemote = decideEntry(observed({ originTag: { kind: 'error', error: lsRemoteError } }));
+  assert.equal(lsRemote.kind === 'stop' ? lsRemote.error : undefined, lsRemoteError);
+  assert.equal(lsRemote.kind === 'stop' ? lsRemote.detail : 'x', undefined);
+  const npmView = decideEntry(
+    observed({
+      published: { kind: 'error', failedNames: ['@fx/a', '@fx/b'], error: npmViewError },
+    })
+  );
+  assert.equal(npmView.kind === 'stop' ? npmView.error : undefined, npmViewError);
+  assert.match(stopReason(npmView), /@fx\/a, @fx\/b/);
+});
+
+test('decideEntry: row 0 with both ls-remote and npm view failed returns the ls-remote error', () => {
+  const d = decideEntry(
+    observed({
+      originTag: { kind: 'error', error: lsRemoteError },
+      published: { kind: 'error', failedNames: ['@fx/a'], error: npmViewError },
+    })
+  );
+  assert.equal(d.kind === 'stop' ? d.error : undefined, lsRemoteError);
+});
+
+test('decideEntry: a reason never holds an external value; it moves to detail', () => {
+  const evil = 'x\ntry:\n  - rm -rf ~';
+  const versions = decideEntry(observed({ versions: { ok: false, errors: [evil] } }));
+  assert.equal(stopReason(versions), 'version check failed');
+  assert.deepEqual(versions.kind === 'stop' ? versions.detail : [], [evil]);
+  const semver = decideEntry(observed({ versions: { ok: true, value: evil } }));
+  assert.equal(stopReason(semver), 'package version is not a plain semver');
+  assert.deepEqual(semver.kind === 'stop' ? semver.detail : [], [JSON.stringify(evil)]);
+  const o = observed({ originTag: present(SHA_OTHER), published: counts(6) });
+  const status = decideEntryWithStatus(o, { ok: false, errors: [evil] });
+  assert.equal(stopRow(status), 9);
+  assert.equal(stopReason(status), 'changeset status failed');
+  assert.deepEqual(status.kind === 'stop' ? status.detail : [], [evil]);
+  const inconsistent = decideEntryWithStatus(o, {
+    ok: true,
+    value: { kind: 'inconsistent', reason: evil },
+  });
+  assert.equal(stopRow(inconsistent), 10);
+  assert.equal(stopReason(inconsistent), 'changeset status is inconsistent');
+  assert.deepEqual(inconsistent.kind === 'stop' ? inconsistent.detail : [], [evil]);
+});
+
+test('decideEntry: rows whose reason holds only constants and validated values have no detail', () => {
+  const d = decideEntry(observed({ localTagCommit: SHA_HEAD }));
+  assert.equal(d.kind === 'stop' ? d.detail : 'x', undefined);
+  assert.equal(d.kind === 'stop' ? d.error : 'x', undefined);
+});
 
 test('decideEntry: row 1 resumes the second half when the tag is at HEAD and unfinished', () => {
   const d = decideEntry(observed({ originTag: present(SHA_HEAD), published: counts(3) }));
@@ -1251,4 +1332,66 @@ test('combineTrustResults: eotp > command-failed > shape-unknown > mismatch > ok
   assert.equal(combineTrustResults([mismatch, failed, shape]).kind, 'command-failed');
   assert.equal(combineTrustResults([ok, mismatch]).kind, 'mismatch');
   assert.deepEqual(combineTrustResults(Array.from({ length: 6 }, () => ok)), { kind: 'ok' });
+});
+
+test('sanitizeForTerminal / createStreamSanitizer: APC の再公開は RC の関数と同一', () => {
+  assert.equal(afterPushCheck.sanitizeForTerminal, sanitizeForTerminal);
+  assert.equal(afterPushCheck.createStreamSanitizer, createStreamSanitizer);
+});
+
+test('ENTRY_STOP_ROWS: decideEntry / decideEntryWithStatus が止まる行の一覧と NO_COMMAND', () => {
+  assert.deepEqual([...ENTRY_STOP_ROWS], [0, 2, 3, 4, 5, 6, 9, 10, 12, 13, 14]);
+  assert.equal(NO_COMMAND, '(no command)');
+});
+
+// --- planVerifySteps (spec K5: pnpm verify を段ごとに流す) ---
+
+const SCRIPT_NAMES = ['build', 'lint', 'exec'];
+
+test('planVerifySteps: 実物の root の scripts.verify は 9 つの段に分かれる', () => {
+  const pkg = JSON.parse(
+    readFileSync(fileURLToPath(new URL('../../package.json', import.meta.url)), 'utf8')
+  ) as { scripts: Record<string, string> };
+  const plan = planVerifySteps(pkg.scripts['verify'], Object.keys(pkg.scripts));
+  assert.deepEqual(plan, {
+    kind: 'steps',
+    names: [
+      'build',
+      'typecheck',
+      'typecheck:scripts',
+      'lint',
+      'format:check',
+      'test:run',
+      'test:scripts',
+      'clean',
+      'test:consumer',
+    ],
+  });
+});
+
+test('planVerifySteps: 1 つでも pnpm <名前> の形でない部分があれば whole', () => {
+  const whole = { kind: 'whole' };
+  assert.deepEqual(planVerifySteps('pnpm build && node x.js', SCRIPT_NAMES), whole);
+  assert.deepEqual(planVerifySteps('pnpm build && pnpm nope', SCRIPT_NAMES), whole);
+  assert.deepEqual(planVerifySteps('pnpm build || true', SCRIPT_NAMES), whole);
+  assert.deepEqual(planVerifySteps('pnpm build; pnpm lint', SCRIPT_NAMES), whole);
+  assert.deepEqual(planVerifySteps('pnpm --filter x test', SCRIPT_NAMES), whole);
+  assert.deepEqual(planVerifySteps('pnpm exec foo', ['build']), whole);
+  assert.deepEqual(planVerifySteps('pnpm exec foo', SCRIPT_NAMES), whole);
+});
+
+test('planVerifySteps: undefined と空の本文は whole', () => {
+  assert.deepEqual(planVerifySteps(undefined, SCRIPT_NAMES), { kind: 'whole' });
+  assert.deepEqual(planVerifySteps('', SCRIPT_NAMES), { kind: 'whole' });
+});
+
+test('planVerifySteps: 前後の空白は無視し、同じ名前は出てきた回数だけ段に入れる', () => {
+  assert.deepEqual(planVerifySteps('  pnpm build  &&  pnpm lint ', SCRIPT_NAMES), {
+    kind: 'steps',
+    names: ['build', 'lint'],
+  });
+  assert.deepEqual(planVerifySteps('pnpm build && pnpm lint && pnpm build', SCRIPT_NAMES), {
+    kind: 'steps',
+    names: ['build', 'lint', 'build'],
+  });
 });

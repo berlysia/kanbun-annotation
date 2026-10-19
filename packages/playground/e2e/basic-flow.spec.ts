@@ -25,8 +25,8 @@ test.describe('Basic Flow', () => {
 
     // Check XML editor contains the sample content
     const xmlInput = page.locator('#xml-input');
-    await expect(xmlInput).toContainText('skam:doc');
-    await expect(xmlInput).toContainText('學');
+    await expect(xmlInput).toHaveValue(/skam:doc/);
+    await expect(xmlInput).toHaveValue(/學/);
 
     // Check preview renders
     const preview = page.locator('#render-output');
@@ -135,6 +135,7 @@ test.describe('Render Options', () => {
   });
 
   test('inline mode toggle works', async ({ page }) => {
+    await page.locator('#settings-panel summary').click();
     const inlineCheckbox = page.locator('#inline-mode');
 
     // Default is unchecked

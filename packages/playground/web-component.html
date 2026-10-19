@@ -515,6 +515,23 @@ el.addEventListener('skam-error', (e) => {
           </div>
         </div>
       </section>
+
+      <!-- Test fixture: re-render on light DOM text changes (referenced by e2e only) -->
+      <section class="demo-section" id="demo-light-dom">
+        <h2>Light DOM の変更で再描画</h2>
+        <div class="demo-content">
+          <skam-renderer id="light-dom-renderer">
+            <script type="application/vnd.berlysia.skam+xml">
+              <?xml version="1.0" encoding="UTF-8"?>
+              <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+                <skam:body>
+                  <skam:block>甲</skam:block>
+                </skam:body>
+              </skam:doc>
+            </script>
+          </skam-renderer>
+        </div>
+      </section>
     </main>
 
     <footer class="footer">

@@ -157,6 +157,39 @@ jobs:
       - name: Run visual tests
         run: pnpm --filter @kanbun-skam/integration-tests test:visual
 
+  e2e:
+    name: Playground E2E
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 'lts/*'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build packages
+        run: pnpm build
+
+      - name: Install Playwright browsers
+        run: pnpm --filter @kanbun-skam/playground exec playwright install --with-deps chromium
+
+      - name: Run e2e tests
+        run: pnpm --filter @kanbun-skam/playground test:e2e --fail-on-flaky-tests
+
   build:
     name: Build
     runs-on: ubuntu-latest

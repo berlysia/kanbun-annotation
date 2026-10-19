@@ -64,4 +64,41 @@ test.describe('Web Component Demo', () => {
     const errorLog = page.locator('#error-log');
     await expect(errorLog).toContainText('skam-error', { timeout: 5000 });
   });
+
+  test('editing the light DOM script re-renders the shadow DOM', async ({ page }) => {
+    const renderer = page.locator('#light-dom-renderer');
+    const shadowDocument = renderer.locator('.skam-document');
+
+    // 最初の描画が終わるまで待つ (このイベントは受け手を張る前に届く)
+    await expect(shadowDocument).toContainText('甲', { timeout: 5000 });
+
+    // 受け手を先に張り、乙を含む文書の skam-render だけを数える。
+    // 同じ evaluate の中で script の textContent を書き換える (xmlContent の setter は経由しない)。
+    await page.evaluate(() => {
+      const el = document.querySelector('#light-dom-renderer');
+      const script = el?.querySelector('script');
+      if (!el || !script) throw new Error('light-dom-renderer fixture is missing');
+
+      const counter = window as unknown as { __otsuRenderCount: number };
+      counter.__otsuRenderCount = 0;
+      el.addEventListener('skam-render', (event) => {
+        const detail = (event as CustomEvent<{ document: { tokens: Array<{ text: string }> } }>)
+          .detail;
+        if (detail.document.tokens.some((token) => token.text.includes('乙'))) {
+          counter.__otsuRenderCount += 1;
+        }
+      });
+
+      script.textContent = (script.textContent ?? '').replace('甲', '乙');
+    });
+
+    // MutationObserver 経由で shadow DOM が乙に置き換わる
+    await expect(shadowDocument).toContainText('乙', { timeout: 5000 });
+    await expect(shadowDocument).not.toContainText('甲');
+
+    const renderCount = await page.evaluate(
+      () => (window as unknown as { __otsuRenderCount: number }).__otsuRenderCount
+    );
+    expect(renderCount).toBeGreaterThanOrEqual(1);
+  });
 });

@@ -1,10 +1,34 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Locator, type Page } from '@playwright/test';
 
 /**
  * SKAM Playground E2E Tests - Interactive Features
  *
- * Tests for interactive features like token clicking and mark popup.
+ * Tests for interactive features like token clicking and the selection panel.
  */
+
+const KAERI_BUTTONS = '#selection-kaeri-buttons';
+const KAERI_TAG = '<skam:kaeri';
+
+const SIMPLE_XML = `<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>學而</skam:block>
+  </skam:body>
+</skam:doc>`;
+
+function kaeriButton(page: Page, label: string): Locator {
+  return page.locator(`${KAERI_BUTTONS} button.selection-kaeri-btn:text-is("${label}")`);
+}
+
+function countKaeriTags(xml: string): number {
+  return xml.split(KAERI_TAG).length - 1;
+}
+
+/** Settings are folded into a closed details element; open it before touching the controls. */
+async function openSettingsPanel(page: Page): Promise<void> {
+  await page.locator('details.settings-panel summary').click();
+  await expect(page.locator('details.settings-panel')).toHaveAttribute('open', '');
+}
 
 test.describe('Interactive Features', () => {
   test.beforeEach(async ({ page }) => {
@@ -14,148 +38,91 @@ test.describe('Interactive Features', () => {
     await page.waitForTimeout(400);
   });
 
-  test('clicking on token shows kaeri popup', async ({ page }) => {
+  test('clicking on token shows kaeri buttons in the selection panel', async ({ page }) => {
     // Find a token element in the preview
     const tokenElement = page.locator('[data-token-id]').first();
 
     // Click on the token
     await tokenElement.click();
 
-    // Wait for popup to appear
-    const popup = page.locator('.mark-popup');
-    await expect(popup).toBeVisible();
-
-    // Popup should have kaeri buttons
-    await expect(popup.locator('button:has-text("レ")')).toBeVisible();
-    await expect(popup.locator('button:has-text("一")')).toBeVisible();
-    await expect(popup.locator('button:has-text("二")')).toBeVisible();
+    // The selection panel lists the kaeri buttons
+    await expect(page.locator(KAERI_BUTTONS)).toBeVisible();
+    await expect(kaeriButton(page, 'レ')).toBeVisible();
+    await expect(kaeriButton(page, '一')).toBeVisible();
+    await expect(kaeriButton(page, '二')).toBeVisible();
   });
 
   test('clicking kaeri button updates XML', async ({ page }) => {
-    // Get initial XML content
     const xmlInput = page.locator('#xml-input');
-    const initialXml = await xmlInput.inputValue();
+    const initialCount = countKaeriTags(await xmlInput.inputValue());
 
-    // Find a token that doesn't already have kaeri
-    // Let's use a more reliable approach - find any token
-    const tokenElement = page.locator('[data-token-id]').first();
-    await tokenElement.click();
+    await page.locator('[data-token-id]').first().click();
+    await expect(page.locator(KAERI_BUTTONS)).toBeVisible();
 
-    // Wait for popup
-    const popup = page.locator('.mark-popup');
-    await expect(popup).toBeVisible();
+    // Toggle "二" (not "レ"): the first token of sample 0 may already carry a kaeri,
+    // and a second toggle of the same kind would remove it instead of adding one.
+    await kaeriButton(page, '二').click();
 
-    // Click the "レ" button
-    await popup.locator('button:has-text("レ")').click();
-
-    // Wait for popup to close and XML to update
-    await expect(popup).not.toBeVisible();
-    await page.waitForTimeout(200);
-
-    // Note: The XML should be updated, but whether it changes depends on
-    // if the token already had a kaeri mark. The test verifies the interaction works.
-    // The actual XML content check depends on which token was clicked.
-    const updatedXml = await xmlInput.inputValue();
-
-    // At minimum, the popup should have closed
-    await expect(popup).not.toBeVisible();
+    // The XML gains one kaeri element; the panel stays open for further edits
+    await expect
+      .poll(async () => countKaeriTags(await xmlInput.inputValue()))
+      .toBeGreaterThan(initialCount);
+    await expect(page.locator(KAERI_BUTTONS)).toBeVisible();
   });
 
-  test('popup closes on Escape key', async ({ page }) => {
-    const tokenElement = page.locator('[data-token-id]').first();
-    await tokenElement.click();
+  test('clicking a blank area of the preview clears the selection', async ({ page }) => {
+    await page.locator('[data-token-id]').first().click();
 
-    const popup = page.locator('.mark-popup');
-    await expect(popup).toBeVisible();
+    // Selected before the blank click
+    await expect(page.locator('#render-output .skam-selected').first()).toBeVisible();
+    await expect(page.locator('#selection-info .selection-count')).toHaveText('1文字選択');
+    await expect(page.locator('#selection-actions')).toBeVisible();
 
-    // Press Escape
-    await page.keyboard.press('Escape');
+    // Click a blank corner of the preview (no token under the pointer)
+    await page.locator('#render-output').click({ position: { x: 2, y: 2 } });
 
-    // Popup should close
-    await expect(popup).not.toBeVisible();
-  });
-
-  test('popup closes on cancel button', async ({ page }) => {
-    const tokenElement = page.locator('[data-token-id]').first();
-    await tokenElement.click();
-
-    const popup = page.locator('.mark-popup');
-    await expect(popup).toBeVisible();
-
-    // Click cancel button
-    await popup.locator('button:has-text("キャンセル")').click();
-
-    // Popup should close
-    await expect(popup).not.toBeVisible();
-  });
-
-  test('popup closes when clicking outside', async ({ page }) => {
-    const tokenElement = page.locator('[data-token-id]').first();
-    await tokenElement.click();
-
-    const popup = page.locator('.mark-popup');
-    await expect(popup).toBeVisible();
-
-    // Click outside the popup (on the header)
-    await page.locator('header.header').click();
-
-    // Popup should close
-    await expect(popup).not.toBeVisible();
+    await expect(page.locator('#render-output .skam-selected')).toHaveCount(0);
+    await expect(page.locator('#selection-info .selection-empty')).toBeVisible();
+    await expect(page.locator('#selection-actions')).toBeHidden();
   });
 });
 
 test.describe('Kaeri Mark Operations', () => {
   test('add kaeri mark to token', async ({ page }) => {
-    // Use a sample without existing kaeri on first token
-    const simpleXml = `<?xml version="1.0" encoding="UTF-8"?>
-<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
-  <skam:body>
-    <skam:block>學而</skam:block>
-  </skam:body>
-</skam:doc>`;
-
     await page.goto('/');
-    await page.fill('#xml-input', simpleXml);
+    await page.fill('#xml-input', SIMPLE_XML);
     await page.waitForTimeout(400);
 
     // Click on first token
-    const tokenElement = page.locator('[data-token-id]').first();
-    await tokenElement.click();
-
-    // Wait for popup
-    const popup = page.locator('.mark-popup');
-    await expect(popup).toBeVisible();
+    await page.locator('[data-token-id]').first().click();
+    await expect(page.locator(KAERI_BUTTONS)).toBeVisible();
 
     // Select a kaeri mark
-    await popup.locator('button:has-text("レ")').click();
+    await kaeriButton(page, 'レ').click();
 
-    // Wait for update
-    await page.waitForTimeout(300);
-
-    // XML should now contain kaeri
+    // XML should now contain a re-ten kaeri (the XML holds the kind, not the glyph)
     const xmlInput = page.locator('#xml-input');
-    const updatedXml = await xmlInput.inputValue();
-    expect(updatedXml).toContain('kaeri');
-    expect(updatedXml).toContain('レ');
+    await expect(xmlInput).toHaveValue(/<skam:kaeri kind="re"\/>/);
   });
 
-  test('compound kaeri marks available', async ({ page }) => {
-    // Load any sample
-    await page.selectOption('#sample-select', '0');
+  test('re and ichi toggled in turn are merged into one compound kaeri', async ({ page }) => {
+    await page.goto('/');
+    await page.fill('#xml-input', SIMPLE_XML);
     await page.waitForTimeout(400);
 
-    // Click on a token
-    const tokenElement = page.locator('[data-token-id]').first();
-    await tokenElement.click();
+    await page.locator('[data-token-id]').first().click();
+    await expect(page.locator(KAERI_BUTTONS)).toBeVisible();
 
-    // Wait for popup
-    const popup = page.locator('.mark-popup');
-    await expect(popup).toBeVisible();
+    const xmlInput = page.locator('#xml-input');
 
-    // Check compound kaeri options exist
-    await expect(popup.locator('button:has-text("一レ")')).toBeVisible();
-    await expect(popup.locator('button:has-text("二レ")')).toBeVisible();
-    await expect(popup.locator('button:has-text("上レ")')).toBeVisible();
+    // The UI has no compound button: レ and 一 are toggled separately
+    await kaeriButton(page, 'レ').click();
+    await expect(xmlInput).toHaveValue(/kind="re"/);
+
+    // The two toggles merge into one compound kind that holds both components
+    await kaeriButton(page, '一').click();
+    await expect(xmlInput).toHaveValue(/<skam:kaeri kind="ichi-re"\/>/);
+    expect(countKaeriTags(await xmlInput.inputValue())).toBe(1);
   });
 });
 
@@ -168,8 +135,8 @@ test.describe('CSS Customization', () => {
 
   test('CSS customize panel opens and closes', async ({ page }) => {
     // Open customize panel
-    const customizePanel = page.locator('details.customize-panel');
-    await customizePanel.locator('summary').click();
+    const customizePanel = page.locator('details.settings-panel');
+    await openSettingsPanel(page);
 
     // Panel should be open
     await expect(customizePanel).toHaveAttribute('open', '');
@@ -181,8 +148,7 @@ test.describe('CSS Customization', () => {
   });
 
   test('font family selector changes preview', async ({ page }) => {
-    // Open customize panel
-    await page.locator('details.customize-panel summary').click();
+    await openSettingsPanel(page);
 
     // Change font family
     await page.selectOption('#font-family', 'inherit');
@@ -192,12 +158,11 @@ test.describe('CSS Customization', () => {
   });
 
   test('glyph size slider updates value display', async ({ page }) => {
-    // Open customize panel
-    await page.locator('details.customize-panel summary').click();
+    await openSettingsPanel(page);
 
     // Get initial value
     const initialValue = await page.locator('#glyph-size-value').textContent();
-    expect(initialValue).toBe('1em');
+    expect(initialValue).toBe('2em');
 
     // Change slider value
     await page.locator('#glyph-size').fill('1.2');
@@ -211,8 +176,7 @@ test.describe('CSS Customization', () => {
   });
 
   test('reset button restores defaults', async ({ page }) => {
-    // Open customize panel
-    await page.locator('details.customize-panel summary').click();
+    await openSettingsPanel(page);
 
     // Change some values
     await page.locator('#glyph-size').fill('1.3');
@@ -222,8 +186,8 @@ test.describe('CSS Customization', () => {
     await page.click('#reset-customize-btn');
 
     // Values should be restored to defaults
-    await expect(page.locator('#glyph-size')).toHaveValue('1');
-    await expect(page.locator('#glyph-size-value')).toContainText('1em');
+    await expect(page.locator('#glyph-size')).toHaveValue('2');
+    await expect(page.locator('#glyph-size-value')).toContainText('2em');
   });
 });
 

@@ -37,7 +37,7 @@ test.describe('File Operations', () => {
 
       // Verify content is loaded
       const xmlInput = page.locator('#xml-input');
-      await expect(xmlInput).toContainText('ファイルテスト');
+      await expect(xmlInput).toHaveValue(/ファイルテスト/);
 
       // Verify preview renders
       const preview = page.locator('#render-output');
@@ -102,13 +102,14 @@ test.describe('File Operations', () => {
     const dialogPromise = page.waitForEvent('dialog');
 
     // Click download button
-    await page.click('#download-btn');
+    const clickPromise = page.click('#download-btn');
 
     // Handle alert
     const dialog = await dialogPromise;
     expect(dialog.type()).toBe('alert');
     expect(dialog.message()).toContain('保存するXMLがありません');
     await dialog.dismiss();
+    await clickPromise;
   });
 
   test('Ctrl+S triggers download', async ({ page }) => {
@@ -164,7 +165,7 @@ test.describe('Drag and Drop', () => {
 
     // Verify content is loaded
     const xmlInput = page.locator('#xml-input');
-    await expect(xmlInput).toContainText('ドラッグドロップテスト');
+    await expect(xmlInput).toHaveValue(/ドラッグドロップテスト/);
 
     // Verify preview renders
     const preview = page.locator('#render-output');

@@ -31,7 +31,6 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 ## Web Component
 
 - **attribute-validation.test.ts の flaky なテスト**: 2026-10-15 に `pnpm test` で 1 回だけ落ちた。落ちたのは `renders vertically and reports writing-mode once` である。2026-10-19 に 120 回流したが、再現しなかった。内訳は、8 コアすべてに CPU 負荷をかけた `attribute-validation.test.ts` が 100 回、`turbo run test:run --force` が 20 回である。vitest 4.0.18、happy-dom 20.3.9。失敗率が 2.5% (3/120) 以上なら 95% の確からしさで検出できたので、それ未満の失敗率は否定できない。候補だった happy-dom の MutationObserver の件 (GC で通知を落とす) は 20.14.6 で直っている (#24)。再発しなければ、この行を消す。出典: plan-release-automation.md L77。規模: 小。
-- **light DOM の変更で再描画する経路の実ブラウザのテスト**: `<skam-renderer>` の light DOM の `textContent` を接続後に変えると再描画する経路を、playground の e2e (Playwright) で確かめる。happy-dom のテスト (attribute-validation.test.ts) は付随的に通っているだけで、e2e にこの経路の検査は無い。出典: chore/bump-happy-dom の spec K4。規模: 小。
 - **mount() 関数 (#11)**: DOM へ描く `mount()` 関数を足し、CSS の 1 回だけの注入とフォント読み込み後の補正をまとめる。出典: plan-consumer-feedback.md L65、#11。規模: 中。
 
 ## データモデルと仕様

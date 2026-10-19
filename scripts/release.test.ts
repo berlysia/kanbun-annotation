@@ -450,7 +450,12 @@ test('stops fail-closed when git ls-remote fails', async () => {
         ? { status: 128, stdout: '', stderr: 'fatal: unreachable' }
         : gitIn(repo.work, args),
   });
-  assert.equal((await runRelease(normal, fake.deps)).status, 'stopped');
+  const outcome = await runRelease(normal, fake.deps);
+  assert.equal(outcome.status, 'stopped');
+  assert.ok(
+    outcome.status === 'stopped' && outcome.reason.includes('fatal: unreachable'),
+    JSON.stringify(outcome)
+  );
   const after = snapshot(repo);
   assert.equal(after.head, before.head);
   assert.equal(after.localTags, before.localTags);

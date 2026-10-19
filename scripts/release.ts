@@ -460,10 +460,10 @@ function tagState(
   const remote = git(['ls-remote', '--tags', 'origin', `refs/tags/${name}`]);
   // 判定できないときは進まない (fail-closed)
   if (remote.status !== 0) {
-    return {
-      ok: false,
-      reason: 'git ls-remote failed; cannot tell whether the tag exists on origin',
-    };
+    // 原因 (認証、ネットワークなど) を読めるように、stderr の末尾を添える
+    const tail = remote.stderr.trim().split('\n').slice(-3).join('\n');
+    const base = 'git ls-remote failed; cannot tell whether the tag exists on origin';
+    return { ok: false, reason: tail === '' ? base : `${base}: ${tail}` };
   }
   if (remote.stdout.trim() !== '') {
     return { ok: false, reason: `tag ${name} already exists on origin` };

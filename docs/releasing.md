@@ -59,15 +59,15 @@ gh api repos/berlysia/kanbun-annotation/rulesets --jq '.[] | {name, target, enfo
 
 npm はパッケージごとの設定である。1 つのパッケージに複数の trust が並びうる (2026-10-15 の移行では、旧 `publish.yml` の trust と新しい `release.yml` の trust が 6 つとも並んでいた)。パッケージが npm に存在している必要があるが、6 つとも 0.1.0 が公開済みである。`--allow-stage-publish` だけを許可し、`--allow-publish` は付けない。`npm trust github` / `list` / `revoke` はどれも 2FA を求める (`list` のような読み取りでも)。最初の 1 回で認証の画面が開くので、「次の 5 分間は 2FA を省略する」を選ぶと、続くコマンドを入力なしで流せる。
 
-読み手がそのまま実行と照合できるように、1 行ずつ並べる。
+読み手がそのまま実行と照合できるように、1 行ずつ並べる。`-y` は "Do you want to proceed? (y/N)" の確認を省く。
 
 ```bash
-npm trust github @kanbun-skam/skam --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish
-npm trust github @kanbun-skam/skam-canvas-renderer --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish
-npm trust github @kanbun-skam/skam-html-renderer --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish
-npm trust github @kanbun-skam/skam-xml-parser --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish
-npm trust github @kanbun-skam/skam-xml-stringify --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish
-npm trust github @kanbun-skam/skam-web-component --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish
+npm trust github @kanbun-skam/skam --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish -y
+npm trust github @kanbun-skam/skam-canvas-renderer --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish -y
+npm trust github @kanbun-skam/skam-html-renderer --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish -y
+npm trust github @kanbun-skam/skam-xml-parser --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish -y
+npm trust github @kanbun-skam/skam-xml-stringify --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish -y
+npm trust github @kanbun-skam/skam-web-component --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish -y
 ```
 
 読み戻し:
@@ -169,6 +169,8 @@ changeset の本文が、6 つのパッケージの CHANGELOG の本文になる
 y/N を聞くのは、段 5 (版と変更ファイル) と段 10 (approve の前) の 2 回だけである。approve を飛ばすフラグはない。
 
 trust の確認は、最初に `npm trust list` を対話で 1 回実行し、続けて 6 パッケージ分を `--json` で取る。対話のときに「次の 5 分間は 2FA を省略する」を選ばないと、続く取得が `EOTP` で止まる (何も変えていないので、再実行すればよい)。
+
+`npm stage approve` は、実行のたびに 2FA を求める (6 パッケージなら 6 回)。0.2.0 のリリースでは、approve の認証の画面に「次の 5 分間は 2FA を省略する」の選択肢が出なかった。段 10 の approve は、6 回とも手元で認証する前提で進める。
 
 完了すると `release completed` と表示して exit 0 で終わる。
 

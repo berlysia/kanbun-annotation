@@ -59,15 +59,15 @@ gh api repos/berlysia/kanbun-annotation/rulesets --jq '.[] | {name, target, enfo
 
 npm はパッケージごとの設定である。1 つのパッケージに複数の trust が並びうる (2026-10-15 の移行では、旧 `publish.yml` の trust と新しい `release.yml` の trust が 6 つとも並んでいた)。パッケージが npm に存在している必要があるが、6 つとも 0.1.0 が公開済みである。`--allow-stage-publish` だけを許可し、`--allow-publish` は付けない。`npm trust github` / `list` / `revoke` はどれも 2FA を求める (`list` のような読み取りでも)。最初の 1 回で認証の画面が開くので、「次の 5 分間は 2FA を省略する」を選ぶと、続くコマンドを入力なしで流せる。
 
-読み手がそのまま実行と照合できるように、1 行ずつ並べる。
+読み手がそのまま実行と照合できるように、1 行ずつ並べる。`-y` は "Do you want to proceed? (y/N)" の確認を省く。
 
 ```bash
-npm trust github @kanbun-skam/skam --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish
-npm trust github @kanbun-skam/skam-canvas-renderer --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish
-npm trust github @kanbun-skam/skam-html-renderer --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish
-npm trust github @kanbun-skam/skam-xml-parser --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish
-npm trust github @kanbun-skam/skam-xml-stringify --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish
-npm trust github @kanbun-skam/skam-web-component --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish
+npm trust github @kanbun-skam/skam --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish -y
+npm trust github @kanbun-skam/skam-canvas-renderer --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish -y
+npm trust github @kanbun-skam/skam-html-renderer --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish -y
+npm trust github @kanbun-skam/skam-xml-parser --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish -y
+npm trust github @kanbun-skam/skam-xml-stringify --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish -y
+npm trust github @kanbun-skam/skam-web-component --file release.yml --repo berlysia/kanbun-annotation --env npm --allow-stage-publish -y
 ```
 
 読み戻し:
@@ -152,23 +152,25 @@ changeset の本文が、6 つのパッケージの CHANGELOG の本文になる
 
 ### 段の一覧
 
-| 段  | 内容                     | 自動で確かめること                                                                                                                                                                                                                                                | 人が答えること                                                    |
-| --- | ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
-| 1   | 前提の確認               | branch が master、作業ツリーが clean、`git fetch` 後に HEAD が `origin/master` と同じ。6 パッケージの trust が 1 件ずつ期待どおり。`changeset status` で出す版が決まる。0.2.0 のときだけ `check-version-bump.mjs`。`pnpm verify` が通り、作業ツリーが汚れていない | trust の確認で 2FA (「次の 5 分間は 2FA を省略する」を選ぶ)       |
-| 2   | 版上げ                   | `changeset version`、ignore 済みパッケージの変更の復元、本文のない CHANGELOG の節の補完、変更が許可リストに収まること、prettier                                                                                                                                   | なし                                                              |
-| 3   | 公開前提の検査           | `check-release check --tag vX.Y.Z --registry`: 6 つの版が等しい、6 つの CHANGELOG の先頭が新しい版で本文がある、npm に未公開、stable なら現在の `latest` より新しい。tag が local にも origin にもない                                                            | なし                                                              |
-| 4   | 利用者テスト             | 新しい版の tarball を空のプロジェクトに入れて確かめる (`pnpm test:consumer`)                                                                                                                                                                                      | なし                                                              |
-| 5   | 確認                     | 版と変更ファイルの一覧を出す                                                                                                                                                                                                                                      | y/N。`y` で進み、`N` なら止まる                                   |
-| 6   | 記録                     | `chore: release vX.Y.Z` の commit (許可リストのパスだけ) と、annotated tag `vX.Y.Z`                                                                                                                                                                               | なし                                                              |
-| 7   | 送信                     | `git push --atomic origin master vX.Y.Z`。拒否されたら origin は変わらない                                                                                                                                                                                        | なし                                                              |
-| 8   | run の待機               | tag の commit の `Release` run を `gh run list` で探し (10 秒おきに最大 3 分)、未完了なら `gh run watch` で待つ。3 つの job (`Validate and pack`、`Stage on npm`、`GitHub Release`) の結論を判定する                                                              | なし                                                              |
-| 9   | approve の前の判定       | validate の job の log の manifest を錨に、6 パッケージの stage の tarball (`npm stage list` / `npm stage download`) の sha512 と中身を照合する。artifact は取れれば追加で照合する。公開済みのパッケージは対象から外す                                            | なし                                                              |
-| 10  | trust の再確認と approve | trust の再確認の後、判定結果を表示する。manifest の順 (依存の根から) に、検証した stage id だけを approve する。各回の直前に、そのパッケージが stage のままか確かめ直す。E409 は 30 秒おきに最大 20 回再試行する                                                  | trust の確認で 2FA。y/N (approve の前)。approve の 1 回ごとに 2FA |
-| 11  | approve の後の判定       | 6 つの `dist-tags`、`dist.integrity` (log の integrity と一致)、`dist.attestations` の有無 (表示のみ)、GitHub Release の有無。外れたら 30 秒おきに最大 5 分読み直す                                                                                               | なし                                                              |
+| 段  | 内容                     | 自動で確かめること                                                                                                                                                                                                     | 人が答えること                                                    |
+| --- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------- |
+| 1   | 前提の確認               | branch が master、作業ツリーが clean、`git fetch` 後に HEAD が `origin/master` と同じ。6 パッケージの trust が 1 件ずつ期待どおり。`changeset status` で出す版が決まる。`pnpm verify` が通り、作業ツリーが汚れていない | trust の確認で 2FA (「次の 5 分間は 2FA を省略する」を選ぶ)       |
+| 2   | 版上げ                   | `changeset version`、ignore 済みパッケージの変更の復元、本文のない CHANGELOG の節の補完、変更が許可リストに収まること、prettier                                                                                        | なし                                                              |
+| 3   | 公開前提の検査           | `check-release check --tag vX.Y.Z --registry`: 6 つの版が等しい、6 つの CHANGELOG の先頭が新しい版で本文がある、npm に未公開、stable なら現在の `latest` より新しい。tag が local にも origin にもない                 | なし                                                              |
+| 4   | 利用者テスト             | 新しい版の tarball を空のプロジェクトに入れて確かめる (`pnpm test:consumer`)                                                                                                                                           | なし                                                              |
+| 5   | 確認                     | 版と変更ファイルの一覧を出す                                                                                                                                                                                           | y/N。`y` で進み、`N` なら止まる                                   |
+| 6   | 記録                     | `chore: release vX.Y.Z` の commit (許可リストのパスだけ) と、annotated tag `vX.Y.Z`                                                                                                                                    | なし                                                              |
+| 7   | 送信                     | `git push --atomic origin master vX.Y.Z`。拒否されたら origin は変わらない                                                                                                                                             | なし                                                              |
+| 8   | run の待機               | tag の commit の `Release` run を `gh run list` で探し (10 秒おきに最大 3 分)、未完了なら `gh run watch` で待つ。3 つの job (`Validate and pack`、`Stage on npm`、`GitHub Release`) の結論を判定する                   | なし                                                              |
+| 9   | approve の前の判定       | validate の job の log の manifest を錨に、6 パッケージの stage の tarball (`npm stage list` / `npm stage download`) の sha512 と中身を照合する。artifact は取れれば追加で照合する。公開済みのパッケージは対象から外す | なし                                                              |
+| 10  | trust の再確認と approve | trust の再確認の後、判定結果を表示する。manifest の順 (依存の根から) に、検証した stage id だけを approve する。各回の直前に、そのパッケージが stage のままか確かめ直す。E409 は 30 秒おきに最大 20 回再試行する       | trust の確認で 2FA。y/N (approve の前)。approve の 1 回ごとに 2FA |
+| 11  | approve の後の判定       | 6 つの `dist-tags`、`dist.integrity` (log の integrity と一致)、`dist.attestations` の有無 (表示のみ)、GitHub Release の有無。外れたら 30 秒おきに最大 5 分読み直す                                                    | なし                                                              |
 
 y/N を聞くのは、段 5 (版と変更ファイル) と段 10 (approve の前) の 2 回だけである。approve を飛ばすフラグはない。
 
 trust の確認は、最初に `npm trust list` を対話で 1 回実行し、続けて 6 パッケージ分を `--json` で取る。対話のときに「次の 5 分間は 2FA を省略する」を選ばないと、続く取得が `EOTP` で止まる (何も変えていないので、再実行すればよい)。
+
+`npm stage approve` は、実行のたびに 2FA を求める (6 パッケージなら 6 回)。0.2.0 のリリースでは、approve の認証の画面に「次の 5 分間は 2FA を省略する」の選択肢が出なかった。段 10 の approve は、6 回とも手元で認証する前提で進める。
 
 完了すると `release completed` と表示して exit 0 で終わる。
 
@@ -441,10 +443,6 @@ scratch のコピー (2026-10-15、`@changesets/cli` 2.29.8) で観察した。`
 - `--exit-pre` の後の `changeset version` は、`ignore` に載った private パッケージのうち、内部依存を持たないもの (`baseline-check`) の版を上げ、空の CHANGELOG.md を作る。`@changesets/assemble-release-plan` 6.0.9 の不具合である。`pnpm run release` は、`ignore` 済みパッケージの変更を戻し (`restored <path> (ignored by changesets)` と表示する)、その後の変更が「6 公開パッケージの `package.json` と `CHANGELOG.md`、`.changeset/*.md` の削除、`.changeset/pre.json`」に収まらなければ段 2 で止める。release commit は、この許可リストのパスだけを add する。`scripts/release.test.ts` の「changesets bug (K7)」のテストが、不具合が直ったときに落ちて知らせる。
 - dist-tag は `next` になる。pre.json の tag 名 (`beta`、`rc`) は、dist-tag に影響しない。
 
-### 守ること
-
-- 0.2.0 は pre mode を経ずに出す。pre mode から出す版が 0.2.0 になる (`--exit-pre` を含む) と、段 1 または段 2 で止まる。`check-version-bump.mjs` は scratch で `changeset version` を実行して 0.2.0 を期待するが、pre mode の HEAD では prerelease の版ができ、成り立たないため。
-
 ## 失敗したとき
 
 版番号を守る (0.2.0 を欠番にしない) ことを優先し、npm に 1 つも公開されていない間は、同じ版で出し直す。`pnpm run release` が `[F1]` から `[F4]` を表示して、この節を案内したときは、案内された節の手順に従う。自分で原因を見て選ぶときも、手順は同じである。
@@ -504,8 +502,6 @@ reject 後に、同じ版を stage し直せるかは未確認である。`npm h
 3. 6 つすべてに patch の changeset を足し (changesets の `fixed` により、1 つ足せば 6 つの版が上がる)、X.Y.(Z+1) を、通常の手順で出す。
 4. X.Y.Z の GitHub Release は残し、本文に欠番の旨を書く。
 
-0.2.0 で F3 になった場合、0.2.1 では `pnpm run release` は `check-version-bump.mjs` を実行しない (版が 0.2.0 のときだけ実行する)。移行表 (`docs/migration-0.1-to-0.2.md`) は 0.1 → 0.2 系の表として有効なまま。このずれは ADR-029 の A6 として受容している。
-
 ### F4: workflow の定義を直す必要がある
 
 `pnpm run release` が `[F4]` と表示してこの節を案内したとき (Release workflow の run が 3 分待っても現れなかったときを含む)。
@@ -526,10 +522,9 @@ tag の commit の `release.yml` が使われるので、re-run では直らな�
 0.2.0 の最初の run が本番であり、リハーサルはしない。`pnpm run release` の後半 (段 8〜11) は、0.2.0 で初めて本物の GitHub と npm につながる。npm や log の出力の形が想定と違えば、推測で読み替えずに止まる。そのため、最初の実行は、次の順で進める。
 
 1. 0.2.0 は pre mode を経ずに出す。changeset を書いて commit し、`pnpm run release` を実行する。
-2. 段 1 で `check-version-bump.mjs` が走る。これは移行表 ([移行表](migration-0.1-to-0.2.md)) の全 ID と URL が 6 つの CHANGELOG に入ることの検査で、0.2.0 専用である。
-3. 段 5 の y/N は `y`。
-4. 段 10 の y/N (trust の再確認と、判定結果の表示の後) で `N` を答える。exit 0 で終わり、approve はされない。
-5. `.tmp/release/v0.2.0/<時刻>/` の保存物から、次を確かめる。
+2. 段 5 の y/N は `y`。
+3. 段 10 の y/N (trust の再確認と、判定結果の表示の後) で `N` を答える。exit 0 で終わり、approve はされない。
+4. `.tmp/release/v0.2.0/<時刻>/` の保存物から、次を確かめる。
    - `log-manifest.txt` の 6 つの integrity が、段 10 の表示の integrity (先頭 16 文字と末尾 8 文字) と一致する。
    - `jobs.json` の 3 つの job (`Validate and pack`、`Stage on npm`、`GitHub Release`) の結論が `success` である。
 
@@ -538,19 +533,11 @@ tag の commit の `release.yml` が使われるので、re-run では直らな�
    jq '.jobs[] | {name, conclusion}' .tmp/release/v0.2.0/<時刻>/jobs.json
    ```
 
-6. 確かめたら、`pnpm run release` を再実行する。tag が origin にあり HEAD と同じなので、前半は飛ばされて後半から始まる。trust の確認で 2FA がもう一度要る。段 10 の y/N に `y` を答える。
+5. 確かめたら、`pnpm run release` を再実行する。tag が origin にあり HEAD と同じなので、前半は飛ばされて後半から始まる。trust の確認で 2FA がもう一度要る。段 10 の y/N に `y` を答える。
 
 想定内の別の分岐がある。stable の stage で `tag` が省かれていると、段 9 で形の不一致として止まり、y/N は出ない (`[manual]`、`stage item for <名前> has no string tag`)。これは失敗ではない。推測で `latest` とみなして prerelease を `latest` に載せる事故を避けるため、止まるようにしてある (ADR-031 の R1)。`## 手作業の手順` の `### approve の前の確認` から進む。
 
 approve の後に確かめること (「approve の後の確認」) の結果と、手順書の出力の書式が期待と違った点は、ADR-029 の「最初のリリースで確かめること」の「結果」の欄に書く。段 11 が表示する `post-approve results (for the Results section of ADR-029):` の行を写せる。あわせて、ADR-031 の「未確認の事項」(registry の `stage list` の item の形、E409 の実際の stderr、承認済みの stage が `stage list` に残るか、approve 後の反映の遅延の長さ、release.yml の実行) のうち、確かめられたものを書く。待機の値 (上の「待つ時間」) も、実測で見直す。
-
-### 0.2.0 の後に消すもの
-
-0.2.0 の公開の後に、0.2.0 専用のものを消す (`docs/plans/plan-staged-release-flow.md` の Followup)。
-
-- `packages/integration-tests/scripts/check-version-bump.mjs`。
-- `scripts/release.ts` の 0.2.0 の分岐 (`NEEDS_NO_PRE_MODE_VERSION`、`checkZeroTwoZero`、deps の `checkVersionBump`) と、そのテスト。
-- この文書の、`check-version-bump.mjs` への言及 (「最初のリリース (0.2.0) で確かめること」の手順 2、F3 の注意書き)。
 
 ## 最後の手段
 

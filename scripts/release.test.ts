@@ -246,10 +246,6 @@ function fakeDeps(repo: Repo, overrides: Partial<ReleaseDeps> = {}): Fake {
       }
       return ok;
     },
-    checkVersionBump: () => {
-      calls.push('checkVersionBump');
-      return ok;
-    },
     verify: () => {
       calls.push('verify');
       return ok;
@@ -342,7 +338,6 @@ test('normal release: commit and annotated tag exist locally and on origin, tree
   assert.deepEqual(fake.calls, [
     'verifyTrust',
     'changesetStatus',
-    'checkVersionBump',
     'verify',
     'changesetVersion',
     'prettier',
@@ -455,7 +450,12 @@ test('stops fail-closed when git ls-remote fails', async () => {
         ? { status: 128, stdout: '', stderr: 'fatal: unreachable' }
         : gitIn(repo.work, args),
   });
-  assert.equal((await runRelease(normal, fake.deps)).status, 'stopped');
+  const outcome = await runRelease(normal, fake.deps);
+  assert.equal(outcome.status, 'stopped');
+  assert.ok(
+    outcome.status === 'stopped' && outcome.reason.includes('fatal: unreachable'),
+    JSON.stringify(outcome)
+  );
   const after = snapshot(repo);
   assert.equal(after.head, before.head);
   assert.equal(after.localTags, before.localTags);
@@ -634,35 +634,6 @@ test('stage 1: an EOTP stop tells the user to rerun and changes nothing', async 
   );
 });
 
-test('stage 1: check-version-bump runs once when the planned version is 0.2.0 without pre mode', async () => {
-  const repo = makeRepo();
-  const fake = fakeDeps(repo);
-  await runRelease(normal, fake.deps);
-  assert.equal(fake.calls.filter((c) => c === 'checkVersionBump').length, 1);
-});
-
-test('stage 1: check-version-bump does not run when the planned version is not 0.2.0', async () => {
-  const repo = makeRepo();
-  const fake = fakeDeps(repo, {
-    changesetStatus: () => ({ ok: true, value: { kind: 'release', version: '0.3.0' } }),
-  });
-  await runRelease(normal, fake.deps);
-  assert.equal(fake.calls.includes('checkVersionBump'), false);
-});
-
-test('stage 1: stops when 0.2.0 would be released from pre mode', async () => {
-  const repo = makeRepo({ preTag: 'beta' });
-  const before = snapshot(repo);
-  const fake = fakeDeps(repo, {
-    changesetStatus: () => ({ ok: true, value: { kind: 'release', version: '0.2.0' } }),
-  });
-  const outcome = await runRelease(normal, fake.deps);
-  assert.equal(outcome.status, 'stopped');
-  assert.equal(fake.calls.includes('checkVersionBump'), false);
-  assert.equal(fake.calls.includes('changesetVersion'), false);
-  assertUnchanged(repo, before);
-});
-
 test('stage 1: pnpm verify runs once, before changeset version', async () => {
   const repo = makeRepo();
   const fake = fakeDeps(repo);
@@ -799,7 +770,7 @@ test('--pre beta: declining at stage 5 leaves a revert command that removes pre.
 test('--exit-pre: the revert command also restores a deleted pre.json', async () => {
   const repo = makeRepo({ preTag: 'beta' });
   const fake = fakeDeps(repo, {
-    // exit 後の版を 0.3.0 にして 0.2.0 の停止を避け、段 5 で止める
+    // exit 後の版を 0.3.0 にして、段 5 で止める
     changesetStatus: () => ({ ok: true, value: { kind: 'release', version: '0.3.0' } }),
     confirm: async () => false,
   });
@@ -839,17 +810,6 @@ test('--exit-pre stops at stage 1 when there is no pre mode', async () => {
   assert.equal(stoppedStage(outcome), '1 prerequisites');
   assert.equal(fake.calls.includes('changesetVersion'), false);
   assertUnchanged(repo, before);
-});
-
-test('--exit-pre stops at stage 2 when the stable version would be 0.2.0', async () => {
-  const repo = makeRepo({ preTag: 'beta' });
-  const fake = fakeDeps(repo);
-  const outcome = await runRelease({ mode: 'exit-pre' }, fake.deps);
-  assert.equal(stoppedStage(outcome), '2 versioning');
-  assert.ok(fake.calls.includes('pre:exit'));
-  assert.equal(fake.calls.includes('checkVersionBump'), false);
-  assert.equal(fake.calls.includes('changesetVersion'), false);
-  assert.ok(fake.logs.some((l) => l.includes(REVERT)));
 });
 
 test('--pre beta stops at stage 3 when the re-decided version already has a tag on origin', async () => {
@@ -1702,10 +1662,6 @@ function realDeps(repo: Repo): RealFake {
     },
     {
       verifyTrust: async () => ({ kind: 'ok' }),
-      checkVersionBump: () => {
-        calls.push('checkVersionBump');
-        return ok;
-      },
       verify: () => ok,
       prettier: () => ok,
       // 段 3 の checkChangelog を、fixture の実際の CHANGELOG に当てる
@@ -1803,7 +1759,6 @@ test('real changesets (a-1): a normal release makes the version, CHANGELOG, comm
     'packages/b/CHANGELOG.md',
     'packages/b/package.json',
   ]);
-  assert.equal(fake.calls.filter((c) => c === 'checkVersionBump').length, 1);
 });
 
 test('real changesets (a-2 -> a-3 -> a-4 -> a-5, in this order on one fixture): prerelease, the entry stop, beta.1, rc.2', async (t: TestContext) => {
@@ -1831,7 +1786,6 @@ async function sequence(t: TestContext, repo: Repo): Promise<void> {
       assert.equal(existsSync(join(repo.work, '.changeset', 'minor-both.md')), true);
       assert.ok(committedPaths(repo).includes('.changeset/pre.json'));
       assertTagged(repo, 'v0.2.0-beta.0');
-      assert.equal(fake.calls.includes('checkVersionBump'), false);
       assert.deepEqual(privateSnapshot(repo), privateBefore);
     }
   );
@@ -1879,21 +1833,6 @@ async function sequence(t: TestContext, repo: Repo): Promise<void> {
   });
 }
 
-test('real changesets (a-6): --exit-pre that would make 0.2.0 stops at stage 2 and the revert command cleans the tree', async () => {
-  const repo = makeChangesetRepo();
-  writeChangeset(repo, 'minor-both.md', { '@fx/a': 'minor', '@fx/b': 'minor' });
-  commitPush(repo, 'add changeset');
-  const first = realDeps(repo);
-  assert.equal((await runRelease({ mode: 'pre', tag: 'beta' }, first.deps)).status, 'released');
-  const fake = realDeps(repo);
-  const outcome = await runRelease({ mode: 'exit-pre' }, fake.deps);
-  assert.equal(stoppedStage(outcome), '2 versioning', fake.logs.join('\n'));
-  assert.ok(fake.logs.some((l) => l.includes(REVERT)));
-  revertIn(repo);
-  assert.equal(mustGit(repo.work, ['status', '--porcelain']), '');
-  assert.equal(existsSync(join(repo.work, '.changeset', 'pre.json')), true);
-});
-
 test('real changesets (a-6): --pre beta then --exit-pre releases 0.3.0, removes md and pre.json and restores the ignored package', async () => {
   const repo = makeChangesetRepo('0.2.0');
   writeChangeset(repo, 'minor-both.md', { '@fx/a': 'minor', '@fx/b': 'minor' });
@@ -1911,7 +1850,6 @@ test('real changesets (a-6): --pre beta then --exit-pre releases 0.3.0, removes 
   assert.deepEqual(privateSnapshot(repo), privateBefore);
   assert.equal(existsSync(join(repo.work, 'packages', 'priv-solo', 'CHANGELOG.md')), false);
   assert.ok(fake.logs.some((l) => l.includes('restored packages/priv-solo/package.json')));
-  assert.equal(fake.calls.includes('checkVersionBump'), false);
   assertTagged(repo, 'v0.3.0');
 });
 

@@ -32,7 +32,8 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 
 - **attribute-validation.test.ts の flaky なテスト**: 2026-10-15 に `pnpm test` で 1 回だけ落ちた。落ちたのは `renders vertically and reports writing-mode once` である。2026-10-19 に 120 回流したが、再現しなかった。内訳は、8 コアすべてに CPU 負荷をかけた `attribute-validation.test.ts` が 100 回、`turbo run test:run --force` が 20 回である。vitest 4.0.18、happy-dom 20.3.9。失敗率が 2.5% (3/120) 以上なら 95% の確からしさで検出できたので、それ未満の失敗率は否定できない。候補だった happy-dom の MutationObserver の件 (GC で通知を落とす) は 20.14.6 で直っている (#24)。再発しなければ、この行を消す。出典: plan-release-automation.md L77。規模: 小。
 - **ssr-import.test.ts の動的 import が負荷の下で時間切れになる**: 2026-10-20 に、全パッケージを並列に流した `pnpm test` で `imports index without HTMLElement / customElements` (ssr-import.test.ts:20-22) が 1 回落ちた。テストは `vi.resetModules()` の後に `index.js` を読み直すので、依存を毎回変換し直す。単独では 147 ms で終わり、そのときの全体の log は import 27 秒、environment 115 秒だった。直後の `pnpm test:run --force` と単独の実行では通った。既定の 5 秒の timeout を延ばすか、読み直しの範囲を絞るかを決める。出典: 2026-10-20 の完了の確認。規模: 小。
-- **mount() 関数 (#11)**: DOM へ描く `mount()` 関数を足し、CSS の 1 回だけの注入とフォント読み込み後の補正をまとめる。出典: plan-consumer-feedback.md L65、#11。規模: 中。
+- **mount() 関数 (#11)**: DOM へ描く `mount()` 関数を足し、CSS の 1 回だけの注入とフォント読み込み後の補正をまとめる。2 回目のフィードバックでも求められた。補正を知らない利用者は縦書きの表示がずれる。出典: plan-consumer-feedback.md L65、#11、利用者のフィードバック 2 回目 (2026-10-20) の 2。規模: 中。
+- **extractXmlFromScriptElement を Web Component から切り離す**: `extractXmlFromScriptElement` は `skam-web-component` から experimental で出ている (`src/index.ts:12`)。light DOM に描く利用者は Web Component を入れずに同じ処理を書き、MIME タイプの扱いが利用者ごとにずれうる。Web Component に依存しないパッケージから出す。mount() と同じ場所が候補である。出典: 利用者のフィードバック 2 回目 (2026-10-20) の 3、ADR-030 K10。規模: 小。
 
 ## データモデルと仕様
 
@@ -45,10 +46,19 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 - **parse の既定 id を文書順にする (#15)**: `parse` の既定の id を、文書の順で決まる値にする。破壊的変更で、`xml:id` との衝突回避が要る。出典: plan-consumer-feedback.md L66、#15。規模: 中。
 - **出題対象の印 (#14)**: マーク単位で「設問の答え」を表す仕様を決める。`ext` の約束事にするか、マークの属性にするかを選ぶ。出典: plan-consumer-feedback.md L63、#14。規模: 中。
 - **竪点のグループからはみ出す読みの範囲 (#16)**: はみ出す読みの範囲は、先頭の字の読みとして出る。2 回目の読みが無い再読文字は、読み仮名として読まれる。扱いを決める。出典: plan-consumer-feedback.md L64、ADR-030「既知の制約」、#16。規模: 小。
-- **readingLayerSource の既定の見直し**: 次の破壊的リリースで、profile を指定して `readingLayerSource` を省いたときの既定 (`'readings'`) を見直す。出典: plan-consumer-feedback.md L62、ADR-030「リスク R1〜R8 の結果」の R6。規模: 小。
-- **'display' の読み上げ層の実機確認**: NVDA (Windows、日本語) と VoiceOver (macOS) で確かめる (未確認)。合格の条件は 2 つある。`習、送り仮名 フ、レ点。` の各語が言葉として発話されること。表示層のルビや返り点が、読み上げ層と重ねて読まれないこと。確かめたら、experimental を外すかを決める。出典: plan-consumer-feedback.md L61、ADR-030「リスク R1〜R8 の結果」の R1。規模: 中。
+- **readingLayerSource の既定の見直し**: 次の破壊的リリースで、profile を指定して `readingLayerSource` を省いたときの既定 (`'readings'`) を見直す。2 回目のフィードバックは `'display'` を既定にするよう求めた。既定のまま出題に使うと、答えがスクリーンリーダーの利用者にだけ渡るためである。同じフィードバックが求めた README の注意は、html-renderer の README の「出題に使うとき」の節に書いてある。出典: plan-consumer-feedback.md L62、ADR-030「リスク R1〜R8 の結果」の R6、利用者のフィードバック 2 回目 (2026-10-20) の 9。規模: 小。
+- **'display' の読み上げ層の実機確認**: NVDA (Windows、日本語) と VoiceOver (macOS) で確かめる (未確認)。合格の条件は 2 つある。`習、送り仮名 フ、レ点。` の各語が言葉として発話されること。表示層のルビや返り点が、読み上げ層と重ねて読まれないこと。確かめたら、experimental を外すかを決める。あわせて、注記の無い字が `學。而。時。` のように 1 字ごとに区切られる読み上げが聞きにくくないかを聞き、続く字をつなげる形にするかを決める (利用者の提案、未検証)。出典: plan-consumer-feedback.md L61、ADR-030「リスク R1〜R8 の結果」の R1、利用者のフィードバック 2 回目 (2026-10-20) の 8。規模: 中。
+- **表示設定のキー名を互換を約束する語彙にする**: `resolveRenderProfile` の 13 個のキー名は、安定と明記されていない。安定と書いてあるのは `{ base, overrides }` の形だけである (`render-profile.ts:22`)。利用者は教材の `data-hide="kaeriten okurigana"` のような値にキー名をそのまま使っており、キー名が変わると教材をすべて書き換えることになる。キー名を公開の語彙として README に書き、0.x の間にキー名を変えるときの方針 (旧キーを一定期間残すなど) を決める。出典: 利用者のフィードバック 2 回目 (2026-10-20) の 1。規模: 中。
+- **表示設定の誤りを構造のある形で返す**: `resolveRenderProfile` の誤りは、英語のメッセージだけを持つ `TypeError` である (`render-profile.ts:164`)。利用者は作者に日本語で誤りと候補を示すため、同じ検査を手前で二重に持っている。誤りの種類 (未知のキー、値の型の違い、`base` との混在) と該当するキーを、`TypeError` のサブクラスのフィールドなどで返す。公開 API の変更になる。出典: 利用者のフィードバック 2 回目 (2026-10-20) の 4。規模: 中。
+
+## パーサー
+
+- **ブラウザ版の parser でも誤りに行と列を付ける**: `SKAMXMLParseError` の `line` と `column` は、Node 版 (xmldom の locator) だけが付ける。ブラウザ版は `parsererror` の文だけを渡し、位置は `undefined` になる (`xml-parser.browser.ts:24`)。本番はブラウザ版なので作者が誤りの場所を探せず、Node 版のテストでは位置が付くため気づきにくい。`parsererror` の文から位置を取る案は、ブラウザごとに文が違う (未確認)。出典: 利用者のフィードバック 2 回目 (2026-10-20) の 5。規模: 中。
 
 ## レンダラー
+
+- **読み上げ層を隠す規則がページの CSS に負けない形にする**: 読み上げ層を隠す規則は、詳細度 0 の `:where(.skam-reading)` で出る (`styles.ts:460`)。ページの CSS が `.skam-reading` に `position` などを指定すると、読み上げ用の文が画面に出て表示が崩れうる。隠す規則だけ詳細度を上げるか、ページの CSS が `.skam-reading` に触れない前提を README に書く。出典: 利用者のフィードバック 2 回目 (2026-10-20) の 6。規模: 小。
+- **'readings' の白文にブロックの区切りを入れる**: readings の無い文書を `'readings'` で出すと、読み上げ層は白文をブロックの区切りなしに連結する (`renderer.ts:250-256`)。ブロックの境界がスクリーンリーダーの利用者に伝わらない。`'display'` はブロックの間に半角の空白を入れている。出典: 利用者のフィードバック 2 回目 (2026-10-20) の 7。規模: 小。
 
 - **grid baseline 補正の構造的課題 (#2)**: Chromium の補正に構造的な課題がある。補正は `--skam-grid-baseline-fix` と `calibrateGridBaseline()` が担う。Issue は open。出典: #2。規模: 大。
 - **highlight の傍線がアキ部分をカバーしない**: `highlight-content` は inline-block で、letter-spacing のアキが box に含まれない。そのため `box-shadow: inset` の傍線がアキ部分に描かれず、途切れて見える。ADR-008 で既知の制約とし、別 ADR で対応するとした。出典: plan-aki-gumi-spacing.md L70、ADR-008「検証 4: エッジケース」。規模: 中。

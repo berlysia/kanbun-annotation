@@ -1454,6 +1454,7 @@ test('main: the exit code and the printed route follow the runAfterPush result',
     next: 'deprecate and patch',
     section: '### F3:',
     mayBeF3: false,
+    site: { side: 'after-push', where: 'job-failed', job: 'npm-stage' },
   };
   const cases: [AfterPushResult, number][] = [
     [{ kind: 'stopped', stop }, 1],
@@ -1510,7 +1511,14 @@ test('main: a dependency that throws is printed without control characters and e
 });
 
 test('reportOutcome: every outcome maps to its exit code', () => {
-  const stop = { route: 'rerun', reason: 'r', next: 'n', section: 's', mayBeF3: false } as const;
+  const stop: ClassifiedStop = {
+    route: 'rerun',
+    reason: 'r',
+    next: 'n',
+    section: 's',
+    mayBeF3: false,
+    site: { side: 'after-push', where: 'interrupted' },
+  };
   const cases: [Outcome, number][] = [
     [{ kind: 'entry-stopped', reason: 'x' }, 1],
     [{ kind: 'front-stopped', stage: 's', reason: 'x' }, 1],
@@ -1532,6 +1540,7 @@ test('reportOutcome: after-push-stopped and post-check-failed print the route, t
       next: 'reject it',
       section: '### F2:',
       mayBeF3: false,
+      site: { side: 'after-push', where: 'staged-mismatch' },
     },
     {
       route: 'manual',
@@ -1539,6 +1548,7 @@ test('reportOutcome: after-push-stopped and post-check-failed print the route, t
       next: 'by hand',
       section: '## 手作業の手順',
       mayBeF3: true,
+      site: { side: 'after-push', where: 'shape-unknown' },
     },
   ];
   const first = stops[0] as ClassifiedStop;

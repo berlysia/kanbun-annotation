@@ -5,6 +5,7 @@ import { StringDecoder } from 'node:string_decoder';
 import type {
   Check,
   CommandResult,
+  EntryStopRow,
   DistTag,
   RegistryResponse,
   ReleaseLookup,
@@ -469,7 +470,7 @@ export type EntryDecision =
 
 const HEAD_VERSION_PATTERN = /^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/;
 
-const stopAt = (row: number, reason: string): Extract<EntryDecision, { kind: 'stop' }> => ({
+const stopAt = (row: EntryStopRow, reason: string): Extract<EntryDecision, { kind: 'stop' }> => ({
   kind: 'stop',
   row,
   reason,

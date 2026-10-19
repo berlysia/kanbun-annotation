@@ -34,6 +34,7 @@ import {
   sanitizeForTerminal,
   createStreamSanitizer,
 } from './release-check.ts';
+import { ENTRY_STOP_ROWS, NO_COMMAND } from './release-types.ts';
 import * as afterPushCheck from './release-after-push-check.ts';
 import type {
   WorkspacePackage,
@@ -1259,4 +1260,9 @@ test('combineTrustResults: eotp > command-failed > shape-unknown > mismatch > ok
 test('sanitizeForTerminal / createStreamSanitizer: APC の再公開は RC の関数と同一', () => {
   assert.equal(afterPushCheck.sanitizeForTerminal, sanitizeForTerminal);
   assert.equal(afterPushCheck.createStreamSanitizer, createStreamSanitizer);
+});
+
+test('ENTRY_STOP_ROWS: decideEntry / decideEntryWithStatus が止まる行の一覧と NO_COMMAND', () => {
+  assert.deepEqual([...ENTRY_STOP_ROWS], [0, 2, 3, 4, 5, 6, 9, 10, 12, 13, 14]);
+  assert.equal(NO_COMMAND, '(no command)');
 });

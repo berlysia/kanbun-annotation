@@ -6,6 +6,7 @@ import { posix } from 'node:path';
 import zlib from 'node:zlib';
 import { checkPackedPackageJson, verifyManifest } from './release-check.ts';
 import type {
+  AfterPushSite,
   Check,
   ClassifiedStop,
   DistTag,
@@ -129,6 +130,12 @@ export function ghRunLogArgs(runId: number, jobId: number): Check<string[]> {
   return withId('run id', runId, (id) => ['run', 'view', id, '--log', '--job', job.value]);
 }
 
+export function ghRunLogFailedArgs(runId: number, jobId: number): Check<string[]> {
+  const job = checkId('job id', jobId);
+  if (!job.ok) return job;
+  return withId('run id', runId, (id) => ['run', 'view', id, '--log-failed', '--job', job.value]);
+}
+
 export function ghRunWatchArgs(runId: number): Check<string[]> {
   return withId('run id', runId, (id) => ['run', 'watch', id, '--exit-status']);
 }
@@ -209,7 +216,7 @@ export const RELEASE_JOB_NAMES = {
 export type JudgeJobsResult =
   | { kind: 'in-progress' }
   | { kind: 'ok'; validateJobId: number; githubRelease: 'success' | 'failure' }
-  | { kind: 'job-failed'; job: 'validate' | 'npm-stage' }
+  | { kind: 'job-failed'; job: 'validate' | 'npm-stage'; jobId: number | undefined }
   | { kind: 'shape-unknown'; what: string };
 
 interface JobConclusions {
@@ -217,6 +224,7 @@ interface JobConclusions {
   npmStage: string;
   githubRelease: string;
   validateJobId: number;
+  npmStageJobId: number | undefined;
 }
 
 function readJobConclusions(jobs: unknown): JobConclusions | string {
@@ -239,7 +247,14 @@ function readJobConclusions(jobs: unknown): JobConclusions | string {
     return 'a job name is unknown or a job has no conclusion';
   }
   if (!isPositiveSafeInteger(validateJobId)) return 'the validate job has no usable databaseId';
-  return { validate, npmStage, githubRelease, validateJobId };
+  const npmStageJobId = byName.get(RELEASE_JOB_NAMES.npmStage)?.['databaseId'];
+  return {
+    validate,
+    npmStage,
+    githubRelease,
+    validateJobId,
+    npmStageJobId: isPositiveSafeInteger(npmStageJobId) ? npmStageJobId : undefined,
+  };
 }
 
 function judgeConclusions(c: JobConclusions): JudgeJobsResult {
@@ -251,13 +266,13 @@ function judgeConclusions(c: JobConclusions): JudgeJobsResult {
   } else if (c.validate === 'success' && c.npmStage === 'failure') {
     // github-release は validate にだけ依存するので、npm-stage の失敗と独立に走る
     if (releaseConclusions.includes(c.githubRelease))
-      return { kind: 'job-failed', job: 'npm-stage' };
+      return { kind: 'job-failed', job: 'npm-stage', jobId: c.npmStageJobId };
   } else if (
     c.validate === 'failure' &&
     c.npmStage === 'skipped' &&
     c.githubRelease === 'skipped'
   ) {
-    return { kind: 'job-failed', job: 'validate' };
+    return { kind: 'job-failed', job: 'validate', jobId: c.validateJobId };
   }
   return {
     kind: 'shape-unknown',
@@ -1233,6 +1248,15 @@ function resolveCell(row: StopRow, published: Published): Cell {
   return published.length === 0 ? row.zero : row.some;
 }
 
+function siteOf(obs: StopObservation): AfterPushSite {
+  return {
+    side: 'after-push',
+    where: obs.kind,
+    ...(obs.kind === 'job-failed' ? { job: obs.job } : {}),
+    ...(obs.kind === 'post-check' ? { check: obs.check } : {}),
+  };
+}
+
 export function classifyStop(obs: StopObservation): ClassifiedStop {
   const row = describeStop(obs);
   const { route, f3 } = resolveCell(row, obs.published);
@@ -1242,6 +1266,7 @@ export function classifyStop(obs: StopObservation): ClassifiedStop {
     next: row.next[route] ?? row.next.fallback,
     section: RELEASING_SECTIONS[route],
     mayBeF3: f3,
+    site: siteOf(obs),
   };
 }
 

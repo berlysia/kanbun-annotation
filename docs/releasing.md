@@ -152,19 +152,19 @@ changeset の本文が、6 つのパッケージの CHANGELOG の本文になる
 
 ### 段の一覧
 
-| 段  | 内容                     | 自動で確かめること                                                                                                                                                                                                     | 人が答えること                                                          |
-| --- | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
-| 1   | 前提の確認               | branch が master、作業ツリーが clean、`git fetch` 後に HEAD が `origin/master` と同じ。6 パッケージの trust が 1 件ずつ期待どおり。`changeset status` で出す版が決まる。`pnpm verify` が通り、作業ツリーが汚れていない | trust の確認で 2FA (「次の 5 分間は 2FA を省略する」を選ぶ)             |
-| 2   | 版上げ                   | `changeset version`、ignore 済みパッケージの変更の復元、本文のない CHANGELOG の節の補完、変更が許可リストに収まること、prettier                                                                                        | なし                                                                    |
-| 3   | 公開前提の検査           | `check-release check --tag vX.Y.Z --registry`: 6 つの版が等しい、6 つの CHANGELOG の先頭が新しい版で本文がある、npm に未公開、stable なら現在の `latest` より新しい。tag が local にも origin にもない                 | なし                                                                    |
-| 4   | 利用者テスト             | 新しい版の tarball を空のプロジェクトに入れて確かめる (`pnpm test:consumer`)                                                                                                                                           | なし                                                                    |
-| 5   | 確認                     | 版と変更ファイルの一覧を出す                                                                                                                                                                                           | y/N。`y` で進み、`N` なら止まる                                         |
-| 6   | 記録                     | `chore: release vX.Y.Z` の commit (許可リストのパスだけ) と、annotated tag `vX.Y.Z`                                                                                                                                    | なし                                                                    |
-| 7   | 送信                     | `git push --atomic origin master vX.Y.Z`。拒否されたら origin は変わらない                                                                                                                                             | なし                                                                    |
-| 8   | run の待機               | tag の commit の `Release` run を `gh run list` で探し (10 秒おきに最大 3 分)、未完了なら `gh run watch` で待つ。3 つの job (`Validate and pack`、`Stage on npm`、`GitHub Release`) の結論を判定する                   | なし                                                                    |
-| 9   | approve の前の判定       | validate の job の log の manifest を錨に、6 パッケージの stage の tarball (`npm stage list` / `npm stage download`) の sha512 と中身を照合する。artifact は取れれば追加で照合する。公開済みのパッケージは対象から外す | なし                                                                    |
-| 10  | trust の再確認と approve | trust の再確認の後、判定結果を表示する。manifest の順 (依存の根から) に、検証した stage id だけを approve する。各回の直前に、そのパッケージが stage のままか確かめ直す。E409 は 30 秒おきに最大 20 回再試行する       | trust の確認で 2FA。y/N (approve の前)。approve で 2FA (毎回かは未確認) |
-| 11  | approve の後の判定       | 6 つの `dist-tags`、`dist.integrity` (log の integrity と一致)、`dist.attestations` の有無 (表示のみ)、GitHub Release の有無。外れたら 30 秒おきに最大 5 分読み直す                                                    | なし                                                                    |
+| 段  | 内容                     | 自動で確かめること                                                                                                                                                                                                         | 人が答えること                                                          |
+| --- | ------------------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------- |
+| 1   | 前提の確認               | branch が master、作業ツリーが clean、`git fetch` 後に HEAD が `origin/master` と同じ。6 パッケージの trust が 1 件ずつ期待どおり。`changeset status` で出す版が決まる。`pnpm verify` が通り、作業ツリーが汚れていない     | trust の確認で 2FA (「次の 5 分間は 2FA を省略する」を選ぶ)             |
+| 2   | 版上げ                   | `changeset version`、ignore 済みパッケージの変更の復元、本文のない CHANGELOG の節の補完、変更が許可リストに収まること、prettier                                                                                            | なし                                                                    |
+| 3   | 公開前提の検査           | `check-release check --tag vX.Y.Z --registry`: 6 つの版が等しい、6 つの CHANGELOG の先頭が新しい版で本文がある、npm に未公開、stable なら現在の `latest` より新しい。tag が local にも origin にもない                     | なし                                                                    |
+| 4   | 利用者テスト             | 新しい版の tarball を空のプロジェクトに入れて確かめる (`pnpm test:consumer`)                                                                                                                                               | なし                                                                    |
+| 5   | 確認                     | 版と変更ファイルの一覧を出す                                                                                                                                                                                               | y/N。`y` で進み、`N` なら止まる                                         |
+| 6   | 記録                     | `chore: release vX.Y.Z` の commit (許可リストのパスだけ) と、annotated tag `vX.Y.Z`                                                                                                                                        | なし                                                                    |
+| 7   | 送信                     | `git push --atomic origin master vX.Y.Z`。拒否されたら origin は変わらない                                                                                                                                                 | なし                                                                    |
+| 8   | run の待機               | tag の commit の `Release` run を `gh run list` で探し (10 秒おきに最大 3 分)、未完了なら `gh run watch` で待つ。3 つの job (`Validate and pack`、`Stage on npm`、`GitHub Release`) の結論を判定する                       | なし                                                                    |
+| 9   | approve の前の判定       | validate の job の log の manifest を錨に、6 パッケージの stage の tarball (`npm stage list` / `npm stage download`) の sha512 と中身を照合する。artifact は取れれば追加で照合する。公開済みのパッケージは対象から外す     | なし                                                                    |
+| 10  | trust の再確認と approve | trust の再確認の後、判定結果を表示する。manifest の順 (依存の根から) に、検証した stage id だけを approve する。各回の直前に、そのパッケージが stage のままか確かめ直す。E409 は 30 秒おきに最大 20 回再試行する           | trust の確認で 2FA。y/N (approve の前)。approve で 2FA (毎回かは未確認) |
+| 11  | approve の後の判定       | 6 つの `dist-tags`、`dist.integrity` (log の integrity と一致)、`dist.attestations` の有無の表示と、あれば provenance の predicateType が SLSA v1 であること、GitHub Release の有無。外れたら 30 秒おきに最大 5 分読み直す | なし                                                                    |
 
 y/N を聞くのは、段 5 (版と変更ファイル) と段 10 (approve の前) の 2 回だけである。approve を飛ばすフラグはない。
 
@@ -345,6 +345,8 @@ validate の job は、manifest の表を Step Summary (`$GITHUB_STEP_SUMMARY`) 
 | 1 | @kanbun-skam/skam | kanbun-skam-skam-X.Y.Z.tgz | sha512-... |
 ```
 
+表の integrity は、summary の step が `npm-tarball/` の tgz から sha512 を計算した値で、manifest の `integrity` を写したものではない。manifest の値と違っても summary の step は止まらない。同じ job の verify-manifest が先に止めるためである。manifest や tgz に不備があれば、summary の step は何も出さずに失敗する。
+
 log は書かれた後に編集できず、artifact の保存領域とは別にある。`pnpm run release` は、この log の表を錨にしている。手で読むときは、Step Summary でも log でもよい。log は次のコマンドで取る。
 
 ```bash
@@ -366,7 +368,7 @@ gh run view <run-id> --log --job <validate の job の id>
    npm stage list @kanbun-skam/skam-web-component
    ```
 
-2. **integrity が manifest と一致する**: `npm stage view <stage-id>` の integrity を、Step Summary か log の manifest の同じパッケージの `integrity` (`sha512-...`) と照合する。`npm stage view` の出力に integrity がなければ `--json` を付ける。それでも出なければ、手順 3 でダウンロードした tgz から計算して照合する。
+2. **integrity が log の表と一致する**: `npm stage view <stage-id>` の integrity を、Step Summary か log の表の同じパッケージの integrity (`sha512-...`。summary の step が tgz から計算した値) と照合する。`npm stage view` の出力に integrity がなければ `--json` を付ける。それでも出なければ、手順 3 でダウンロードした tgz から計算して照合する。
 
    ```bash
    npm stage view <stage-id>
@@ -425,8 +427,8 @@ npm view @kanbun-skam/skam-web-component dist-tags.latest
 失敗しても、公開は取り消さない。結果は ADR-029 の「最初のリリースで確かめること」の「結果」の欄に書く。`pnpm run release` は、段 11 でこの 4 項目を判定し、`post-approve results (for the Results section of ADR-029):` に続けて結果を表示する。
 
 - `dist-tags`: `npm view <name> dist-tags` が 6 つとも期待どおり。
-- `dist.integrity`: `npm view <name>@X.Y.Z dist.integrity` が、manifest の `integrity` と一致する。
-- `dist.attestations`: `npm view <name>@X.Y.Z dist.attestations` の有無を、6 つとも確かめる。staged publishing と trusted publishing の組み合わせで provenance が付くかは、npm の docs に記載がなく、未確認である (ADR-029 の R3)。このリポジトリは public なので、確かめられる。0.1.0 には付いていない (2026-10-15 に確認)。
+- `dist.integrity`: `npm view <name>@X.Y.Z dist.integrity` が、log の表の integrity (summary の step が tgz から計算した値。manifest の `integrity` との一致は verify-manifest が済ませている) と一致する。
+- `dist.attestations`: `npm view <name>@X.Y.Z dist.attestations` の有無を、6 つとも確かめる。あれば、`provenance.predicateType` が `https://slsa.dev/provenance/v1` であることも確かめ、違えば段 11 が形の不一致 (shape) として止まる。止まった時点で公開は済んでいる。確かめるのは registry が申告する形で、attestation の bundle と tgz の digest の照合ではない。無いときは止めない。staged publishing と trusted publishing の組み合わせで provenance が付くかは、npm の docs に記載がなく、未確認である (ADR-029 の R3)。このリポジトリは public なので、確かめられる。0.1.0 には付いていない (2026-10-15 に確認)。0.2.0 には provenance の predicateType が SLSA v1 の attestation が付いている (2026-10-20 に確認)。
 - GitHub Release: `gh release view vX.Y.Z` で存在を確かめる。
 
 ## prerelease

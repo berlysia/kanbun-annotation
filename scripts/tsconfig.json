@@ -9,6 +9,9 @@
     "sourceMap": false
   },
   "include": [
+    "lib/adr-parser.ts",
+    "lib/types.ts",
+    "lib/adr-parser.test.ts",
     "lib/release-types.ts",
     "lib/release-check.ts",
     "lib/release-check.test.ts",

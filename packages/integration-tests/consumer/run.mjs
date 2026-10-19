@@ -219,6 +219,10 @@ function main(tmp, tarballsOption) {
   runChecked('node smoke.mjs', process.execPath, ['smoke.mjs'], { cwd: appDir, env });
   for (const config of ['tsconfig.bundler.json', 'tsconfig.nodenext.json'])
     runChecked(`tsgo -p ${config}`, tsgo, ['-p', config], { cwd: appDir, env });
+  // 利用者の typescript@5 を代表する tsc 5.9.3。別名 typescript5 の bin を直接呼ぶ
+  const tsc = join(repoRoot, 'node_modules', 'typescript5', 'bin', 'tsc');
+  for (const config of ['tsconfig.bundler.json', 'tsconfig.nodenext.json'])
+    runChecked(`tsc -p ${config}`, process.execPath, [tsc, '-p', config], { cwd: appDir, env });
 }
 
 const tmp = mkdtempSync(join(tmpdir(), 'skam-consumer-'));

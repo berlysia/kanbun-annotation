@@ -58,7 +58,7 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 
 ## テストと CI
 
-- **VRT (pnpm test:visual) の実行**: Playwright のブラウザがある環境で `pnpm test:visual` を実行し、ベースラインの差分を確かめる。白文のフォールバックと ref の番号順が見た目を変えないことが、未確認のままである。出典: plan-practical-readiness.md L105、ADR-028「既知の制約と未実施の確認」。規模: 小。
+- **手元 (WSL) で VRT が撮影できない**: 手元の headless chromium 145 (Playwright 1.58.0) は `requestAnimationFrame` が呼ばれず、`toHaveScreenshot` が要素の安定待ちで 5 秒のタイムアウトになる (素の `<div>` でも同じ。`--disable-gpu` などの起動の引数でも直らない)。ベースラインは Playwright 公式の Docker イメージで作った (`docker run ... mcr.microsoft.com/playwright:v1.58.0-noble ./node_modules/.bin/playwright test`)。手元の `pnpm test:visual` を動かすか、Docker での実行を script にするかを決める。出典: test/vrt-ref-order (2026-10-20)。規模: 小。
 - **移行表の機械可読化**: 移行表を機械可読形式 (YAML など) にして、各 README の移行の節を生成する。`migration-table.test.ts` は、README の旧挙動・新挙動・回避策の列が正本と一字一句同じかを検査しない。手編集によるずれを検出できない。出典: plan-practical-readiness.md L103、ADR-028「既知の制約と未実施の確認」。規模: 中。
 - **html-renderer の仕様テストの意味論化**: 文字列一致のテストを減らし、意味を検査するテストに置き換える。基盤は ADR-022 と `css-slot-semantics.test.ts` にある。ただし docs/testing/no-test-gap-matrix.md の 4 件はすべて `dual` で、`migrated` は 0 件である。`comprehensive-rendering.test.ts` には、`toContain` などの文字列一致の行が 267 行ある。出典: plan-html-renderer-colocation-and-named-grid-areas.md L295、ADR-020「完了時点で残る作業（Phase3 以降）」。規模: 大。
 - **TypeScript 7 系への移行**: このリポジトリを TypeScript 7 系 (native の `typescript` パッケージ) に移す。tsgo (`@typescript/native-preview`) との関係、typescript-eslint などの JS 実装を要る道具の扱いを決める。consumer の検査の `typescript5` (5.9.3) は、利用者の 5 系の代表として残す。出典: 利用者の方針 (2026-10-19)。規模: 中。

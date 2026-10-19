@@ -119,6 +119,48 @@ export const FIXTURE_EMPHASIS_HIGHLIGHT: SKAMDocument = {
   readings: [],
 };
 
+/**
+ * Case 6: ref-source-order — ref の番号は原文の順 (ADR-028 K6)。
+ * highlight に参照されない ref は本文の sup と注釈欄が resolveRefValues の値を出す。
+ * tokens[] の順 (t5, t2, t3, t4, t1) と marks[] の ref の順 (注C, 注A, 注B) は、
+ * どちらも原文の順 (注A, 注B, 注C) と違う。
+ */
+export const FIXTURE_REF_SOURCE_ORDER: SKAMDocument = {
+  format: 'skam@0.1',
+  tokens: [
+    { id: 't5', text: '語' },
+    { id: 't2', text: '曰' },
+    { id: 't3', text: '學' },
+    { id: 't4', text: '而' },
+    { id: 't1', text: '子' },
+  ],
+  blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3', 't4', 't5'] }],
+  marks: [
+    {
+      type: 'ref',
+      id: 'refC',
+      position: { blockId: 'b1', after: 't5' },
+      format: 'numeric-paren',
+      content: '注C',
+    },
+    {
+      type: 'ref',
+      id: 'refA',
+      position: { blockId: 'b1', after: 't1' },
+      format: 'numeric-paren',
+      content: '注A',
+    },
+    {
+      type: 'ref',
+      id: 'refB',
+      position: { blockId: 'b1', after: 't3' },
+      format: 'numeric-paren',
+      content: '注B',
+    },
+  ],
+  readings: [],
+};
+
 /** All fixtures keyed by case_id (for iteration) */
 export const FIXTURES = {
   'ruby-range-core': FIXTURE_RANGE_RUBY,
@@ -126,4 +168,5 @@ export const FIXTURES = {
   'highlight-ref-label': FIXTURE_HIGHLIGHT_REF,
   'saidoku-two-stage': FIXTURE_SAIDOKU,
   'emphasis-highlight': FIXTURE_EMPHASIS_HIGHLIGHT,
+  'ref-source-order': FIXTURE_REF_SOURCE_ORDER,
 } as const;

@@ -798,6 +798,76 @@ test('EVIDENCE_FILES: 名前に / を含まない (パッケージ名の @scope/
   }
 });
 
+// --- 進み方の行 (段の始めと根拠) ---
+
+const stageStartLines = (lines: readonly string[]): string[] =>
+  lines.filter((l) => /^stage \d+\/11:/.test(l));
+
+test('進み方: 完了までの world は stage 8 から 11 の始めをこの順に出し、段 8 から 10 の ok を出す', async () => {
+  const w = makeWorld();
+  const result = await go(w);
+  assert.deepEqual(result, { kind: 'completed' }, w.lines.join('\n'));
+  assert.deepEqual(
+    stageStartLines(w.lines).map((l) => l.slice(0, l.indexOf(':', 8) + 1)),
+    ['stage 8/11:', 'stage 9/11:', 'stage 10/11:', 'stage 11/11:']
+  );
+  const url = `https://github.com/berlysia/kanbun-annotation/actions/runs/${RUN_ID}`;
+  assert.ok(
+    w.lines.includes(
+      `  ok: run ${RUN_ID} attempt 1 (${url}); validate=success, npm-stage=success, github-release=success`
+    ),
+    w.lines.join('\n')
+  );
+  assert.ok(
+    w.lines.includes('  ok: manifest has 6 packages; log and stage integrity match for 6/6'),
+    w.lines.join('\n')
+  );
+  assert.ok(w.lines.includes('  ok: approved 6, already published 0'), w.lines.join('\n'));
+  // 段の始めは、その段の ok より前
+  const at = (text: string): number => w.lines.findIndex((l) => l.startsWith(text));
+  assert.ok(at('stage 8/11:') < at('  ok: run '));
+  assert.ok(at('  ok: run ') < at('stage 9/11:'));
+  assert.ok(at('stage 10/11:') < at('  ok: approved'));
+  assert.ok(at('  ok: approved') < at('stage 11/11:'));
+});
+
+test('進み方: 再開 (2 つ公開済み) の段 10 の ok は approved 4, already published 2', async () => {
+  const w = makeWorld({ published: 2 });
+  await go(w);
+  assert.ok(w.lines.includes('  ok: approved 4, already published 2'), w.lines.join('\n'));
+});
+
+test('進み方: checkOnly は stage 10 を出さず、stage 11 までの他の段は出す', async () => {
+  const w = makeWorld({ published: 6, checkOnly: true });
+  assert.deepEqual(await go(w), { kind: 'completed' }, w.lines.join('\n'));
+  const starts = stageStartLines(w.lines).map((l) => l.slice(0, 11));
+  assert.equal(starts.includes('stage 10/11'), false);
+  assert.deepEqual(
+    starts,
+    ['stage 8/11:', 'stage 9/11:', 'stage 11/11'].map((l) => l.slice(0, 11))
+  );
+});
+
+test('進み方: 段 8 で job-failed なら stage 8 はあり、段 8 の ok は無い', async () => {
+  const w = makeWorld({ conclusions: ['failure', 'skipped', 'skipped'] });
+  stopOf(await go(w));
+  assert.ok(w.lines.some((l) => l.startsWith('stage 8/11:')));
+  assert.equal(
+    w.lines.some((l) => l.startsWith('  ok:')),
+    false
+  );
+});
+
+test('進み方: run の URL は gh run watch の前の行に出る', async () => {
+  const w = makeWorld({ runStatus: 'in_progress' });
+  await go(w);
+  const line = w.lines.find((l) => l.includes('gh run watch'));
+  assert.ok(
+    line?.includes(`https://github.com/berlysia/kanbun-annotation/actions/runs/${RUN_ID}`),
+    line
+  );
+});
+
 // --- 正常系と再開 ---
 
 test('正常: 6 つとも stage 済みで y -> manifest の順に検証した UUID で 6 回 approve し、段 11 を通って completed', async () => {

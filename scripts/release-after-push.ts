@@ -50,8 +50,11 @@ import {
   excerptDetail,
   excerptJobLog,
   excerptLocalStderr,
+  formatOk,
+  formatStageStart,
   formatWaiting,
   prependDetail,
+  STAGES,
 } from './lib/release-stop-report.ts';
 import { NO_COMMAND } from './lib/release-types.ts';
 import type {
@@ -421,16 +424,21 @@ async function readFailedJobLog(
   return unreadable(exit, last?.exceeded === true ? '' : (last?.stderr ?? ''));
 }
 
-async function judgeRun(ctx: Ctx, runId: number): Promise<number> {
+async function judgeRun(
+  ctx: Ctx,
+  runId: number
+): Promise<{ validateJobId: number; githubRelease: 'success' | 'failure' }> {
   let judged = judgeJobs(await fetchRunView(ctx, runId));
   if (judged.kind === 'in-progress') {
-    ctx.deps.output.emit(`the Release run is still in progress; waiting (gh run watch ${runId})`);
+    ctx.deps.output.emit(
+      `the Release run is still in progress; waiting (gh run watch ${runId}): ${RUN_URL}/${runId}`
+    );
     await runCommand(ctx, 'gh', argsOrHalt(ghRunWatchArgs(runId)), { stdio: 'inherit' });
     judged = judgeJobs(await fetchRunView(ctx, runId));
   }
   switch (judged.kind) {
     case 'ok':
-      return judged.validateJobId;
+      return { validateJobId: judged.validateJobId, githubRelease: judged.githubRelease };
     case 'in-progress':
       return halt({
         kind: 'command-failed',
@@ -462,9 +470,18 @@ async function ensureSameAttempt(ctx: Ctx, run: RunInfo): Promise<void> {
 }
 
 async function stage8(ctx: Ctx): Promise<RunInfo> {
+  ctx.deps.output.emit(formatStageStart(8, `${STAGES[8].what} (${ctx.input.tag})`));
   const id = await findRun(ctx);
-  const validateJobId = await judgeRun(ctx, id);
+  const { validateJobId, githubRelease } = await judgeRun(ctx, id);
   const key = await readAttemptKey(ctx, id, true);
+  // key の先頭は attemptKey が正の整数と検査した run_attempt。judgeJobs が受け付けた ok は
+  // validate と npm-stage が success で、github-release だけが success か failure
+  const attempt = key.slice(0, key.indexOf(':'));
+  ctx.deps.output.emit(
+    formatOk(
+      `run ${id} attempt ${attempt} (${RUN_URL}/${id}); validate=success, npm-stage=success, github-release=${githubRelease}`
+    )
+  );
   return { id, validateJobId, key };
 }
 
@@ -889,7 +906,7 @@ async function approveOne(
   target: { name: string; stageId: string },
   validatedIds: ReadonlyMap<string, string>,
   log: LogManifest
-): Promise<void> {
+): Promise<'approved' | 'skipped'> {
   const { name } = target;
   const validatedId = validatedIds.get(name);
   if (validatedId === undefined) {
@@ -897,7 +914,7 @@ async function approveOne(
   }
   if ((await recheckBeforeApprove(ctx, name, validatedId, log)) === 'skip') {
     ctx.deps.output.emit(`${name}: already published; skipped`);
-    return;
+    return 'skipped';
   }
   const args = argsOrHalt(npmStageApproveArgs(validatedId));
   const results: CommandResult[] = [];
@@ -913,7 +930,7 @@ async function approveOne(
   ) {
     markPublished(ctx, name);
     ctx.deps.output.emit(`${name}: approved`);
-    return;
+    return 'approved';
   }
   const retried = await pollOrHalt(
     ctx,
@@ -940,6 +957,7 @@ async function approveOne(
   }
   markPublished(ctx, name);
   ctx.deps.output.emit(`${name}: approved`);
+  return 'approved';
 }
 
 async function stage10(
@@ -949,11 +967,19 @@ async function stage10(
   plan: StagePlan,
   validated: Validated
 ): Promise<'approved' | 'declined'> {
+  ctx.deps.output.emit(formatStageStart(10, STAGES[10].what));
   haltOnTrust(ctx, await ctx.deps.verifyTrust());
   showSummary(ctx, run, log, plan, validated);
   const question = `Approve ${plan.targets.length} staged package(s) with npm stage approve (each asks for 2FA)?`;
   if (!(await ctx.deps.confirm(question))) return 'declined';
-  for (const target of plan.targets) await approveOne(ctx, target, validated.validatedIds, log);
+  let approved = 0;
+  for (const target of plan.targets) {
+    if ((await approveOne(ctx, target, validated.validatedIds, log)) === 'approved') approved += 1;
+  }
+  // ここまで通れば全パッケージが公開済み。approve しなかった分は、もとから公開済み
+  ctx.deps.output.emit(
+    formatOk(`approved ${approved}, already published ${ctx.input.names.length - approved}`)
+  );
   return 'approved';
 }
 
@@ -1022,6 +1048,7 @@ function withViewError(obs: StopObservation, snapshot: PostSnapshot | undefined)
 }
 
 async function stage11(ctx: Ctx, log: LogManifest): Promise<AfterPushResult> {
+  ctx.deps.output.emit(formatStageStart(11, STAGES[11].what));
   const integrities = new Map(log.packages.map((p) => [p.name, p.integrity]));
   let snapshot: PostSnapshot | undefined;
   let found: StopObservation[] = [];
@@ -1060,17 +1087,24 @@ async function stage9And10(
   log: LogManifest
 ): Promise<'continue' | 'declined'> {
   const plan = await planStage(ctx, log);
+  const okLine = (): string =>
+    formatOk(
+      `manifest has ${log.packages.length} packages; log and stage integrity match for ${plan.states.length}/${log.packages.length}`
+    );
   if (plan.targets.length === 0) {
     await ensureSameAttempt(ctx, run);
+    ctx.deps.output.emit(okLine());
     return 'continue';
   }
   const validated = await judgeTargets(ctx, run, log, plan.targets);
   await ensureSameAttempt(ctx, run);
+  ctx.deps.output.emit(okLine());
   return (await stage10(ctx, run, log, plan, validated)) === 'declined' ? 'declined' : 'continue';
 }
 
 async function runStages(ctx: Ctx): Promise<AfterPushResult> {
   const run = await stage8(ctx);
+  ctx.deps.output.emit(formatStageStart(9, STAGES[9].what));
   const log = await readLogManifest(ctx, run);
   if (ctx.input.checkOnly) {
     await ensureSameAttempt(ctx, run);

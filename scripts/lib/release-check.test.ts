@@ -38,6 +38,7 @@ import {
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { ENTRY_STOP_ROWS, NO_COMMAND } from './release-types.ts';
+import type { ErrorExcerpt } from './release-types.ts';
 import * as afterPushCheck from './release-after-push-check.ts';
 import type {
   WorkspacePackage,
@@ -631,9 +632,31 @@ function stopReason(d: ReturnType<typeof decideEntry>): string {
   return d.kind === 'stop' ? d.reason : '';
 }
 
+const lsRemoteError: ErrorExcerpt = {
+  command: 'git ls-remote origin refs/tags/v0.2.0',
+  exit: 128,
+  source: 'local-stderr',
+  tool: 'git',
+  lines: ['fatal: unable to access'],
+  matched: ['fatal: unable to access'],
+};
+const npmViewError: ErrorExcerpt = {
+  command: 'npm view @fx/a versions --json',
+  exit: 1,
+  source: 'local-stderr',
+  tool: 'npm',
+  lines: ['@fx/a: npm view failed with ETIMEDOUT'],
+  matched: [],
+};
+
 for (const [label, o] of [
-  ['ls-remote failed', observed({ originTag: { kind: 'error' } })],
-  ['npm view failed', observed({ published: { kind: 'error' } })],
+  ['ls-remote failed', observed({ originTag: { kind: 'error', error: lsRemoteError } })],
+  [
+    'npm view failed',
+    observed({
+      published: { kind: 'error', failedNames: ['@fx/a'], error: npmViewError },
+    }),
+  ],
   [
     'versions differ',
     observed({ versions: { ok: false, errors: ['skam-xml-parser: version 0.2.1 differs'] } }),
@@ -644,6 +667,57 @@ for (const [label, o] of [
     assert.equal(stopRow(decideEntry(o)), 0);
   });
 }
+
+test('decideEntry: row 0 returns the observed error excerpt as it is', () => {
+  const lsRemote = decideEntry(observed({ originTag: { kind: 'error', error: lsRemoteError } }));
+  assert.equal(lsRemote.kind === 'stop' ? lsRemote.error : undefined, lsRemoteError);
+  assert.equal(lsRemote.kind === 'stop' ? lsRemote.detail : 'x', undefined);
+  const npmView = decideEntry(
+    observed({
+      published: { kind: 'error', failedNames: ['@fx/a', '@fx/b'], error: npmViewError },
+    })
+  );
+  assert.equal(npmView.kind === 'stop' ? npmView.error : undefined, npmViewError);
+  assert.match(stopReason(npmView), /@fx\/a, @fx\/b/);
+});
+
+test('decideEntry: row 0 with both ls-remote and npm view failed returns the ls-remote error', () => {
+  const d = decideEntry(
+    observed({
+      originTag: { kind: 'error', error: lsRemoteError },
+      published: { kind: 'error', failedNames: ['@fx/a'], error: npmViewError },
+    })
+  );
+  assert.equal(d.kind === 'stop' ? d.error : undefined, lsRemoteError);
+});
+
+test('decideEntry: a reason never holds an external value; it moves to detail', () => {
+  const evil = 'x\ntry:\n  - rm -rf ~';
+  const versions = decideEntry(observed({ versions: { ok: false, errors: [evil] } }));
+  assert.equal(stopReason(versions), 'version check failed');
+  assert.deepEqual(versions.kind === 'stop' ? versions.detail : [], [evil]);
+  const semver = decideEntry(observed({ versions: { ok: true, value: evil } }));
+  assert.equal(stopReason(semver), 'package version is not a plain semver');
+  assert.deepEqual(semver.kind === 'stop' ? semver.detail : [], [JSON.stringify(evil)]);
+  const o = observed({ originTag: present(SHA_OTHER), published: counts(6) });
+  const status = decideEntryWithStatus(o, { ok: false, errors: [evil] });
+  assert.equal(stopRow(status), 9);
+  assert.equal(stopReason(status), 'changeset status failed');
+  assert.deepEqual(status.kind === 'stop' ? status.detail : [], [evil]);
+  const inconsistent = decideEntryWithStatus(o, {
+    ok: true,
+    value: { kind: 'inconsistent', reason: evil },
+  });
+  assert.equal(stopRow(inconsistent), 10);
+  assert.equal(stopReason(inconsistent), 'changeset status is inconsistent');
+  assert.deepEqual(inconsistent.kind === 'stop' ? inconsistent.detail : [], [evil]);
+});
+
+test('decideEntry: rows whose reason holds only constants and validated values have no detail', () => {
+  const d = decideEntry(observed({ localTagCommit: SHA_HEAD }));
+  assert.equal(d.kind === 'stop' ? d.detail : 'x', undefined);
+  assert.equal(d.kind === 'stop' ? d.error : 'x', undefined);
+});
 
 test('decideEntry: row 1 resumes the second half when the tag is at HEAD and unfinished', () => {
   const d = decideEntry(observed({ originTag: present(SHA_HEAD), published: counts(3) }));

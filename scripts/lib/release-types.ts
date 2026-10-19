@@ -196,7 +196,7 @@ export type AfterPushResult =
   | { kind: 'completed' };
 
 export type Outcome =
-  | { kind: 'entry-stopped'; reason: string }
+  | { kind: 'entry-stopped'; reason: string; error: ErrorExcerpt; where: EntryWhere }
   | { kind: 'front-stopped'; stop: FrontStop }
   | { kind: 'after-push-stopped'; stop: ClassifiedStop }
   | { kind: 'declined' }

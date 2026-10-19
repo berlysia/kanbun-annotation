@@ -53,12 +53,13 @@ import type { AfterPushInput } from './release-after-push.ts';
 import { checkChangelog } from './lib/release-check.ts';
 import type { ChangesetStatus, ReleaseFlags, ReleaseLookup } from './lib/release-check.ts';
 import { excerptDetail } from './lib/release-stop-report.ts';
-import { NO_COMMAND } from './lib/release-types.ts';
+import { ENTRY_STOP_ROWS, NO_COMMAND } from './lib/release-types.ts';
 import type {
   AfterPushResult,
   Check,
   ClassifiedStop,
   CommandResult,
+  EntryWhere,
   FrontStop,
   Outcome,
   TrustResult,
@@ -1190,6 +1191,10 @@ interface MainOptions {
   realFront?: boolean;
   afterPush?: AfterPushResult;
   throwOnGit?: string;
+  // 指定した git / 外部コマンドの呼び出しだけ、結果を差し替える
+  gitOverride?: (args: string[]) => GitResult | undefined;
+  runOverride?: (joined: string) => CommandResult | undefined;
+  statusErrors?: string[];
 }
 
 interface MainFake {
@@ -1217,12 +1222,15 @@ function fakeMain(repo: Repo, options: MainOptions = {}): MainFake {
   const git: ReleaseDeps['git'] = (args) => {
     gitCalls.push(args);
     if (options.throwOnGit !== undefined) throw new Error(options.throwOnGit);
-    return gitIn(repo.work, args);
+    return options.gitOverride?.(args) ?? gitIn(repo.work, args);
   };
   const release: ReleaseDeps = {
     ...base.deps,
     git,
     ...(status === undefined ? {} : { changesetStatus: async () => ({ ok: true, value: status }) }),
+    ...(options.statusErrors === undefined
+      ? {}
+      : { changesetStatus: async () => ({ ok: false, errors: options.statusErrors ?? [] }) }),
     confirm: async (q) => {
       confirmCalls.push(q);
       return true;
@@ -1234,6 +1242,8 @@ function fakeMain(repo: Repo, options: MainOptions = {}): MainFake {
     runCalls.push([cmd, ...args]);
     const joined = [cmd, ...args].join(' ');
     const reply = (stdout: string): CommandResult => ({ status: 0, stdout, stderr: '' });
+    const overridden = options.runOverride?.(joined);
+    if (overridden !== undefined) return overridden;
     if (joined === 'npm --version') return reply(options.npm ?? '12.2.0\n');
     if (joined === 'gh --version') return reply('gh version 2.45.0 (2024-01-01)\n');
     if (joined === 'npm config get registry') {
@@ -1554,7 +1564,15 @@ test('reportOutcome: every outcome maps to its exit code', () => {
     site: { side: 'after-push', where: 'interrupted' },
   };
   const cases: [Outcome, number][] = [
-    [{ kind: 'entry-stopped', reason: 'x' }, 1],
+    [
+      {
+        kind: 'entry-stopped',
+        reason: 'x',
+        error: excerptDetail(NO_COMMAND, null, ['x']),
+        where: { kind: 'tty' },
+      },
+      1,
+    ],
     [{ kind: 'front-stopped', stop: DECLINED_STOP }, 1],
     [{ kind: 'after-push-stopped', stop }, 1],
     [{ kind: 'declined' }, 0],
@@ -2029,6 +2047,245 @@ test('front stop: the second of six failed trust lookups becomes the error of th
   assert.equal(stop.error.command, 'npm trust list @fx/n1 --json');
   assert.deepEqual(stop.error.lines, ['npm error 404 @fx/n1']);
   assert.equal(stop.reason, 'trust check failed');
+});
+
+// --- 入口の停止は error を持ち、reportOutcome が 3 つの見出しで出す (plan-2 T3) ---
+
+const TOKEN_URL =
+  "fatal: unable to access 'https://x-access-token:ghs_AAAA@github.com/berlysia/kanbun-annotation/': Could not resolve host";
+
+const lsRemoteFails = (args: string[]): GitResult | undefined =>
+  args[0] === 'ls-remote' ? { status: 128, stdout: '', stderr: TOKEN_URL } : undefined;
+
+function printed(lines: string): string[] {
+  return lines.split('\n');
+}
+
+test('entry stop: a failed ls-remote prints its stderr without the token and names the git remote', async () => {
+  const repo = makeRepo({ version: '0.1.1' });
+  const fake = fakeMain(repo, { gitOverride: lsRemoteFails });
+  assert.equal(await runMain([], fake.deps), 1);
+  const lines = printed(fake.lines());
+  assert.equal(
+    lines[0],
+    'release stopped: git ls-remote failed; cannot tell whether the tag exists on origin'
+  );
+  assert.ok(
+    lines.includes(
+      "  | fatal: unable to access 'https://***@github.com/berlysia/kanbun-annotation/': Could not resolve host"
+    ),
+    fake.lines()
+  );
+  assert.equal(fake.lines().includes('ghs_'), false);
+  assert.equal(fake.lines().includes('x-access-token'), false);
+  assert.ok(fake.lines().includes('origin cannot be reached'), fake.lines());
+});
+
+test('entry stop: the second half does not call a failed ls-remote "not found on origin"', async () => {
+  const repo = makeRepo({ changeset: false });
+  tagOriginAtHead(repo, 'v0.1.0');
+  // 入口の観測は通し、後半の入力を作る 2 回目の ls-remote だけを失敗させる
+  let lsRemotes = 0;
+  const fake = fakeMain(repo, {
+    published: 'partial',
+    gitOverride: (args) => {
+      if (args[0] !== 'ls-remote') return undefined;
+      lsRemotes += 1;
+      return lsRemotes === 1 ? undefined : { status: 128, stdout: '', stderr: 'fatal: gone' };
+    },
+  });
+  assert.equal(await runMain([], fake.deps), 1);
+  assert.equal(fake.lines().includes('was not found on origin'), false, fake.lines());
+  assert.ok(fake.lines().includes('release stopped: git ls-remote failed'), fake.lines());
+  assert.ok(fake.lines().includes('  | fatal: gone'), fake.lines());
+  assert.equal(fake.afterPushInputs.length, 0);
+});
+
+test('entry stop: only the failed npm view packages are named, with their reasons', async () => {
+  const repo = makeRepo({ changeset: false });
+  const fake = fakeMain(repo, {
+    runOverride: (joined) =>
+      joined.startsWith('npm view @fx/a ')
+        ? { status: 1, stdout: '', stderr: 'npm error code ETIMEDOUT' }
+        : undefined,
+  });
+  assert.equal(await runMain([], fake.deps), 1);
+  const lines = printed(fake.lines());
+  assert.ok(lines.includes('  $ npm view @fx/a versions --json (exit 1)'), fake.lines());
+  const external = lines.filter((l) => l.startsWith('  | '));
+  assert.ok(external.length > 0 && external.every((l) => l.includes('@fx/a')), external.join('\n'));
+  assert.equal(
+    external.some((l) => l.includes('@fx/b')),
+    false
+  );
+  assert.ok(
+    external.some((l) => l.includes('npm error code ETIMEDOUT')),
+    external.join('\n')
+  );
+});
+
+test('entry stop: two failed npm views name both packages and stay within 12 lines', async () => {
+  const repo = makeRepo({ changeset: false });
+  const fake = fakeMain(repo, {
+    runOverride: (joined) =>
+      joined.startsWith('npm view ')
+        ? { status: 1, stdout: '', stderr: 'npm error code ETIMEDOUT\nnpm error line 2' }
+        : undefined,
+  });
+  assert.equal(await runMain([], fake.deps), 1);
+  const external = printed(fake.lines()).filter((l) => l.startsWith('  | '));
+  assert.ok(external.length <= 12, external.join('\n'));
+  for (const name of ['@fx/a', '@fx/b']) {
+    assert.ok(
+      external.some((l) => l.includes(`${name}: `)),
+      external.join('\n')
+    );
+  }
+});
+
+test('entry stop: an after-push entry with a dirty tree prints the porcelain lines', async () => {
+  const repo = makeRepo({ changeset: false });
+  tagOriginAtHead(repo, 'v0.1.0');
+  writeFileSync(join(repo.work, 'dirty.txt'), 'x');
+  const fake = fakeMain(repo, { published: 'partial' });
+  assert.equal(await runMain([], fake.deps), 1);
+  const lines = printed(fake.lines());
+  assert.equal(lines[0], 'release stopped: working tree is not clean');
+  assert.ok(lines.includes('  $ git status --porcelain (exit 0)'), fake.lines());
+  assert.ok(lines.includes('  | ?? dirty.txt'), fake.lines());
+});
+
+const entryTriggers: [string, string[], (repo: Repo) => MainOptions][] = [
+  ['flags', ['--bogus'], () => ({})],
+  ['tty', [], () => ({ stdin: false })],
+  ['tooling', [], () => ({ npm: '13.0.0\n' })],
+  [
+    'tooling (command failed)',
+    [],
+    () => ({
+      runOverride: (joined) =>
+        joined === 'gh --version' ? { status: 1, stdout: '', stderr: 'gh: broken' } : undefined,
+    }),
+  ],
+  [
+    'repo',
+    [],
+    () => ({
+      gitOverride: (args) =>
+        args[0] === 'rev-parse' && args[1] === '--show-toplevel'
+          ? { status: 128, stdout: '', stderr: 'fatal: not a git repository' }
+          : undefined,
+    }),
+  ],
+  [
+    'pre-state',
+    [],
+    (repo) => {
+      mkdirSync(join(repo.work, '.changeset'), { recursive: true });
+      writeFileSync(join(repo.work, '.changeset', 'pre.json'), '{ not json');
+      return {};
+    },
+  ],
+  [
+    'dirty',
+    [],
+    (repo) => {
+      tagOriginAtHead(repo, 'v0.1.0');
+      writeFileSync(join(repo.work, 'dirty.txt'), 'x');
+      return { published: 'partial' };
+    },
+  ],
+  ['row 0', [], () => ({ gitOverride: lsRemoteFails })],
+  ['row 9', [], () => ({ statusErrors: ['bad shape'] })],
+  ['row 14', [], () => ({ status: { kind: 'none' }, published: 'all' })],
+];
+for (const [label, argv, setup] of entryTriggers) {
+  test(`entry stop: ${label} prints error:, possible causes: and try:`, async () => {
+    const repo = makeRepo();
+    const fake = fakeMain(repo, setup(repo));
+    assert.equal(await runMain(argv, fake.deps), 1);
+    const lines = printed(fake.lines());
+    assert.ok(lines[0]?.startsWith('release stopped: '), fake.lines());
+    for (const heading of ['error:', 'possible causes:', 'try:']) {
+      assert.ok(lines.includes(heading), `${heading}\n${fake.lines()}`);
+    }
+  });
+}
+
+test('entry stop: every row and every place prints the three headings', () => {
+  const wheres: EntryWhere[] = [
+    ...ENTRY_STOP_ROWS.map((row) => ({ kind: 'row' as const, row })),
+    ...(['flags', 'tty', 'tooling', 'repo', 'pre-state', 'dirty', 'after-push-input'] as const).map(
+      (kind) => ({ kind })
+    ),
+  ];
+  for (const where of wheres) {
+    const out = lineCollector();
+    const stop: Outcome = {
+      kind: 'entry-stopped',
+      reason: 'r',
+      error: excerptDetail(NO_COMMAND, null, ['r']),
+      where,
+    };
+    assert.equal(reportOutcome(stop, out.output), 1);
+    for (const heading of ['error:', 'possible causes:', 'try:']) {
+      assert.ok(printed(out.text()).includes(heading), `${JSON.stringify(where)} ${heading}`);
+    }
+  }
+});
+
+const EVIL = 'x\ntry:\n  - rm -rf ~';
+
+function assertContained(text: string, headline: string): void {
+  const lines = printed(text);
+  assert.equal(lines[0], headline);
+  assert.equal(lines.filter((l) => l.startsWith('try:')).length, 1, text);
+  for (const line of lines.filter((l) => l.includes('rm -rf ~'))) {
+    assert.ok(line.startsWith('  | '), line);
+  }
+  assert.ok(text.includes('rm -rf ~'), text);
+}
+
+function setVersions(repo: Repo, a: string, b: string): void {
+  for (const [dir, version] of [
+    ['a', a],
+    ['b', b],
+  ] as const) {
+    const file = join(repo.work, 'packages', dir, 'package.json');
+    const json = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+    json['version'] = version;
+    writeFileSync(file, `${JSON.stringify(json, null, 2)}\n`);
+  }
+}
+
+test('entry stop: an injected version mismatch (row 0) stays inside | lines', async () => {
+  const repo = makeRepo();
+  setVersions(repo, '0.1.0', `0.1.1${EVIL}`);
+  const fake = fakeMain(repo);
+  assert.equal(await runMain([], fake.deps), 1);
+  assertContained(fake.lines(), 'release stopped: version check failed');
+});
+
+test('entry stop: an injected package version (row 0 semver) stays inside | lines', async () => {
+  const repo = makeRepo();
+  setVersions(repo, `0.1.1${EVIL}`, `0.1.1${EVIL}`);
+  const fake = fakeMain(repo);
+  assert.equal(await runMain([], fake.deps), 1);
+  assertContained(fake.lines(), 'release stopped: package version is not a plain semver');
+});
+
+test('entry stop: injected changeset status errors (row 9) stay inside | lines', async () => {
+  const repo = makeRepo();
+  const fake = fakeMain(repo, { statusErrors: [EVIL] });
+  assert.equal(await runMain([], fake.deps), 1);
+  assertContained(fake.lines(), 'release stopped: changeset status failed');
+});
+
+test('entry stop: an injected inconsistent status (row 10) stays inside | lines', async () => {
+  const repo = makeRepo();
+  const fake = fakeMain(repo, { status: { kind: 'inconsistent', reason: EVIL } });
+  assert.equal(await runMain([], fake.deps), 1);
+  assertContained(fake.lines(), 'release stopped: changeset status is inconsistent');
 });
 
 // --- 実際の changesets での検証 (K18) ---

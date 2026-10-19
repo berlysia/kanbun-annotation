@@ -55,6 +55,7 @@ import {
 } from './lib/release-check.ts';
 import type {
   ChangesetStatus,
+  EntryDecision,
   EntryObservation,
   ReleaseFlags,
   ReleaseLookup,
@@ -84,6 +85,7 @@ import type {
   ChildFailure,
   ClassifiedStop,
   CommandResult,
+  EntryWhere,
   ErrorExcerpt,
   FrontCheck,
   FrontStage,
@@ -1054,9 +1056,18 @@ function frontReport(stop: FrontStop): StopReport {
 
 export function reportOutcome(outcome: Outcome, output: Output): number {
   switch (outcome.kind) {
-    case 'entry-stopped':
-      output.emit(`release stopped: ${outcome.reason}`);
+    case 'entry-stopped': {
+      const causes = diagnose({ side: 'entry', where: outcome.where }, outcome.error);
+      const report: StopReport = {
+        headline: `release stopped: ${outcome.reason}`,
+        error: outcome.error,
+        causes,
+        remedies: remediesFor(causes),
+        notes: [],
+      };
+      for (const line of formatStopReport(report)) output.emit(line);
       return 1;
+    }
     case 'front-stopped':
       for (const line of formatStopReport(frontReport(outcome.stop))) output.emit(line);
       return 1;
@@ -1095,7 +1106,21 @@ export interface MainDeps {
   installInterruptHandler: () => void;
 }
 
-async function checkTooling(run: Runner): Promise<string | undefined> {
+// 入口の停止。reason は定数、外部の値は error.lines にだけ入る
+interface EntryStopValue {
+  reason: string;
+  error: ErrorExcerpt;
+}
+
+function entryStop(
+  where: EntryWhere,
+  reason: string,
+  error: ErrorExcerpt
+): Extract<Outcome, { kind: 'entry-stopped' }> {
+  return { kind: 'entry-stopped', reason, error, where };
+}
+
+async function checkTooling(run: Runner): Promise<EntryStopValue | undefined> {
   // 前半と後半の両方に効くよう、入口の観測の前に 1 回。引数は固定せず (raw)、設定の実効値を読む
   const [npmVersion, ghVersion, registry, scoped] = await Promise.all([
     run('npm', ['--version'], { stdio: 'pipe', raw: true }),
@@ -1103,28 +1128,53 @@ async function checkTooling(run: Runner): Promise<string | undefined> {
     run('npm', ['config', 'get', 'registry'], { stdio: 'pipe', raw: true }),
     run('npm', ['config', 'get', '@kanbun-skam:registry'], { stdio: 'pipe', raw: true }),
   ]);
-  for (const [label, result] of [
-    ['npm --version', npmVersion],
-    ['gh --version', ghVersion],
-    ['npm config get registry', registry],
-    ['npm config get @kanbun-skam:registry', scoped],
+  for (const [label, tool, result] of [
+    ['npm --version', 'npm', npmVersion],
+    ['gh --version', 'gh', ghVersion],
+    ['npm config get registry', 'npm', registry],
+    ['npm config get @kanbun-skam:registry', 'npm', scoped],
   ] as const) {
-    if (result.status !== 0) return `${label} failed: ${result.stderr.trim()}`;
+    if (result.status !== 0) {
+      return {
+        reason: `${label} failed`,
+        error: excerptLocalStderr(label, result.status, result.stderr, { tool }),
+      };
+    }
   }
   const npm = parseToolVersion(npmVersion.stdout, 'npm');
   const gh = parseToolVersion(ghVersion.stdout, 'gh');
-  if (!npm.ok) return errorText(npm);
-  if (!gh.ok) return errorText(gh);
+  if (!npm.ok) {
+    return { reason: 'the npm version could not be read', error: detailError(npm.errors) };
+  }
+  if (!gh.ok) {
+    return { reason: 'the gh version could not be read', error: detailError(gh.errors) };
+  }
   const versions = checkToolVersions(npm.value, gh.value);
-  if (!versions.ok) return errorText(versions);
+  if (!versions.ok) {
+    return {
+      reason: 'the npm or gh version is outside the supported range',
+      error: detailError(versions.errors),
+    };
+  }
   const config = checkNpmRegistryConfig(registry.stdout, scoped.stdout);
-  return config.ok ? undefined : errorText(config);
+  return config.ok
+    ? undefined
+    : {
+        reason: 'the npm registry setting is not the public registry',
+        error: detailError(config.errors),
+      };
 }
 
 const VERSION_FOR_REFS = /^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/;
 
+// ls-remote の引数の tag は、検証した版から作った値だけをコマンドの欄に出す
+function lsRemoteCommand(tag: string): string {
+  const shown = VERSION_FOR_REFS.test(tag.slice(1)) ? tag : '<tag>';
+  return `git ls-remote origin refs/tags/${shown} refs/tags/${shown}^{}`;
+}
+
 function parseOriginTag(ls: GitResult, tag: string): EntryObservation['originTag'] {
-  if (ls.status !== 0) return { kind: 'error' };
+  if (ls.status !== 0) return { kind: 'error', error: gitError(lsRemoteCommand(tag), ls) };
   let commit: string | undefined;
   for (const line of ls.stdout.split('\n').filter(Boolean)) {
     const [sha, ref] = line.split('\t');
@@ -1136,16 +1186,52 @@ function parseOriginTag(ls: GitResult, tag: string): EntryObservation['originTag
   return commit === undefined ? { kind: 'absent' } : { kind: 'present', commit };
 }
 
-async function observeEntry(
-  deps: MainDeps,
-  flags: ReleaseFlags,
-  root: string
-): Promise<EntryObservation | { error: string }> {
+interface FailedView {
+  name: string;
+  result: CommandResult;
+  message: string;
+}
+
+// 失敗した npm view をまとめた 1 つの error。各行の先頭に `<name>: ` を付け、全体で 12 行以内にする
+function aggregateViewErrors(failed: readonly [FailedView, ...FailedView[]]): ErrorExcerpt {
+  const perPackage = Math.max(1, Math.floor(12 / failed.length));
+  const excerpts = failed.map((f) => ({
+    name: f.name,
+    excerpt: excerptLocalStderr(
+      `npm view ${f.name} versions --json`,
+      f.result.status,
+      `${f.message}\n${f.result.stderr}`,
+      { tool: 'npm' }
+    ),
+  }));
+  const [first] = excerpts;
+  return {
+    command: first?.excerpt.command ?? `npm view ${failed[0].name} versions --json`,
+    exit: first?.excerpt.exit ?? null,
+    source: 'local-stderr',
+    tool: 'npm',
+    lines: excerpts
+      .flatMap(({ name, excerpt }) => excerpt.lines.slice(-perPackage).map((l) => `${name}: ${l}`))
+      .slice(0, 12),
+    matched: excerpts.flatMap(({ excerpt }) => excerpt.matched),
+  };
+}
+
+type Observed =
+  | { kind: 'observed'; observation: EntryObservation }
+  | { kind: 'stopped'; stop: EntryStopValue };
+
+async function observeEntry(deps: MainDeps, flags: ReleaseFlags, root: string): Promise<Observed> {
   const { git, run } = deps;
   const head = git(['rev-parse', 'HEAD']).stdout.trim();
   const versions = readVersion(root, git);
   const pre = readPreState(root);
-  if (!pre.ok) return { error: errorText(pre) };
+  if (!pre.ok) {
+    return {
+      kind: 'stopped',
+      stop: { reason: '.changeset/pre.json could not be read', error: detailError(pre.errors) },
+    };
+  }
   const base = {
     flags,
     head,
@@ -1155,10 +1241,13 @@ async function observeEntry(
   if (!versions.ok || !VERSION_FOR_REFS.test(versions.value)) {
     // 版が決まらなければ decideEntry が行 0 で止める。tag と公開の観測は意味がない
     return {
-      ...base,
-      originTag: { kind: 'absent' },
-      localTagCommit: undefined,
-      published: { kind: 'counts', published: 0, total: 0 },
+      kind: 'observed',
+      observation: {
+        ...base,
+        originTag: { kind: 'absent' },
+        localTagCommit: undefined,
+        published: { kind: 'counts', published: 0, total: 0 },
+      },
     };
   }
   const version = versions.value;
@@ -1169,36 +1258,71 @@ async function observeEntry(
   );
   const local = git(['rev-parse', '-q', '--verify', `refs/tags/${tag}^{commit}`]);
   const names = readPublicPackages(root, git).map((p) => p.name);
-  const views = await Promise.all(
-    names.map(async (name) =>
-      parseNpmViewVersions(await run('npm', npmViewVersionsArgs(name), { stdio: 'pipe' }))
-    )
+  const results = await Promise.all(
+    names.map(async (name) => {
+      const result = await run('npm', npmViewVersionsArgs(name), { stdio: 'pipe' });
+      return { name, result, view: parseNpmViewVersions(result) };
+    })
   );
-  const failed = views.some((v) => v.kind === 'error');
-  const published = views.filter((v) => v.kind === 'found' && v.versions.includes(version)).length;
+  const failed: FailedView[] = results.flatMap(({ name, result, view }) =>
+    view.kind === 'error' ? [{ name, result, message: view.message }] : []
+  );
+  const [firstFailed, ...restFailed] = failed;
+  const published = results.filter(
+    ({ view }) => view.kind === 'found' && view.versions.includes(version)
+  ).length;
   return {
-    ...base,
-    originTag,
-    localTagCommit: local.status === 0 ? local.stdout.trim() : undefined,
-    published: failed ? { kind: 'error' } : { kind: 'counts', published, total: names.length },
+    kind: 'observed',
+    observation: {
+      ...base,
+      originTag,
+      localTagCommit: local.status === 0 ? local.stdout.trim() : undefined,
+      published:
+        firstFailed === undefined
+          ? { kind: 'counts', published, total: names.length }
+          : {
+              kind: 'error',
+              failedNames: failed.map((f) => f.name),
+              error: aggregateViewErrors([firstFailed, ...restFailed]),
+            },
+    },
   };
 }
 
+type AfterPushPrepared = { ok: true; value: AfterPushInput } | { ok: false; stop: EntryStopValue };
+
 // 後半の入力。tag の commit は origin から読む (前半から続けて入るときも、再開で入るときも同じ)
-function prepareAfterPush(deps: MainDeps, root: string, checkOnly: boolean): Check<AfterPushInput> {
+function prepareAfterPush(deps: MainDeps, root: string, checkOnly: boolean): AfterPushPrepared {
   const { git } = deps;
   const version = readVersion(root, git);
-  if (!version.ok) return version;
+  if (!version.ok) {
+    return { ok: false, stop: { reason: SAME_VERSION_FAILED, error: detailError(version.errors) } };
+  }
   const tag = `v${version.value}`;
   const originTag = parseOriginTag(
     git(['ls-remote', 'origin', `refs/tags/${tag}`, `refs/tags/${tag}^{}`]),
     tag
   );
+  // ls-remote の失敗を「tag が無い」にしない
+  if (originTag.kind === 'error') {
+    return { ok: false, stop: { reason: 'git ls-remote failed', error: originTag.error } };
+  }
   if (originTag.kind !== 'present') {
-    return { ok: false, errors: [`tag ${tag} was not found on origin`] };
+    return {
+      ok: false,
+      stop: { reason: 'the tag was not found on origin', error: detailError([tag]) },
+    };
   }
   const ordered = orderByDependencies(readPublicPackages(root, git));
-  if (!ordered.ok) return ordered;
+  if (!ordered.ok) {
+    return {
+      ok: false,
+      stop: {
+        reason: 'the packages could not be put in dependency order',
+        error: detailError(ordered.errors),
+      },
+    };
+  }
   return {
     ok: true,
     value: {
@@ -1213,38 +1337,63 @@ function prepareAfterPush(deps: MainDeps, root: string, checkOnly: boolean): Che
 
 async function enterAfterPush(deps: MainDeps, root: string, checkOnly: boolean): Promise<Outcome> {
   const input = prepareAfterPush(deps, root, checkOnly);
-  if (!input.ok) return { kind: 'entry-stopped', reason: errorText(input) };
+  if (!input.ok) {
+    return entryStop({ kind: 'after-push-input' }, input.stop.reason, input.stop.error);
+  }
   deps.installInterruptHandler();
   const result = await deps.afterPush(input.value);
   return result.kind === 'stopped' ? { kind: 'after-push-stopped', stop: result.stop } : result;
 }
 
+// 入口の判定が止まる行の error。観測の error があればそのまま、無ければ detail (無ければ理由) を通す
+function entryDecisionStop(
+  decision: Extract<EntryDecision, { kind: 'stop' }>,
+  status: FrontCheck<ChangesetStatus> | undefined
+): Outcome {
+  const statusFailure = decision.row === 9 && status && !status.ok ? status.failure : undefined;
+  const error =
+    decision.error ??
+    (statusFailure === undefined
+      ? detailError(decision.detail ?? [decision.reason])
+      : childError(statusFailure));
+  return entryStop({ kind: 'row', row: decision.row }, decision.reason, error);
+}
+
 async function runEntry(argv: readonly string[], deps: MainDeps): Promise<Outcome> {
   const flags = parseReleaseFlags(argv);
-  if (!flags.ok) return { kind: 'entry-stopped', reason: errorText(flags) };
+  if (!flags.ok) {
+    return entryStop({ kind: 'flags' }, 'the arguments are not valid', detailError(flags.errors));
+  }
   if (!isInteractiveStreams(deps.streams)) {
-    return {
-      kind: 'entry-stopped',
-      reason: 'stdin and stdout must both be a terminal (the approve steps ask for 2FA)',
-    };
+    const reason = 'stdin and stdout must both be a terminal (the approve steps ask for 2FA)';
+    return entryStop({ kind: 'tty' }, reason, detailError([reason]));
   }
   const tooling = await checkTooling(deps.run);
-  if (tooling !== undefined) return { kind: 'entry-stopped', reason: tooling };
+  if (tooling !== undefined) return entryStop({ kind: 'tooling' }, tooling.reason, tooling.error);
 
   const topLevel = deps.git(['rev-parse', '--show-toplevel']);
-  if (topLevel.status !== 0)
-    return { kind: 'entry-stopped', reason: 'not inside a git repository' };
+  if (topLevel.status !== 0) {
+    return entryStop(
+      { kind: 'repo' },
+      'not inside a git repository',
+      gitError('git rev-parse --show-toplevel', topLevel)
+    );
+  }
   const root = topLevel.stdout.trim();
   const observed = await observeEntry(deps, flags.value, root);
-  if ('error' in observed) return { kind: 'entry-stopped', reason: observed.error };
+  if (observed.kind === 'stopped') {
+    return entryStop({ kind: 'pre-state' }, observed.stop.reason, observed.stop.error);
+  }
 
-  let decision = decideEntry(observed);
+  let decision = decideEntry(observed.observation);
+  let status: FrontCheck<ChangesetStatus> | undefined;
   if (decision.kind === 'need-status') {
-    decision = decideEntryWithStatus(observed, await deps.release.changesetStatus());
+    status = await deps.release.changesetStatus();
+    decision = decideEntryWithStatus(observed.observation, status);
   }
   switch (decision.kind) {
     case 'stop':
-      return { kind: 'entry-stopped', reason: decision.reason };
+      return entryDecisionStop(decision, status);
     case 'front': {
       const front = await deps.runFront(decision.mode, deps.release);
       if (front.status === 'stopped') return { kind: 'front-stopped', stop: front.stop };
@@ -1254,7 +1403,12 @@ async function runEntry(argv: readonly string[], deps: MainDeps): Promise<Outcom
     case 'after-push-check-only': {
       const dirty = deps.git(['status', '--porcelain']);
       if (dirty.status !== 0 || dirty.stdout.trim() !== '') {
-        return { kind: 'entry-stopped', reason: 'working tree is not clean' };
+        const reason = dirty.status !== 0 ? 'git status failed' : 'working tree is not clean';
+        const error =
+          dirty.status !== 0
+            ? gitError('git status --porcelain', dirty)
+            : excerptDetail('git status --porcelain', 0, dirty.stdout.split('\n'));
+        return entryStop({ kind: 'dirty' }, reason, error);
       }
       return enterAfterPush(deps, root, decision.kind === 'after-push-check-only');
     }

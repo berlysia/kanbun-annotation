@@ -7,6 +7,7 @@ import type {
   CommandResult,
   DistTag,
   EntryStopRow,
+  ErrorExcerpt,
   NonEmpty,
   RegistryResponse,
   ReleaseLookup,
@@ -457,26 +458,46 @@ export interface EntryObservation {
   head: string;
   // 公開パッケージの版が等しいか (checkSameVersion の結果)
   versions: Check<string>;
-  originTag: { kind: 'present'; commit: string } | { kind: 'absent' } | { kind: 'error' };
+  // error は ls-remote の失敗 (tag が無いのとは別)。error の中身は観測した側が作る
+  originTag:
+    | { kind: 'present'; commit: string }
+    | { kind: 'absent' }
+    | { kind: 'error'; error: ErrorExcerpt };
   localTagCommit: string | undefined;
-  // total は公開パッケージの数 (6 に固定しない)
-  published: { kind: 'counts'; published: number; total: number } | { kind: 'error' };
+  // total は公開パッケージの数 (6 に固定しない)。error の failedNames は固定の一覧のうち失敗した名前
+  published:
+    | { kind: 'counts'; published: number; total: number }
+    | { kind: 'error'; failedNames: readonly string[]; error: ErrorExcerpt };
   preMode: boolean;
 }
 
+// error は観測にあった ErrorExcerpt をそのまま通すときだけ持つ。detail は外部の値 (versions.errors など) を
+// 生のまま持つ。RC は ErrorExcerpt を作らない (作るのは呼び出し側で、外部の値は行の切り出しを通す)
 export type EntryDecision =
   | { kind: 'front'; mode: ReleaseFlags }
   | { kind: 'after-push' }
   | { kind: 'after-push-check-only' }
-  | { kind: 'stop'; row: number; reason: string }
+  | {
+      kind: 'stop';
+      row: EntryStopRow;
+      reason: string;
+      error?: ErrorExcerpt;
+      detail?: readonly string[];
+    }
   | { kind: 'need-status' };
 
 const HEAD_VERSION_PATTERN = /^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/;
 
-const stopAt = (row: EntryStopRow, reason: string): Extract<EntryDecision, { kind: 'stop' }> => ({
+const stopAt = (
+  row: EntryStopRow,
+  reason: string,
+  extra: { error?: ErrorExcerpt; detail?: readonly string[] } = {}
+): Extract<EntryDecision, { kind: 'stop' }> => ({
   kind: 'stop',
   row,
   reason,
+  ...(extra.error === undefined ? {} : { error: extra.error }),
+  ...(extra.detail === undefined ? {} : { detail: extra.detail }),
 });
 
 // changeset status が要る行 (8 以降) の手前までを決める。要るときは need-status を返し、
@@ -485,15 +506,23 @@ export function decideEntry(observed: EntryObservation): EntryDecision {
   const { flags, head, versions, originTag, localTagCommit, published } = observed;
   // 行 0: 観測の失敗
   if (originTag.kind === 'error') {
-    return stopAt(0, 'git ls-remote failed; cannot tell whether the tag exists on origin');
+    return stopAt(0, 'git ls-remote failed; cannot tell whether the tag exists on origin', {
+      error: originTag.error,
+    });
   }
   if (published.kind === 'error') {
-    return stopAt(0, 'npm view failed; cannot tell which packages are published');
+    return stopAt(
+      0,
+      `npm view failed for ${published.failedNames.join(', ')}; cannot tell which packages are published`,
+      { error: published.error }
+    );
   }
-  if (!versions.ok) return stopAt(0, versions.errors.join('; '));
+  if (!versions.ok) return stopAt(0, 'version check failed', { detail: versions.errors });
   const version = versions.value;
   if (!HEAD_VERSION_PATTERN.test(version)) {
-    return stopAt(0, `package version ${JSON.stringify(version)} is not a plain semver`);
+    return stopAt(0, 'package version is not a plain semver', {
+      detail: [JSON.stringify(version)],
+    });
   }
   const tag = `v${version}`;
   const count = `${published.published}/${published.total}`;
@@ -559,9 +588,9 @@ export function decideEntryWithStatus(
   const count = published.kind === 'counts' ? `${published.published}/${published.total}` : '?';
   const publishedNone = published.kind === 'counts' && published.published === 0;
 
-  if (!status.ok) return stopAt(9, `changeset status failed: ${status.errors.join('; ')}`);
+  if (!status.ok) return stopAt(9, 'changeset status failed', { detail: status.errors });
   if (status.value.kind === 'inconsistent') {
-    return stopAt(10, `changeset status is inconsistent: ${status.value.reason}`);
+    return stopAt(10, 'changeset status is inconsistent', { detail: [status.value.reason] });
   }
   if (status.value.kind === 'release') return { kind: 'front', mode: { mode: 'normal' } }; // 行 11
   // release がない。完了済みで tag が HEAD なら後半の確認だけ (行 8)

@@ -49,7 +49,7 @@ approve が毎回 2FA を求めるかは、確かめられていないので手�
 - **pnpm 10.27.0 と turbo での typecheck の失敗 (計測)**: リポジトリを scratchpad に clone し、型エラーを 1 つ足した。`pnpm typecheck` は exit 2 で、段の見出し (`> kanbun-annotation@0.1.0 typecheck`) と ` ELIFECYCLE  Command failed with exit code 2.` が stdout に出る。stderr には turbo の 4 行 (`<pkg>:typecheck: ERROR: command finished with error: ... exited (2)` など) だけが出る。pnpm 12.12.1 の計測では stderr に `$ <script の本文>` が出たが、pnpm 10 では出ない。stderr から失敗した段を割り出す作り方は、このリポジトリでは成り立たない。
 - **release.yml の job の依存 (ソース)**: `npm-stage` と `github-release` は、どちらも `needs: validate`。validate が失敗すると残りの 2 つは skipped になる。
 - **実装の前の確認 (利用者の端末)**: 2 つを利用者が実行した。(1) `bash -c 'npm trust list @kanbun-skam/skam 2> >(cat >&2)'` は、認証の案内、2FA、一覧、exit 0 の 4 つとも通った。(2) `bash -c 'pnpm verify 2> >(cat >&2)'` は、色と進み方の表示が読めた。崩れた道具は無かった。限界: これは bash の process substitution で「stderr が TTY でない」条件を近似したもので、Node の `inherit-keep-stderr` そのものではない。stderr に出た行の写しは受け取っていない。
-- **手元の端末での見え方 (利用者の端末)**: `pnpm run release` を 1 回実行して、`entry:` の行、止まったときの 3 つの見出し、子の stderr と `stage N/11:` の行の並びを見た。未確認 (利用者の確認待ち) <!-- TODO(plan-3 T4) -->
+- **手元の端末での見え方 (利用者の端末)**: 2026-10-19 に、出すもののない状態 (v0.2.0 が公開済みで changeset が無い) で `pnpm run release` を 1 回実行した。入口の行 14 (`release stopped: nothing to release (no pending changeset; v0.2.0 published 6/6)`) で止まり、`error:` / `possible causes:` / `try:` の 3 つが読める形で出た。判定だけの停止なので、`error:` の下は理由の 1 行になる。`entry:` の行 (止まる経路では出さない)、`stage N/11:` の行、子の stderr との並び (R9) は、この経路では出ないので未確認。次のリリースで見る。
 
 ## 検討した選択肢
 

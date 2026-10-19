@@ -120,6 +120,6 @@ plan-3:
 - `pnpm adr:status` で、ADR-032 の phase が `implementation`、PLAN 列が `validated` になること。plan から ADR-032 へのリンクは目視で確かめる。
 - releasing.md の見出しが、構造テスト (11a〜11d) で実在すること。`git grep -n '2FA' -- docs/releasing.md` を目視し、approve の 2FA の頻度を断定する記述が残っていないこと。
 - `pnpm verify` が exit 0 であること。
-- 手元の端末で `pnpm run release` を 1 回実行し、`entry:` の行、止まったときの 3 つの見出し、子の stderr と `stage N/11:` の行の並びを見ること (Step 3 の T4)。
+- 手元の端末で `pnpm run release` を 1 回実行し、止まったときの 3 つの見出しが読めること (Step 3 の T4、2026-10-19 に入口の行 14 の停止で確かめた)。`entry:` の行、`stage N/11:` の行、子の stderr との並びは、止まる経路では出ないので未確認。backlog.md で追う。
 
 <!-- validated -->

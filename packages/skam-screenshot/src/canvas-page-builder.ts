@@ -1,6 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import type { SKAMDocument } from '@kanbun-skam/skam';
+import { resolveEmphasisCharacter } from '@kanbun-skam/skam/rendering';
 import type { CanvasRenderOptions } from '@kanbun-skam/skam-canvas-renderer';
 
 const GOOGLE_FONTS_URL =
@@ -18,8 +19,13 @@ async function loadBundle(): Promise<string> {
   return bundleCache;
 }
 
+/**
+ * Makes JSON safe to embed in a <script type="application/json"> element.
+ * Every "<" becomes a unicode escape, so neither "</script" nor "<!--" can appear;
+ * JSON.parse restores the original string because "<" only occurs inside string values.
+ */
 function escapeJsonForScript(json: string): string {
-  return json.replace(/<\//g, '<\\/');
+  return json.replace(/</g, '\\u003c');
 }
 
 /** collectFontSampleText が読む mark の形 (型を問わず来うる値を unknown で受ける) */
@@ -34,63 +40,21 @@ interface SampleMark {
 
 /**
  * Collects every character the Canvas renderer draws, so the font subsets covering
- * them can be loaded before rendering.
- *
- * This function is embedded into the generated page via Function.prototype.toString(),
- * so it must stay self-contained: no references to variables or imports outside its body
- * (including the emphasis table below), and no "</script" in its source.
+ * them can be loaded before rendering. Runs in Node; the page reads the result from JSON.
  */
 export function collectFontSampleText(doc: SKAMDocument): string {
-  var parts: string[] = doc.tokens.map(function (t) {
-    return t.text;
-  });
-  // resolveEmphasisCharacter() is inside the bundle but not exposed to the page, so the
-  // keyword table is duplicated here. Keys are looked up strictly (own keys, exact match)
-  // like resolveEmphasisCharacter does.
-  var emphasisChars: Record<string, string> = {
-    sesame: '\uFE45',
-    'filled sesame': '\uFE45',
-    'open sesame': '\uFE46',
-    dot: '\u2022',
-    'filled dot': '\u2022',
-    'open dot': '\u25E6',
-    circle: '\u25CF',
-    'filled circle': '\u25CF',
-    'open circle': '\u25CB',
-    'double-circle': '\u25C9',
-    'filled double-circle': '\u25C9',
-    'open double-circle': '\u25CE',
-    triangle: '\u25B2',
-    'filled triangle': '\u25B2',
-    'open triangle': '\u25B3',
-  };
-  var marks = (doc.marks || []) as unknown as SampleMark[];
-  marks.forEach(function (m) {
+  const parts: string[] = doc.tokens.map((t) => t.text);
+  const marks = (doc.marks ?? []) as unknown as SampleMark[];
+  for (const m of marks) {
     if (m.value) parts.push(m.value);
     if (m.label) parts.push(m.label);
     if (m.content) parts.push(m.content);
-    if (m.forms) {
-      m.forms.forEach(function (f) {
-        if (f.yomi) parts.push(f.yomi);
-        if (f.okuri) parts.push(f.okuri);
-      });
+    for (const f of m.forms ?? []) {
+      if (f.yomi) parts.push(f.yomi);
+      if (f.okuri) parts.push(f.okuri);
     }
-    // emphasis: resolve style to the rendered character
-    if (m.type === 'emphasis') {
-      var style = m.style;
-      var ch = '\u2022';
-      if (typeof style === 'string') {
-        if (Object.prototype.hasOwnProperty.call(emphasisChars, style)) {
-          ch = emphasisChars[style] as string;
-        } else if (Array.from(style).length === 1) {
-          // custom single character (looser than resolveEmphasisCharacter; it only
-          // makes the page load an extra font subset and is never drawn from here)
-          ch = style;
-        }
-      }
-      parts.push(ch);
-    }
-  });
+    if (m.type === 'emphasis') parts.push(resolveEmphasisCharacter(m.style));
+  }
   return parts.join('');
 }
 
@@ -105,6 +69,7 @@ export async function buildCanvasPage(
   const bundle = await loadBundle();
   const docJson = escapeJsonForScript(JSON.stringify(doc));
   const optionsJson = escapeJsonForScript(JSON.stringify(options));
+  const fontSampleJson = escapeJsonForScript(JSON.stringify(collectFontSampleText(doc)));
 
   return `<!DOCTYPE html>
 <html>
@@ -124,6 +89,7 @@ body { padding: ${PADDING}px; }
 <script>${bundle}</script>
 <script type="application/json" id="skam-doc">${docJson}</script>
 <script type="application/json" id="skam-options">${optionsJson}</script>
+<script type="application/json" id="skam-font-sample">${fontSampleJson}</script>
 <script>
 (async function() {
   try {
@@ -133,11 +99,8 @@ body { padding: ${PADDING}px; }
     // Collect ALL rendered characters for font loading.
     // Google Fonts serves Noto Serif JP as unicode-range subsets; fonts.load()
     // only downloads subsets matching the given text, so the sample text must
-    // include every character the renderer draws (see collectFontSampleText).
-    /* collectFontSampleText:begin */
-    ${collectFontSampleText.toString()}
-    /* collectFontSampleText:end */
-    var sampleText = collectFontSampleText(doc);
+    // include every character the renderer draws.
+    var sampleText = JSON.parse(document.getElementById('skam-font-sample').textContent);
 
     // loadDefaultFont() injects the <link> if needed but its internal
     // fonts.load() uses space text, which may miss CJK subsets.

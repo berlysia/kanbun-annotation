@@ -31,6 +31,7 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 ## Web Component
 
 - **attribute-validation.test.ts の flaky なテスト**: 2026-10-15 に `pnpm test` で 1 回だけ落ちた。落ちたのは `renders vertically and reports writing-mode once` である。2026-10-19 に 120 回流したが、再現しなかった。内訳は、8 コアすべてに CPU 負荷をかけた `attribute-validation.test.ts` が 100 回、`turbo run test:run --force` が 20 回である。vitest 4.0.18、happy-dom 20.3.9。失敗率が 2.5% (3/120) 以上なら 95% の確からしさで検出できたので、それ未満の失敗率は否定できない。候補だった happy-dom の MutationObserver の件 (GC で通知を落とす) は 20.14.6 で直っている (#24)。再発しなければ、この行を消す。出典: plan-release-automation.md L77。規模: 小。
+- **ssr-import.test.ts の動的 import が負荷の下で時間切れになる**: 2026-10-20 に、全パッケージを並列に流した `pnpm test` で `imports index without HTMLElement / customElements` (ssr-import.test.ts:20-22) が 1 回落ちた。テストは `vi.resetModules()` の後に `index.js` を読み直すので、依存を毎回変換し直す。単独では 147 ms で終わり、そのときの全体の log は import 27 秒、environment 115 秒だった。直後の `pnpm test:run --force` と単独の実行では通った。既定の 5 秒の timeout を延ばすか、読み直しの範囲を絞るかを決める。出典: 2026-10-20 の完了の確認。規模: 小。
 - **mount() 関数 (#11)**: DOM へ描く `mount()` 関数を足し、CSS の 1 回だけの注入とフォント読み込み後の補正をまとめる。出典: plan-consumer-feedback.md L65、#11。規模: 中。
 
 ## データモデルと仕様

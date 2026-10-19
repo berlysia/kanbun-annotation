@@ -393,6 +393,9 @@ test.describe('Highlight layout measurements (vertical writing)', () => {
 
   test('highlight line should have extra clearance when emphasis is present', async ({ page }) => {
     await loadXmlAndWait(page, HIGHLIGHT_WITH_EMPHASIS_XML);
+    await page.locator('#settings-panel summary').click();
+    await page.click('input[name="ruby-method"][value="ruby"]');
+    await page.waitForTimeout(400);
 
     // Ensure vertical writing mode
     await expect(page.locator('input[name="writing-mode"][value="vertical"]')).toBeChecked();
@@ -469,7 +472,7 @@ test.describe('Highlight layout measurements (vertical writing)', () => {
     }
   });
 
-  test('grid mode: emphasis-row should not overlap with highlight line when yomigana is present', async ({
+  test('grid mode: emphasis-row should sit outside the highlight line when yomigana is present (ADR-015)', async ({
     page,
   }) => {
     await loadXmlAndWait(page, GRID_EMPHASIS_YOMIGANA_XML);
@@ -516,20 +519,13 @@ test.describe('Highlight layout measurements (vertical writing)', () => {
     expect(measurements).not.toBeNull();
     if (!measurements) return;
 
-    // The highlight line is drawn at highlight-content's right edge (via box-shadow inset).
-    // The emphasis-row should be inside the content area, with padding providing clearance.
-    // Gap between emphasis-row right edge and highlight-content right edge should be > 1px.
+    // ADR-015: the vertical order is base -> ruby -> highlight line -> emphasis.
+    // The highlight line is drawn at highlight-content's right edge (via box-shadow inset),
+    // so the emphasis-row (outermost grid row) must extend past that edge: gap = contentRight - rowRight < -1px.
     expect(
       measurements.gap,
-      `Emphasis-row (right=${measurements.emphasisRowRight}) overlaps highlight line (content right=${measurements.highlightContentRight}). Gap=${measurements.gap}px, need > 1px`
-    ).toBeGreaterThan(1);
-
-    // Padding should be >= 1em for emphasis clearance
-    const paddingPx = parseFloat(measurements.contentPaddingRight);
-    expect(
-      paddingPx,
-      `padding-right (${paddingPx}px) should be >= 1em (~16px) for emphasis clearance`
-    ).toBeGreaterThanOrEqual(16);
+      `Emphasis-row (right=${measurements.emphasisRowRight}) should extend past the highlight line (content right=${measurements.highlightContentRight}). Gap=${measurements.gap}px, need < -1px`
+    ).toBeLessThan(-1);
   });
 
   test('emphasis highlight should not overlap with adjacent column', async ({ page }) => {

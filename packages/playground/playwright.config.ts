@@ -34,11 +34,18 @@ export default defineConfig({
     },
   ],
 
-  /* Run your local dev server before starting the tests */
+  /*
+   * Serve a production build from the root path. The dev server cannot be used:
+   * vite.config.ts sets `base` for GitHub Pages, and dev reserves the `inline`
+   * query that the URL-state tests use. pnpm is avoided so the same command
+   * works inside the Playwright Docker image. `dist-e2e` keeps the published
+   * `dist` untouched.
+   */
   webServer: {
-    command: 'pnpm run dev',
+    command:
+      './node_modules/.bin/vite build --base / --outDir dist-e2e && ./node_modules/.bin/vite preview --base / --outDir dist-e2e --port 5173 --strictPort',
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
-    timeout: 60000,
+    timeout: 120000,
   },
 });

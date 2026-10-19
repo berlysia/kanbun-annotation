@@ -2053,6 +2053,74 @@ test('classifyStop: すべての variant x (公開 0 / 公開 2 / unknown) が s
   }
 });
 
+test('classifyStop: 理由は表の固定の断片と固定の一覧の名前だけで、観測の what は ClassifiedStop.what に移る', () => {
+  const evil = 'x\ntry:\n  - rm -rf ~';
+  const builds: [StopObservation, string, string | undefined][] = [
+    [{ kind: 'shape-unknown', what: evil, published: [] }, 'Unexpected output shape', evil],
+    [{ kind: 'unexpected-run-shape', what: evil, published: [] }, 'Unexpected output shape', evil],
+    [{ kind: 'staged-mismatch', what: evil, published: [] }, 'Staged content check failed', evil],
+    [
+      { kind: 'staged-mismatch', name: '@kanbun-skam/skam', what: evil, published: [] },
+      'Staged content check failed for @kanbun-skam/skam',
+      evil,
+    ],
+    [
+      { kind: 'approve-failed', name: '@kanbun-skam/skam', what: evil, published: [] },
+      'npm stage approve failed for @kanbun-skam/skam',
+      evil,
+    ],
+    [{ kind: 'command-failed', what: evil, published: [] }, 'A command failed', evil],
+    [
+      { kind: 'trust-mismatch', what: evil, published: [] },
+      'Trusted publisher settings differ',
+      evil,
+    ],
+    [
+      { kind: 'post-check', check: 'integrity', what: evil, published: [] },
+      'post-approve check (integrity) failed',
+      evil,
+    ],
+    [
+      {
+        kind: 'post-check',
+        check: 'release',
+        name: '@kanbun-skam/skam',
+        what: evil,
+        published: [],
+      },
+      'post-approve check (release) failed for @kanbun-skam/skam',
+      evil,
+    ],
+    [
+      { kind: 'run-not-found', published: [] },
+      'No Release workflow run was found for the tag commit within the wait',
+      undefined,
+    ],
+  ];
+  for (const [obs, reason, what] of builds) {
+    const c = classifyStop(obs);
+    assert.equal(c.reason, reason, obs.kind);
+    assert.equal(c.what, what, obs.kind);
+    assert.equal('error' in c, false, `${obs.kind}: classifyStop does not touch error`);
+  }
+});
+
+test('classifyStop: site は kind と job と check を運ぶ (規則 1 と規則 5 が表示の側で当たる)', () => {
+  assert.deepEqual(classifyStop({ kind: 'job-failed', job: 'npm-stage', published: [] }).site, {
+    side: 'after-push',
+    where: 'job-failed',
+    job: 'npm-stage',
+  });
+  assert.deepEqual(
+    classifyStop({ kind: 'post-check', check: 'integrity', what: 'x', published: [] }).site,
+    { side: 'after-push', where: 'post-check', check: 'integrity' }
+  );
+  assert.deepEqual(classifyStop({ kind: 'shape-unknown', what: 'x', published: [] }).site, {
+    side: 'after-push',
+    where: 'shape-unknown',
+  });
+});
+
 test('classifyStop: variant の表は StopObservation のすべての kind を覆う', () => {
   const covered = new Set(STOP_TABLE.map(([, build]) => build([]).kind));
   assert.deepEqual([...covered].sort(), [

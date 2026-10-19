@@ -187,6 +187,8 @@ export interface ClassifiedStop {
   site: AfterPushSite;
   error?: ErrorExcerpt;
   what?: string;
+  // run を特定できていれば、その URL (停止の表示の notes に出す)
+  runUrl?: string;
 }
 
 export type AfterPushResult =

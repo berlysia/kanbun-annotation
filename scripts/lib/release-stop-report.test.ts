@@ -666,6 +666,34 @@ test('formatStopReport: exit が null で lines が空 → signal の文と (no 
   assert.ok(lines.includes('  | (no error output)'));
 });
 
+test('formatStopReport: 取れた job の log のコマンドは成功しているので exit を出さず、読めなかったときは出す', () => {
+  const read = formatStopReport(
+    reportOf({
+      error: errorOf({
+        command: 'gh run view 1 --log-failed --job 2',
+        exit: null,
+        source: 'job-log',
+      }),
+    })
+  );
+  assert.ok(read.includes('  $ gh run view 1 --log-failed --job 2'), read.join('\n'));
+  assert.equal(
+    read.some((l) => l.includes('(exit')),
+    false
+  );
+  const unreadable = formatStopReport(
+    reportOf({
+      error: errorOf({
+        command: 'gh run view 1 --log-failed',
+        exit: 1,
+        source: 'job-log',
+        logUnreadable: true,
+      }),
+    })
+  );
+  assert.ok(unreadable.includes('  $ gh run view 1 --log-failed (exit 1)'), unreadable.join('\n'));
+});
+
 test('formatStopReport: NO_COMMAND の停止は $ の行を出さず、外部の行だけを出す', () => {
   const lines = formatStopReport(
     reportOf({ error: errorOf({ command: NO_COMMAND, exit: null, lines: ['declined'] }) })

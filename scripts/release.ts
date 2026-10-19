@@ -1022,13 +1022,25 @@ function assertNever(value: never): never {
   throw new Error(`unhandled outcome: ${JSON.stringify(value)}`);
 }
 
+// 後半の停止の表示。route と next と section は分類のまま (変えない)。診断は error から決める
+function afterPushReport(stop: ClassifiedStop): StopReport {
+  const error = stop.error ?? excerptDetail(NO_COMMAND, null, [stop.reason]);
+  const causes = diagnose(stop.site, error);
+  return {
+    headline: `[${stop.route}] ${stop.reason}`,
+    error,
+    causes,
+    remedies: leadRemedies([stop.next], remediesFor(causes)),
+    section: stop.section,
+    notes: [
+      ...(stop.mayBeF3 ? ['this may be an F3 situation (some packages are published)'] : []),
+      ...(stop.runUrl === undefined ? [] : [`run: ${stop.runUrl}`]),
+    ],
+  };
+}
+
 function describeStop(stop: ClassifiedStop): string[] {
-  return [
-    `[${stop.route}] ${stop.reason}`,
-    `next: ${stop.next}`,
-    `see docs/releasing.md: ${stop.section}`,
-    ...(stop.mayBeF3 ? ['note: this may be an F3 situation (some packages are published)'] : []),
-  ];
+  return formatStopReport(afterPushReport(stop));
 }
 
 function leadRemedies(lead: readonly string[], rest: NonEmpty<string>): NonEmpty<string> {

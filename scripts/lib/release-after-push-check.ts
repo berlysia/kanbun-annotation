@@ -1074,7 +1074,7 @@ const BY_HAND =
 const RERUN_NEXT = { fallback: 'Run the same command again' };
 
 function postCheckRow(obs: Extract<StopObservation, { kind: 'post-check' }>): StopRow {
-  const reason = `post-approve check (${obs.check}) failed: ${obs.what}`;
+  const reason = `post-approve check (${obs.check}) failed${obs.name === undefined ? '' : ` for ${obs.name}`}`;
   switch (obs.check) {
     case 'integrity':
       return {
@@ -1150,14 +1150,14 @@ function describeStop(obs: StopObservation): StopRow {
       return {
         zero: cell('manual'),
         some: MANUAL_F3,
-        reason: `Unexpected output shape: ${obs.what}`,
+        reason: 'Unexpected output shape',
         next: { fallback: 'Read the saved raw output, record it in ADR-029, and continue by hand' },
       };
     case 'staged-mismatch':
       return {
         zero: cell('F2'),
         some: cell('F3'),
-        reason: `Staged content check failed: ${obs.what}`,
+        reason: `Staged content check failed${obs.name === undefined ? '' : ` for ${obs.name}`}`,
         next: F_FAILURE_NEXT,
       };
     case 'stage-none':
@@ -1191,7 +1191,7 @@ function describeStop(obs: StopObservation): StopRow {
       return {
         zero: cell('rerun'),
         some: cell('rerun'),
-        reason: `npm stage approve failed for ${obs.name}: ${obs.what}`,
+        reason: `npm stage approve failed for ${obs.name}`,
         next: RERUN_NEXT,
       };
     case 'interrupted':
@@ -1207,7 +1207,7 @@ function describeStop(obs: StopObservation): StopRow {
       return {
         zero: cell('rerun'),
         some: cell('rerun'),
-        reason: `A command failed: ${obs.what}`,
+        reason: 'A command failed',
         next: { fallback: 'Run the same command again; if it repeats, read the output' },
       };
     case 'trust-eotp':
@@ -1224,7 +1224,7 @@ function describeStop(obs: StopObservation): StopRow {
       return {
         zero: cell('manual'),
         some: cell('manual'),
-        reason: `Trusted publisher settings differ: ${obs.what}`,
+        reason: 'Trusted publisher settings differ',
         next: {
           fallback: 'Read the six outputs, then follow steps 3 / 3a of the one-time migration',
         },
@@ -1257,6 +1257,8 @@ function siteOf(obs: StopObservation): AfterPushSite {
   };
 }
 
+// 理由 (headline) には観測の what を入れない (外部の文字列を含みうるため)。what は呼び出し側が
+// error.lines の先頭に移す。error には触れない
 export function classifyStop(obs: StopObservation): ClassifiedStop {
   const row = describeStop(obs);
   const { route, f3 } = resolveCell(row, obs.published);
@@ -1267,6 +1269,7 @@ export function classifyStop(obs: StopObservation): ClassifiedStop {
     section: RELEASING_SECTIONS[route],
     mayBeF3: f3,
     site: siteOf(obs),
+    ...('what' in obs ? { what: obs.what } : {}),
   };
 }
 

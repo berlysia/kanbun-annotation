@@ -657,8 +657,11 @@ const EXTERNAL_LINE_BREAK = /\r\n|[\n\r\u{2028}\u{2029}]/u;
 function formatErrorLines(error: ErrorExcerpt): string[] {
   const out: string[] = [];
   if (error.command !== NO_COMMAND) {
+    // 取れた job の log は、gh が成功して返した中身 (job が失敗したのであって、コマンドは失敗していない)。
+    // 読めなかったときは、gh の失敗なので exit を出す
+    const jobLogRead = error.source === 'job-log' && error.logUnreadable !== true;
     const exit = error.exit === null ? 'exit: signal or not started' : `exit ${error.exit}`;
-    out.push(`  $ ${error.command} (${exit})`);
+    out.push(jobLogRead ? `  $ ${error.command}` : `  $ ${error.command} (${exit})`);
   }
   const external = error.lines.flatMap((line) => line.split(EXTERNAL_LINE_BREAK));
   if (external.length === 0) out.push('  | (no error output)');

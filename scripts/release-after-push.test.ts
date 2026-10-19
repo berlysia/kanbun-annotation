@@ -2,11 +2,25 @@
 // 実際の npm / gh は呼ばない。ファイルは仮想の dir で持ち、実 fs には触れない。
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import zlib from 'node:zlib';
 import { EVIDENCE_FILES, WAIT, pollUntil, runAfterPush } from './release-after-push.ts';
 import type { AfterPushDeps, AfterPushInput } from './release-after-push.ts';
+import { createOutput, reportOutcome } from './release.ts';
 import { sha512Integrity } from './lib/release-after-push-check.ts';
-import type { AfterPushResult, CommandResult, TrustResult } from './lib/release-types.ts';
+import type {
+  AfterPushResult,
+  ClassifiedStop,
+  CommandResult,
+  Outcome,
+  TrustResult,
+} from './lib/release-types.ts';
+
+const FIXTURES = new URL('./lib/fixtures/', import.meta.url);
+const fixture = (name: string): string => readFileSync(new URL(name, FIXTURES), 'utf8');
+// 0.2.0 の失敗した 2 回の run の `gh run view --log-failed` の実物 (research.md)
+const LOG_VERBOSE = fixture('job-log-39198354458.txt');
+const LOG_PLAIN = fixture('job-log-39196389682.txt');
 
 // --- fixture ---
 
@@ -15,6 +29,7 @@ const TAG = 'v0.2.0';
 const COMMIT = 'a1b2c3d4e5f60718293a4b5c6d7e8f9012345678';
 const RUN_ID = 38719023343;
 const VALIDATE_JOB_ID = 116368686557;
+const NPM_STAGE_JOB_ID = 116368686558;
 const NAMES = [
   '@kanbun-skam/skam',
   '@kanbun-skam/skam-xml-parser',
@@ -144,6 +159,11 @@ interface Options {
   noStaged?: boolean;
   postViewIntegrity?: Record<string, string>;
   stageTarReadLimit?: boolean;
+  // `gh run view --log-failed` の n 回目 (1 から) の結果。未指定なら 0.2.0 の実物の log
+  failedLog?: (call: number, world: World) => CommandResult;
+  // npm-stage の job の databaseId。'omit' なら欄ごと無い
+  npmStageId?: unknown;
+  runListFails?: CommandResult;
 }
 
 interface Call {
@@ -192,6 +212,7 @@ function makeWorld(options: Options = {}): World {
   let tempCount = 0;
   let runListCalls = 0;
   let logCalls = 0;
+  let failedLogCalls = 0;
   let attemptCalls = 0;
   let approveTotal = 0;
   let confirmed = false;
@@ -238,7 +259,15 @@ function makeWorld(options: Options = {}): World {
       conclusion: runStatus === 'completed' ? 'success' : null,
       jobs: [
         job('Validate and pack', v, VALIDATE_JOB_ID),
-        job('Stage on npm', n, 116368686558),
+        ...(options.npmStageId === 'omit'
+          ? [{ name: 'Stage on npm', status: 'completed', conclusion: n }]
+          : [
+              job(
+                'Stage on npm',
+                n,
+                (options.npmStageId as number | undefined) ?? NPM_STAGE_JOB_ID
+              ),
+            ]),
         job('GitHub Release', g, 116368686559),
       ],
     });
@@ -307,6 +336,7 @@ function makeWorld(options: Options = {}): World {
     const b = args[1];
     if (b === 'list') {
       runListCalls += 1;
+      if (options.runListFails !== undefined) return options.runListFails;
       const hidden = runListCalls <= (options.runListEmptyCalls ?? 0);
       return OK(
         JSON.stringify(
@@ -323,6 +353,13 @@ function makeWorld(options: Options = {}): World {
                 },
               ]
         )
+      );
+    }
+    if (b === 'view' && args.includes('--log-failed')) {
+      failedLogCalls += 1;
+      return (
+        options.failedLog?.(failedLogCalls, w) ??
+        OK(options.conclusions?.[0] === 'failure' ? LOG_PLAIN : LOG_VERBOSE)
       );
     }
     if (b === 'view' && args.includes('--log')) {
@@ -483,11 +520,23 @@ async function go(world: World): Promise<AfterPushResult> {
   return runAfterPush(world.input, world.deps);
 }
 
-function stopOf(result: AfterPushResult): { route: string; reason: string; mayBeF3: boolean } {
+function stopOf(result: AfterPushResult): ClassifiedStop {
   assert.equal(result.kind, 'stopped', JSON.stringify(result));
   if (result.kind !== 'stopped') throw new Error('unreachable');
   return result.stop;
 }
+
+// reportOutcome が出す行 (実際の出口の無害化を通す)
+function render(result: AfterPushResult): string[] {
+  const written: string[] = [];
+  const output = createOutput((text) => written.push(text));
+  const outcome: Outcome =
+    result.kind === 'stopped' ? { kind: 'after-push-stopped', stop: result.stop } : result;
+  reportOutcome(outcome, output);
+  return written.join('').split('\n');
+}
+
+const SECTION_HEADINGS = ['error:', 'possible causes:', 'try:'];
 
 function approveIds(world: World): string[] {
   return world.calls
@@ -830,7 +879,12 @@ test('stage の tarball の sha512 が log と違えば staged-mismatch (F2)。y
   const w = makeWorld({ tar: { [NAMES[2] ?? '']: 'wrong' } });
   const stop = stopOf(await go(w));
   assert.equal(stop.route, 'F2');
-  assert.match(stop.reason, /sha512/);
+  // 理由は固定の断片。what は error.lines に移る
+  assert.equal(/sha512/.test(stop.reason), false, stop.reason);
+  assert.ok(
+    stop.error?.lines.some((l) => /sha512/.test(l)),
+    JSON.stringify(stop.error)
+  );
   assert.equal(w.confirmQuestions.length, 0);
 });
 
@@ -1129,6 +1183,404 @@ test('完了の表示は ADR-029 の結果の欄に写せる一覧 (パッケー
   for (const name of NAMES) assert.ok(text.includes(`${name}: integrity ok`), name);
   assert.match(text, /GitHub Release: ok/);
 });
+
+// --- 停止の error (plan-2 T4) ---
+
+const RUN_URL = `https://github.com/berlysia/kanbun-annotation/actions/runs/${RUN_ID}`;
+const NPM_STAGE_FAILED: ['success', 'failure', 'skipped'] = ['success', 'failure', 'skipped'];
+const externalLines = (text: string[]): string[] => text.filter((l) => l.startsWith('  | '));
+
+function assertThreeHeadings(text: string[], label: string): void {
+  for (const heading of SECTION_HEADINGS) {
+    assert.ok(text.includes(heading), `${label}: ${heading}\n${text.join('\n')}`);
+  }
+}
+
+test('job-failed (npm-stage): the failed job log is read with --log-failed --job and its lines are shown', async () => {
+  const w = makeWorld({ conclusions: NPM_STAGE_FAILED });
+  const result = await go(w);
+  const stop = stopOf(result);
+  const call = w.calls.find((c) => c.args.includes('--log-failed'));
+  assert.deepEqual(call?.args.slice(0, 6), [
+    'run',
+    'view',
+    String(RUN_ID),
+    '--log-failed',
+    '--job',
+    String(NPM_STAGE_JOB_ID),
+  ]);
+  assert.equal(stop.route, 'F2');
+  assert.deepEqual(stop.site, { side: 'after-push', where: 'job-failed', job: 'npm-stage' });
+  const text = render(result);
+  assert.equal(text[0], '[F2] The npm-stage job failed');
+  assert.ok(
+    externalLines(text).some(
+      (l) => l.includes('npm verbose oidc') && l.includes('package not found')
+    ),
+    text.join('\n')
+  );
+  assert.equal(
+    text.some((l) => l.includes('npm verbose stack')),
+    false
+  );
+  assert.ok(text.some((l) => l.includes('This trusted publisher configuration has expired')));
+  assert.ok(text.includes('see docs/releasing.md: ### F2:'));
+  assertThreeHeadings(text, 'npm-stage');
+  // 取れた log のコマンドは成功したので、exit は出さない
+  assert.ok(
+    text.includes(`  $ gh run view ${RUN_ID} --log-failed --job ${NPM_STAGE_JOB_ID}`),
+    text.join('\n')
+  );
+});
+
+test('job-failed (npm-stage): the plain log without package not found still reaches trust-expired', async () => {
+  const w = makeWorld({
+    conclusions: NPM_STAGE_FAILED,
+    failedLog: () => ({ status: 0, stdout: LOG_PLAIN, stderr: '' }),
+  });
+  const text = render(await go(w));
+  assert.ok(
+    externalLines(text).some((l) => l.includes('npm error code E401')),
+    text.join('\n')
+  );
+  assert.ok(text.some((l) => l.includes('This trusted publisher configuration has expired')));
+  assert.equal(
+    text.some((l) => l.includes('npm whoami')),
+    false
+  );
+});
+
+test('job-failed: a log that cannot be read in 3 tries says so, keeps trust-expired and names the run', async () => {
+  const w = makeWorld({
+    conclusions: NPM_STAGE_FAILED,
+    failedLog: () => ({ status: 1, stdout: '', stderr: 'gh: boom' }),
+  });
+  const result = await go(w);
+  const stop = stopOf(result);
+  assert.deepEqual(w.sleeps, [WAIT.logFetch.intervalMs, WAIT.logFetch.intervalMs]);
+  assert.equal(stop.route, 'F2');
+  assert.equal(stop.error?.exit, 1);
+  assert.equal(stop.error?.logUnreadable, true);
+  const text = render(result);
+  assert.ok(text.includes('  | could not read the job log'), text.join('\n'));
+  assert.ok(text.includes('  | gh: boom'), text.join('\n'));
+  assert.ok(
+    text.some((l) => l.includes(RUN_URL)),
+    text.join('\n')
+  );
+  assert.ok(text.some((l) => l.includes('This trusted publisher configuration has expired')));
+});
+
+test('job-failed: 3 empty logs set exit to null and print the signal-or-not-started exit', async () => {
+  const w = makeWorld({
+    conclusions: NPM_STAGE_FAILED,
+    failedLog: () => ({ status: 0, stdout: '', stderr: '' }),
+  });
+  const result = await go(w);
+  assert.equal(stopOf(result).error?.exit, null);
+  assert.deepEqual(w.sleeps, [WAIT.logFetch.intervalMs, WAIT.logFetch.intervalMs]);
+  const text = render(result);
+  assert.ok(
+    text.some((l) => l.endsWith('(exit: signal or not started)')),
+    text.join('\n')
+  );
+  assert.ok(text.includes('  | could not read the job log'));
+});
+
+test('job-failed: an empty first read is retried and a later read succeeds without logUnreadable', async () => {
+  const w = makeWorld({
+    conclusions: NPM_STAGE_FAILED,
+    failedLog: (n) => ({ status: 0, stdout: n === 1 ? '' : LOG_VERBOSE, stderr: '' }),
+  });
+  const stop = stopOf(await go(w));
+  assert.deepEqual(w.sleeps, [WAIT.logFetch.intervalMs]);
+  assert.equal(stop.error?.logUnreadable, undefined);
+  assert.ok(stop.error?.lines.some((l) => l.includes('package not found')));
+});
+
+test('job-failed: a result over the 64 MiB cap is not retried', async () => {
+  const w = makeWorld({
+    conclusions: NPM_STAGE_FAILED,
+    failedLog: () => ({
+      status: null,
+      stdout: '',
+      stderr: 'command-failed: gh output exceeded 64 MiB',
+      exceeded: true,
+    }),
+  });
+  const result = await go(w);
+  const stop = stopOf(result);
+  assert.deepEqual(w.sleeps, []);
+  assert.equal(stop.route, 'F2');
+  assert.equal(stop.error?.exit, null);
+  assert.ok(render(result).includes('  | could not read the job log'));
+});
+
+test('job-failed: Ctrl-C while the log is being read ends as interrupted (rerun) and nothing leaks', async () => {
+  const w = makeWorld({
+    conclusions: NPM_STAGE_FAILED,
+    failedLog: (_n, world) => {
+      world.interrupted = true;
+      return { status: 0, stdout: '', stderr: '' };
+    },
+  });
+  const stop = stopOf(await go(w));
+  assert.equal(stop.route, 'rerun');
+  assert.match(stop.reason, /Interrupted/);
+});
+
+test('job-failed: a failed read with Ctrl-C raised at the same time is interrupted, not "could not read"', async () => {
+  const w = makeWorld({
+    conclusions: NPM_STAGE_FAILED,
+    failedLog: (_n, world) => {
+      world.interrupted = true;
+      return { status: 1, stdout: '', stderr: 'gh: boom' };
+    },
+  });
+  const stop = stopOf(await go(w));
+  assert.equal(stop.route, 'rerun');
+  assert.match(stop.reason, /Interrupted/);
+  assert.equal(stop.error?.logUnreadable, undefined);
+});
+
+test('job-failed: an npm-stage job without a usable id reads no log and is logUnreadable', async () => {
+  for (const npmStageId of ['omit', 0, -1, 1.5, '12; rm', 2 ** 53]) {
+    const w = makeWorld({ conclusions: NPM_STAGE_FAILED, npmStageId });
+    const result = await go(w);
+    const stop = stopOf(result);
+    assert.equal(
+      w.calls.some((c) => c.args.includes('--log-failed')),
+      false,
+      String(npmStageId)
+    );
+    assert.deepEqual(w.sleeps, [], String(npmStageId));
+    assert.equal(stop.route, 'F2');
+    assert.equal(stop.error?.logUnreadable, true);
+    assert.equal(stop.error?.exit, null);
+    assert.ok(
+      render(result).some((l) => l.includes('This trusted publisher configuration has expired'))
+    );
+  }
+});
+
+test('job-failed (validate): the validate job log is read and trust-expired is not offered', async () => {
+  const w = makeWorld({ conclusions: ['failure', 'skipped', 'skipped'] });
+  const result = await go(w);
+  const call = w.calls.find((c) => c.args.includes('--log-failed'));
+  assert.equal(call?.args[5], String(VALIDATE_JOB_ID));
+  const stop = stopOf(result);
+  assert.equal(stop.route, 'F1');
+  const text = render(result);
+  assert.equal(text[0], '[F1] The validate job failed');
+  assert.equal(
+    text.some((l) => l.includes('trusted publisher')),
+    false
+  );
+  assertThreeHeadings(text, 'validate');
+});
+
+test('approve-failed: the stderr stays under error: and the headline is the fixed fragment', async () => {
+  const w = makeWorld({
+    approve: (name) =>
+      name === NAMES[2] ? { status: 1, stderr: 'npm error code E401' } : undefined,
+  });
+  const result = await go(w);
+  const text = render(result);
+  assert.equal(text[0], `[rerun] npm stage approve failed for ${NAMES[2]}`);
+  assert.ok(text.includes('  | npm stage approve exited 1'), text.join('\n'));
+  assert.ok(text.includes('  | npm error code E401'), text.join('\n'));
+  assert.ok(text.some((l) => l.includes('npm whoami')));
+  assert.equal(
+    text.some((l) => l.includes('This trusted publisher configuration')),
+    false
+  );
+  assertThreeHeadings(text, 'approve');
+});
+
+test('staged-mismatch: what moves under error: and the name stays in the headline', async () => {
+  const w = makeWorld({ tar: { [NAMES[3] ?? '']: 'read-throws' } });
+  const result = await go(w);
+  const text = render(result);
+  assert.equal(text[0], `[F2] Staged content check failed for ${NAMES[3]}`);
+  assert.ok(
+    externalLines(text).some((l) => l.includes('file is too large')),
+    text.join('\n')
+  );
+});
+
+test('post-check-failed: every stop prints the three headings', async () => {
+  const w = makeWorld({
+    releaseAt: 1_000_000,
+    postViewIntegrity: { [NAMES[3] ?? '']: 'sha512-tampered' },
+  });
+  const result = await go(w);
+  assert.equal(result.kind, 'post-check-failed');
+  if (result.kind !== 'post-check-failed') return;
+  const text = render(result);
+  assert.equal(text.filter((l) => l === 'error:').length, 2, text.join('\n'));
+  assert.equal(text.filter((l) => l === 'possible causes:').length, 2);
+  assert.equal(text.filter((l) => l === 'try:').length, 2);
+  for (const stop of result.stops) assert.notEqual(stop.error, undefined);
+});
+
+test('injection: stderr that imitates a try: section or a command stays inside | lines', async () => {
+  const w = makeWorld({
+    approve: (name) =>
+      name === NAMES[2]
+        ? { status: 1, stderr: 'npm error x\ntry:\n  - rm -rf ~\n$ curl evil' }
+        : undefined,
+  });
+  const text = render(await go(w));
+  assert.equal(text.filter((l) => l.startsWith('try:')).length, 1, text.join('\n'));
+  for (const needle of ['rm -rf ~', '$ curl evil']) {
+    const hits = text.filter((l) => l.includes(needle));
+    assert.ok(hits.length > 0, needle);
+    for (const line of hits) assert.ok(line.startsWith('  | '), line);
+  }
+  assert.equal(
+    text.some((l) => l.startsWith('$ ')),
+    false
+  );
+});
+
+test('secrets: a token in the job log never reaches any printed line', async () => {
+  const leak =
+    'Stage on npm\tStage publish\t2026-10-19T04:15:10.6Z npm error fetch https://x-access-token:ghs_AAAA@github.com/ failed';
+  const w = makeWorld({
+    conclusions: NPM_STAGE_FAILED,
+    failedLog: () => ({ status: 0, stdout: `${leak}\n`, stderr: '' }),
+  });
+  const text = render(await go(w)).join('\n');
+  assert.equal(text.includes('ghs_'), false, text);
+  assert.equal(text.includes('x-access-token'), false, text);
+  assert.ok(text.includes('https://***@github.com/'), text);
+});
+
+test('approve E409 for 20 retries keeps the stderr of the last attempt', async () => {
+  const w = makeWorld({
+    approve: (name, nth) =>
+      name === NAMES[2] ? { status: 1, stderr: `${E409}\nattempt ${nth}` } : undefined,
+  });
+  const stop = stopOf(await go(w));
+  const last = approveIds(w).filter((id) => id === uuid(2)).length;
+  assert.ok(stop.error?.lines.includes(`attempt ${last}`), JSON.stringify(stop.error));
+  assert.equal(stop.error?.lines.includes(`attempt ${last - 1}`), false);
+});
+
+test('gh run list failing with 401 prints the stderr under error: with the default cause', async () => {
+  const w = makeWorld({
+    runListFails: { status: 1, stdout: '', stderr: 'HTTP 401: Bad credentials' },
+  });
+  const result = await go(w);
+  const stop = stopOf(result);
+  assert.ok(stop.error?.command.startsWith('gh run list'), stop.error?.command);
+  assert.equal(stop.error?.tool, 'gh');
+  const text = render(result);
+  assert.ok(text.includes('  | HTTP 401: Bad credentials'), text.join('\n'));
+  assert.equal(
+    text.some((l) => l.includes('trusted publisher')),
+    false
+  );
+});
+
+test('error composition: what is the first line, then the observed error lines', async () => {
+  const w = makeWorld({
+    approve: (name) =>
+      name === NAMES[2] ? { status: 1, stderr: 'npm error one\nnpm error two' } : undefined,
+  });
+  const stop = stopOf(await go(w));
+  assert.deepEqual(stop.error?.lines, [
+    'npm stage approve exited 1',
+    'npm error one',
+    'npm error two',
+  ]);
+  // what は規則に渡す行ではない
+  assert.equal(stop.error?.matched.includes('npm stage approve exited 1'), false);
+});
+
+test('error composition: a stop with no observed error shows its what or reason', async () => {
+  const noStaged = makeWorld({ noStaged: true });
+  const stop = stopOf(await go(noStaged));
+  assert.equal(stop.error?.command, '(no command)');
+  assert.deepEqual(stop.error?.lines, [stop.reason]);
+  const mismatch = makeWorld({ tar: { [NAMES[2] ?? '']: 'wrong' } });
+  const withWhat = stopOf(await go(mismatch));
+  assert.equal(withWhat.error?.command, '(no command)');
+  assert.ok(withWhat.error?.lines.some((l) => /sha512/.test(l)));
+});
+
+test('trust stops: eotp, command-failed and shape-unknown carry the npm trust list error', async () => {
+  const w1 = makeWorld({
+    trust: {
+      kind: 'command-failed',
+      what: 'npm trust list exited 1: npm error 404',
+      failure: { command: 'npm trust list @a/b --json', status: 1, stderr: 'npm error 404' },
+    },
+  });
+  const s1 = stopOf(await go(w1));
+  assert.equal(s1.error?.command, 'npm trust list @a/b --json');
+  assert.equal(s1.error?.tool, 'npm');
+  assert.ok(s1.error?.lines.includes('npm error 404'));
+  assert.equal(s1.error?.lines.filter((l) => l.includes('npm error 404')).length, 1);
+  const w2 = makeWorld({
+    trust: {
+      kind: 'eotp',
+      failure: { command: 'npm trust list @a/b --json', status: 1, stderr: 'npm error code EOTP' },
+    },
+  });
+  const s2 = stopOf(await go(w2));
+  assert.equal(s2.route, 'rerun');
+  assert.ok(s2.error?.lines.includes('npm error code EOTP'));
+  const w3 = makeWorld({ trust: { kind: 'shape-unknown', what: 'odd', rawPath: '/x' } });
+  const result = await go(w3);
+  const s3 = stopOf(result);
+  assert.equal(s3.error?.command, `npm trust list ${NAMES[0]} --json`);
+  assert.equal(s3.error?.rawPath, '/x');
+  assert.deepEqual(s3.error?.lines, ['odd']);
+  assert.ok(render(result).some((l) => l.includes('shape of the npm or gh output differs')));
+});
+
+const everyKind: [string, () => World][] = [
+  ['run-not-found', () => makeWorld({ runListEmptyCalls: 1000 })],
+  ['job-failed', () => makeWorld({ conclusions: NPM_STAGE_FAILED })],
+  ['unexpected-run-shape', () => makeWorld({ conclusions: ['success', 'cancelled', 'skipped'] })],
+  ['shape-unknown', () => makeWorld({ logFailCalls: 3 })],
+  ['staged-mismatch', () => makeWorld({ tar: { [NAMES[2] ?? '']: 'wrong' } })],
+  ['stage-none', () => makeWorld({ noStaged: true })],
+  [
+    'published-out-of-order',
+    () => {
+      const w = makeWorld();
+      w.published.add(NAMES[1] ?? '');
+      w.staged.delete(NAMES[1] ?? '');
+      return w;
+    },
+  ],
+  [
+    'published-wrong',
+    () => makeWorld({ published: 1, publishedIntegrity: { [NAMES[0] ?? '']: 'x' } }),
+  ],
+  [
+    'approve-failed',
+    () =>
+      makeWorld({ approve: (n) => (n === NAMES[2] ? { status: 1, stderr: 'boom' } : undefined) }),
+  ],
+  ['interrupted', () => makeWorld({ runStatus: 'in_progress', interruptOnWatch: true })],
+  ['attempt-changed', () => makeWorld({ attempts: [1, 2] })],
+  ['command-failed', () => makeWorld({ runListFails: { status: 1, stdout: '', stderr: 'x' } })],
+  ['trust-eotp', () => makeWorld({ trust: { kind: 'eotp' } })],
+  ['trust-mismatch', () => makeWorld({ trust: { kind: 'mismatch', what: 'two entries' } })],
+];
+for (const [kind, build] of everyKind) {
+  test(`every stop kind prints the three headings: ${kind}`, async () => {
+    const w = build();
+    const result = await go(w);
+    const stop = stopOf(result);
+    assert.equal(stop.site.where, kind, JSON.stringify(stop));
+    assert.notEqual(stop.error, undefined, kind);
+    assertThreeHeadings(render(result), kind);
+  });
+}
 
 // --- 入口 ---
 

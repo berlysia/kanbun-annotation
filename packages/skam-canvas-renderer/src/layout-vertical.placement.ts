@@ -372,6 +372,64 @@ function checkGroupHasRightColumn(group: CanvasHighlightGroupNode): boolean {
   return false;
 }
 
+/**
+ * range ruby が自然な高さを超える場合の余白の計算（block と tateten で共有する純関数）。
+ * center: 超過分の半分を前後に振る。distribute: N+1 ギャップモデル（leading + N 要素）で均等配分する。
+ */
+export function computeRangeRubyOverflow(input: {
+  rubyChars: number;
+  rubyFontSize: number;
+  naturalSpan: number;
+  baseSpan: number;
+  elementCount: number;
+  alignment: 'center' | 'distribute';
+}): {
+  overflow: boolean;
+  spanHeight: number;
+  rubyEndOffset: number | undefined;
+  leading: number;
+  rubyYOffset: number;
+  trailing: number;
+  extraPerElement: number;
+} {
+  const { rubyChars, rubyFontSize, naturalSpan, baseSpan, elementCount, alignment } = input;
+  const rubyTextHeight = rubyChars * rubyFontSize;
+  if (!(rubyTextHeight > naturalSpan)) {
+    // non-overflow: ベース文字スパンでセンタリング（suffix 延伸を除く）
+    return {
+      overflow: false,
+      spanHeight: baseSpan,
+      rubyEndOffset: undefined,
+      leading: 0,
+      rubyYOffset: 0,
+      trailing: 0,
+      extraPerElement: 0,
+    };
+  }
+  const excess = rubyTextHeight - naturalSpan;
+  if (alignment === 'center') {
+    return {
+      overflow: true,
+      spanHeight: rubyTextHeight,
+      rubyEndOffset: rubyTextHeight,
+      leading: excess / 2,
+      rubyYOffset: -(excess / 2),
+      trailing: excess / 2,
+      extraPerElement: 0,
+    };
+  }
+  const extraPerElement = excess / (elementCount + 1);
+  return {
+    overflow: true,
+    spanHeight: rubyTextHeight,
+    rubyEndOffset: rubyTextHeight,
+    leading: extraPerElement,
+    rubyYOffset: -extraPerElement,
+    trailing: 0,
+    extraPerElement,
+  };
+}
+
 /** range ruby 開始時の overflow 検出 + State パラメータ設定 */
 function detectRangeRubyOverflow(
   block: CanvasBlockNode,
@@ -404,25 +462,26 @@ function detectRangeRubyOverflow(
 
   // range ruby overflow: ルビがスパンを超える場合の均等割り付け/中央寄せを計算
   if (token.slots.ruby) {
-    const rubyTextHeight = [...token.slots.ruby].length * rubyFontSize;
-    if (rubyTextHeight > actualSpan) {
-      const excess = rubyTextHeight - actualSpan;
-      state.blockRangeSpanHeight = rubyTextHeight;
+    const alignment = ctx.options.rangeRubyAlignment === 'center' ? 'center' : 'distribute';
+    const result = computeRangeRubyOverflow({
+      rubyChars: [...token.slots.ruby].length,
+      rubyFontSize,
+      naturalSpan: actualSpan,
+      baseSpan,
+      elementCount: rubySpan,
+      alignment,
+    });
+    state.blockRangeSpanHeight = result.spanHeight;
+    if (result.overflow) {
       // ルビ下端 = スパン開始位置（leading/padding 適用前）+ rubyTextHeight
-      state.blockRangeRubyEndY = columnY + state.yOffset + rubyTextHeight;
-      if (ctx.options.rangeRubyAlignment === 'center') {
-        state.yOffset += excess / 2;
-        state.blockRangeRubyYOffset = -(excess / 2);
-        state.blockRangeCenterBottomPad = excess / 2;
+      state.blockRangeRubyEndY = columnY + state.yOffset + result.rubyEndOffset!;
+      state.yOffset += result.leading;
+      state.blockRangeRubyYOffset = result.rubyYOffset;
+      if (alignment === 'center') {
+        state.blockRangeCenterBottomPad = result.trailing;
       } else {
-        // N+1 ギャップモデル: leading + N tokens で均等配分
-        state.blockRangeExtraPerToken = excess / (rubySpan + 1);
-        state.yOffset += state.blockRangeExtraPerToken; // leading
-        state.blockRangeRubyYOffset = -state.blockRangeExtraPerToken;
+        state.blockRangeExtraPerToken = result.extraPerElement;
       }
-    } else {
-      // non-overflow: ベース文字スパンでセンタリング（suffix 延伸を除く）
-      state.blockRangeSpanHeight = baseSpan;
     }
   }
 }
@@ -630,25 +689,23 @@ function placeTatetenGroup(
     // 最後のトークンの suffix 延伸分（okuri/soegana 等）はルビ centering のスパンに含めない
     const trailingExtension = Math.max(0, lastTokenContentHeight - fontSize);
     const baseSpanHeight = naturalHeight - trailingExtension;
-    const rubyTextHeight = [...firstRubyToken.slots.ruby!].length * rubyFontSize;
-    if (rubyTextHeight > naturalHeight) {
-      const excess = rubyTextHeight - naturalHeight;
-      rangeRubySpanHeight = rubyTextHeight;
+    const alignment = ctx.options.rangeRubyAlignment === 'center' ? 'center' : 'distribute';
+    const result = computeRangeRubyOverflow({
+      rubyChars: [...firstRubyToken.slots.ruby!].length,
+      rubyFontSize,
+      naturalSpan: naturalHeight,
+      baseSpan: baseSpanHeight,
+      elementCount: children.length,
+      alignment,
+    });
+    rangeRubySpanHeight = result.spanHeight;
+    if (result.overflow) {
       // ルビ下端 = グループ開始位置（leading/padding 適用前）+ rubyTextHeight
-      rangeRubyEndY = columnY + state.yOffset + rubyTextHeight;
-      if (ctx.options.rangeRubyAlignment === 'center') {
-        state.yOffset += excess / 2;
-        rangeRubyYOffset = -(excess / 2);
-        centerBottomPad = excess / 2;
-      } else {
-        // N+1 ギャップモデル: leading + N elements で均等配分
-        extraAdvancePerElement = excess / (children.length + 1);
-        state.yOffset += extraAdvancePerElement; // leading
-        rangeRubyYOffset = -extraAdvancePerElement;
-      }
-    } else {
-      // non-overflow: ベース文字スパンでセンタリング（suffix 延伸を除く）
-      rangeRubySpanHeight = baseSpanHeight;
+      rangeRubyEndY = columnY + state.yOffset + result.rubyEndOffset!;
+      state.yOffset += result.leading;
+      rangeRubyYOffset = result.rubyYOffset;
+      centerBottomPad = result.trailing;
+      extraAdvancePerElement = result.extraPerElement;
     }
   }
 

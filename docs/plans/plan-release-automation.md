@@ -70,11 +70,16 @@ spec からの訂正の一覧は、ADR-031 の「spec からの訂正」にあ�
 
 次の作業は、この plan の範囲外とする。片付いたら、この節から消す。
 
-- 0.2.0 の公開 (releasing.md の「最初のリリース (0.2.0) で確かめること」を実施し、結果を ADR-029 の「結果」の欄に書く)。
 - 0.2.0 の実測で、判定 (K11 / K12 / K15) と待機の定数を見直す。
 - release.yml の summary step で、tgz から sha512 を再計算して log に出す。
 - stage の来歴 (`actor`、`createdAt`) の表示。形を 0.2.0 で確かめてから検討する。
 - `dist.attestations` があれば検証する。
 - `skam-web-component` の `attribute-validation.test.ts` の `renders vertically and reports writing-mode once` (107 行目、再描画の後の `expect(errors).toHaveLength(1)`) が、2026-10-15 に `pnpm test` で 1 回だけ落ちた (別のテストが並行して走っていて CPU が混んでいた)。直後の単独の実行は 6 回とも pass。この作業は `packages/` を変えていない。負荷をかけて再現させ、2 件目の `skam-error` の detail を見て、再描画で同じ属性の通知を出さないという契約に対して、実装のタイミングの問題か、テストの待ち方 (`vi.waitFor` で render の数だけを待っている) の問題かを切り分ける。
+- `pnpm run release` の進み方を画面に出す。いまは、止まったときの理由と y/N の質問のほかは、子のコマンドの出力が流れるだけで、どの段で何を確かめ、どんな値で通ったのか、いま何を待っているのかが分からない。各段の始めに段の番号と確かめる内容を、通ったときに根拠の値を 1 行で出す (例: trust が 6 つとも `release.yml` / env `npm` / `createStagedPackage` の 1 件、`changeset status` の版、選んだ run の id と attempt、manifest の 6 つの integrity が stage と一致)。待っている間は、待っている対象と経過時間を出す。0.2.0 の公開の途中で利用者が求めた。
+- 止まったときは、毎回 3 つを出す。(1) エラーの内容: 失敗したコマンドと、その stderr や job の log の該当行。(2) 推定される原因: 既知の原因の候補と、それぞれを確かめる方法。(3) 対処の例: 実行できるコマンドか、見る画面。いまの `next:` と `see docs/releasing.md` は手順の場所を示すだけで、エラーの内容も原因の候補も出さない。たとえば F2 は「npm-stage の job が失敗した」としか出さず、`package not found` の行は利用者が run の log を開くまで見えなかった。原因の候補は、0.2.0 で実際に起きたもの (trust の期限切れ、npm の未ログイン、`npm view` の配列の出力、ブラウザの認証の未完了による `/-/v1/done` の 404) から始める。0.2.0 の公開の途中で利用者が求めた。
+- trust の確認は、設定の期限切れを見分けられない。npm の trusted publishing の設定は、作ってから 48 時間以内に 1 度使われないと期限切れになり、OIDC の交換が `404 package not found` を返す。npm はそのあと設定済みの token に戻るので、画面には E401 / ENEEDAUTH だけが出る。期限切れは npmjs.com の画面にしか出ず、`npm trust list --json` の出力には印がない。0.2.0 の 2 回の失敗 (run 39196389682、39198354458) の原因はこれで、2026-10-15 に作った設定が期限切れになっていた。releasing.md の trust の手順に、作ったら 48 時間以内に最初のリリースをすることと、F2 で `package not found` が出たら npmjs.com の表示を見ることを書く。
+- 入口の `git ls-remote` が失敗したとき、`git ls-remote failed` だけを出して git の stderr を捨てている。stderr の末尾を表示に足す。0.2.0 で 1 回だけ起き、再実行で通ったので、原因は分かっていない。
+- releasing.md の `npm trust github` のコマンドに `-y` を付ける。付けないと 1 つごとに `Do you want to proceed? (y/N)` を聞かれる。
+- releasing.md の毎回の手順に、approve は 6 回とも 2FA を求め、`npm trust list` のような「5 分間省略」の選択肢は出ないことを書く。いまは段 10 の表の 1 セルにしか書いていない。
 
 <!-- validated -->

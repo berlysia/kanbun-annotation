@@ -82,8 +82,7 @@ describe('fatal error notification (K2)', () => {
     const alert = content(el).firstElementChild;
     expect(alert?.getAttribute('role')).toBe('alert');
 
-    // 同じ内容での再描画を setter で起こす。happy-dom 20.3.9 の MutationObserver はコールバックを
-    // WeakRef で持つため、GC が走ると light DOM の変更の通知が捨てられ、textContent では不安定になる
+    // 同じ内容での再描画を setter で起こす。
     el.xmlContent = BROKEN_A;
     await waitParseCalls(2);
     el.xmlContent = BROKEN_A;
@@ -137,7 +136,7 @@ describe('fatal error notification (K2)', () => {
   it('notifies again after the XML was emptied', async () => {
     const { el, errors } = mount(BROKEN_A);
     await waitParseCalls(1);
-    // happy-dom の MutationObserver は GC で通知を落とす (コールバックを WeakRef で持つ) ため、再描画は setter で起こす
+    // 空の XML への変更は setter で起こす
     el.xmlContent = '';
     await nextFrames();
     expect(parseMock).toHaveBeenCalledTimes(1);

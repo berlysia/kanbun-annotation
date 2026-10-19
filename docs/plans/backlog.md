@@ -16,7 +16,6 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 
 - **reject 後の再 stage の確認 (R1)**: reject した版を同じ版で stage し直せるかは、npm の docs に書かれておらず、0.2.0 でも試していない (未確認)。F2 は「再 stage できなければ F3」の分岐を持つ。再 stage できないと分かったら、ADR-029 と ADR-031 を Accepted に戻して F2 の手順を見直す。出典: ADR-029「未確認の事項」と「結果」、ADR-031「未確認の事項」。規模: 中。
 - **approve の窓の上限の確認**: 0.2.0 では stage から公開まで約 10 分かかり、その間は失効しなかった。窓の上限は調べていない (未確認)。出典: ADR-029「結果」。規模: 小。
-- **release の証拠の保存物を無害化する**: `.tmp/release/` の証拠の保存物 (`scripts/release.ts` の `createEvidenceStore`、`saveRaw`) は、gh / npm の生の出力をそのまま保存している。利用者が `cat` すると、エスケープ列がそのまま端末に出る。token が出力に含まれていれば、そのまま残る。保存の前に、メモリ上の値に無害化と secret のマスクをかけ、ファイルの権限を 0600 にする。出典: ADR-032「提供しない体験」。規模: 小。
 - **release の進み方の行の見え方の確認**: `pnpm run release` の `entry:` の行、`stage N/11:` / `ok:` / `waiting for` の行と、子の stderr (`inherit-keep-stderr` で流れるもの) の並びが、実際の端末で読めるかを確かめる。2026-10-19 の確認は入口で止まる経路だけで、これらの行は出なかった (未確認)。次のリリースで見る。出典: ADR-032「確かめた事実」と R9。規模: 小。
 - **approve が実行のたびに 2FA を求めるかの確認**: `npm stage approve` が実行のたびに 2FA を求めるか (6 パッケージなら 6 回か) を確かめる。0.2.0 では、approve の認証の画面に「次の 5 分間は 2FA を省略する」の選択肢が出なかった (未確認)。確かめたら、releasing.md の段 10 の記述を直す。出典: releasing.md 段 10、PR #16。規模: 小。
 - **判定 (K11 / K12 / K15) と待機の定数の見直し**: 0.2.0 の実測を使って、次の 2 つを見直す。K11 / K12 / K15 の判定と、`scripts/release-after-push.ts` の `WAIT` である。出典: plan-release-automation.md L73、ADR-031「Followup」の 1。規模: 小。
@@ -32,8 +31,8 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 
 ## Web Component
 
-- **attribute-validation.test.ts の flaky なテスト**: 2026-10-15 に `pnpm test` で 1 回だけ落ちた。落ちたのは `renders vertically and reports writing-mode once` である。2026-10-19 に 120 回流したが、再現しなかった。内訳は、8 コアすべてに CPU 負荷をかけた `attribute-validation.test.ts` が 100 回、`turbo run test:run --force` が 20 回である。vitest 4.0.18、happy-dom 20.3.9。失敗率が 2.5% (3/120) 以上なら 95% の確からしさで検出できたので、それ未満の失敗率は否定できない。元の失敗との関係は未確認だが、下の happy-dom の MutationObserver の件が候補である。出典: plan-release-automation.md L77。規模: 小。
-- **happy-dom の MutationObserver が GC で通知を落とす**: happy-dom 20.3.9 は MutationObserver のコールバックを `WeakRef` で持つ。該当するのは `MutationObserverListener.js` である。GC で回収されると、light DOM の変更の通知が捨てられる。`--expose-gc` で毎回 GC を走らせると、素の `<div>` でも 300 回中 299 回届かなかった。`textContent` で再描画を起こすテストは、GC のタイミング次第で落ちる。既存のテスト (attribute-validation.test.ts など) で `textContent` を使って再描画している箇所は、`xmlContent` の setter に替える。MutationObserver の経路そのものは、実ブラウザのテストで確かめる。happy-dom の新しい版で直っているかも確かめる。出典: fix/web-component-errors-and-labels の調査 (2026-10-19)。規模: 小。
+- **attribute-validation.test.ts の flaky なテスト**: 2026-10-15 に `pnpm test` で 1 回だけ落ちた。落ちたのは `renders vertically and reports writing-mode once` である。2026-10-19 に 120 回流したが、再現しなかった。内訳は、8 コアすべてに CPU 負荷をかけた `attribute-validation.test.ts` が 100 回、`turbo run test:run --force` が 20 回である。vitest 4.0.18、happy-dom 20.3.9。失敗率が 2.5% (3/120) 以上なら 95% の確からしさで検出できたので、それ未満の失敗率は否定できない。候補だった happy-dom の MutationObserver の件 (GC で通知を落とす) は 20.14.6 で直っている (#24)。再発しなければ、この行を消す。出典: plan-release-automation.md L77。規模: 小。
+- **light DOM の変更で再描画する経路の実ブラウザのテスト**: `<skam-renderer>` の light DOM の `textContent` を接続後に変えると再描画する経路を、playground の e2e (Playwright) で確かめる。happy-dom のテスト (attribute-validation.test.ts) は付随的に通っているだけで、e2e にこの経路の検査は無い。出典: chore/bump-happy-dom の spec K4。規模: 小。
 - **mount() 関数 (#11)**: DOM へ描く `mount()` 関数を足し、CSS の 1 回だけの注入とフォント読み込み後の補正をまとめる。出典: plan-consumer-feedback.md L65、#11。規模: 中。
 
 ## データモデルと仕様
@@ -64,9 +63,8 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 - **VRT (pnpm test:visual) の実行**: Playwright のブラウザがある環境で `pnpm test:visual` を実行し、ベースラインの差分を確かめる。白文のフォールバックと ref の番号順が見た目を変えないことが、未確認のままである。出典: plan-practical-readiness.md L105、ADR-028「既知の制約と未実施の確認」。規模: 小。
 - **移行表の機械可読化**: 移行表を機械可読形式 (YAML など) にして、各 README の移行の節を生成する。`migration-table.test.ts` は、README の旧挙動・新挙動・回避策の列が正本と一字一句同じかを検査しない。手編集によるずれを検出できない。出典: plan-practical-readiness.md L103、ADR-028「既知の制約と未実施の確認」。規模: 中。
 - **html-renderer の仕様テストの意味論化**: 文字列一致のテストを減らし、意味を検査するテストに置き換える。基盤は ADR-022 と `css-slot-semantics.test.ts` にある。ただし docs/testing/no-test-gap-matrix.md の 4 件はすべて `dual` で、`migrated` は 0 件である。`comprehensive-rendering.test.ts` には、`toContain` などの文字列一致の行が 267 行ある。出典: plan-html-renderer-colocation-and-named-grid-areas.md L295、ADR-020「完了時点で残る作業（Phase3 以降）」。規模: 大。
-- **Complete の ADR に残った plan の検出**: Complete の ADR に plan が残っていたら、`pnpm adr:status` が警告する。いまは PLAN 列に `exists` や `validated` を出すだけで、消し忘れに気づけない。出典: docs/plans/ を今後の作業だけにした整理。規模: 小。
-- **parseFrontmatter の数字でない deps**: `parseFrontmatter` は `deps: [a]` のような数字でない値を NaN にする。扱いを決めてテストで固定する。出典: adr-parser のテストの追加。規模: 小。
-- **scripts/adr-migrate-fm.ts の削除の検討**: 旧形式の本文リンクから frontmatter を作る一回限りの移行スクリプトで、knip の entry になっている。消すかどうかを決める。出典: docs/plans/ を今後の作業だけにした整理。規模: 小。
+- **adr:status の警告を verify か CI に入れる**: Complete の ADR に plan: が残ったときの警告は、`pnpm adr:status` を手で走らせたときしか見えない。verify か CI に入れるかを決める。出典: chore/adr-tooling-checks の spec K2。規模: 小。
+- **ADR の不正な status の扱い**: `parseFrontmatter` は不正な status (`Complet` など) を黙って Proposed にする (adr-parser.test.ts が固定している)。deps と同じく throw にするかを決める。出典: chore/adr-tooling-checks のレビュー。規模: 小。
 - **TypeScript 7 系への移行**: このリポジトリを TypeScript 7 系 (native の `typescript` パッケージ) に移す。tsgo (`@typescript/native-preview`) との関係、typescript-eslint などの JS 実装を要る道具の扱いを決める。consumer の検査の `typescript5` (5.9.3) は、利用者の 5 系の代表として残す。出典: 利用者の方針 (2026-10-19)。規模: 中。
 
 ## 外部利用

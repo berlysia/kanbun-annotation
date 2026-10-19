@@ -15,9 +15,9 @@ import {
   formatStopReport,
   formatWaiting,
   prependDetail,
-  redactSecrets,
   remediesFor,
 } from './release-stop-report.ts';
+import { redactSecrets } from './release-sanitize.ts';
 import { ENTRY_STOP_ROWS, NO_COMMAND } from './release-types.ts';
 import type {
   AfterPushSite,
@@ -497,10 +497,14 @@ test('diagnose: 前半の 7 push の git push の失敗には git-remote は出�
   assert.equal(causes.length, 1);
 });
 
+const SAVED_RAW_CHECK =
+  'Open the saved raw output (escape sequences are removed and known token shapes are masked; a secret spanning lines, such as a PEM body, is not)';
+
 test('diagnose: 後半の shape-unknown と unexpected-run-shape → output-shape', () => {
   for (const where of ['shape-unknown', 'unexpected-run-shape'] as const) {
     const site: StopSite = { side: 'after-push', where };
     assert.equal(diagnose(site, errorOf({}))[0]?.id, 'output-shape', where);
+    assert.equal(diagnose(site, errorOf({}))[0]?.check, SAVED_RAW_CHECK, where);
   }
 });
 
@@ -508,6 +512,10 @@ test('diagnose: 前半の 1 prerequisites で npm trust list に rawPath があ�
   const site: StopSite = { side: 'front', where: '1 prerequisites' };
   const error = errorOf({ command: 'npm trust list @kanbun-skam/skam --json', rawPath: '/tmp/x' });
   assert.ok(ids(site, error).includes('output-shape'));
+  assert.equal(
+    diagnose(site, error).find((cause) => cause.id === 'output-shape')?.check,
+    SAVED_RAW_CHECK
+  );
   const noPath = errorOf({ command: 'npm trust list @kanbun-skam/skam --json' });
   assert.ok(!ids(site, noPath).includes('output-shape'));
 });
@@ -657,7 +665,10 @@ test('formatStopReport: rawPath は error: の下の最後に出る', () => {
     reportOf({ error: errorOf({ command: 'x', exit: 1, lines: ['a'], rawPath: '/tmp/raw' }) })
   );
   const at = lines.indexOf('  | a');
-  assert.equal(lines[at + 1], '  raw output (unredacted, do not cat to a terminal): /tmp/raw');
+  assert.equal(
+    lines[at + 1],
+    '  raw output (escape sequences removed, known token shapes masked): /tmp/raw'
+  );
 });
 
 test('formatStopReport: exit が null で lines が空 → signal の文と (no error output)', () => {

@@ -3,7 +3,7 @@ import type { KnipConfig } from 'knip';
 const config: KnipConfig = {
   workspaces: {
     '.': {
-      entry: ['scripts/adr-migrate-fm.ts', 'scripts/check-release.ts', 'scripts/release.ts'],
+      entry: ['scripts/check-release.ts', 'scripts/release.ts'],
       project: ['scripts/**/*.ts'],
       // used only from *.test.ts, which knip ignores
       ignore: ['scripts/lib/test-workspace.ts'],

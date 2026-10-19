@@ -2217,7 +2217,7 @@ test('front stop: a trust list that printed an unexpected shape points at the sa
   assert.equal(stop.error.rawPath, '/x/raw');
   const text = frontLines(outcome).join('\n');
   assert.ok(text.includes('shape of the npm or gh output differs'), text);
-  assert.ok(text.includes('raw output (unredacted'), text);
+  assert.ok(text.includes('raw output (escape sequences removed'), text);
 });
 
 test('front stop: a trust mismatch has no command', async () => {

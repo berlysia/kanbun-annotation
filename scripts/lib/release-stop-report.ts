@@ -1,6 +1,7 @@
 // release が止まったときの表示の純粋関数。ファイル・ネットワーク・子プロセスには触れない。
-// import できるのは release-check.ts と release-types.ts だけ (構造テストが固定する)。
+// import できるのは release-check.ts と release-sanitize.ts と release-types.ts だけ (構造テストが固定する)。
 
+import { removeEscapeSequences, redactSecrets } from './release-sanitize.ts';
 import { sanitizeForTerminal } from './release-check.ts';
 import { NO_COMMAND } from './release-types.ts';
 import type {
@@ -16,47 +17,6 @@ import type {
   StopSite,
 } from './release-types.ts';
 
-// --- secret のマスク (行の選別と切り詰めの前に呼ぶ) ---
-
-const MASK = '***';
-
-// 正規表現は、入れ子の量指定子と後方参照を使わない。各規則は入力の長さに対して線形の時間で終わる
-// (先頭の位置を lookbehind で絞り、同じ位置から何度も走査し直さないようにしている)。
-
-// URL の userinfo (`//user:pass@host` → `//***@host`)
-const USERINFO = /(\/\/)[^\s/@]+@/g;
-// ghp_ / gho_ / ghs_ / ghu_ / ghr_ / npm_ の token と、`_` を含む fine-grained token
-const PREFIXED_TOKEN = /(?:gh[posur]_|npm_)[A-Za-z0-9]+/g;
-const FINE_GRAINED_TOKEN = /github_pat_[A-Za-z0-9_]+/g;
-const AUTH_TOKEN = /(_authToken=)\S*/gi;
-const BEARER = /(Authorization:\s*Bearer\s+)\S+/gi;
-// 名前に TOKEN / SECRET / PASSWORD を含む `KEY=value` / `KEY: value`。キーは先頭の位置から 1 回だけ読む
-const KEY_VALUE = /(?<![A-Za-z0-9_.-])([A-Za-z0-9_.-]+)(\s*[=:]\s*)(\S+)/g;
-const SECRET_KEY = /token|secret|password/i;
-// JWT の形。4096 での切断で途中が欠けても伏せるため、`.` の数は問わない
-const JWT_LIKE = /eyJ[A-Za-z0-9_.-]*/g;
-// npm の web 認証の URL のクエリと、/login/cli/ の後の id
-const NPM_WEB_AUTH_URL = /\/-\/v1\/\S*/g;
-const NPM_LOGIN_CLI = /(\/login\/cli\/)\S+/g;
-
-export function redactSecrets(line: string): string {
-  return line
-    .replace(USERINFO, `$1${MASK}@`)
-    .replace(PREFIXED_TOKEN, MASK)
-    .replace(FINE_GRAINED_TOKEN, MASK)
-    .replace(AUTH_TOKEN, `$1${MASK}`)
-    .replace(BEARER, `$1${MASK}`)
-    .replace(KEY_VALUE, (whole, key: string, sep: string) =>
-      SECRET_KEY.test(key) ? `${key}${sep}${MASK}` : whole
-    )
-    .replace(JWT_LIKE, MASK)
-    .replace(NPM_WEB_AUTH_URL, (url) => {
-      const query = url.indexOf('?');
-      return query < 0 ? url : `${url.slice(0, query + 1)}${MASK}`;
-    })
-    .replace(NPM_LOGIN_CLI, `$1${MASK}`);
-}
-
 // --- 行の切り出し (エラーの欄に出す外部の文字列) ---
 // 順序: 1 行を先に切る → (job の log なら) 接頭辞を除く → エスケープ列を除く → 制御文字を除く
 // → secret をマスクする → 行を選ぶ → 最後の 12 行を 300 コードポイントで切る。
@@ -69,12 +29,6 @@ const DISPLAY_LINE_COUNT = 12;
 const LINE_BREAK = /\r\n|[\n\r\u{2028}\u{2029}]/u;
 // `<job>\t<step>\t<BOM?><ISO 時刻> ` (実物は時刻の直前に BOM が入る)
 const JOB_LOG_PREFIX = /^[^\t]*\t[^\t]*\t\u{feff}?\d{4}-\d{2}-\d{2}T[\d:.]+Z ?/u;
-// エスケープ列 (CSI / OSC / 8 ビットの CSI / 途中切れ) を丸ごと除く。RC の sanitizeForTerminal は
-// ESC の 1 文字しか除かず `[36;1m` を残すので、これを先に掛ける
-const OSC = /\x1b\][^\x07\x1b]*(?:\x07|\x1b\\)/g;
-const CSI = /(?:\x1b\[|\u009b)[0-?]*[ -/]*[@-~]/g;
-const UNTERMINATED_ESCAPE = /\x1b.*$/;
-
 // 先頭から n コードポイントまで。サロゲートペアを割らない。長い入力でも n に比例した時間で終わる
 function takeCodePoints(text: string, n: number): string {
   if (text.length <= n) return text;
@@ -88,8 +42,7 @@ function takeCodePoints(text: string, n: number): string {
 function cleanLine(raw: string, jobLog: boolean): string {
   let line = takeCodePoints(raw, RAW_LINE_LIMIT);
   if (jobLog) line = line.replace(/^\u{feff}/u, '').replace(JOB_LOG_PREFIX, '');
-  line = line.replace(OSC, '').replace(CSI, '').replace(UNTERMINATED_ESCAPE, '');
-  return redactSecrets(sanitizeForTerminal(line));
+  return redactSecrets(sanitizeForTerminal(removeEscapeSequences(line)));
 }
 
 const isBlank = (line: string): boolean => line.trim() === '';
@@ -299,7 +252,7 @@ const RULES: readonly Rule[] = [
         cause:
           'The shape of the npm or gh output differs from what this script expects (as the `npm view` array did in 0.2.0)',
         check:
-          'Open the saved raw output in an editor (it is neither masked nor sanitized, so do not cat it to a terminal)',
+          'Open the saved raw output (escape sequences are removed and known token shapes are masked; a secret spanning lines, such as a PEM body, is not)',
       };
     },
   },
@@ -325,7 +278,7 @@ const SHAPE_DEFAULT = (id: string): Default =>
   def(
     id,
     'The shape of the npm or gh output differs from what this script expects',
-    'Open the saved raw output in an editor (it is neither masked nor sanitized, so do not cat it to a terminal)',
+    'Open the saved raw output (escape sequences are removed and known token shapes are masked; a secret spanning lines, such as a PEM body, is not)',
     'Record it under "結果" in ADR-029, then continue with "## 手作業の手順" in docs/releasing.md'
   );
 
@@ -667,7 +620,9 @@ function formatErrorLines(error: ErrorExcerpt): string[] {
   if (external.length === 0) out.push('  | (no error output)');
   for (const line of external) out.push(`  | ${line}`);
   if (error.rawPath !== undefined) {
-    out.push(`  raw output (unredacted, do not cat to a terminal): ${error.rawPath}`);
+    out.push(
+      `  raw output (escape sequences removed, known token shapes masked): ${error.rawPath}`
+    );
   }
   return out;
 }

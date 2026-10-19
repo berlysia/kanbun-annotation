@@ -29,7 +29,15 @@ export function parseFrontmatter(content: string): AdrFrontmatter | null {
     if (depsMatch) {
       const inner = depsMatch[1]!.trim();
       if (inner) {
-        deps = inner.split(',').map((s) => parseInt(s.trim(), 10));
+        deps = inner.split(',').map((s) => {
+          const item = s.trim();
+          if (!/^\d+$/.test(item)) {
+            throw new Error(
+              `Invalid deps entry ${JSON.stringify(item)}: expected a number like 16`
+            );
+          }
+          return parseInt(item, 10);
+        });
       }
     }
 
@@ -62,25 +70,6 @@ export function parseFrontmatter(content: string): AdrFrontmatter | null {
     ...(plan ? { plan } : {}),
     ...(substatus && Object.keys(substatus).length > 0 ? { substatus } : {}),
   };
-}
-
-export function serializeFrontmatter(fm: AdrFrontmatter): string {
-  const lines: string[] = ['---'];
-  lines.push(`status: ${fm.status}`);
-  if (fm.deps && fm.deps.length > 0) {
-    lines.push(`deps: [${fm.deps.join(', ')}]`);
-  }
-  if (fm.plan) {
-    lines.push(`plan: ${fm.plan}`);
-  }
-  if (fm.substatus && Object.keys(fm.substatus).length > 0) {
-    lines.push('substatus:');
-    for (const [key, val] of Object.entries(fm.substatus)) {
-      lines.push(`  ${key}: ${val}`);
-    }
-  }
-  lines.push('---');
-  return lines.join('\n');
 }
 
 function extractTitle(content: string): string {
@@ -131,7 +120,14 @@ export function parseAdrFile(filePath: string, repoRoot: string): AdrInfo {
   const number = fnMatch ? parseInt(fnMatch[1]!, 10) : 0;
   const slug = fnMatch ? fnMatch[2]! : '';
 
-  const frontmatter = parseFrontmatter(content);
+  let frontmatter: AdrFrontmatter | null;
+  try {
+    frontmatter = parseFrontmatter(content);
+  } catch (error) {
+    throw new Error(`${relPath}: ${error instanceof Error ? error.message : String(error)}`, {
+      cause: error,
+    });
+  }
   if (!frontmatter) {
     throw new Error(`No frontmatter found in ${relPath}`);
   }
@@ -198,4 +194,14 @@ export function getActionableAdrs(adrs: AdrInfo[]): AdrInfo[] {
     const deps = adr.frontmatter.deps ?? [];
     return deps.every((d) => completeNumbers.has(d));
   });
+}
+
+// CLAUDE.md asks for the plan and the plan: key to be removed in the PR that completes an ADR.
+export function getCompleteWithPlanWarnings(adrs: AdrInfo[]): string[] {
+  return adrs
+    .filter((adr) => adr.frontmatter.status === 'Complete' && adr.frontmatter.plan)
+    .map((adr) => {
+      const num = String(adr.number).padStart(3, '0');
+      return `warning: ADR-${num} is Complete but still has plan: ${adr.frontmatter.plan} (remove the plan and the plan: key; see CLAUDE.md "ADR-Plan ワークフロー")`;
+    });
 }

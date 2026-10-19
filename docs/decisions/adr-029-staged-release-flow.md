@@ -229,14 +229,23 @@ npm-stage は repo を持たないので、manifest の `name` が公開 6 パ�
 
 ### 結果 (0.2.0 の公開の後に追記する)
 
-| 項目                                   | 結果   |
-| -------------------------------------- | ------ |
-| R1: reject 後の再 stage                | 未実施 |
-| R3: `dist.attestations`                | 未実施 |
-| `npm stage list` / `view` の出力の書式 | 未実施 |
-| `npm stage download` の保存先と書式    | 未実施 |
-| approve の窓の長さ                     | 未実施 |
-| 受入基準で外れた項目                   | 未実施 |
+0.2.0 は 2026-10-19 に、3 回目の Release run (39200844696) で 6 つとも公開した。
+
+| 項目                                   | 結果                                                                                                                                                                                                                                                                                                                        |
+| -------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| R1: reject 後の再 stage                | 未確認。失敗した 2 回の run は、どちらも 1 つ目の stage の前で止まり (stage は 0 件)、reject する対象がなかった                                                                                                                                                                                                             |
+| R3: `dist.attestations`                | 付く。6 つとも `dist.attestations.provenance.predicateType` が `https://slsa.dev/provenance/v1`                                                                                                                                                                                                                             |
+| `npm stage list` / `view` の出力の書式 | `npm stage list <name> --json` は、`id` / `packageName` / `version` / `tag` / `createdAt` / `actor` (`GitHub Actions`) / `actorType` (`trusted automation`) / `access` / `shasum` / `status` を持つオブジェクトの配列。`status` は stage の直後に `validating`、その後に `staged` になった。`npm stage view` は使っていない |
+| `npm stage download` の保存先と書式    | `pnpm run release` の段 10 の検査を、6 つとも想定の形のまま通った                                                                                                                                                                                                                                                           |
+| approve の窓の長さ                     | 未確認。stage (04:44:20〜04:44:40 UTC) から公開 (04:54:29〜04:55:38 UTC) までは約 10 分で、この間は失効しなかった。上限は調べていない                                                                                                                                                                                       |
+| 受入基準で外れた項目                   | approve の前と後の検査では外れた項目は無い。そこに至るまでの 3 つの失敗は下の「0.2.0 で見つかったこと」にある                                                                                                                                                                                                               |
+
+### 0.2.0 で見つかったこと (2026-10-19)
+
+- **trust の設定には 48 時間の期限がある。** npm の trusted publishing の設定は、作ってから 48 時間以内に 1 度使われないと期限切れになる。2026-10-15 に作った 6 つの設定は、0.2.0 の時点で期限切れになっていた。期限切れは npmjs.com の画面にしか出ず (「This trusted publisher configuration has expired」)、`npm trust list --json` の出力には印が無い。期限切れの設定だと、OIDC の交換が `404 OIDC token exchange error - package not found` を返す。npm はそれを verbose の log にだけ出し、設定済みの token に戻って送るので、画面には E401 (setup-node の `registry-url` があったとき) か ENEEDAUTH (外した後) だけが出る。6 つとも revoke して作り直したところ、次の run で stage できた。最初の 2 回の run (39196389682、39198354458) の失敗はこれが原因だった。
+- npm 12.2.0 の `npm view <name> versions dist-tags --json` は、要素 1 つの配列を返す。`parseNpmView` が拒否して段 3 で止まったので、PR #13 で配列を受けるようにした。
+- release.yml の npm-stage の job から setup-node の `registry-url` を外し、Stage publish の step を `NPM_CONFIG_LOGLEVEL=verbose` で走らせるようにした (PR #14)。`package not found` が log に出たのは verbose にしてからである。
+- `npm stage approve` は、6 回とも 2FA を求めた。`npm trust list` のような「5 分間省略」の選択肢は出ない。
 
 ## 参考
 

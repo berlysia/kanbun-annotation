@@ -1,11 +1,10 @@
 ---
-status: Accepted
-plan: plan-release-stop-report.md
+status: Complete
 ---
 
 # ADR-032: `pnpm run release` が止まったときの 3 つの表示と、進み方の表示
 
-実装計画: [plan-release-stop-report.md](../plans/plan-release-stop-report.md)
+実装計画: `git show 9b74cf3bd925f359c04f266fb9ba776c8396342f:docs/plans/plan-release-stop-report.md`
 手順: [releasing.md](../releasing.md)
 一部を変える: [ADR-031](adr-031-release-command-to-the-end.md) の K15 の停止の表示と、脅威と統制の `inherit` の例外
 

@@ -67,7 +67,6 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 - **Complete の ADR に残った plan の検出**: Complete の ADR に plan が残っていたら、`pnpm adr:status` が警告する。いまは PLAN 列に `exists` や `validated` を出すだけで、消し忘れに気づけない。出典: docs/plans/ を今後の作業だけにした整理。規模: 小。
 - **parseFrontmatter の数字でない deps**: `parseFrontmatter` は `deps: [a]` のような数字でない値を NaN にする。扱いを決めてテストで固定する。出典: adr-parser のテストの追加。規模: 小。
 - **scripts/adr-migrate-fm.ts の削除の検討**: 旧形式の本文リンクから frontmatter を作る一回限りの移行スクリプトで、knip の entry になっている。消すかどうかを決める。出典: docs/plans/ を今後の作業だけにした整理。規模: 小。
-- **傍点のキーワードの判定を 1 か所にまとめる**: 傍点のキーワードの判定が 4 か所に分かれている。1 つ目は validator、2 つ目は html-renderer の safe.ts である。3 つ目は skam の emphasis.ts の対応表で、4 つ目は skam-screenshot の canvas-page-builder.ts の対応表である。canvas-page-builder.ts はページの中で `resolveEmphasisCharacter` を呼べないため、対応表を複製したまま残した。validator がキーワードと文字の対応表を export し、ほかがそれを使う形にまとめる。出典: 傍点のカスタム文字の修正 (fix/grid-emphasis-custom-char)。規模: 小。
 - **TypeScript 7 系への移行**: このリポジトリを TypeScript 7 系 (native の `typescript` パッケージ) に移す。tsgo (`@typescript/native-preview`) との関係、typescript-eslint などの JS 実装を要る道具の扱いを決める。consumer の検査の `typescript5` (5.9.3) は、利用者の 5 系の代表として残す。出典: 利用者の方針 (2026-10-19)。規模: 中。
 
 ## 外部利用

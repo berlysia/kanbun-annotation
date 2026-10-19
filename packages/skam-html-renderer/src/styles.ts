@@ -796,12 +796,13 @@ ${
 /*
  * Emphasis (傍点) - CSS text-emphasis-style 準拠
  *
- * style 属性は CSS text-emphasis-style の値をそのまま使用。
+ * ruby モード: style の値 (キーワードか 1 文字) を text-emphasis-style にそのまま使う。
+ * grid モード: resolveEmphasisCharacter が解決した文字を emphasis-row に並べる。
  * デフォルト: filled dot
  * 有効な値: dot, circle, double-circle, triangle, sesame,
- *           filled/open + 上記形状（例: filled sesame, open circle）
+ *           filled/open + 上記形状（例: filled sesame, open circle）、1 文字のカスタム記号
  *
- * インラインスタイルで text-emphasis-style を設定するため、
+ * ruby モードでは text-emphasis-style をインラインスタイルで設定するため、
  * ここでは色のみを指定。
  */
 :where(.${prefix}-emphasis) {

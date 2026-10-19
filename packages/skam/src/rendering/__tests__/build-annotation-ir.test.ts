@@ -148,6 +148,30 @@ describe('buildAnnotationIR', () => {
     expect(token.slots.emphasis).toBe('\u2022');
   });
 
+  it('emphasis のカスタム文字を AIR の slots と trailing の resolved に反映する', () => {
+    const doc = createDoc([
+      { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しいわく' },
+      { type: 'emphasis', anchor: { from: 't1', to: 't2' }, style: '\u2605' },
+    ]);
+    const air = buildAnnotationIR(doc, FULL_PROFILE);
+    const first = air.blocks[0]!.children[0] as AIRTokenNode;
+    expect(first.slots.emphasis).toBe('\u2605');
+    const trailing = first.rangeInfo!.trailingMarks.find((t) => t.kind === 'emphasis');
+    expect(trailing?.resolved).toBe('\u2605');
+  });
+
+  it('validator を通らない emphasis style は既定の点にする', () => {
+    const doc = createDoc([
+      { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しいわく' },
+      { type: 'emphasis', anchor: { from: 't1', to: 't2' }, style: '<' },
+    ]);
+    const air = buildAnnotationIR(doc, FULL_PROFILE);
+    const first = air.blocks[0]!.children[0] as AIRTokenNode;
+    expect(first.slots.emphasis).toBe('\u2022');
+    const trailing = first.rangeInfo!.trailingMarks.find((t) => t.kind === 'emphasis');
+    expect(trailing?.resolved).toBe('\u2022');
+  });
+
   // ============================================================================
   // Range ruby（複数トークン集約 + span）
   // ============================================================================

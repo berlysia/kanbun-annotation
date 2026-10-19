@@ -13,16 +13,24 @@ export function parseFrontmatter(content: string): AdrFrontmatter | null {
   if (!match) return null;
 
   const yaml = match[1]!;
-  let status: AdrStatus = 'Proposed';
+  let status: AdrStatus | undefined;
   let deps: number[] | undefined;
   let plan: string | undefined;
   let substatus: AdrSubstatus | undefined;
 
   for (const line of yaml.split('\n')) {
-    const statusMatch = line.match(/^status:\s*(.+)/);
+    const statusMatch = line.match(/^status:(.*)/);
     if (statusMatch) {
       const raw = statusMatch[1]!.trim();
-      if (isValidStatus(raw)) status = raw;
+      // An empty value is the same as a missing key, reported below.
+      if (raw !== '') {
+        if (!isValidStatus(raw)) {
+          throw new Error(
+            `Invalid status ${JSON.stringify(raw)}: expected one of ${VALID_STATUSES.join(', ')}`
+          );
+        }
+        status = raw;
+      }
     }
 
     const depsMatch = line.match(/^deps:\s*\[([^\]]*)\]/);
@@ -62,6 +70,10 @@ export function parseFrontmatter(content: string): AdrFrontmatter | null {
         }
       }
     }
+  }
+
+  if (status === undefined) {
+    throw new Error('Missing status');
   }
 
   return {
@@ -204,4 +216,10 @@ export function getCompleteWithPlanWarnings(adrs: AdrInfo[]): string[] {
       const num = String(adr.number).padStart(3, '0');
       return `warning: ADR-${num} is Complete but still has plan: ${adr.frontmatter.plan} (remove the plan and the plan: key; see CLAUDE.md "ADR-Plan ワークフロー")`;
     });
+}
+
+// Result of `adr-status.ts --check`: any line is a failure.
+export function checkAdrs(adrs: AdrInfo[]): { lines: string[]; exitCode: 0 | 1 } {
+  const lines = getCompleteWithPlanWarnings(adrs);
+  return { lines, exitCode: lines.length > 0 ? 1 : 0 };
 }

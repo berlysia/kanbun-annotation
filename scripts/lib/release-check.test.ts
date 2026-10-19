@@ -1348,7 +1348,7 @@ test('ENTRY_STOP_ROWS: decideEntry / decideEntryWithStatus が止まる行の一
 
 const SCRIPT_NAMES = ['build', 'lint', 'exec'];
 
-test('planVerifySteps: 実物の root の scripts.verify は 9 つの段に分かれる', () => {
+test('planVerifySteps: 実物の root の scripts.verify は 10 の段に分かれる', () => {
   const pkg = JSON.parse(
     readFileSync(fileURLToPath(new URL('../../package.json', import.meta.url)), 'utf8')
   ) as { scripts: Record<string, string> };
@@ -1356,6 +1356,7 @@ test('planVerifySteps: 実物の root の scripts.verify は 9 つの段に分�
   assert.deepEqual(plan, {
     kind: 'steps',
     names: [
+      'adr:check',
       'build',
       'typecheck',
       'typecheck:scripts',

@@ -34,25 +34,25 @@ test('characters inside a multi-token range keep the same pitch as outside it', 
   await page.setContent(buildHTMLPage(html, css), { waitUntil: 'networkidle' });
   await page.evaluate('document.fonts.ready');
 
-  const measured = await page.evaluate(() => {
-    const top = (el: Element) => el.getBoundingClientRect().top;
-    const outside = Array.from(document.querySelectorAll('.skam-block > .skam-token > .skam-base'));
-    const inside = Array.from(document.querySelectorAll('.skam-base-seg'));
-    const block = document.querySelector('.skam-block');
-    return {
-      outsideCount: outside.length,
-      insideCount: inside.length,
-      outsidePitch: top(outside[1]!) - top(outside[0]!),
-      insidePitch: top(inside[1]!) - top(inside[0]!),
-      fontSize: parseFloat(getComputedStyle(block!).fontSize),
-    };
-  });
+  const outside = page.locator('.skam-block > .skam-token > .skam-base');
+  const inside = page.locator('.skam-base-seg');
+  expect(await outside.count()).toBe(2);
+  expect(await inside.count()).toBe(2);
 
-  expect(measured.outsideCount).toBe(2);
-  expect(measured.insideCount).toBe(2);
+  // vertical writing: the block direction is y
+  const top = async (locator: ReturnType<typeof page.locator>) => {
+    const box = await locator.boundingBox();
+    return box!.y;
+  };
+  const outsidePitch = (await top(outside.nth(1))) - (await top(outside.nth(0)));
+  const insidePitch = (await top(inside.nth(1))) - (await top(inside.nth(0)));
+  const fontSize = await page.evaluate<number>(
+    "parseFloat(getComputedStyle(document.querySelector('.skam-block')).fontSize)"
+  );
+
   // full spacing is 1em of space plus 1em of advance, so the designed pitch is 2em.
   // 1.8em leaves 10% for font advance variation.
-  expect(measured.insidePitch).toBeGreaterThanOrEqual(measured.fontSize * 1.8);
-  expect(measured.insidePitch / measured.outsidePitch).toBeGreaterThanOrEqual(0.9);
-  expect(measured.insidePitch / measured.outsidePitch).toBeLessThanOrEqual(1.1);
+  expect(insidePitch).toBeGreaterThanOrEqual(fontSize * 1.8);
+  expect(insidePitch / outsidePitch).toBeGreaterThanOrEqual(0.9);
+  expect(insidePitch / outsidePitch).toBeLessThanOrEqual(1.1);
 });

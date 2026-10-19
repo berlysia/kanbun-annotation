@@ -845,6 +845,24 @@ describe('release scripts: module boundaries', () => {
       findImportViolations('scripts/release.ts', "import { a } from './release-after-push.ts';"),
       []
     );
+    // release-stop-report.ts は release-check.ts と release-types.ts だけを import できる。
+    // 逆向きに、release-after-push-check.ts は release-stop-report.ts を import できない
+    const stopReport = 'scripts/lib/release-stop-report.ts';
+    const stopReportBad = [
+      [stopReport, "import { a } from './release-after-push-check.ts';"],
+      [stopReport, "import { a } from '../release.ts';"],
+      [stopReport, "import { a } from '../release-after-push.ts';"],
+      ['scripts/lib/release-after-push-check.ts', "import { a } from './release-stop-report.ts';"],
+    ] as const;
+    for (const [from, source] of stopReportBad) {
+      assert.equal(findImportViolations(from, source).length, 1, `${from}: ${source}`);
+    }
+    for (const source of [
+      "import { a } from './release-check.ts';",
+      "import type { B } from './release-types.ts';",
+    ]) {
+      assert.deepEqual(findImportViolations(stopReport, source), [], source);
+    }
   });
 
   test('(7a) the real files write only through the one createOutput sink', () => {

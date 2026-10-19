@@ -959,6 +959,8 @@ export interface ViewDist {
   distTags: Readonly<Record<string, string>>;
   integrity: string;
   hasAttestations: boolean;
+  // "dist.attestations" の値そのもの (キーが無ければ undefined)。形の判定は judgePostCheck が持つ
+  attestations: unknown;
 }
 
 export type ParseViewDistResult =
@@ -989,8 +991,40 @@ export function parseViewDist(raw: string): ParseViewDistResult {
       distTags: Object.fromEntries(Object.entries(tags) as [string, string][]),
       integrity,
       hasAttestations: Object.hasOwn(element, 'dist.attestations'),
+      attestations: element['dist.attestations'],
     },
   };
+}
+
+// npm が provenance に付ける predicateType。registry が申告する形の確認で、出所の検証ではない
+const SLSA_PROVENANCE_V1 = 'https://slsa.dev/provenance/v1';
+
+const isPlainObject = (v: unknown): v is Record<string, unknown> =>
+  isRecord(v) && !Array.isArray(v);
+
+// registry の値を what に入れる前に 1 行にして切る (log の行を崩されないように)
+const quoteForWhat = (v: unknown): string => {
+  const text = JSON.stringify(v) ?? String(v);
+  return text.length > 200 ? `${text.slice(0, 200)}...` : text;
+};
+
+// 値が undefined (キーなし) なら null を返す。あれば崩れていた所を 1 つ返す
+function describeAttestationsMismatch(attestations: unknown): string | null {
+  if (attestations === undefined) return null;
+  if (!isPlainObject(attestations)) {
+    return `dist.attestations is ${quoteForWhat(attestations)}, expected an object`;
+  }
+  const provenance = attestations['provenance'];
+  if (!isPlainObject(provenance)) {
+    return provenance === undefined
+      ? 'dist.attestations.provenance is missing'
+      : `dist.attestations.provenance is ${quoteForWhat(provenance)}, expected an object`;
+  }
+  const predicateType = provenance['predicateType'];
+  if (predicateType !== SLSA_PROVENANCE_V1) {
+    return `dist.attestations.provenance.predicateType is ${quoteForWhat(predicateType)}, expected ${JSON.stringify(SLSA_PROVENANCE_V1)}`;
+  }
+  return null;
 }
 
 export function judgePostCheck(
@@ -1032,6 +1066,8 @@ export function judgePostCheck(
     if (!Object.hasOwn(tags, expected.distTag) || tags[expected.distTag] !== expected.version) {
       add('dist-tag', `${name}: dist-tag ${expected.distTag} is not ${expected.version}`, name);
     }
+    const attestationsProblem = describeAttestationsMismatch(dist.dist.attestations);
+    if (attestationsProblem !== null) add('shape', `${name}: ${attestationsProblem}`, name);
   }
   for (const name of expected.integrities.keys()) {
     if (!seen.has(name)) add('shape', `${name}: no npm view result`, name);

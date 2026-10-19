@@ -189,6 +189,10 @@ const REAL_LOG_HEAD = [
 const REAL_NPM_VIEW_DIST =
   '[\n  {\n    "dist-tags": {\n      "latest": "0.1.0"\n    },\n    "dist.integrity": "sha512-1I8KR06MrkeZDfNJOqHU8qAVwzB1gA8ct0UUHSQAK/owuPpMMIeh6h2L2L2fpQjThXscjwYrWwCOYAHU+HMBOQ=="\n  }\n]\n';
 
+// 実物 (2026-10-20 に採った。npm view @kanbun-skam/skam@0.2.0 dist-tags dist.integrity dist.attestations --json、逐語)
+const REAL_NPM_VIEW_DIST_WITH_ATTESTATIONS =
+  '[\n  {\n    "dist-tags": {\n      "latest": "0.2.0"\n    },\n    "dist.integrity": "sha512-jg67ylF8HOoCeMhFv65DSub3clKuzEKCUBXziutxGrTMmpQjL921MjnybhrlshrOjr6XVAnYexEkvuz9Nhyd1A==",\n    "dist.attestations": {\n      "url": "https://registry.npmjs.org/-/npm/v1/attestations/@kanbun-skam%2fskam@0.2.0",\n      "provenance": {\n        "predicateType": "https://slsa.dev/provenance/v1"\n      }\n    }\n  }\n]\n';
+
 // 実物 (pnpm pack した skam-xml-parser-0.1.1.tgz を gunzip した先頭 512 バイト)
 const REAL_TAR_HEADER_HEX =
   '7061636b6167652f646973742f6368756e6b2d36434f494657584a2e6a73000000000000000000000000000000000000' +
@@ -1785,9 +1789,21 @@ test('parseViewDist (実物): 逐語の出力は ok で attestations なし', ()
   assert.equal(r.kind, 'ok');
   if (r.kind !== 'ok') return;
   assert.equal(r.dist.hasAttestations, false);
+  assert.equal(r.dist.attestations, undefined);
   assert.equal(Object.hasOwn(r.dist.distTags, 'latest'), true);
   assert.equal(r.dist.distTags['latest'], '0.1.0');
   assert.match(r.dist.integrity, /^sha512-/);
+});
+
+test('parseViewDist (実物 0.2.0): attestations は実物の値をそのまま持つ', () => {
+  const r = parseViewDist(REAL_NPM_VIEW_DIST_WITH_ATTESTATIONS);
+  assert.equal(r.kind, 'ok');
+  if (r.kind !== 'ok') return;
+  assert.equal(r.dist.hasAttestations, true);
+  assert.deepEqual(r.dist.attestations, {
+    url: 'https://registry.npmjs.org/-/npm/v1/attestations/@kanbun-skam%2fskam@0.2.0',
+    provenance: { predicateType: 'https://slsa.dev/provenance/v1' },
+  });
 });
 
 test('parseViewDist (合成 (実物の構造から)): "dist.attestations" のキーがあれば true', () => {
@@ -1880,6 +1896,95 @@ test('judgePostCheck: shape-unknown の view と、view が足りない名前は
   const shape = out.filter((o) => o.kind === 'post-check' && o.check === 'shape');
   assert.equal(shape.length, 2);
   assert.deepEqual(out[0]?.published, ['@kanbun-skam/skam']);
+});
+
+// --- dist.attestations の形 (K8。registry が申告する形の確認で、出所の検証ではない) ---
+
+const SLSA_V1 = 'https://slsa.dev/provenance/v1';
+
+// 実物 (0.2.0) の attestations を入れた view。integrity と dist-tag は期待どおりにする
+function attItem(name: string, i: number, attestations: unknown) {
+  const raw = JSON.stringify([
+    {
+      'dist-tags': { latest: VERSION },
+      'dist.integrity': integrityOf(i + 1),
+      ...(attestations === undefined ? {} : { 'dist.attestations': attestations }),
+    },
+  ]);
+  return { name, dist: parseViewDist(raw) };
+}
+
+const REAL_ATTESTATIONS: unknown = (
+  JSON.parse(REAL_NPM_VIEW_DIST_WITH_ATTESTATIONS) as Record<string, unknown>[]
+)[0]!['dist.attestations'];
+
+// 1 つ目のパッケージだけ attestations を差し替え、残りは実物にする
+function judgeWithAttestations(overrideFirst: unknown) {
+  const items = NAMES.map((n, i) => attItem(n, i, i === 0 ? overrideFirst : REAL_ATTESTATIONS));
+  return judgePostCheck(
+    items,
+    { version: VERSION, distTag: 'latest', integrities: integrityMap() },
+    true,
+    PUBLISHED_ALL
+  );
+}
+
+test('judgePostCheck: 6 パッケージとも 0.2.0 の実物の attestations なら失敗なし', () => {
+  assert.deepEqual(judgeWithAttestations(REAL_ATTESTATIONS), []);
+});
+
+test('judgePostCheck: attestations が undefined (キーなし) なら何も足さない', () => {
+  assert.deepEqual(judgeWithAttestations(undefined), []);
+});
+
+test('judgePostCheck: predicateType が v0.2 なら、そのパッケージの shape が 1 つ', () => {
+  const out = judgeWithAttestations({
+    ...(REAL_ATTESTATIONS as object),
+    provenance: { predicateType: 'https://slsa.dev/provenance/v0.2' },
+  });
+  assert.equal(out.length, 1);
+  const f = out[0];
+  assert.ok(f !== undefined && f.kind === 'post-check');
+  assert.equal(f.check, 'shape');
+  assert.equal(f.name, NAMES[0]);
+  assert.ok(f.what.includes('v0.2'));
+  assert.ok(f.what.includes(SLSA_V1));
+});
+
+test('judgePostCheck: predicateType が数値なら shape', () => {
+  const out = judgeWithAttestations({ provenance: { predicateType: 1 } });
+  assert.equal(out.length, 1);
+  assert.ok(out[0]?.kind === 'post-check' && out[0].check === 'shape');
+});
+
+test('judgePostCheck: provenance が無い / null / 配列は shape で、what に provenance', () => {
+  for (const att of [{ url: 'x' }, { provenance: null }, { provenance: [] }]) {
+    const out = judgeWithAttestations(att);
+    assert.equal(out.length, 1, JSON.stringify(att));
+    const f = out[0];
+    assert.ok(f !== undefined && f.kind === 'post-check' && f.check === 'shape');
+    assert.ok(f.what.includes('provenance'), f.what);
+  }
+});
+
+test('judgePostCheck: attestations が文字列 / null / 配列 / {} は shape', () => {
+  for (const att of ['x', null, [], {}]) {
+    const out = judgeWithAttestations(att);
+    assert.equal(out.length, 1, JSON.stringify(att));
+    assert.ok(out[0]?.kind === 'post-check' && out[0].check === 'shape');
+  }
+});
+
+test('judgePostCheck: predicateType に改行があっても what は 1 行で、200 文字に収まる', () => {
+  const out = judgeWithAttestations({
+    provenance: { predicateType: `a\nb${'x'.repeat(500)}` },
+  });
+  assert.equal(out.length, 1);
+  const f = out[0];
+  assert.ok(f !== undefined && f.kind === 'post-check');
+  assert.ok(!f.what.includes('\n'));
+  assert.ok(f.what.includes(SLSA_V1));
+  assert.ok(f.what.length < 400, String(f.what.length));
 });
 
 test('judgePostCheck: distTag が next なら next の tag を見る', () => {

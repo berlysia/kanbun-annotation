@@ -211,8 +211,10 @@ interface ColumnPlan {
 - highlight まわりの group 走査最適化の扱い
 - range ruby overflow 計算の重複排除: tateten 内と block-level で ~120 行の類似ロジック（`computeRangeRubyOverflow()` ヘルパー抽出の余地）
 
+以後は docs/plans/backlog.md で追う。
+
 ## 参考
 
 - `packages/skam-canvas-renderer/src/layout-vertical.ts`
 - `packages/skam-canvas-renderer/src/__tests__/layout-vertical.test.ts`
-- `docs/plans/plan-canvas-layout-vertical-refactor.md`
+- `git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/plan-canvas-layout-vertical-refactor.md`

@@ -1,6 +1,5 @@
 ---
 status: Complete
-plan: plan-canvas-renderer.md
 ---
 
 # ADR-012: Canvas Renderer パッケージの新設

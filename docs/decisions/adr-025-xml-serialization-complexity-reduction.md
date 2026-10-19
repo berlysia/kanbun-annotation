@@ -1,11 +1,10 @@
 ---
 status: Complete
-plan: plan-xml-serialization-complexity-reduction.md
 ---
 
 # ADR-025: XML Serialization 複雑度削減
 
-実装計画: [Plan](../plans/plan-xml-serialization-complexity-reduction.md)
+実装計画: `git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/plan-xml-serialization-complexity-reduction.md`
 
 ## コンテキスト
 

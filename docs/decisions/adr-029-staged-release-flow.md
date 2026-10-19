@@ -1,11 +1,10 @@
 ---
-status: Accepted
-plan: plan-staged-release-flow.md
+status: Complete
 ---
 
 # ADR-029: 公開 6 パッケージの tag 駆動 staged publishing
 
-実装計画: [Plan](../plans/plan-staged-release-flow.md)
+実装計画: `git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/plan-staged-release-flow.md`
 手順: [releasing.md](../releasing.md)
 K1、K8 (受入基準の確かめ方と真正性の錨)、K12 は [ADR-031](adr-031-release-command-to-the-end.md) が置き換える
 
@@ -125,7 +124,7 @@ release.yml は version に `-` を含めば `next` と `--prerelease` にする
 
 ### K13: 記録
 
-決定はこの ADR、手順は releasing.md、このリポジトリの ADR-Plan の 1:1 規約に従う plan は [plan-staged-release-flow.md](../plans/plan-staged-release-flow.md)。ADR-028 のうち 3 点を、この ADR が置き換える (本文は変えない)。「影響」の節にある。
+決定はこの ADR、手順は releasing.md、このリポジトリの ADR-Plan の 1:1 規約に従う plan は `git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/plan-staged-release-flow.md`。ADR-028 のうち 3 点を、この ADR が置き換える (本文は変えない)。「影響」の節にある。
 
 ### K14: 途中で失敗したときの戻り方
 
@@ -218,6 +217,8 @@ npm-stage は repo を持たないので、manifest の `name` が公開 6 パ�
 - **R1: 同じ版の二重 stage、reject 後の再 stage の挙動。** `npm help stage` は、stage 済みの版が公開済みの版と同じ semver の一意性を共有すると書くが、reject した版を同じ版で stage し直せるかは書いていない。F2 は「再 stage できなければ F3」と分岐を持つ。
 - **R3: staged + trusted publishing で provenance が付くか。** npm の docs に記載がない。このリポジトリは public なので、approve の後に `npm view @kanbun-skam/<name>@X.Y.Z dist.attestations` で確かめる。付かなくても公開の正否には影響しない。
 - 手順書に書いた `npm stage list` / `view` / `download` の出力の書式。コマンドと引数は `npm help` (npm 12.2.0) で確かめたが、出力は実行していない (`npm trust list --json` の出力は移行で確かめた)。
+
+以後は docs/plans/backlog.md で追う。
 
 ### 移行で見つかったこと (2026-10-15)
 

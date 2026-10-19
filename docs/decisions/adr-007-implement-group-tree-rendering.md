@@ -1,11 +1,10 @@
 ---
 status: Complete
-plan: plan-implement-group-tree-rendering.md
 ---
 
 # ADR-007: グループツリーレンダリングの実装
 
-実装計画: [Plan](../plans/plan-implement-group-tree-rendering.md)
+実装計画: `git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/plan-implement-group-tree-rendering.md`
 
 ## コンテキスト
 

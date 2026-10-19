@@ -1,6 +1,5 @@
 ---
 status: Complete
-plan: plan-reform-auto-generated-ids.md
 ---
 
 # ADR-003: 自動生成IDの生成規則依存を廃止し、ランダムID方式に移行する

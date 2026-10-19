@@ -1,6 +1,5 @@
 ---
 status: Complete
-plan: plan-restructure-display-layer-rendering.md
 ---
 
 # ADR-005: Display 層レンダリングの構造改善

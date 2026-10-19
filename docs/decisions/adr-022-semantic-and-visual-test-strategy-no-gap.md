@@ -1,6 +1,5 @@
 ---
 status: Complete
-plan: plan-semantic-and-visual-test-strategy-no-gap.md
 ---
 
 # ADR-022: 意味スロット/見た目の二層テスト戦略と No Test-Gap 移行規約

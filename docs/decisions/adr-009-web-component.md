@@ -1,6 +1,5 @@
 ---
 status: Complete
-plan: plan-web-component.md
 ---
 
 # ADR-009: SKAM Web Component (`<skam-renderer>`)

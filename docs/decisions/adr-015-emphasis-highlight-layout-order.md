@@ -1,6 +1,5 @@
 ---
 status: Complete
-plan: plan-emphasis-highlight-layout-order-canvas.md
 substatus:
   html: Complete
   canvas: Complete

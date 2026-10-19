@@ -31,7 +31,10 @@ import {
   isInteractiveStreams,
   checkTrustList,
   combineTrustResults,
+  sanitizeForTerminal,
+  createStreamSanitizer,
 } from './release-check.ts';
+import * as afterPushCheck from './release-after-push-check.ts';
 import type {
   WorkspacePackage,
   EntryObservation,
@@ -1251,4 +1254,9 @@ test('combineTrustResults: eotp > command-failed > shape-unknown > mismatch > ok
   assert.equal(combineTrustResults([mismatch, failed, shape]).kind, 'command-failed');
   assert.equal(combineTrustResults([ok, mismatch]).kind, 'mismatch');
   assert.deepEqual(combineTrustResults(Array.from({ length: 6 }, () => ok)), { kind: 'ok' });
+});
+
+test('sanitizeForTerminal / createStreamSanitizer: APC の再公開は RC の関数と同一', () => {
+  assert.equal(afterPushCheck.sanitizeForTerminal, sanitizeForTerminal);
+  assert.equal(afterPushCheck.createStreamSanitizer, createStreamSanitizer);
 });

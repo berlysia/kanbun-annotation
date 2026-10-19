@@ -1,6 +1,7 @@
 // リリース前提の検査の純粋関数。ファイル・ネットワーク・子プロセスには触れない
 // (読み込みと実行は check-release.ts と release.ts が行い、結果をここへ渡す)。
 
+import { StringDecoder } from 'node:string_decoder';
 import type {
   Check,
   CommandResult,
@@ -31,6 +32,38 @@ const LIFECYCLE_SCRIPTS = ['preinstall', 'install', 'postinstall', 'prepare'];
 const TAG_PATTERN = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z.-]+)?$/;
 const FILE_PATTERN = /^[A-Za-z0-9._-]+\.tgz$/;
 const INTEGRITY_PATTERN = /^sha512-[A-Za-z0-9+/]+={0,2}$/;
+
+// --- 表示の無害化 ---
+
+const FORMAT_CHAR = /^\p{Cf}$/u;
+
+// C0 (\t と \n を除く。\r は除く)、DEL、C1、Cf、U+2028 / U+2029 (Cf に入らない行と段落の区切り)
+function isStrippedCodePoint(ch: string): boolean {
+  const cp = ch.codePointAt(0) ?? 0;
+  if (cp === 0x09 || cp === 0x0a) return false;
+  if (cp <= 0x1f || (cp >= 0x7f && cp <= 0x9f)) return true;
+  if (cp === 0x2028 || cp === 0x2029) return true;
+  return FORMAT_CHAR.test(ch);
+}
+
+// 停止の表示 (release-stop-report.ts) の切り出しは、これより前にエスケープ列 (CSI / OSC) を丸ごと除く。
+// この関数が除くのは ESC の 1 文字だけで、`[36;1m` のような後続の文字は残る
+export function sanitizeForTerminal(text: string): string {
+  let out = '';
+  for (const ch of text) {
+    if (!isStrippedCodePoint(ch)) out += ch;
+  }
+  return out;
+}
+
+// 文字単位の除去なので、チャンクの境界は多バイト文字の持ち越しだけを扱えばよい
+export function createStreamSanitizer(): { write(chunk: Buffer): string; end(): string } {
+  const decoder = new StringDecoder('utf8');
+  return {
+    write: (chunk) => sanitizeForTerminal(decoder.write(chunk)),
+    end: () => sanitizeForTerminal(decoder.end()),
+  };
+}
 
 const ok = <T>(value: T): Check<T> => ({ ok: true, value });
 const fail = (...errors: string[]): { ok: false; errors: string[] } => ({ ok: false, errors });

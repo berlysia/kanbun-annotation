@@ -3,7 +3,6 @@
 
 import { createHash } from 'node:crypto';
 import { posix } from 'node:path';
-import { StringDecoder } from 'node:string_decoder';
 import zlib from 'node:zlib';
 import { checkPackedPackageJson, verifyManifest } from './release-check.ts';
 import type {
@@ -31,35 +30,8 @@ function isPositiveSafeInteger(value: unknown): value is number {
 
 const MIB = 1024 * 1024;
 
-// --- 表示の無害化 ---
-
-const FORMAT_CHAR = /^\p{Cf}$/u;
-
-// C0 (\t と \n を除く。\r は除く)、DEL、C1、Cf、U+2028 / U+2029 (Cf に入らない行と段落の区切り)
-function isStrippedCodePoint(ch: string): boolean {
-  const cp = ch.codePointAt(0) ?? 0;
-  if (cp === 0x09 || cp === 0x0a) return false;
-  if (cp <= 0x1f || (cp >= 0x7f && cp <= 0x9f)) return true;
-  if (cp === 0x2028 || cp === 0x2029) return true;
-  return FORMAT_CHAR.test(ch);
-}
-
-export function sanitizeForTerminal(text: string): string {
-  let out = '';
-  for (const ch of text) {
-    if (!isStrippedCodePoint(ch)) out += ch;
-  }
-  return out;
-}
-
-// 文字単位の除去なので、チャンクの境界は多バイト文字の持ち越しだけを扱えばよい
-export function createStreamSanitizer(): { write(chunk: Buffer): string; end(): string } {
-  const decoder = new StringDecoder('utf8');
-  return {
-    write: (chunk) => sanitizeForTerminal(decoder.write(chunk)),
-    end: () => sanitizeForTerminal(decoder.end()),
-  };
-}
+// 表示の無害化は release-check.ts に移した。既存の import 元を変えないために再公開する
+export { createStreamSanitizer, sanitizeForTerminal } from './release-check.ts';
 
 // --- 後半の引数の組み立て (npm / gh の固定の引数は実行器が足す) ---
 

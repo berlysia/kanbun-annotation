@@ -615,14 +615,6 @@ ${gridStyles}
   user-select: none;
 }
 
-/* Suffix Kana (送り仮名・添え仮名のみの場合) */
-:where(.${prefix}-suffix-kana) {
-  font-size: ${annotationRowH};
-  vertical-align: top;
-  -webkit-user-select: none;
-  user-select: none;
-}
-
 /* Kutoten (句読点) - suffix-row の kutoten 行に配置、行内（親）のフォントサイズを継承 */
 :where(.${prefix}-suffix-kutoten) {
   grid-area: kutoten;
@@ -861,20 +853,17 @@ ${
   user-select: text;
 }
 
-/* okurigana をコピー可能にする (suffix-okuri, suffix-saidoku, suffix-kana) */
+/* okurigana をコピー可能にする (suffix-okuri, suffix-saidoku) */
 :where(.${prefix}-document[data-copyable~="okurigana"]) :where(.${prefix}-suffix-okuri),
 :where(.${prefix}-document[data-copyable~="okurigana"]) :where(.${prefix}-suffix-saidoku),
-:where(.${prefix}-document[data-copyable~="okurigana"]) :where(.${prefix}-suffix-kana),
 :where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-suffix-okuri),
-:where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-suffix-saidoku),
-:where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-suffix-kana) {
+:where(.${prefix}-document[data-copyable~="all"]) :where(.${prefix}-suffix-saidoku) {
   -webkit-user-select: text;
   user-select: text;
 }
 
-/* soegana をコピー可能にする (suffix-okuri, suffix-kana と同じ要素) */
-:where(.${prefix}-document[data-copyable~="soegana"]) :where(.${prefix}-suffix-okuri),
-:where(.${prefix}-document[data-copyable~="soegana"]) :where(.${prefix}-suffix-kana) {
+/* soegana をコピー可能にする (suffix-okuri と同じ要素) */
+:where(.${prefix}-document[data-copyable~="soegana"]) :where(.${prefix}-suffix-okuri) {
   -webkit-user-select: text;
   user-select: text;
 }

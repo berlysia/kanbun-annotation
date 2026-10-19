@@ -662,3 +662,10 @@ describe('grid mode: custom emphasis character', () => {
     expect(rows).toEqual(['\uFE46']);
   });
 });
+
+describe('suffix-kana', () => {
+  it('does not emit CSS for the .skam-suffix-kana element, which is never rendered', () => {
+    const { css } = render(createDoc());
+    expectNoCSSSelector(css, /suffix-kana/);
+  });
+});

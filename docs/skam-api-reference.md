@@ -226,6 +226,7 @@ const { html, css } = render(doc);
 // 読み層の出どころ（@experimental）: { readingLayerSource: 'readings' | 'display' }
 //   'display' は profile で見えている注記だけを言葉にする（readings も白文も参照しない）。
 //   言葉の上書き: { accessibleLabels: { kaeri: (note) => '...' } }
+//   Web Component では `accessibleLabels` プロパティで渡す。
 //   出題など注記を隠す用途では { base, overrides } の profile と 'display' を併用する
 
 // ブラウザ環境: インタラクティブイベントハンドラ

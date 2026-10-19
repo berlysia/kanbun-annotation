@@ -32,9 +32,8 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 
 ## Web Component
 
-- **致命的な skam-error の重複通知**: `recoverable: false` の `skam-error` が、再描画のたびに発火する。ハンドラが light DOM を書き換えると、MutationObserver、再描画、失敗、発火の連鎖が起きうる。回復可能なエラーと同じく、最後に通知したメッセージを覚えて重複を除く案がある。現行のコードで連鎖が起きるかは未確認。出典: plan-practical-readiness.md L97。規模: 小。
-- **attribute-validation.test.ts の flaky なテスト**: 次のテストが、2026-10-15 に `pnpm test` で 1 回だけ落ちた。`skam-web-component` の `renders vertically and reports writing-mode once` (107 行目) である。直後の単独の実行は 6 回とも pass だった。負荷をかけて再現させ、実装のタイミングとテストの待ち方のどちらの問題かを切り分ける。原因は未確認。出典: plan-release-automation.md L77。規模: 小。
-- **accessibleLabels を指定する手段**: Web Component から `accessibleLabels` を指定するプロパティがない。出典: plan-consumer-feedback.md L67。規模: 小。
+- **attribute-validation.test.ts の flaky なテスト**: 2026-10-15 に `pnpm test` で 1 回だけ落ちた。落ちたのは `renders vertically and reports writing-mode once` である。2026-10-19 に 120 回流したが、再現しなかった。内訳は、8 コアすべてに CPU 負荷をかけた `attribute-validation.test.ts` が 100 回、`turbo run test:run --force` が 20 回である。vitest 4.0.18、happy-dom 20.3.9。失敗率が 2.5% (3/120) 以上なら 95% の確からしさで検出できたので、それ未満の失敗率は否定できない。元の失敗との関係は未確認だが、下の happy-dom の MutationObserver の件が候補である。出典: plan-release-automation.md L77。規模: 小。
+- **happy-dom の MutationObserver が GC で通知を落とす**: happy-dom 20.3.9 は MutationObserver のコールバックを `WeakRef` で持つ。該当するのは `MutationObserverListener.js` である。GC で回収されると、light DOM の変更の通知が捨てられる。`--expose-gc` で毎回 GC を走らせると、素の `<div>` でも 300 回中 299 回届かなかった。`textContent` で再描画を起こすテストは、GC のタイミング次第で落ちる。既存のテスト (attribute-validation.test.ts など) で `textContent` を使って再描画している箇所は、`xmlContent` の setter に替える。MutationObserver の経路そのものは、実ブラウザのテストで確かめる。happy-dom の新しい版で直っているかも確かめる。出典: fix/web-component-errors-and-labels の調査 (2026-10-19)。規模: 小。
 - **mount() 関数 (#11)**: DOM へ描く `mount()` 関数を足し、CSS の 1 回だけの注入とフォント読み込み後の補正をまとめる。出典: plan-consumer-feedback.md L65、#11。規模: 中。
 
 ## データモデルと仕様

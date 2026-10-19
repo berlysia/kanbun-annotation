@@ -451,7 +451,7 @@ const FRONT_DEFAULTS: Readonly<Record<FrontStage, Default>> = {
     'default:front:1 prerequisites',
     'A prerequisite check failed (git state, trust settings or `pnpm verify`)',
     'Read the command and the lines under error:; run a failed verify step alone (see try:)',
-    'Fix what the lines under error: show, then run the same command again; nothing has been changed yet'
+    'Fix what the lines under error: show, then run the same command again; nothing has been changed yet. If the trust check asked for 2FA again, run again and choose "skip 2FA for 5 minutes" at the authentication prompt'
   ),
   '2 versioning': def(
     'default:front:2 versioning',

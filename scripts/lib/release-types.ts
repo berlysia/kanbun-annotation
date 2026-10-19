@@ -20,7 +20,8 @@ export type RegistryResponse =
 export type ReleaseLookup =
   | { kind: 'found' }
   | { kind: 'not-found' }
-  | { kind: 'error'; message: string };
+  // status と stderr は gh が終わったときの結果。停止の表示が error の欄に使う
+  | { kind: 'error'; message: string; status?: number | null; stderr?: string };
 
 export type DistTag = 'latest' | 'next';
 
@@ -146,8 +147,6 @@ export interface StopReport {
   notes: readonly string[];
 }
 
-// plan-2 が ReleaseOutcome の front-stopped に載せる。それまで knip の未使用の export に数えないための @public
-/** @public */
 export interface FrontStop {
   stage: FrontStage;
   reason: string;
@@ -198,7 +197,7 @@ export type AfterPushResult =
 
 export type Outcome =
   | { kind: 'entry-stopped'; reason: string }
-  | { kind: 'front-stopped'; stage: string; reason: string; recovery?: string }
+  | { kind: 'front-stopped'; stop: FrontStop }
   | { kind: 'after-push-stopped'; stop: ClassifiedStop }
   | { kind: 'declined' }
   | { kind: 'post-check-failed'; stops: readonly [ClassifiedStop, ...ClassifiedStop[]] }

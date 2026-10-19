@@ -203,6 +203,8 @@ export function parseGhReleaseView(status: number | null, stderr: string): Relea
   return {
     kind: 'error',
     message: `gh release view failed (${status ?? 'not started'}): ${stderr.trim()}`,
+    status,
+    stderr,
   };
 }
 

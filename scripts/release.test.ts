@@ -52,11 +52,14 @@ import type {
 import type { AfterPushInput } from './release-after-push.ts';
 import { checkChangelog } from './lib/release-check.ts';
 import type { ChangesetStatus, ReleaseFlags, ReleaseLookup } from './lib/release-check.ts';
+import { excerptDetail } from './lib/release-stop-report.ts';
+import { NO_COMMAND } from './lib/release-types.ts';
 import type {
   AfterPushResult,
   Check,
   ClassifiedStop,
   CommandResult,
+  FrontStop,
   Outcome,
   TrustResult,
 } from './lib/release-types.ts';
@@ -312,6 +315,24 @@ function assertUnchanged(repo: Repo, before: Snapshot): void {
 
 const failing: Check<void> = { ok: false, errors: ['boom'] };
 
+// 前半の停止は ReleaseOutcome の値で返り、表示は reportOutcome だけが出す (plan-2 T2)
+function stopOf(outcome: ReleaseOutcome): FrontStop {
+  if (outcome.status !== 'stopped') throw new Error(`expected a stop, got ${outcome.status}`);
+  return outcome.stop;
+}
+
+function frontLines(outcome: ReleaseOutcome): string[] {
+  const out = lineCollector();
+  assert.equal(reportOutcome({ kind: 'front-stopped', stop: stopOf(outcome) }, out.output), 1);
+  return out.text().split('\n');
+}
+
+// 見出しの行の次の行 (見出しが無ければ undefined)
+const lineAfter = (lines: string[], heading: string): string | undefined => {
+  const at = lines.indexOf(heading);
+  return at < 0 ? undefined : lines[at + 1];
+};
+
 // 正常系
 
 test('normal release: commit and annotated tag exist locally and on origin, tree is clean, no force', async () => {
@@ -435,10 +456,13 @@ for (const [label, make] of stopCases) {
     assert.equal(after.originMaster, before.originMaster);
     // 事前に仕込んだ tag 以外は増えない
     assert.equal(after.localTags.includes('chore'), false);
-    assert.ok(
-      fake.logs.some((l) => l.includes(REVERT)),
-      fake.logs.join('\n')
+    assert.equal(stopOf(outcome).recovery, REVERT);
+    // 表示は reportOutcome だけが出す。try: の最初の行が復元のコマンド
+    assert.deepEqual(
+      fake.logs.filter((l) => l.includes('release stopped at')),
+      []
     );
+    assert.equal(lineAfter(frontLines(outcome), 'try:'), `  - to undo: ${REVERT}`);
   });
 }
 
@@ -452,11 +476,12 @@ test('stops fail-closed when git ls-remote fails', async () => {
         : gitIn(repo.work, args),
   });
   const outcome = await runRelease(normal, fake.deps);
-  assert.equal(outcome.status, 'stopped');
-  assert.ok(
-    outcome.status === 'stopped' && outcome.reason.includes('fatal: unreachable'),
-    JSON.stringify(outcome)
-  );
+  const stop = stopOf(outcome);
+  assert.ok(stop.error.command.startsWith('git ls-remote --tags origin'), stop.error.command);
+  assert.ok(stop.error.lines.includes('fatal: unreachable'), stop.error.lines.join('\n'));
+  assert.equal(stop.reason.includes('fatal'), false);
+  const text = frontLines(outcome).join('\n');
+  assert.ok(text.includes('origin cannot be reached'), text);
   const after = snapshot(repo);
   assert.equal(after.head, before.head);
   assert.equal(after.localTags, before.localTags);
@@ -494,10 +519,16 @@ test('stage 7: a rejected push leaves origin untouched and prints how to drop th
   );
   assert.notEqual(mustGit(repo.bare, ['rev-parse', 'master']), before.head);
   assert.equal(mustGit(repo.bare, ['tag', '-l']), '');
+  const stop = stopOf(outcome);
+  assert.equal(stop.recovery, 'git tag -d v0.2.0 && git reset --hard origin/master');
   assert.ok(
-    fake.logs.some((l) => l.includes('git tag -d v0.2.0 && git reset --hard origin/master')),
-    fake.logs.join('\n')
+    stop.error.lines.some((l) => l.includes('rejected')),
+    stop.error.lines.join('\n')
   );
+  const text = frontLines(outcome).join('\n');
+  assert.equal(lineAfter(text.split('\n'), 'try:'), `  - to undo: ${stop.recovery}`);
+  // push は git-remote の規則の対象外
+  assert.equal(text.includes('origin cannot be reached'), false, text);
 });
 
 // --tag-only
@@ -588,10 +619,7 @@ test('tag-only: a rejected tag push leaves origin untouched and prints how to dr
     mustGit(repo.bare, ['rev-parse', 'v0.2.0^{commit}']),
     mustGit(repo.work, ['rev-parse', 'HEAD'])
   );
-  assert.ok(
-    fake.logs.some((l) => l.includes('git tag -d v0.2.0')),
-    fake.logs.join('\n')
-  );
+  assert.equal(stopOf(outcome).recovery, 'git tag -d v0.2.0');
 });
 
 // --- 段 1 の前提 (K5、K6、K8、K4) ---
@@ -628,11 +656,10 @@ for (const [label, result] of trustStops) {
 test('stage 1: an EOTP stop tells the user to rerun and changes nothing', async () => {
   const repo = makeRepo();
   const fake = fakeDeps(repo, { verifyTrust: async () => ({ kind: 'eotp' }) });
-  await runRelease(normal, fake.deps);
-  assert.ok(
-    fake.logs.some((l) => l.includes('rerun') && l.includes('2FA')),
-    fake.logs.join('\n')
-  );
+  const outcome = await runRelease(normal, fake.deps);
+  const text = frontLines(outcome).join('\n');
+  assert.ok(text.includes('2FA'), text);
+  assert.ok(text.includes('skip 2FA for 5 minutes'), text);
 });
 
 test('stage 1: pnpm verify runs once, before changeset version', async () => {
@@ -660,7 +687,7 @@ test('stage 1: stops when pnpm verify leaves a file behind, before any versionin
   });
   const outcome = await runRelease(normal, fake.deps);
   assert.equal(outcome.status, 'stopped');
-  assert.equal(outcome.status === 'stopped' ? outcome.stage : '', '1 prerequisites');
+  assert.equal(stoppedStage(outcome), '1 prerequisites');
   assert.equal(fake.calls.includes('changesetVersion'), false);
 });
 
@@ -673,7 +700,7 @@ function revertIn(repo: Repo): void {
 }
 
 function stoppedStage(outcome: ReleaseOutcome): string {
-  return outcome.status === 'stopped' ? outcome.stage : '';
+  return outcome.status === 'stopped' ? outcome.stop.stage : '';
 }
 
 test('stage 2: restores ignored packages one path per line and keeps them out of the commit', async () => {
@@ -716,7 +743,7 @@ test('stage 2: stops and prints the revert command when changeset version touche
   });
   const outcome = await runRelease(normal, fake.deps);
   assert.equal(stoppedStage(outcome), '2 versioning');
-  assert.ok(fake.logs.some((l) => l.includes(REVERT)));
+  assert.equal(stopOf(outcome).recovery, REVERT);
   assert.equal(fake.calls.includes('prettier'), false);
 });
 
@@ -732,7 +759,7 @@ test('stage 2: stops at the second allow-list check when prettier changes unexpe
   });
   const outcome = await runRelease(normal, fake.deps);
   assert.equal(stoppedStage(outcome), '2 versioning');
-  assert.ok(fake.logs.some((l) => l.includes(REVERT)));
+  assert.equal(stopOf(outcome).recovery, REVERT);
   assert.equal(fake.calls.includes('checkRelease'), false);
 });
 
@@ -762,7 +789,7 @@ test('--pre beta: declining at stage 5 leaves a revert command that removes pre.
   assert.equal(stoppedStage(outcome), '5 confirmation');
   assert.ok(fake.calls.includes('pre:enter beta'));
   assert.equal(existsSync(join(repo.work, '.changeset', 'pre.json')), true);
-  assert.ok(fake.logs.some((l) => l.includes(REVERT)));
+  assert.equal(stopOf(outcome).recovery, REVERT);
   revertIn(repo);
   assert.equal(existsSync(join(repo.work, '.changeset', 'pre.json')), false);
   assert.equal(mustGit(repo.work, ['status', '--porcelain']), '');
@@ -1254,6 +1281,12 @@ function fakeMain(repo: Repo, options: MainOptions = {}): MainFake {
   };
 }
 
+const DECLINED_STOP: FrontStop = {
+  stage: '5 confirmation',
+  reason: 'declined',
+  error: excerptDetail(NO_COMMAND, null, ['declined']),
+};
+
 function pkgVersion(repo: Repo, dir: string): string {
   const json = JSON.parse(
     readFileSync(join(repo.work, 'packages', dir, 'package.json'), 'utf8')
@@ -1441,7 +1474,7 @@ test('main: a front half that stopped does not call runAfterPush or install the 
   const repo = makeRepo({ version: '0.1.1' });
   const fake = fakeMain(repo, {
     status: { kind: 'release', version: '0.2.0' },
-    front: { status: 'stopped', stage: '5 confirmation', reason: 'declined' },
+    front: { status: 'stopped', stop: DECLINED_STOP },
   });
   assert.equal(await runMain([], fake.deps), 1);
   assert.equal(fake.afterPushInputs.length, 0);
@@ -1498,7 +1531,7 @@ test('main: a front half that stopped is reported as exit 1', async () => {
   const repo = makeRepo({ version: '0.1.1' });
   const fake = fakeMain(repo, {
     status: { kind: 'release', version: '0.2.0' },
-    front: { status: 'stopped', stage: '5 confirmation', reason: 'declined' },
+    front: { status: 'stopped', stop: DECLINED_STOP },
   });
   assert.equal(await runMain([], fake.deps), 1);
 });
@@ -1522,7 +1555,7 @@ test('reportOutcome: every outcome maps to its exit code', () => {
   };
   const cases: [Outcome, number][] = [
     [{ kind: 'entry-stopped', reason: 'x' }, 1],
-    [{ kind: 'front-stopped', stage: 's', reason: 'x' }, 1],
+    [{ kind: 'front-stopped', stop: DECLINED_STOP }, 1],
     [{ kind: 'after-push-stopped', stop }, 1],
     [{ kind: 'declined' }, 0],
     [{ kind: 'post-check-failed', stops: [stop] }, 1],
@@ -1785,6 +1818,217 @@ test('verify: a package.json that is not JSON, or has no scripts object, runs pn
   });
   await deps.verify();
   assert.deepEqual(calls, ['pnpm verify']);
+});
+
+// --- 前半の停止は FrontStop で返り、reportOutcome が 3 つの見出しで出す (plan-2 T2) ---
+
+// 実 git の上で、指定した git の呼び出しだけを失敗させる
+function failGit(repo: Repo, match: (args: string[]) => boolean, stderr: string) {
+  return (args: string[]): GitResult =>
+    match(args) ? { status: 1, stdout: '', stderr } : gitIn(repo.work, args);
+}
+
+test('front stop: a whole pnpm verify that fails prints the command, its exit code and the stderr', async () => {
+  const h = frontHarness(
+    verifyScripts('pnpm build || true'),
+    () => ({ status: 1, stdout: '', stderr: 'Error: 3 tests failed' }),
+    { stdio: 'pipe' }
+  );
+  const repo = makeRepo();
+  const outcome = await runRelease(normal, fakeDeps(repo, { verify: h.deps.verify }).deps);
+  const lines = frontLines(outcome);
+  assert.ok(lines.includes('  $ pnpm verify (exit 1)'), lines.join('\n'));
+  assert.ok(lines.includes('  | Error: 3 tests failed'), lines.join('\n'));
+  assert.equal(
+    lines.some((l) => l.includes('to see only the output')),
+    false
+  );
+  assert.equal(lines[0], 'release stopped at 1 prerequisites: pnpm verify failed');
+});
+
+test('front stop: a failed verify step prints that step and how to run only it', async () => {
+  const h = frontHarness(
+    verifyScripts('pnpm build && pnpm typecheck'),
+    (line) =>
+      line === 'pnpm typecheck'
+        ? { status: 2, stdout: '', stderr: '@fx/a:typecheck: ERROR: command finished with error' }
+        : exit0,
+    { stdio: 'pipe' }
+  );
+  const repo = makeRepo();
+  const outcome = await runRelease(normal, fakeDeps(repo, { verify: h.deps.verify }).deps);
+  const lines = frontLines(outcome);
+  assert.ok(lines.includes('  $ pnpm typecheck (exit 2)'), lines.join('\n'));
+  assert.ok(lines.includes('  | @fx/a:typecheck: ERROR: command finished with error'));
+  assert.ok(
+    lines.includes('  - run pnpm typecheck to see only the output of the failed step'),
+    lines.join('\n')
+  );
+  assert.equal(stopOf(outcome).rerun, 'pnpm typecheck');
+});
+
+test('front stop: a child whose stderr was not captured says so', async () => {
+  const repo = makeRepo();
+  const h = frontHarness(
+    verifyScripts('pnpm build || true'),
+    () => ({ status: 1, stdout: '', stderr: '' }),
+    {}
+  );
+  const outcome = await runRelease(normal, fakeDeps(repo, { verify: h.deps.verify }).deps);
+  assert.ok(
+    frontLines(outcome).includes('  | (stderr was not captured; the output is shown above)'),
+    frontLines(outcome).join('\n')
+  );
+});
+
+test('front stop: declined prints only the reason under error: and no command line', async () => {
+  const repo = makeRepo();
+  const outcome = await runRelease(normal, fakeDeps(repo, { confirm: async () => false }).deps);
+  const lines = frontLines(outcome);
+  const at = lines.indexOf('error:');
+  assert.deepEqual(lines.slice(at + 1, at + 3), ['  | declined', 'possible causes:']);
+  assert.equal(
+    lines.some((l) => l.startsWith('  $ ')),
+    false
+  );
+});
+
+test('front stop: runRelease prints nothing about the stop itself', async () => {
+  const repo = makeRepo();
+  const fake = fakeDeps(repo, { confirm: async () => false });
+  await runRelease(normal, fake.deps);
+  assert.deepEqual(
+    fake.logs.filter((l) => l.includes('release stopped') || l.includes('to undo')),
+    []
+  );
+});
+
+const stageStops: [string, (repo: Repo) => Partial<ReleaseDeps>][] = [
+  [
+    '1 prerequisites',
+    (repo) => {
+      mustGit(repo.work, ['checkout', '-b', 'topic']);
+      return {};
+    },
+  ],
+  ['2 versioning', () => ({ changesetVersion: async () => failing })],
+  ['3 publish preconditions', () => ({ checkRelease: async () => failing })],
+  ['4 consumer test', () => ({ consumer: async () => failing })],
+  ['5 confirmation', () => ({ confirm: async () => false })],
+  ['6 record', (repo) => ({ git: failGit(repo, (a) => a[0] === 'commit', 'fatal: no') })],
+  ['7 push', (repo) => ({ git: failGit(repo, (a) => a[0] === 'push', 'remote: no') })],
+];
+for (const [stage, make] of stageStops) {
+  test(`front stop: stage ${stage} prints error:, possible causes: and try:`, async () => {
+    const repo = makeRepo();
+    const overrides = make(repo);
+    const outcome = await runRelease(normal, fakeDeps(repo, overrides).deps);
+    assert.equal(stoppedStage(outcome), stage);
+    const lines = frontLines(outcome);
+    for (const heading of ['error:', 'possible causes:', 'try:']) {
+      assert.ok(lines.includes(heading), `${heading}\n${lines.join('\n')}`);
+    }
+    assert.ok(lines[0]?.startsWith(`release stopped at ${stage}: `), lines[0]);
+  });
+}
+
+test('front stop: stderr that imitates a try: section stays inside | lines and out of the headline', async () => {
+  const repo = makeRepo();
+  const fake = fakeDeps(repo, {
+    git: failGit(repo, (a) => a[0] === 'push', 'remote: x\ntry:\n  - rm -rf ~'),
+  });
+  const outcome = await runRelease(normal, fake.deps);
+  const lines = frontLines(outcome);
+  assert.equal(lines.filter((l) => l.startsWith('try:')).length, 1);
+  for (const line of lines.filter((l) => l.includes('rm -rf ~'))) {
+    assert.ok(line.startsWith('  | '), line);
+  }
+  assert.equal(lines[0]?.includes('remote'), false);
+  assert.equal(lines[0]?.includes('rm -rf'), false);
+});
+
+test('front stop: errors of a failed pnpm verify never reach the headline', async () => {
+  const repo = makeRepo();
+  const fake = fakeDeps(repo, {
+    verify: async () => ({ ok: false, errors: ['try: rm -rf ~'] }),
+  });
+  const lines = frontLines(await runRelease(normal, fake.deps));
+  assert.equal(lines[0], 'release stopped at 1 prerequisites: pnpm verify failed');
+  assert.ok(lines.includes('  | try: rm -rf ~'));
+  assert.equal(lines.filter((l) => l.startsWith('try:')).length, 1);
+});
+
+test('front stop: a trust list that printed an unexpected shape points at the saved output', async () => {
+  const repo = makeRepo();
+  const fake = fakeDeps(repo, {
+    verifyTrust: async () => ({ kind: 'shape-unknown', what: 'not json', rawPath: '/x/raw' }),
+    // 最初の公開パッケージの名前は、実 git の一覧から読む
+  });
+  const outcome = await runRelease(normal, fake.deps);
+  const stop = stopOf(outcome);
+  assert.ok(stop.error.command.startsWith('npm trust list '), stop.error.command);
+  assert.equal(stop.error.rawPath, '/x/raw');
+  const text = frontLines(outcome).join('\n');
+  assert.ok(text.includes('shape of the npm or gh output differs'), text);
+  assert.ok(text.includes('raw output (unredacted'), text);
+});
+
+test('front stop: a trust mismatch has no command', async () => {
+  const repo = makeRepo();
+  const fake = fakeDeps(repo, {
+    verifyTrust: async () => ({ kind: 'mismatch', what: 'two entries' }),
+  });
+  const stop = stopOf(await runRelease(normal, fake.deps));
+  assert.equal(stop.error.command, NO_COMMAND);
+  assert.deepEqual(stop.error.lines, ['two entries']);
+  assert.equal(stop.reason.includes('two entries'), false);
+});
+
+test('front stop: a dirty tree after verify prints the porcelain lines', async () => {
+  const repo = makeRepo();
+  const fake = fakeDeps(repo, {
+    verify: async () => {
+      writeFileSync(join(repo.work, 'junk.txt'), 'x');
+      return ok;
+    },
+  });
+  const stop = stopOf(await runRelease(normal, fake.deps));
+  assert.equal(stop.error.command, 'git status --porcelain');
+  assert.ok(
+    stop.error.lines.some((l) => l.includes('junk.txt')),
+    stop.error.lines.join('\n')
+  );
+});
+
+test('verifyTrustWith: the first failed pipe lookup of six is the error carried', async () => {
+  const h = trustHarness((name) =>
+    name === '@fx/n1' || name === '@fx/n3'
+      ? { status: 1, stdout: '', stderr: `npm error 404 ${name}` }
+      : { status: 0, stdout: GOOD_TRUST, stderr: '' }
+  );
+  const result = await verifyTrustWith(h.run, h.saveRaw, lineCollector().output, SIX);
+  assert.equal(result.kind, 'command-failed');
+  if (result.kind !== 'command-failed') return;
+  assert.deepEqual(result.failure, {
+    command: 'npm trust list @fx/n1 --json',
+    status: 1,
+    stderr: 'npm error 404 @fx/n1',
+  });
+});
+
+test('front stop: the second of six failed trust lookups becomes the error of the stop', async () => {
+  const h = trustHarness((name) =>
+    name === '@fx/n1' || name === '@fx/n3'
+      ? { status: 1, stdout: '', stderr: `npm error 404 ${name}` }
+      : { status: 0, stdout: GOOD_TRUST, stderr: '' }
+  );
+  const trust = await verifyTrustWith(h.run, h.saveRaw, lineCollector().output, SIX);
+  const repo = makeRepo();
+  const outcome = await runRelease(normal, fakeDeps(repo, { verifyTrust: async () => trust }).deps);
+  const stop = stopOf(outcome);
+  assert.equal(stop.error.command, 'npm trust list @fx/n1 --json');
+  assert.deepEqual(stop.error.lines, ['npm error 404 @fx/n1']);
+  assert.equal(stop.reason, 'trust check failed');
 });
 
 // --- 実際の changesets での検証 (K18) ---

@@ -7,6 +7,7 @@ status: Complete
 実装計画: `git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/plan-release-automation.md`
 手順: [releasing.md](../releasing.md)
 置き換え: [ADR-029](adr-029-staged-release-flow.md) の K1、K8 (受入基準の確かめ方と真正性の錨)、K12 を、この ADR が置き換える
+表示 (K15 の停止の表示と、脅威と統制の `inherit` の例外) は [ADR-032](adr-032-release-stop-report.md) が変えた
 
 この ADR の K1〜K18 は、この ADR の中の番号である。ADR-029 の決定を指すときは「ADR-029 K1」のように書く。
 

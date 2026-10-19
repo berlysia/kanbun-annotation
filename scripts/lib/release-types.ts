@@ -204,3 +204,21 @@ export type Outcome =
   | { kind: 'declined' }
   | { kind: 'post-check-failed'; stops: readonly [ClassifiedStop, ...ClassifiedStop[]] }
   | { kind: 'completed' };
+
+// release.ts の実 adapter が使う fs の窓口。テストは本物の node:fs (nodeFsApi) を一時ディレクトリの下だけで使う
+export interface FsApi {
+  mkdtempSync(prefix: string): string;
+  realpathSync(path: string): string;
+  rmSync(path: string, options: { recursive: boolean }): void;
+  lstatSync(path: string): {
+    size: number;
+    isFile(): boolean;
+    isDirectory(): boolean;
+    isSymbolicLink(): boolean;
+  };
+  readdirSync(path: string): string[];
+  readFileSync(path: string): Buffer;
+  mkdirSync(path: string, options?: { recursive?: boolean; mode?: number }): void;
+  writeFileSync(path: string, data: string, options?: { mode?: number }): void;
+  chmodSync(path: string, mode: number): void;
+}

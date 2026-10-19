@@ -605,6 +605,8 @@ const RELEASE_SOURCES = [
   'scripts/release-after-push.ts',
   'scripts/lib/release-after-push-check.ts',
   'scripts/lib/release-check.ts',
+  'scripts/lib/release-evidence.ts',
+  'scripts/lib/release-sanitize.ts',
   'scripts/lib/release-stop-report.ts',
   'scripts/lib/release-types.ts',
 ] as const;
@@ -615,6 +617,7 @@ const ALLOWED_IMPORTS: Readonly<Record<string, readonly string[]>> = {
     'scripts/release-after-push.ts',
     'scripts/lib/release-after-push-check.ts',
     'scripts/lib/release-check.ts',
+    'scripts/lib/release-evidence.ts',
     'scripts/lib/release-stop-report.ts',
     'scripts/lib/release-types.ts',
   ],
@@ -631,8 +634,14 @@ const ALLOWED_IMPORTS: Readonly<Record<string, readonly string[]>> = {
   'scripts/lib/release-check.ts': ['scripts/lib/release-types.ts'],
   'scripts/lib/release-stop-report.ts': [
     'scripts/lib/release-check.ts',
+    'scripts/lib/release-sanitize.ts',
     'scripts/lib/release-types.ts',
   ],
+  'scripts/lib/release-evidence.ts': [
+    'scripts/lib/release-sanitize.ts',
+    'scripts/lib/release-types.ts',
+  ],
+  'scripts/lib/release-sanitize.ts': ['scripts/lib/release-check.ts'],
   'scripts/lib/release-types.ts': [],
 };
 

@@ -120,7 +120,9 @@ jobs:
         with:
           node-version: 'lts/*'
           package-manager-cache: false
-          registry-url: https://registry.npmjs.org
+          # No registry-url: it writes an .npmrc whose _authToken is ${NODE_AUTH_TOKEN} (unset here),
+          # which is a known way for the OIDC trusted-publishing exchange to end in E401. npm's default
+          # registry is already registry.npmjs.org.
 
       # Staged publishing requires npm 11.15.0 or newer; the npm bundled with lts/* is not guaranteed to meet it.
       - name: Install npm with staged publishing support
@@ -222,6 +224,10 @@ jobs:
       # Each version stays uninstallable until a maintainer approves it with 2FA. Stops at the first failure.
       - name: Stage publish
         id: stage
+        # npm reports why the OIDC token exchange failed only at the verbose level, then falls back
+        # to the configured token and fails with E401; keep the reason in the log.
+        env:
+          NPM_CONFIG_LOGLEVEL: verbose
         run: |
           node --input-type=module <<'EOF'
           import { spawnSync } from 'node:child_process';

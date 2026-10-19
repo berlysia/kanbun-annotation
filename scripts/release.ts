@@ -13,6 +13,7 @@
  */
 import { spawn, spawnSync } from 'node:child_process';
 import {
+  chmodSync,
   existsSync,
   lstatSync,
   mkdirSync,
@@ -81,6 +82,7 @@ import {
 } from './lib/release-stop-report.ts';
 import { runAfterPush } from './release-after-push.ts';
 import type { AfterPushDeps, AfterPushInput } from './release-after-push.ts';
+import { assertEvidenceName, makeEvidenceDir, writeEvidenceFile } from './lib/release-evidence.ts';
 import { NO_COMMAND } from './lib/release-types.ts';
 import type {
   AfterPushResult,
@@ -93,6 +95,7 @@ import type {
   FrontCheck,
   FrontStage,
   FrontStop,
+  FsApi,
   GitResult,
   NonEmpty,
   Outcome,
@@ -100,7 +103,7 @@ import type {
   TrustFailure,
   TrustResult,
 } from './lib/release-types.ts';
-export type { GitResult };
+export type { FsApi, GitResult };
 
 // --- 出力 (全文字列を無害化する唯一の出口) ---
 
@@ -1562,22 +1565,6 @@ export async function runMain(argv: readonly string[], deps: MainDeps): Promise<
 
 // --- 後半の実 adapter (fs は注入。テストは本物の node:fs を os.tmpdir() の下の新しい dir だけで使う) ---
 
-export interface FsApi {
-  mkdtempSync(prefix: string): string;
-  realpathSync(path: string): string;
-  rmSync(path: string, options: { recursive: boolean }): void;
-  lstatSync(path: string): {
-    size: number;
-    isFile(): boolean;
-    isDirectory(): boolean;
-    isSymbolicLink(): boolean;
-  };
-  readdirSync(path: string): string[];
-  readFileSync(path: string): Buffer;
-  mkdirSync(path: string, options?: { recursive: boolean }): void;
-  writeFileSync(path: string, data: string): void;
-}
-
 export const nodeFsApi: FsApi = {
   mkdtempSync: (prefix) => mkdtempSync(prefix),
   realpathSync: (path) => realpathSync(path),
@@ -1588,7 +1575,8 @@ export const nodeFsApi: FsApi = {
   mkdirSync: (path, options) => {
     mkdirSync(path, options);
   },
-  writeFileSync: (path, data) => writeFileSync(path, data),
+  writeFileSync: (path, data, options) => writeFileSync(path, data, options),
+  chmodSync: (path, mode) => chmodSync(path, mode),
 };
 
 const TEMP_DIR_PREFIX = 'kanbun-release-';
@@ -1636,23 +1624,6 @@ export function createTempFs(fsApi: FsApi, tmpRoot: string, output: Output): Tem
   };
 }
 
-const EVIDENCE_NAME_PATTERN = /^[A-Za-z0-9._-]+$/;
-
-function makeEvidenceDir(fsApi: FsApi, parent: string, stamp: string): string {
-  fsApi.mkdirSync(parent, { recursive: true });
-  // 同じ時刻の 2 つの実行が同じ dir を使わない (前の証拠を上書きしない)
-  for (let n = 0; n < 100; n += 1) {
-    const dir = join(parent, n === 0 ? stamp : `${stamp}-${n}`);
-    try {
-      fsApi.mkdirSync(dir);
-      return dir;
-    } catch (error) {
-      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
-    }
-  }
-  throw new Error(`could not create a new evidence directory under ${parent}`);
-}
-
 // 1 回の実行は 1 つの dir (.tmp/release/v<V>/<ISO 時刻>/) に書く。名前は path の区切りを含められない
 export function createEvidenceStore(
   fsApi: FsApi,
@@ -1664,15 +1635,36 @@ export function createEvidenceStore(
   return (name, content) => {
     if (!VERSION_FOR_REFS.test(version))
       throw new Error(`invalid version ${JSON.stringify(version)}`);
-    if (!EVIDENCE_NAME_PATTERN.test(name) || /^\.+$/.test(name)) {
-      throw new Error(`invalid evidence file name ${JSON.stringify(name)}`);
-    }
+    assertEvidenceName(name);
     dir ??= makeEvidenceDir(
       fsApi,
-      join(repoRoot, '.tmp', 'release', `v${version}`),
+      join(repoRoot, '.tmp', 'release'),
+      `v${version}`,
       now().toISOString().replace(/[:.]/g, '-')
     );
-    fsApi.writeFileSync(join(dir, name), content);
+    writeEvidenceFile(fsApi, dir, name, content);
+    return dir;
+  };
+}
+
+// trust の生の出力の保存先は .tmp/release/trust-<ISO 時刻>[-n]/<名前>.json。
+// 名前は `[0-9A-Za-z._-]` 以外を `_` に置き換える。置き換えた結果が空、または `.` だけなら拒否する
+export function createSaveRaw(fsApi: FsApi, repoRoot: string, now: () => Date): SaveRaw {
+  return (files) => {
+    const names = files.map((file) => {
+      const base = file.name.replace(/[^0-9A-Za-z._-]/g, '_');
+      assertEvidenceName(base);
+      return `${base}.json`;
+    });
+    const dir = makeEvidenceDir(
+      fsApi,
+      join(repoRoot, '.tmp', 'release'),
+      '',
+      `trust-${now().toISOString().replace(/[:.]/g, '-')}`
+    );
+    files.forEach((file, index) => {
+      writeEvidenceFile(fsApi, dir, names[index] ?? '', file.content);
+    });
     return dir;
   };
 }
@@ -1874,15 +1866,7 @@ export function buildReleaseDeps(
   const checkReleaseScript = new URL('./check-release.ts', import.meta.url).pathname;
   const [changesetBin = 'pnpm', ...changesetRest] = changeset;
   const publicNames = (): string[] => readPublicPackages(cwd, git).map((p) => p.name);
-  const saveRaw: SaveRaw = (files) => {
-    const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const dir = join(cwd, '.tmp', 'release', `trust-${stamp}`);
-    mkdirSync(dir, { recursive: true });
-    for (const file of files) {
-      writeFileSync(join(dir, `${file.name.replace(/[^0-9A-Za-z._-]/g, '_')}.json`), file.content);
-    }
-    return dir;
-  };
+  const saveRaw = createSaveRaw(nodeFsApi, cwd, () => new Date());
 
   const deps: ReleaseDeps = {
     git,

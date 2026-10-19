@@ -120,7 +120,7 @@ describe('accessibleLabels property (K3)', () => {
   it('keeps the memory while the XML is empty', async () => {
     const { el, errors, renders } = mount(undefined, INVALID());
     await vi.waitFor(() => expect(renders).toHaveLength(1));
-    // happy-dom の MutationObserver は通知を落とすことがあるため、再描画は setter で起こす
+    // happy-dom の MutationObserver は GC で通知を落とす (コールバックを WeakRef で持つ) ため、再描画は setter で起こす
     el.xmlContent = '';
     await nextFrames();
     expect(errors).toHaveLength(1);

@@ -51,12 +51,15 @@ import {
   orderByDependencies,
   parseToolVersion,
   planIgnoredRestore,
+  planVerifySteps,
 } from './lib/release-check.ts';
 import type {
   ChangesetStatus,
+  EntryDecision,
   EntryObservation,
   ReleaseFlags,
   ReleaseLookup,
+  VerifyPlan,
   WorkspacePackage,
 } from './lib/release-check.ts';
 import {
@@ -65,15 +68,36 @@ import {
   npmViewVersionsArgs,
   sanitizeForTerminal,
 } from './lib/release-after-push-check.ts';
+import {
+  diagnose,
+  excerptDetail,
+  excerptLocalStderr,
+  formatEntry,
+  formatOk,
+  formatStageStart,
+  formatStopReport,
+  remediesFor,
+  STAGES,
+} from './lib/release-stop-report.ts';
 import { runAfterPush } from './release-after-push.ts';
 import type { AfterPushDeps, AfterPushInput } from './release-after-push.ts';
+import { NO_COMMAND } from './lib/release-types.ts';
 import type {
   AfterPushResult,
   Check,
+  ChildFailure,
   ClassifiedStop,
   CommandResult,
+  EntryWhere,
+  ErrorExcerpt,
+  FrontCheck,
+  FrontStage,
+  FrontStop,
   GitResult,
+  NonEmpty,
   Outcome,
+  StopReport,
+  TrustFailure,
   TrustResult,
 } from './lib/release-types.ts';
 export type { GitResult };
@@ -121,6 +145,8 @@ export interface ChildLike {
   stderr: Readable | null;
   on(event: string, listener: (...args: unknown[]) => void): unknown;
   kill(): unknown;
+  // close が来ない子を打ち切るとき、Node の終了を止めないために手放す
+  unref?(): unknown;
 }
 
 export interface SpawnOptionsLike {
@@ -139,7 +165,9 @@ export const nodeSpawn: SpawnFn = (cmd, args, options) =>
     ...(options.cwd === undefined ? {} : { cwd: options.cwd }),
   });
 
-// 受けたそばから無害化して流しつつ、無害化前の文字列を capBytes まで保持して返す (E409 の判定用)
+// 受けたそばから無害化して流しつつ、無害化前の文字列の末尾を capBytes (バイト) まで保持して返す。
+// 失敗の行は stderr の終わりに出るので、先頭ではなく末尾を残す (E409 の判定も末尾の行を見る)。
+// 捨てたことがあるときは、先頭の途中で切れた行を捨てる (ただし、それで空になるなら捨てない)
 export async function pumpSanitizedStderr(
   source: Readable,
   output: Output,
@@ -148,21 +176,36 @@ export async function pumpSanitizedStderr(
   const sanitizer = createStreamSanitizer();
   const kept: Buffer[] = [];
   let keptBytes = 0;
+  let dropped = false;
   try {
     for await (const chunk of source) {
       const buf = Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk));
       output.emitChunk(sanitizer.write(buf));
-      if (keptBytes < capBytes) {
-        const part = buf.subarray(0, capBytes - keptBytes);
-        kept.push(part);
-        keptBytes += part.length;
+      kept.push(buf);
+      keptBytes += buf.length;
+      while (keptBytes > capBytes) {
+        const first = kept[0];
+        if (first === undefined) break;
+        const excess = keptBytes - capBytes;
+        dropped = true;
+        if (first.length <= excess) {
+          kept.shift();
+          keptBytes -= first.length;
+        } else {
+          kept[0] = first.subarray(excess);
+          keptBytes -= excess;
+        }
       }
     }
   } catch {
     // 読み取りの失敗は、そこまでに受けた分を返す
   }
   output.emitChunk(sanitizer.end());
-  return Buffer.concat(kept).toString('utf8');
+  // 先頭が多バイト文字の途中で切れた分は、置換文字になってよい
+  const text = Buffer.concat(kept).toString('utf8');
+  if (!dropped) return text;
+  const newline = text.indexOf('\n');
+  return newline >= 0 && newline + 1 < text.length ? text.slice(newline + 1) : text;
 }
 
 function stdioFor(mode: RunStdio): SpawnOptionsLike['stdio'] {
@@ -183,11 +226,23 @@ function argsFor(cmd: string, args: readonly string[], raw: boolean | undefined)
   return [...args];
 }
 
+// exit の後、この時間たっても close が来ない子 (孫のプロセスが stderr を握ったまま) は、
+// そこまでの保持で結果を返す
+const CLOSE_GRACE_MS = 5000;
+
+export type SetTimer = (fn: () => void, ms: number) => () => void;
+
+const nodeSetTimer: SetTimer = (fn, ms) => {
+  const timer = setTimeout(fn, ms);
+  return () => clearTimeout(timer);
+};
+
 export function createRunner(
   spawnFn: SpawnFn,
   output: Output,
-  options: { env?: Readonly<Record<string, string | undefined>> } = {}
+  options: { env?: Readonly<Record<string, string | undefined>>; setTimer?: SetTimer } = {}
 ): Runner {
+  const setTimer = options.setTimer ?? nodeSetTimer;
   return (cmd, args, runOptions) =>
     new Promise<CommandResult>((resolvePromise) => {
       let settled = false;
@@ -222,6 +277,7 @@ export function createRunner(
               status: null,
               stdout: '',
               stderr: `command-failed: ${cmd} output exceeded ${PIPE_CAP_BYTES / MIB} MiB`,
+              exceeded: true,
             });
             return;
           }
@@ -239,15 +295,28 @@ export function createRunner(
       child.on('error', (error) => {
         finish({ status: null, stdout: '', stderr: errorMessage(error) });
       });
+      let cancelGrace: (() => void) | undefined;
+      const complete = async (code: unknown): Promise<void> => {
+        cancelGrace?.();
+        const kept = keepStderr ? await keepStderr : undefined;
+        finish({
+          status: typeof code === 'number' ? code : null,
+          stdout: Buffer.concat(out).toString('utf8'),
+          stderr: kept ?? Buffer.concat(err).toString('utf8'),
+        });
+      };
       child.on('close', (code) => {
-        void (async () => {
-          const kept = keepStderr ? await keepStderr : undefined;
-          finish({
-            status: typeof code === 'number' ? code : null,
-            stdout: Buffer.concat(out).toString('utf8'),
-            stderr: kept ?? Buffer.concat(err).toString('utf8'),
-          });
-        })();
+        void complete(code);
+      });
+      child.on('exit', (code) => {
+        if (settled) return;
+        cancelGrace = setTimer(() => {
+          // 孫が pipe を握っていて close が来ない。pipe を閉じて、ここまでの保持で返す
+          child.stderr?.destroy();
+          if (runOptions.stdio === 'pipe') child.stdout?.destroy();
+          child.unref?.();
+          void complete(code);
+        }, CLOSE_GRACE_MS);
       });
     });
 }
@@ -305,11 +374,17 @@ export async function verifyTrustWith(
   output.emit(
     'npm trust list asks for authentication: choose "skip 2FA for 5 minutes" so the next 6 lookups do not ask again.'
   );
-  const interactive = await run('npm', ['trust', 'list', first], { stdio: 'inherit' });
+  // stdin と stdout は端末のまま (認証の案内と 2FA)。stderr は無害化して流しつつ、失敗の表示のために保持する
+  const interactive = await run('npm', ['trust', 'list', first], { stdio: 'inherit-keep-stderr' });
   if (interactive.status !== 0) {
     return {
       kind: 'command-failed',
       what: `npm trust list ${first} (interactive) exited ${interactive.status ?? 'not started'}`,
+      failure: {
+        command: `npm trust list ${first}`,
+        status: interactive.status,
+        stderr: interactive.stderr,
+      },
     };
   }
   const results: { name: string; result: CommandResult }[] = [];
@@ -327,24 +402,26 @@ export async function verifyTrustWith(
     }))
   );
   output.emit(`raw npm trust list output saved to ${dir}`);
-  const combined = combineTrustResults(results.map(({ result }) => checkTrustList(result)));
+  const checked = results.map(({ result }) => checkTrustList(result));
+  const combined = combineTrustResults(checked);
   if (combined.kind === 'mismatch') {
     for (const { name, result } of results) output.emit(`--- ${name}\n${result.stdout.trim()}`);
   }
-  return combined.kind === 'shape-unknown' ? { ...combined, rawPath: dir } : combined;
-}
-
-function describeTrustStop(result: Exclude<TrustResult, { kind: 'ok' }>): string {
-  switch (result.kind) {
-    case 'eotp':
-      return 'the 2FA grace period expired or was not chosen; rerun and choose "skip 2FA for 5 minutes" at the authentication prompt';
-    case 'command-failed':
-      return `trust check failed: ${result.what}`;
-    case 'shape-unknown':
-      return `trust list output has an unexpected shape (${result.what}); read the raw output${result.rawPath === undefined ? '' : ` in ${result.rawPath}`} and continue by hand`;
-    case 'mismatch':
-      return `trust does not match the expected single entry (${result.what}); read the 6 outputs above, then follow steps 3 / 3a of the one-time migration in docs/releasing.md`;
+  if (combined.kind === 'eotp' || combined.kind === 'command-failed') {
+    // combineTrustResults は同じ種類のうち最初のものを返す。その 1 回の stderr を error に使う
+    const hit = results[checked.findIndex((c) => c.kind === combined.kind)];
+    return hit === undefined
+      ? combined
+      : {
+          ...combined,
+          failure: {
+            command: `npm trust list ${hit.name} --json`,
+            status: hit.result.status,
+            stderr: hit.result.stderr,
+          },
+        };
   }
+  return combined.kind === 'shape-unknown' ? { ...combined, rawPath: dir } : combined;
 }
 
 // --- 前半 (段 1〜7) ---
@@ -352,13 +429,13 @@ function describeTrustStop(result: Exclude<TrustResult, { kind: 'ok' }>): string
 export interface ReleaseDeps {
   git(args: string[]): GitResult;
   verifyTrust(): Promise<TrustResult>;
-  changesetStatus(): Check<ChangesetStatus>;
-  changesetPre(args: string[]): Check<void>;
-  verify(): Check<void>;
-  changesetVersion(): Check<void>;
-  prettier(files: string[]): Check<void>;
-  checkRelease(tag: string): Check<void>;
-  consumer(): Check<void>;
+  changesetStatus(): Promise<FrontCheck<ChangesetStatus>>;
+  changesetPre(args: string[]): Promise<FrontCheck<void>>;
+  verify(): Promise<FrontCheck<void>>;
+  changesetVersion(): Promise<FrontCheck<void>>;
+  prettier(files: string[]): Promise<FrontCheck<void>>;
+  checkRelease(tag: string): Promise<FrontCheck<void>>;
+  consumer(): Promise<FrontCheck<void>>;
   ghRelease(tag: string): ReleaseLookup;
   confirm(question: string): Promise<boolean>;
   log(line: string): void;
@@ -367,7 +444,7 @@ export interface ReleaseDeps {
 export type ReleaseOutcome =
   | { status: 'released'; tag: string }
   | { status: 'tag-pushed'; tag: string }
-  | { status: 'stopped'; stage: string; reason: string };
+  | { status: 'stopped'; stop: FrontStop };
 
 const BRANCH = 'master';
 const REVERT_VERSIONING = 'git checkout -- . && git clean -fd .changeset packages';
@@ -444,96 +521,256 @@ interface FrontState {
   tag: string;
   // 許可リストの 2 回目の検査が返したパス。段 6 はこれだけを add する
   allowed: string[];
-  stop(stage: string, reason: string, recovery?: string): ReleaseOutcome;
+  // 段 1 が読んだ HEAD (進み方の行に先頭 12 文字だけ出す。検査を通らなければ空)
+  head: string;
+  // 停止は log に出さず値で返す。表示は reportOutcome だけが行う (外部の文字列は error にだけ入る)
+  stop(
+    stage: FrontStage,
+    reason: string,
+    error: ErrorExcerpt,
+    recovery?: string,
+    rerun?: string
+  ): ReleaseOutcome;
 }
 
 type StageResult = ReleaseOutcome | undefined;
 
 const errorText = (r: { errors: string[] }): string => r.errors.join('; ');
 
-function tagState(
-  git: ReleaseDeps['git'],
-  name: string
-): { ok: true } | { ok: false; reason: string } {
+// `git rev-parse` の出力は、16 進の検査を通ったものだけを行に出す
+const COMMIT_ID = /^[0-9a-f]{40,64}$/;
+const shortCommit = (raw: string): string => {
+  const id = raw.trim();
+  return COMMIT_ID.test(id) ? id.slice(0, 12) : '';
+};
+
+const stageStart = (s: FrontState, n: 1 | 2 | 3 | 4 | 5 | 6 | 7): void =>
+  s.deps.log(formatStageStart(n, STAGES[n].what));
+
+const STAGE_1 = STAGES[1].name;
+const STAGE_2 = STAGES[2].name;
+const STAGE_3 = STAGES[3].name;
+const STAGE_4 = STAGES[4].name;
+const STAGE_5 = STAGES[5].name;
+const STAGE_6 = STAGES[6].name;
+const STAGE_7 = STAGES[7].name;
+
+// --- 停止の error の欄 (外部の文字列は excerpt* を通って lines にだけ入る) ---
+
+// 判定だけの停止: コマンドが無いので、判定の外部の値 (無ければ理由) を行にする
+const detailError = (lines: readonly string[]): ErrorExcerpt =>
+  excerptDetail(NO_COMMAND, null, lines);
+
+// git の失敗。コマンドの引数は定数だが、パスを渡す引数は名前を出さない (パスは外部の値)
+function gitError(command: string, result: GitResult): ErrorExcerpt {
+  return excerptLocalStderr(command, result.status, result.stderr, { tool: 'git' });
+}
+
+// 子のコマンドの失敗。inherit で stderr を受けていない子は、その旨の 1 行にする
+function childError(failure: ChildFailure): ErrorExcerpt {
+  return failure.captured
+    ? excerptLocalStderr(failure.command, failure.status, failure.stderr, { tool: 'other' })
+    : excerptDetail(failure.command, failure.status, [
+        '(stderr was not captured; the output is shown above)',
+      ]);
+}
+
+type FailedCheck = Extract<FrontCheck<unknown>, { ok: false }>;
+
+const checkError = (check: FailedCheck): ErrorExcerpt =>
+  check.failure === undefined ? detailError(check.errors) : childError(check.failure);
+
+function stopOnCheck(
+  s: FrontState,
+  stage: FrontStage,
+  reason: string,
+  check: FailedCheck,
+  recovery?: string
+): ReleaseOutcome {
+  return s.stop(stage, reason, checkError(check), recovery, check.failure?.rerun);
+}
+
+function stopOnErrors(
+  s: FrontState,
+  stage: FrontStage,
+  reason: string,
+  errors: readonly string[],
+  recovery?: string
+): ReleaseOutcome {
+  return s.stop(stage, reason, detailError(errors), recovery);
+}
+
+function stopOnGit(
+  s: FrontState,
+  stage: FrontStage,
+  reason: string,
+  command: string,
+  result: GitResult,
+  recovery?: string
+): ReleaseOutcome {
+  return s.stop(stage, reason, gitError(command, result), recovery);
+}
+
+function stopDirty(
+  s: FrontState,
+  stage: FrontStage,
+  reason: string,
+  porcelain: GitResult
+): ReleaseOutcome {
+  const command = 'git status --porcelain';
+  if (porcelain.status !== 0) return stopOnGit(s, stage, 'git status failed', command, porcelain);
+  return s.stop(stage, reason, excerptDetail(command, 0, porcelain.stdout.split('\n')));
+}
+
+const SAME_VERSION_FAILED = 'the public packages do not have one version';
+
+function trustStop(s: FrontState, result: Exclude<TrustResult, { kind: 'ok' }>): ReleaseOutcome {
+  const npmError = (failure: TrustFailure): ErrorExcerpt =>
+    excerptLocalStderr(failure.command, failure.status, failure.stderr, { tool: 'npm' });
+  switch (result.kind) {
+    case 'eotp': {
+      const reason = 'the 2FA grace period expired or was not chosen';
+      return s.stop(
+        STAGE_1,
+        reason,
+        result.failure === undefined ? detailError([reason]) : npmError(result.failure)
+      );
+    }
+    case 'command-failed':
+      return s.stop(
+        STAGE_1,
+        'trust check failed',
+        result.failure === undefined ? detailError([result.what]) : npmError(result.failure)
+      );
+    case 'shape-unknown': {
+      const first = readPublicPackages(s.root, s.deps.git)[0]?.name ?? '<package>';
+      return s.stop(STAGE_1, 'trust list output has an unexpected shape', {
+        ...excerptDetail(`npm trust list ${first} --json`, null, [result.what]),
+        ...(result.rawPath === undefined ? {} : { rawPath: result.rawPath }),
+      });
+    }
+    case 'mismatch':
+      return s.stop(
+        STAGE_1,
+        'trust does not match the expected single entry (read the 6 outputs above, then follow steps 3 / 3a of the one-time migration in docs/releasing.md)',
+        detailError([result.what])
+      );
+  }
+}
+
+type TagState = { ok: true } | { ok: false; reason: string; error: ErrorExcerpt };
+
+function tagState(git: ReleaseDeps['git'], name: string): TagState {
   const local = git(['rev-parse', '-q', '--verify', `refs/tags/${name}`]);
-  if (local.status === 0) return { ok: false, reason: `tag ${name} already exists locally` };
-  const remote = git(['ls-remote', '--tags', 'origin', `refs/tags/${name}`]);
-  // 判定できないときは進まない (fail-closed)
+  if (local.status === 0) {
+    return { ok: false, reason: 'the tag already exists locally', error: detailError([name]) };
+  }
+  const lsRemote = ['ls-remote', '--tags', 'origin', `refs/tags/${name}`];
+  const remote = git(lsRemote);
+  // 判定できないときは進まない (fail-closed)。原因 (認証、ネットワークなど) は error の欄に出る
   if (remote.status !== 0) {
-    // 原因 (認証、ネットワークなど) を読めるように、stderr の末尾を添える
-    const tail = remote.stderr.trim().split('\n').slice(-3).join('\n');
-    const base = 'git ls-remote failed; cannot tell whether the tag exists on origin';
-    return { ok: false, reason: tail === '' ? base : `${base}: ${tail}` };
+    return {
+      ok: false,
+      reason: 'git ls-remote failed; cannot tell whether the tag exists on origin',
+      error: gitError(`git ${lsRemote.join(' ')}`, remote),
+    };
   }
   if (remote.stdout.trim() !== '') {
-    return { ok: false, reason: `tag ${name} already exists on origin` };
+    return { ok: false, reason: 'the tag already exists on origin', error: detailError([name]) };
   }
   return { ok: true };
+}
+
+function stopOnTagState(
+  s: FrontState,
+  stage: FrontStage,
+  state: Extract<TagState, { ok: false }>,
+  recovery?: string
+): ReleaseOutcome {
+  return s.stop(stage, state.reason, state.error, recovery);
 }
 
 function checkGitState(s: FrontState): StageResult {
   const { git } = s.deps;
   const branch = git(['rev-parse', '--abbrev-ref', 'HEAD']);
   if (branch.stdout.trim() !== BRANCH) {
-    return s.stop(
-      '1 prerequisites',
-      `current branch is "${branch.stdout.trim()}", expected ${BRANCH}`
-    );
+    return stopOnErrors(s, STAGE_1, `current branch is not ${BRANCH}`, [
+      `current branch is "${branch.stdout.trim()}", expected ${BRANCH}`,
+    ]);
   }
   const dirty = git(['status', '--porcelain']);
   if (dirty.status !== 0 || dirty.stdout.trim() !== '') {
-    return s.stop('1 prerequisites', 'working tree is not clean');
+    return stopDirty(s, STAGE_1, 'working tree is not clean', dirty);
   }
-  if (git(['fetch', 'origin']).status !== 0) {
-    return s.stop('1 prerequisites', 'git fetch origin failed');
+  const fetched = git(['fetch', 'origin']);
+  if (fetched.status !== 0) {
+    return stopOnGit(s, STAGE_1, 'git fetch origin failed', 'git fetch origin', fetched);
   }
   const head = git(['rev-parse', 'HEAD']).stdout.trim();
   const originHead = git(['rev-parse', `origin/${BRANCH}`]).stdout.trim();
   if (head === '' || head !== originHead) {
-    return s.stop('1 prerequisites', `HEAD is not equal to origin/${BRANCH}`);
+    const reason = `HEAD is not equal to origin/${BRANCH}`;
+    return stopOnErrors(s, STAGE_1, reason, [reason]);
   }
+  s.head = shortCommit(head);
   return undefined;
 }
 
 function checkTagOnlyState(s: FrontState): StageResult {
   const version = readVersion(s.root, s.deps.git);
-  if (!version.ok) return s.stop('1 prerequisites', errorText(version));
+  if (!version.ok) return stopOnErrors(s, STAGE_1, SAME_VERSION_FAILED, version.errors);
   s.tag = `v${version.value}`;
   const tagCheck = checkTag(s.tag, version.value);
-  if (!tagCheck.ok) return s.stop('1 prerequisites', errorText(tagCheck));
+  if (!tagCheck.ok) return stopOnErrors(s, STAGE_1, 'the tag is not v<version>', tagCheck.errors);
   const state = tagState(s.deps.git, s.tag);
-  if (!state.ok) return s.stop('1 prerequisites', state.reason);
+  if (!state.ok) return stopOnTagState(s, STAGE_1, state);
   const lookup = s.deps.ghRelease(s.tag);
   if (lookup.kind === 'found') {
-    return s.stop('1 prerequisites', `GitHub Release ${s.tag} already exists`);
+    return stopOnErrors(s, STAGE_1, 'a GitHub Release for the tag already exists', [s.tag]);
   }
-  if (lookup.kind === 'error') return s.stop('1 prerequisites', lookup.message);
-  return undefined;
-}
-
-function describeStatusStop(status: Check<ChangesetStatus>): string | undefined {
-  if (!status.ok) return `changeset status failed: ${errorText(status)}`;
-  if (status.value.kind === 'none') return 'no pending changeset';
-  if (status.value.kind === 'inconsistent') {
-    return `changeset status is inconsistent: ${status.value.reason}`;
-  }
-  return undefined;
-}
-
-function checkPlannedVersion(s: FrontState): StageResult {
-  const { flags, deps } = s;
-  const pre = readPreState(s.root);
-  if (!pre.ok) return s.stop('1 prerequisites', errorText(pre));
-  if (flags.mode === 'exit-pre' && pre.value.mode !== 'pre') {
+  if (lookup.kind === 'error') {
+    const command = `gh release view ${s.tag}`;
     return s.stop(
-      '1 prerequisites',
-      '--exit-pre needs pre mode, but .changeset/pre.json is not in pre mode'
+      STAGE_1,
+      'gh release view failed',
+      lookup.status === undefined
+        ? excerptLocalStderr(command, null, lookup.message, { tool: 'gh' })
+        : excerptLocalStderr(command, lookup.status, lookup.stderr ?? '', { tool: 'gh' })
     );
   }
+  return undefined;
+}
+
+// changeset status の結果が止める理由と error。止めないなら undefined
+function describeStatusStop(
+  status: FrontCheck<ChangesetStatus>
+): { reason: string; error: ErrorExcerpt } | undefined {
+  if (!status.ok) return { reason: 'changeset status failed', error: checkError(status) };
+  if (status.value.kind === 'none') {
+    const reason = 'no pending changeset';
+    return { reason, error: detailError([reason]) };
+  }
+  if (status.value.kind === 'inconsistent') {
+    return {
+      reason: 'changeset status is inconsistent',
+      error: detailError([status.value.reason]),
+    };
+  }
+  return undefined;
+}
+
+async function checkPlannedVersion(s: FrontState): Promise<StageResult> {
+  const { flags, deps } = s;
+  const pre = readPreState(s.root);
+  if (!pre.ok) return stopOnErrors(s, STAGE_1, '.changeset/pre.json could not be read', pre.errors);
+  if (flags.mode === 'exit-pre' && pre.value.mode !== 'pre') {
+    const reason = '--exit-pre needs pre mode, but .changeset/pre.json is not in pre mode';
+    return stopOnErrors(s, STAGE_1, reason, [reason]);
+  }
   if (flags.mode !== 'normal') return undefined;
-  const status = deps.changesetStatus();
+  const status = await deps.changesetStatus();
   const stopped = describeStatusStop(status);
-  if (stopped !== undefined) return s.stop('1 prerequisites', stopped);
+  if (stopped !== undefined) return s.stop(STAGE_1, stopped.reason, stopped.error);
   return undefined;
 }
 
@@ -545,16 +782,24 @@ async function checkPrerequisites(s: FrontState): Promise<StageResult> {
     if (tagOnly) return tagOnly;
   }
   const trust = await s.deps.verifyTrust();
-  if (trust.kind !== 'ok') return s.stop('1 prerequisites', describeTrustStop(trust));
-  const planned = checkPlannedVersion(s);
+  if (trust.kind !== 'ok') return trustStop(s, trust);
+  const planned = await checkPlannedVersion(s);
   if (planned) return planned;
-  const verified = s.deps.verify();
-  if (!verified.ok) return s.stop('1 prerequisites', `pnpm verify failed: ${errorText(verified)}`);
+  const verified = await s.deps.verify();
+  if (!verified.ok) return stopOnCheck(s, STAGE_1, 'pnpm verify failed', verified);
   // verify が作業ツリーを汚すと、段 2 の許可リストの停止に化けるので、ここで止める
   const dirty = s.deps.git(['status', '--porcelain']);
   if (dirty.status !== 0 || dirty.stdout.trim() !== '') {
-    return s.stop('1 prerequisites', 'pnpm verify left the working tree dirty');
+    return stopDirty(s, STAGE_1, 'pnpm verify left the working tree dirty', dirty);
   }
+  // trust の件数は固定の一覧 (公開パッケージ) の数。release.yml / env npm / createStagedPackage は
+  // trust の検査が期待する定数で、npm の出力の値ではない
+  const trusted = readPublicPackages(s.root, s.deps.git).length;
+  s.deps.log(
+    formatOk(
+      `on ${BRANCH} at origin/${BRANCH}${s.head === '' ? '' : ` (${s.head})`}; trust ok for ${trusted} packages (release.yml, env npm, createStagedPackage); pnpm verify passed`
+    )
+  );
   return undefined;
 }
 
@@ -563,40 +808,81 @@ function planPreCommands(before: PreState, tag: string): string[][] {
   return before.tag === tag ? [] : [['exit'], ['enter', tag]];
 }
 
-function changePreMode(s: FrontState): StageResult {
+async function changePreMode(s: FrontState): Promise<StageResult> {
   const { flags, deps } = s;
   if (flags.mode !== 'pre' && flags.mode !== 'exit-pre') return undefined;
   const before = readPreState(s.root);
-  if (!before.ok) return s.stop('2 versioning', errorText(before), REVERT_VERSIONING);
+  if (!before.ok) {
+    return stopOnErrors(
+      s,
+      STAGE_2,
+      '.changeset/pre.json could not be read',
+      before.errors,
+      REVERT_VERSIONING
+    );
+  }
   const commands =
     flags.mode === 'exit-pre' ? [['exit']] : planPreCommands(before.value, flags.tag);
   for (const args of commands) {
-    const changed = deps.changesetPre(args);
-    if (!changed.ok) return s.stop('2 versioning', errorText(changed), REVERT_VERSIONING);
+    const changed = await deps.changesetPre(args);
+    if (!changed.ok) {
+      return stopOnCheck(s, STAGE_2, 'changeset pre failed', changed, REVERT_VERSIONING);
+    }
   }
   // mode を変えると出す版が変わるので、status で決め直す
-  const status = deps.changesetStatus();
+  const status = await deps.changesetStatus();
   const stopped = describeStatusStop(status);
-  if (stopped !== undefined) return s.stop('2 versioning', stopped, REVERT_VERSIONING);
+  if (stopped !== undefined) {
+    return s.stop(STAGE_2, stopped.reason, stopped.error, REVERT_VERSIONING);
+  }
   return undefined;
 }
 
 function restoreIgnoredPackages(s: FrontState): StageResult {
   const { git, log } = s.deps;
   const config = readJsonFile(join(s.root, '.changeset', 'config.json'));
-  if (!config.ok) return s.stop('2 versioning', errorText(config), REVERT_VERSIONING);
+  if (!config.ok) {
+    return stopOnErrors(
+      s,
+      STAGE_2,
+      '.changeset/config.json could not be read',
+      config.errors,
+      REVERT_VERSIONING
+    );
+  }
   const dirs = ignoredPackageDirs(config.value, readWorkspacePackages(s.root, git));
-  if (!dirs.ok) return s.stop('2 versioning', errorText(dirs), REVERT_VERSIONING);
+  if (!dirs.ok) {
+    return stopOnErrors(
+      s,
+      STAGE_2,
+      'the changeset ignore list could not be resolved',
+      dirs.errors,
+      REVERT_VERSIONING
+    );
+  }
   if (dirs.value.length === 0) return undefined;
   const porcelain = git(PORCELAIN);
-  if (porcelain.status !== 0) return s.stop('2 versioning', 'git status failed', REVERT_VERSIONING);
+  if (porcelain.status !== 0) {
+    return stopOnGit(
+      s,
+      STAGE_2,
+      'git status failed',
+      `git ${PORCELAIN.join(' ')}`,
+      porcelain,
+      REVERT_VERSIONING
+    );
+  }
   const plan = planIgnoredRestore(porcelain.stdout, dirs.value);
   if (plan.checkout.length > 0) {
     const restored = git(['checkout', '--', ...plan.checkout.map(literal)]);
     if (restored.status !== 0) {
-      return s.stop(
-        '2 versioning',
-        `git checkout failed: ${restored.stderr.trim()}`,
+      // パスは外部の値なので、コマンドの欄には出さない
+      return stopOnGit(
+        s,
+        STAGE_2,
+        'git checkout failed',
+        'git checkout --',
+        restored,
         REVERT_VERSIONING
       );
     }
@@ -605,7 +891,13 @@ function restoreIgnoredPackages(s: FrontState): StageResult {
     const absolute = resolve(s.root, path);
     // git clean は使わず、未追跡の新規ファイルを 1 つずつ消す
     if (!absolute.startsWith(`${resolve(s.root)}${sep}`)) {
-      return s.stop('2 versioning', `refusing to remove ${path}`, REVERT_VERSIONING);
+      return stopOnErrors(
+        s,
+        STAGE_2,
+        'refusing to remove a path outside the repository',
+        [path],
+        REVERT_VERSIONING
+      );
     }
     rmSync(absolute, { force: true });
   }
@@ -625,31 +917,55 @@ function fillChangelogs(s: FrontState, version: string): void {
   }
 }
 
-function checkAllowedChanges(s: FrontState): Check<string[]> {
+type AllowedChanges =
+  | { ok: true; value: string[] }
+  | { ok: false; reason: string; error: ErrorExcerpt };
+
+function checkAllowedChanges(s: FrontState): AllowedChanges {
   const porcelain = s.deps.git(PORCELAIN);
-  if (porcelain.status !== 0) return { ok: false, errors: ['git status failed'] };
+  if (porcelain.status !== 0) {
+    return {
+      ok: false,
+      reason: 'git status failed',
+      error: gitError(`git ${PORCELAIN.join(' ')}`, porcelain),
+    };
+  }
   const dirs = readPublicPackages(s.root, s.deps.git).map((p) => p.dir);
-  return checkVersionedChanges(porcelain.stdout, dirs);
+  const checked = checkVersionedChanges(porcelain.stdout, dirs);
+  if (checked.ok) return checked;
+  return {
+    ok: false,
+    reason: 'unexpected changes after versioning',
+    error: detailError(checked.errors),
+  };
 }
 
-function versionStage(s: FrontState): StageResult {
+async function versionStage(s: FrontState): Promise<StageResult> {
   const { deps } = s;
-  const moded = changePreMode(s);
+  const stopAllowed = (failed: Extract<AllowedChanges, { ok: false }>): ReleaseOutcome =>
+    s.stop(STAGE_2, failed.reason, failed.error, REVERT_VERSIONING);
+  const moded = await changePreMode(s);
   if (moded) return moded;
-  const versioned = deps.changesetVersion();
-  if (!versioned.ok) return s.stop('2 versioning', errorText(versioned), REVERT_VERSIONING);
+  const versioned = await deps.changesetVersion();
+  if (!versioned.ok) {
+    return stopOnCheck(s, STAGE_2, 'changeset version failed', versioned, REVERT_VERSIONING);
+  }
   const version = readVersion(s.root, deps.git);
-  if (!version.ok) return s.stop('2 versioning', errorText(version), REVERT_VERSIONING);
+  if (!version.ok) {
+    return stopOnErrors(s, STAGE_2, SAME_VERSION_FAILED, version.errors, REVERT_VERSIONING);
+  }
   const restored = restoreIgnoredPackages(s);
   if (restored) return restored;
   fillChangelogs(s, version.value);
   const before = checkAllowedChanges(s);
-  if (!before.ok) return s.stop('2 versioning', errorText(before), REVERT_VERSIONING);
-  const formatted = deps.prettier(before.value.filter((p) => existsSync(join(s.root, p))));
-  if (!formatted.ok) return s.stop('2 versioning', errorText(formatted), REVERT_VERSIONING);
+  if (!before.ok) return stopAllowed(before);
+  const formatted = await deps.prettier(before.value.filter((p) => existsSync(join(s.root, p))));
+  if (!formatted.ok) {
+    return stopOnCheck(s, STAGE_2, 'prettier failed', formatted, REVERT_VERSIONING);
+  }
   // prettier や他のプロセスが、検査の後に別の変更を足していないかをもう一度確かめる
   const after = checkAllowedChanges(s);
-  if (!after.ok) return s.stop('2 versioning', errorText(after), REVERT_VERSIONING);
+  if (!after.ok) return stopAllowed(after);
   s.allowed = after.value;
   s.tag = `v${version.value}`;
   return undefined;
@@ -658,20 +974,34 @@ function versionStage(s: FrontState): StageResult {
 function record(s: FrontState, recovery: string | undefined): StageResult {
   const { git } = s.deps;
   if (s.flags.mode !== 'tag-only') {
-    if (s.allowed.length === 0) return s.stop('6 record', 'nothing to commit', recovery);
-    if (git(['add', '--', ...s.allowed.map(literal)]).status !== 0) {
-      return s.stop('6 record', 'git add failed', recovery);
+    if (s.allowed.length === 0) {
+      return stopOnErrors(s, STAGE_6, 'nothing to commit', ['nothing to commit'], recovery);
     }
-    const commit = git(['commit', '-m', `chore: release ${s.tag}`]);
+    const added = git(['add', '--', ...s.allowed.map(literal)]);
+    if (added.status !== 0) {
+      return stopOnGit(s, STAGE_6, 'git add failed', 'git add --', added, recovery);
+    }
+    const message = `chore: release ${s.tag}`;
+    const commit = git(['commit', '-m', message]);
     if (commit.status !== 0) {
-      return s.stop('6 record', `git commit failed: ${commit.stderr.trim()}`, recovery);
+      return stopOnGit(
+        s,
+        STAGE_6,
+        'git commit failed',
+        `git commit -m ${message}`,
+        commit,
+        recovery
+      );
     }
   }
   const tagged = git(['tag', '-a', s.tag, '-m', s.tag]);
   if (tagged.status !== 0) {
-    return s.stop(
-      '6 record',
-      `git tag failed: ${tagged.stderr.trim()}`,
+    return stopOnGit(
+      s,
+      STAGE_6,
+      'git tag failed',
+      `git tag -a ${s.tag} -m ${s.tag}`,
+      tagged,
       s.flags.mode === 'tag-only' ? undefined : `git reset --hard origin/${BRANCH}`
     );
   }
@@ -681,50 +1011,82 @@ function record(s: FrontState, recovery: string | undefined): StageResult {
 export async function runRelease(flags: ReleaseFlags, deps: ReleaseDeps): Promise<ReleaseOutcome> {
   const { git, log } = deps;
   const tagOnly = flags.mode === 'tag-only';
-  const stop = (stage: string, reason: string, recovery?: string): ReleaseOutcome => {
-    log(`release stopped at ${stage}: ${reason}`);
-    if (recovery) log(`to undo: ${recovery}`);
-    return { status: 'stopped', stage, reason };
-  };
+  const stop: FrontState['stop'] = (stage, reason, error, recovery, rerun) => ({
+    status: 'stopped',
+    stop: {
+      stage,
+      reason,
+      error,
+      ...(recovery === undefined ? {} : { recovery }),
+      ...(rerun === undefined ? {} : { rerun }),
+    },
+  });
   const topLevel = git(['rev-parse', '--show-toplevel']);
-  if (topLevel.status !== 0) return stop('1 prerequisites', 'not inside a git repository');
-  const s: FrontState = { flags, deps, root: topLevel.stdout.trim(), tag: '', allowed: [], stop };
+  if (topLevel.status !== 0) {
+    return stop(
+      STAGE_1,
+      'not inside a git repository',
+      gitError('git rev-parse --show-toplevel', topLevel)
+    );
+  }
+  const s: FrontState = {
+    flags,
+    deps,
+    root: topLevel.stdout.trim(),
+    tag: '',
+    allowed: [],
+    head: '',
+    stop,
+  };
 
   // 段 1: 前提。何も変えない
+  stageStart(s, 1);
   const prerequisites = await checkPrerequisites(s);
   if (prerequisites) return prerequisites;
 
   // 段 2: 版上げ (--tag-only は飛ばす)
   if (!tagOnly) {
-    const versioned = versionStage(s);
+    stageStart(s, 2);
+    const versioned = await versionStage(s);
     if (versioned) return versioned;
+    const shown = s.tag.slice(1);
+    log(formatOk(VERSION_FOR_REFS.test(shown) ? `version ${shown}` : 'versions bumped'));
   }
   const recovery = tagOnly ? undefined : REVERT_VERSIONING;
 
   // 段 3: 公開前提
-  const checked = deps.checkRelease(s.tag);
-  if (!checked.ok) return stop('3 publish preconditions', errorText(checked), recovery);
+  stageStart(s, 3);
+  const checked = await deps.checkRelease(s.tag);
+  if (!checked.ok) return stopOnCheck(s, STAGE_3, 'check-release failed', checked, recovery);
   if (!tagOnly) {
     const state = tagState(git, s.tag);
-    if (!state.ok) return stop('3 publish preconditions', state.reason, recovery);
+    if (!state.ok) return stopOnTagState(s, STAGE_3, state, recovery);
   }
+  log(formatOk('publish preconditions passed'));
 
   // 段 4: 利用者テスト (新しい版の tarball で)
-  const consumed = deps.consumer();
-  if (!consumed.ok) return stop('4 consumer test', errorText(consumed), recovery);
+  stageStart(s, 4);
+  const consumed = await deps.consumer();
+  if (!consumed.ok) return stopOnCheck(s, STAGE_4, 'consumer test failed', consumed, recovery);
+  log(formatOk('consumer test passed'));
 
-  // 段 5: 確認
+  // 段 5: 確認。y/N の質問が根拠の代わりになるので ok の行は出さない
+  stageStart(s, 5);
   const files = git(['status', '--short']).stdout.trim();
   const question = tagOnly
     ? `Tag HEAD as ${s.tag} and push the tag?`
     : `Release ${s.tag}?\n${files}\nCommit, tag and push to origin/${BRANCH}?`;
-  if (!(await deps.confirm(question))) return stop('5 confirmation', 'declined', recovery);
+  if (!(await deps.confirm(question))) {
+    return stopOnErrors(s, STAGE_5, 'declined', ['declined'], recovery);
+  }
 
-  // 段 6: 記録
+  // 段 6: 記録。段 7 の行が根拠の代わりになる
+  stageStart(s, 6);
   const recorded = record(s, recovery);
   if (recorded) return recorded;
 
   // 段 7: 送信。--atomic で、拒否されたら origin は変わらない。force は使わない
+  stageStart(s, 7);
   const pushArgs = tagOnly
     ? ['push', 'origin', `refs/tags/${s.tag}`]
     : ['push', '--atomic', 'origin', BRANCH, `refs/tags/${s.tag}`];
@@ -733,9 +1095,18 @@ export async function runRelease(flags: ReleaseFlags, deps: ReleaseDeps): Promis
     const undo = tagOnly
       ? `git tag -d ${s.tag}`
       : `git tag -d ${s.tag} && git reset --hard origin/${BRANCH}`;
-    return stop('7 push', `git push was rejected or failed: ${pushed.stderr.trim()}`, undo);
+    return stopOnGit(
+      s,
+      STAGE_7,
+      'git push was rejected or failed',
+      `git ${pushArgs.join(' ')}`,
+      pushed,
+      undo
+    );
   }
-  log(`pushed ${s.tag}`);
+  const pushedCommit = shortCommit(git(['rev-parse', 'HEAD']).stdout);
+  const shownTag = VERSION_FOR_REFS.test(s.tag.slice(1)) ? s.tag : '<tag>';
+  log(formatOk(`pushed ${shownTag}${pushedCommit === '' ? '' : ` at ${pushedCommit}`}`));
   return tagOnly ? { status: 'tag-pushed', tag: s.tag } : { status: 'released', tag: s.tag };
 }
 
@@ -745,22 +1116,66 @@ function assertNever(value: never): never {
   throw new Error(`unhandled outcome: ${JSON.stringify(value)}`);
 }
 
+// 後半の停止の表示。route と next と section は分類のまま (変えない)。診断は error から決める
+function afterPushReport(stop: ClassifiedStop): StopReport {
+  const error = stop.error ?? excerptDetail(NO_COMMAND, null, [stop.reason]);
+  const causes = diagnose(stop.site, error);
+  return {
+    headline: `[${stop.route}] ${stop.reason}`,
+    error,
+    causes,
+    remedies: leadRemedies([stop.next], remediesFor(causes)),
+    section: stop.section,
+    notes: [
+      ...(stop.mayBeF3 ? ['this may be an F3 situation (some packages are published)'] : []),
+      ...(stop.runUrl === undefined ? [] : [`run: ${stop.runUrl}`]),
+    ],
+  };
+}
+
 function describeStop(stop: ClassifiedStop): string[] {
-  return [
-    `[${stop.route}] ${stop.reason}`,
-    `next: ${stop.next}`,
-    `see docs/releasing.md: ${stop.section}`,
-    ...(stop.mayBeF3 ? ['note: this may be an F3 situation (some packages are published)'] : []),
+  return formatStopReport(afterPushReport(stop));
+}
+
+function leadRemedies(lead: readonly string[], rest: NonEmpty<string>): NonEmpty<string> {
+  const [first, ...others] = lead;
+  return first === undefined ? rest : [first, ...others, ...rest];
+}
+
+// 前半の停止の表示。復元のコマンドと、失敗した段だけを流し直すコマンドが try: の先頭に並ぶ
+function frontReport(stop: FrontStop): StopReport {
+  const causes = diagnose({ side: 'front', where: stop.stage }, stop.error);
+  const lead = [
+    ...(stop.recovery === undefined ? [] : [`to undo: ${stop.recovery}`]),
+    ...(stop.rerun === undefined
+      ? []
+      : [`run ${stop.rerun} to see only the output of the failed step`]),
   ];
+  return {
+    headline: `release stopped at ${stop.stage}: ${stop.reason}`,
+    error: stop.error,
+    causes,
+    remedies: leadRemedies(lead, remediesFor(causes)),
+    notes: [],
+  };
 }
 
 export function reportOutcome(outcome: Outcome, output: Output): number {
   switch (outcome.kind) {
-    case 'entry-stopped':
-      output.emit(`release stopped: ${outcome.reason}`);
+    case 'entry-stopped': {
+      const causes = diagnose({ side: 'entry', where: outcome.where }, outcome.error);
+      const report: StopReport = {
+        headline: `release stopped: ${outcome.reason}`,
+        error: outcome.error,
+        causes,
+        remedies: remediesFor(causes),
+        notes: [],
+      };
+      for (const line of formatStopReport(report)) output.emit(line);
       return 1;
+    }
     case 'front-stopped':
-      // 理由と戻すコマンドは、段が止まったときに出している
+      for (const line of formatStopReport(frontReport(outcome.stop))) output.emit(line);
       return 1;
     case 'after-push-stopped':
       for (const line of describeStop(outcome.stop)) output.emit(line);
@@ -797,7 +1212,21 @@ export interface MainDeps {
   installInterruptHandler: () => void;
 }
 
-async function checkTooling(run: Runner): Promise<string | undefined> {
+// 入口の停止。reason は定数、外部の値は error.lines にだけ入る
+interface EntryStopValue {
+  reason: string;
+  error: ErrorExcerpt;
+}
+
+function entryStop(
+  where: EntryWhere,
+  reason: string,
+  error: ErrorExcerpt
+): Extract<Outcome, { kind: 'entry-stopped' }> {
+  return { kind: 'entry-stopped', reason, error, where };
+}
+
+async function checkTooling(run: Runner): Promise<EntryStopValue | undefined> {
   // 前半と後半の両方に効くよう、入口の観測の前に 1 回。引数は固定せず (raw)、設定の実効値を読む
   const [npmVersion, ghVersion, registry, scoped] = await Promise.all([
     run('npm', ['--version'], { stdio: 'pipe', raw: true }),
@@ -805,28 +1234,53 @@ async function checkTooling(run: Runner): Promise<string | undefined> {
     run('npm', ['config', 'get', 'registry'], { stdio: 'pipe', raw: true }),
     run('npm', ['config', 'get', '@kanbun-skam:registry'], { stdio: 'pipe', raw: true }),
   ]);
-  for (const [label, result] of [
-    ['npm --version', npmVersion],
-    ['gh --version', ghVersion],
-    ['npm config get registry', registry],
-    ['npm config get @kanbun-skam:registry', scoped],
+  for (const [label, tool, result] of [
+    ['npm --version', 'npm', npmVersion],
+    ['gh --version', 'gh', ghVersion],
+    ['npm config get registry', 'npm', registry],
+    ['npm config get @kanbun-skam:registry', 'npm', scoped],
   ] as const) {
-    if (result.status !== 0) return `${label} failed: ${result.stderr.trim()}`;
+    if (result.status !== 0) {
+      return {
+        reason: `${label} failed`,
+        error: excerptLocalStderr(label, result.status, result.stderr, { tool }),
+      };
+    }
   }
   const npm = parseToolVersion(npmVersion.stdout, 'npm');
   const gh = parseToolVersion(ghVersion.stdout, 'gh');
-  if (!npm.ok) return errorText(npm);
-  if (!gh.ok) return errorText(gh);
+  if (!npm.ok) {
+    return { reason: 'the npm version could not be read', error: detailError(npm.errors) };
+  }
+  if (!gh.ok) {
+    return { reason: 'the gh version could not be read', error: detailError(gh.errors) };
+  }
   const versions = checkToolVersions(npm.value, gh.value);
-  if (!versions.ok) return errorText(versions);
+  if (!versions.ok) {
+    return {
+      reason: 'the npm or gh version is outside the supported range',
+      error: detailError(versions.errors),
+    };
+  }
   const config = checkNpmRegistryConfig(registry.stdout, scoped.stdout);
-  return config.ok ? undefined : errorText(config);
+  return config.ok
+    ? undefined
+    : {
+        reason: 'the npm registry setting is not the public registry',
+        error: detailError(config.errors),
+      };
 }
 
 const VERSION_FOR_REFS = /^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/;
 
+// ls-remote の引数の tag は、検証した版から作った値だけをコマンドの欄に出す
+function lsRemoteCommand(tag: string): string {
+  const shown = VERSION_FOR_REFS.test(tag.slice(1)) ? tag : '<tag>';
+  return `git ls-remote origin refs/tags/${shown} refs/tags/${shown}^{}`;
+}
+
 function parseOriginTag(ls: GitResult, tag: string): EntryObservation['originTag'] {
-  if (ls.status !== 0) return { kind: 'error' };
+  if (ls.status !== 0) return { kind: 'error', error: gitError(lsRemoteCommand(tag), ls) };
   let commit: string | undefined;
   for (const line of ls.stdout.split('\n').filter(Boolean)) {
     const [sha, ref] = line.split('\t');
@@ -838,16 +1292,52 @@ function parseOriginTag(ls: GitResult, tag: string): EntryObservation['originTag
   return commit === undefined ? { kind: 'absent' } : { kind: 'present', commit };
 }
 
-async function observeEntry(
-  deps: MainDeps,
-  flags: ReleaseFlags,
-  root: string
-): Promise<EntryObservation | { error: string }> {
+interface FailedView {
+  name: string;
+  result: CommandResult;
+  message: string;
+}
+
+// 失敗した npm view をまとめた 1 つの error。各行の先頭に `<name>: ` を付け、全体で 12 行以内にする
+function aggregateViewErrors(failed: readonly [FailedView, ...FailedView[]]): ErrorExcerpt {
+  const perPackage = Math.max(1, Math.floor(12 / failed.length));
+  const excerpts = failed.map((f) => ({
+    name: f.name,
+    excerpt: excerptLocalStderr(
+      `npm view ${f.name} versions --json`,
+      f.result.status,
+      `${f.message}\n${f.result.stderr}`,
+      { tool: 'npm' }
+    ),
+  }));
+  const [first] = excerpts;
+  return {
+    command: first?.excerpt.command ?? `npm view ${failed[0].name} versions --json`,
+    exit: first?.excerpt.exit ?? null,
+    source: 'local-stderr',
+    tool: 'npm',
+    lines: excerpts
+      .flatMap(({ name, excerpt }) => excerpt.lines.slice(-perPackage).map((l) => `${name}: ${l}`))
+      .slice(0, 12),
+    matched: excerpts.flatMap(({ excerpt }) => excerpt.matched),
+  };
+}
+
+type Observed =
+  | { kind: 'observed'; observation: EntryObservation }
+  | { kind: 'stopped'; stop: EntryStopValue };
+
+async function observeEntry(deps: MainDeps, flags: ReleaseFlags, root: string): Promise<Observed> {
   const { git, run } = deps;
   const head = git(['rev-parse', 'HEAD']).stdout.trim();
   const versions = readVersion(root, git);
   const pre = readPreState(root);
-  if (!pre.ok) return { error: errorText(pre) };
+  if (!pre.ok) {
+    return {
+      kind: 'stopped',
+      stop: { reason: '.changeset/pre.json could not be read', error: detailError(pre.errors) },
+    };
+  }
   const base = {
     flags,
     head,
@@ -857,10 +1347,13 @@ async function observeEntry(
   if (!versions.ok || !VERSION_FOR_REFS.test(versions.value)) {
     // 版が決まらなければ decideEntry が行 0 で止める。tag と公開の観測は意味がない
     return {
-      ...base,
-      originTag: { kind: 'absent' },
-      localTagCommit: undefined,
-      published: { kind: 'counts', published: 0, total: 0 },
+      kind: 'observed',
+      observation: {
+        ...base,
+        originTag: { kind: 'absent' },
+        localTagCommit: undefined,
+        published: { kind: 'counts', published: 0, total: 0 },
+      },
     };
   }
   const version = versions.value;
@@ -871,36 +1364,71 @@ async function observeEntry(
   );
   const local = git(['rev-parse', '-q', '--verify', `refs/tags/${tag}^{commit}`]);
   const names = readPublicPackages(root, git).map((p) => p.name);
-  const views = await Promise.all(
-    names.map(async (name) =>
-      parseNpmViewVersions(await run('npm', npmViewVersionsArgs(name), { stdio: 'pipe' }))
-    )
+  const results = await Promise.all(
+    names.map(async (name) => {
+      const result = await run('npm', npmViewVersionsArgs(name), { stdio: 'pipe' });
+      return { name, result, view: parseNpmViewVersions(result) };
+    })
   );
-  const failed = views.some((v) => v.kind === 'error');
-  const published = views.filter((v) => v.kind === 'found' && v.versions.includes(version)).length;
+  const failed: FailedView[] = results.flatMap(({ name, result, view }) =>
+    view.kind === 'error' ? [{ name, result, message: view.message }] : []
+  );
+  const [firstFailed, ...restFailed] = failed;
+  const published = results.filter(
+    ({ view }) => view.kind === 'found' && view.versions.includes(version)
+  ).length;
   return {
-    ...base,
-    originTag,
-    localTagCommit: local.status === 0 ? local.stdout.trim() : undefined,
-    published: failed ? { kind: 'error' } : { kind: 'counts', published, total: names.length },
+    kind: 'observed',
+    observation: {
+      ...base,
+      originTag,
+      localTagCommit: local.status === 0 ? local.stdout.trim() : undefined,
+      published:
+        firstFailed === undefined
+          ? { kind: 'counts', published, total: names.length }
+          : {
+              kind: 'error',
+              failedNames: failed.map((f) => f.name),
+              error: aggregateViewErrors([firstFailed, ...restFailed]),
+            },
+    },
   };
 }
 
+type AfterPushPrepared = { ok: true; value: AfterPushInput } | { ok: false; stop: EntryStopValue };
+
 // 後半の入力。tag の commit は origin から読む (前半から続けて入るときも、再開で入るときも同じ)
-function prepareAfterPush(deps: MainDeps, root: string, checkOnly: boolean): Check<AfterPushInput> {
+function prepareAfterPush(deps: MainDeps, root: string, checkOnly: boolean): AfterPushPrepared {
   const { git } = deps;
   const version = readVersion(root, git);
-  if (!version.ok) return version;
+  if (!version.ok) {
+    return { ok: false, stop: { reason: SAME_VERSION_FAILED, error: detailError(version.errors) } };
+  }
   const tag = `v${version.value}`;
   const originTag = parseOriginTag(
     git(['ls-remote', 'origin', `refs/tags/${tag}`, `refs/tags/${tag}^{}`]),
     tag
   );
+  // ls-remote の失敗を「tag が無い」にしない
+  if (originTag.kind === 'error') {
+    return { ok: false, stop: { reason: 'git ls-remote failed', error: originTag.error } };
+  }
   if (originTag.kind !== 'present') {
-    return { ok: false, errors: [`tag ${tag} was not found on origin`] };
+    return {
+      ok: false,
+      stop: { reason: 'the tag was not found on origin', error: detailError([tag]) },
+    };
   }
   const ordered = orderByDependencies(readPublicPackages(root, git));
-  if (!ordered.ok) return ordered;
+  if (!ordered.ok) {
+    return {
+      ok: false,
+      stop: {
+        reason: 'the packages could not be put in dependency order',
+        error: detailError(ordered.errors),
+      },
+    };
+  }
   return {
     ok: true,
     value: {
@@ -915,51 +1443,108 @@ function prepareAfterPush(deps: MainDeps, root: string, checkOnly: boolean): Che
 
 async function enterAfterPush(deps: MainDeps, root: string, checkOnly: boolean): Promise<Outcome> {
   const input = prepareAfterPush(deps, root, checkOnly);
-  if (!input.ok) return { kind: 'entry-stopped', reason: errorText(input) };
+  if (!input.ok) {
+    return entryStop({ kind: 'after-push-input' }, input.stop.reason, input.stop.error);
+  }
   deps.installInterruptHandler();
   const result = await deps.afterPush(input.value);
   return result.kind === 'stopped' ? { kind: 'after-push-stopped', stop: result.stop } : result;
 }
 
+// 入口の判定が止まる行の error。観測の error があればそのまま、無ければ detail (無ければ理由) を通す
+function entryDecisionStop(
+  decision: Extract<EntryDecision, { kind: 'stop' }>,
+  status: FrontCheck<ChangesetStatus> | undefined
+): Outcome {
+  const statusFailure = decision.row === 9 && status && !status.ok ? status.failure : undefined;
+  const error =
+    decision.error ??
+    (statusFailure === undefined
+      ? detailError(decision.detail ?? [decision.reason])
+      : childError(statusFailure));
+  return entryStop({ kind: 'row', row: decision.row }, decision.reason, error);
+}
+
+// 入口の判定の 1 行。版と tag は VERSION_FOR_REFS を通った値、数は公開パッケージの固定の一覧の数。
+// 版が決まらなければ tag と公開の観測は意味がないので版だけ(unknown)にする
+function describeEntry(
+  observation: EntryObservation,
+  decision: Exclude<EntryDecision, { kind: 'stop' | 'need-status' }>
+): string {
+  const outcome =
+    decision.kind === 'front'
+      ? 'front'
+      : decision.kind === 'after-push'
+        ? 'after-push'
+        : 'after-push (check only)';
+  const { versions } = observation;
+  if (!versions.ok || !VERSION_FOR_REFS.test(versions.value)) {
+    return formatEntry(`version unknown -> ${outcome}`);
+  }
+  const origin = observation.originTag.kind === 'error' ? 'unknown' : observation.originTag.kind;
+  const published =
+    observation.published.kind === 'counts'
+      ? `${observation.published.published}/${observation.published.total}`
+      : 'unknown';
+  return formatEntry(
+    `version ${versions.value}, tag v${versions.value} on origin: ${origin}, published ${published} -> ${outcome}`
+  );
+}
+
 async function runEntry(argv: readonly string[], deps: MainDeps): Promise<Outcome> {
   const flags = parseReleaseFlags(argv);
-  if (!flags.ok) return { kind: 'entry-stopped', reason: errorText(flags) };
+  if (!flags.ok) {
+    return entryStop({ kind: 'flags' }, 'the arguments are not valid', detailError(flags.errors));
+  }
   if (!isInteractiveStreams(deps.streams)) {
-    return {
-      kind: 'entry-stopped',
-      reason: 'stdin and stdout must both be a terminal (the approve steps ask for 2FA)',
-    };
+    const reason = 'stdin and stdout must both be a terminal (the approve steps ask for 2FA)';
+    return entryStop({ kind: 'tty' }, reason, detailError([reason]));
   }
   const tooling = await checkTooling(deps.run);
-  if (tooling !== undefined) return { kind: 'entry-stopped', reason: tooling };
+  if (tooling !== undefined) return entryStop({ kind: 'tooling' }, tooling.reason, tooling.error);
 
   const topLevel = deps.git(['rev-parse', '--show-toplevel']);
-  if (topLevel.status !== 0)
-    return { kind: 'entry-stopped', reason: 'not inside a git repository' };
+  if (topLevel.status !== 0) {
+    return entryStop(
+      { kind: 'repo' },
+      'not inside a git repository',
+      gitError('git rev-parse --show-toplevel', topLevel)
+    );
+  }
   const root = topLevel.stdout.trim();
   const observed = await observeEntry(deps, flags.value, root);
-  if ('error' in observed) return { kind: 'entry-stopped', reason: observed.error };
+  if (observed.kind === 'stopped') {
+    return entryStop({ kind: 'pre-state' }, observed.stop.reason, observed.stop.error);
+  }
 
-  let decision = decideEntry(observed);
+  let decision = decideEntry(observed.observation);
+  let status: FrontCheck<ChangesetStatus> | undefined;
   if (decision.kind === 'need-status') {
-    decision = decideEntryWithStatus(observed, deps.release.changesetStatus());
+    status = await deps.release.changesetStatus();
+    decision = decideEntryWithStatus(observed.observation, status);
   }
   switch (decision.kind) {
     case 'stop':
-      return { kind: 'entry-stopped', reason: decision.reason };
+      // 停止の表示の先頭は見出しの行。入口の行は、続けて進む判定にだけ出す
+      return entryDecisionStop(decision, status);
     case 'front': {
+      deps.output.emit(describeEntry(observed.observation, decision));
       const front = await deps.runFront(decision.mode, deps.release);
-      if (front.status === 'stopped') {
-        return { kind: 'front-stopped', stage: front.stage, reason: front.reason };
-      }
+      if (front.status === 'stopped') return { kind: 'front-stopped', stop: front.stop };
       return enterAfterPush(deps, root, false);
     }
     case 'after-push':
     case 'after-push-check-only': {
       const dirty = deps.git(['status', '--porcelain']);
       if (dirty.status !== 0 || dirty.stdout.trim() !== '') {
-        return { kind: 'entry-stopped', reason: 'working tree is not clean' };
+        const reason = dirty.status !== 0 ? 'git status failed' : 'working tree is not clean';
+        const error =
+          dirty.status !== 0
+            ? gitError('git status --porcelain', dirty)
+            : excerptDetail('git status --porcelain', 0, dirty.stdout.split('\n'));
+        return entryStop({ kind: 'dirty' }, reason, error);
       }
+      deps.output.emit(describeEntry(observed.observation, decision));
       return enterAfterPush(deps, root, decision.kind === 'after-push-check-only');
     }
   }
@@ -1178,13 +1763,56 @@ export type SpawnSyncFn = (
 
 const nodeSpawnSync: SpawnSyncFn = (cmd, args, options) => spawnSync(cmd, args, options);
 
+// 前半の子ごとの stdio。stdin と stdout は端末のまま、stderr は無害化して流しつつ末尾を保持する
+// (plan-1 T1 の確認に合格)。崩れた子を inherit に戻すのは、その子の行 1 か所の変更で済む。
+// verify のキーは 1 つで、段ごとに流すときも全段に同じ stdio を使う
+export type FrontChild =
+  | 'changesetStatus'
+  | 'changesetPre'
+  | 'verify'
+  | 'changesetVersion'
+  | 'prettier'
+  | 'checkRelease'
+  | 'consumer';
+
+const FRONT_CHILD_STDIO: Readonly<Record<FrontChild, RunStdio>> = {
+  changesetStatus: 'inherit-keep-stderr',
+  changesetPre: 'inherit-keep-stderr',
+  verify: 'inherit-keep-stderr',
+  changesetVersion: 'inherit-keep-stderr',
+  prettier: 'inherit-keep-stderr',
+  checkRelease: 'inherit-keep-stderr',
+  consumer: 'inherit-keep-stderr',
+};
+
+// リポジトリの package.json の scripts.verify を、流す時点で読む。読めない、JSON でない、
+// scripts が object でないときは、丸ごと流す側に倒す
+function readVerifyPlan(root: string): VerifyPlan {
+  try {
+    const json: unknown = JSON.parse(readFileSync(join(root, 'package.json'), 'utf8'));
+    const scripts =
+      typeof json === 'object' && json !== null
+        ? (json as Record<string, unknown>)['scripts']
+        : undefined;
+    if (typeof scripts !== 'object' || scripts === null || Array.isArray(scripts)) {
+      return { kind: 'whole' };
+    }
+    const body = (scripts as Record<string, unknown>)['verify'];
+    return planVerifySteps(typeof body === 'string' ? body : undefined, Object.keys(scripts));
+  } catch {
+    return { kind: 'whole' };
+  }
+}
+
 export interface BuildOptions {
   cwd: string;
   output: Output;
   env?: Readonly<Record<string, string | undefined>>;
   spawnSync?: SpawnSyncFn;
-  // 子の出力を端末に流す (inherit) か、集める (pipe)。テストは pipe
+  // 'pipe' なら、前半の子の stdio の表 (FRONT_CHILD_STDIO) を上書きして全部を集める。テストが使う
   stdio?: 'inherit' | 'pipe';
+  // 子ごとの stdio の上書き (テスト用)。現物の表には inherit の子は無い
+  frontChildStdio?: Partial<Record<FrontChild, RunStdio>>;
   // changeset を呼ぶコマンド。テストは fixture の repo の node_modules/.bin/changeset を絶対パスで指す
   changesetCmd?: readonly string[];
   run?: Runner;
@@ -1198,20 +1826,35 @@ export function buildReleaseDeps(
   const { cwd, output } = options;
   const sync = options.spawnSync ?? nodeSpawnSync;
   const env = (): Record<string, string> => childEnv(options.env ?? process.env);
-  const stdio = options.stdio ?? 'inherit';
   const changeset = options.changesetCmd ?? ['pnpm', 'changeset'];
   const run = options.run ?? createRunner(nodeSpawn, output, { env: options.env ?? process.env });
 
-  // 前半の同期の実行は、この spawnChecked と git と ghRelease の 3 か所だけ
-  const spawnChecked = (cmd: string, args: string[]): Check<void> => {
-    const r = sync(cmd, args, { cwd, env: env(), encoding: 'utf8', stdio });
-    if (r.status === 0) return { ok: true, value: undefined };
-    const tail = (r.stderr ?? '').trim().split('\n').slice(-5).join('\n');
+  // 前半の子は run (createRunner) で実行する。cwd はリポジトリの root、環境変数は run が childEnv を通す。
+  // 失敗には子の結果 (コマンド、exit code、受けた stderr) を載せる。停止の表示はそれを使う
+  const runChild = async (
+    child: FrontChild,
+    cmd: string,
+    args: string[],
+    rerun?: string
+  ): Promise<FrontCheck<void>> => {
+    const stdio =
+      options.stdio === 'pipe'
+        ? 'pipe'
+        : (options.frontChildStdio?.[child] ?? FRONT_CHILD_STDIO[child]);
+    const result = await run(cmd, args, { stdio, cwd });
+    if (result.status === 0) return { ok: true, value: undefined };
+    const command = [cmd, ...args].join(' ');
+    const captured = stdio !== 'inherit';
     return {
       ok: false,
-      errors: [
-        `${cmd} ${args.join(' ')} exited with ${r.status ?? 'a signal'}${tail === '' ? '' : `: ${tail}`}`,
-      ],
+      errors: [`${command} exited with ${result.status ?? 'a signal'}`],
+      failure: {
+        command,
+        status: result.status,
+        stderr: captured ? result.stderr : '',
+        captured,
+        ...(rerun === undefined ? {} : { rerun }),
+      },
     };
   };
   const git: ReleaseDeps['git'] = (args) => {
@@ -1244,13 +1887,17 @@ export function buildReleaseDeps(
   const deps: ReleaseDeps = {
     git,
     verifyTrust: () => verifyTrustWith(run, saveRaw, output, publicNames()),
-    changesetStatus: () => {
+    changesetStatus: async () => {
       mkdirSync(join(cwd, '.tmp', 'release'), { recursive: true });
       // --output は repo root からの相対で解釈される
       const rel = `.tmp/release/status-${process.pid}.json`;
       const file = join(cwd, rel);
       try {
-        const ran = spawnChecked(changesetBin, [...changesetRest, 'status', `--output=${rel}`]);
+        const ran = await runChild('changesetStatus', changesetBin, [
+          ...changesetRest,
+          'status',
+          `--output=${rel}`,
+        ]);
         if (!ran.ok) return ran;
         const json: unknown = JSON.parse(readFileSync(file, 'utf8'));
         return parseChangesetStatus(json, publicNames());
@@ -1260,16 +1907,33 @@ export function buildReleaseDeps(
         rmSync(file, { force: true });
       }
     },
-    changesetPre: (args) => spawnChecked(changesetBin, [...changesetRest, 'pre', ...args]),
-    verify: () => spawnChecked('pnpm', ['verify']),
-    changesetVersion: () => spawnChecked(changesetBin, [...changesetRest, 'version']),
-    prettier: (files) =>
+    changesetPre: (args) =>
+      runChild('changesetPre', changesetBin, [...changesetRest, 'pre', ...args]),
+    verify: async () => {
+      const plan = readVerifyPlan(cwd);
+      if (plan.kind === 'whole') return runChild('verify', 'pnpm', ['verify']);
+      // 段ごとに流す。失敗した段で止まり、その段だけを流し直すコマンドを rerun に載せる
+      for (const name of plan.names) {
+        const step = await runChild('verify', 'pnpm', [name], `pnpm ${name}`);
+        if (!step.ok) return step;
+      }
+      return { ok: true, value: undefined };
+    },
+    changesetVersion: () =>
+      runChild('changesetVersion', changesetBin, [...changesetRest, 'version']),
+    prettier: async (files) =>
       files.length === 0
         ? { ok: true, value: undefined }
-        : spawnChecked('pnpm', ['exec', 'prettier', '--write', ...files]),
+        : runChild('prettier', 'pnpm', ['exec', 'prettier', '--write', ...files]),
     checkRelease: (tag) =>
-      spawnChecked(process.execPath, [checkReleaseScript, 'check', '--tag', tag, '--registry']),
-    consumer: () => spawnChecked('pnpm', ['test:consumer']),
+      runChild('checkRelease', process.execPath, [
+        checkReleaseScript,
+        'check',
+        '--tag',
+        tag,
+        '--registry',
+      ]),
+    consumer: () => runChild('consumer', 'pnpm', ['test:consumer']),
     ghRelease,
     confirm:
       options.confirm ??

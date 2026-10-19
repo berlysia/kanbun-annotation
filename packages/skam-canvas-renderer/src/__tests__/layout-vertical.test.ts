@@ -3,6 +3,7 @@ import type { SKAMDocument, Mark } from '@kanbun-skam/skam';
 import { KAERI } from '@kanbun-skam/skam';
 import { buildRenderTree } from '../render-tree.js';
 import { layout } from '../layout.js';
+import { computeRangeRubyOverflow } from '../layout-vertical.placement.js';
 import { PROFILES } from '../profiles.js';
 import { RecordingContext } from './recording-context.js';
 import type { ColumnChild, TokenLayout, TatetenSeparatorLayout } from '../types.js';
@@ -1622,5 +1623,119 @@ describe('adaptive columnSizing', () => {
       const spacingPx = 0.25 * DEFAULT_FONT_SIZE;
       expect(resultQuarter.height - resultSolid.height).toBe(3 * spacingPx);
     });
+  });
+});
+
+describe('computeRangeRubyOverflow', () => {
+  const base = { rubyFontSize: 10 } as const;
+
+  it('does not overflow when ruby is shorter than the span', () => {
+    expect(
+      computeRangeRubyOverflow({
+        ...base,
+        rubyChars: 3,
+        naturalSpan: 40,
+        baseSpan: 40,
+        elementCount: 2,
+        alignment: 'center',
+      })
+    ).toEqual({
+      overflow: false,
+      spanHeight: 40,
+      rubyEndOffset: undefined,
+      leading: 0,
+      rubyYOffset: 0,
+      trailing: 0,
+      extraPerElement: 0,
+    });
+  });
+
+  it('does not overflow when ruby height equals the span', () => {
+    const result = computeRangeRubyOverflow({
+      ...base,
+      rubyChars: 3,
+      naturalSpan: 30,
+      baseSpan: 30,
+      elementCount: 2,
+      alignment: 'center',
+    });
+    expect(result.overflow).toBe(false);
+    expect(result.spanHeight).toBe(30);
+  });
+
+  it('splits the excess before and after in center mode', () => {
+    expect(
+      computeRangeRubyOverflow({
+        ...base,
+        rubyChars: 5,
+        naturalSpan: 30,
+        baseSpan: 24,
+        elementCount: 2,
+        alignment: 'center',
+      })
+    ).toEqual({
+      overflow: true,
+      spanHeight: 50,
+      rubyEndOffset: 50,
+      leading: 10,
+      rubyYOffset: -10,
+      trailing: 10,
+      extraPerElement: 0,
+    });
+  });
+
+  it('spreads the excess over N+1 gaps in distribute mode', () => {
+    const result = computeRangeRubyOverflow({
+      ...base,
+      rubyChars: 5,
+      naturalSpan: 30,
+      baseSpan: 24,
+      elementCount: 3,
+      alignment: 'distribute',
+    });
+    expect(result.overflow).toBe(true);
+    expect(result.leading).toBe(5);
+    expect(result.rubyYOffset).toBe(-5);
+    expect(result.trailing).toBe(0);
+    expect(result.extraPerElement).toBe(5);
+  });
+
+  it('uses a denominator of 1 when there are no elements', () => {
+    const result = computeRangeRubyOverflow({
+      ...base,
+      rubyChars: 5,
+      naturalSpan: 30,
+      baseSpan: 24,
+      elementCount: 0,
+      alignment: 'distribute',
+    });
+    expect(result.extraPerElement).toBe(20);
+    expect(result.leading).toBe(20);
+  });
+
+  it('computes excess from naturalSpan, not baseSpan', () => {
+    const result = computeRangeRubyOverflow({
+      ...base,
+      rubyChars: 4,
+      naturalSpan: 25,
+      baseSpan: 25,
+      elementCount: 2,
+      alignment: 'distribute',
+    });
+    expect(result.extraPerElement).toBe(5);
+    expect(result.leading).toBe(5);
+  });
+
+  it('returns non-overflow with baseSpan for empty ruby', () => {
+    const result = computeRangeRubyOverflow({
+      ...base,
+      rubyChars: 0,
+      naturalSpan: 10,
+      baseSpan: 8,
+      elementCount: 1,
+      alignment: 'center',
+    });
+    expect(result.overflow).toBe(false);
+    expect(result.spanHeight).toBe(8);
   });
 });

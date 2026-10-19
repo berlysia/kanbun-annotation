@@ -54,3 +54,44 @@ export function redactSecrets(line: string): string {
     })
     .replace(NPM_LOGIN_CLI, `$1${MASK}`);
 }
+
+// --- 保存物の無害化 ---
+
+// 行ごとに、エスケープ列 → 制御文字 → secret の順で掛ける。切り詰めと job の log の接頭辞の除去はしない
+export function sanitizeText(text: string): string {
+  return text
+    .split('\n')
+    .map((line) => redactSecrets(sanitizeForTerminal(removeEscapeSequences(line))))
+    .join('\n');
+}
+
+// オブジェクトのキーと文字列の葉に sanitizeText を掛ける。`__proto__` も own property にするため、
+// 代入ではなく property の定義で作る。無害化でキーが重なれば後の値が残る
+function sanitizeValue(value: unknown): unknown {
+  if (typeof value === 'string') return sanitizeText(value);
+  if (Array.isArray(value)) return value.map(sanitizeValue);
+  if (value !== null && typeof value === 'object') {
+    const out: Record<string, unknown> = {};
+    for (const [key, child] of Object.entries(value)) {
+      Object.defineProperty(out, sanitizeText(key), {
+        value: sanitizeValue(child),
+        enumerable: true,
+        writable: true,
+        configurable: true,
+      });
+    }
+    return out;
+  }
+  return value;
+}
+
+// JSON として読めれば値ごとに無害化して JSON のまま保つ。全文に redactSecrets を掛けると、
+// 値の中の引用符が秘密の `\S*` に飲まれて JSON が壊れる。読めない・たどれない (深い入れ子など) ときは
+// 入力全体をテキストとして無害化する (fail-closed: 無害化しない内容を返す経路は無い)
+export function sanitizeArtifact(raw: string): string {
+  try {
+    return `${JSON.stringify(sanitizeValue(JSON.parse(raw)), null, 2)}\n`;
+  } catch {
+    return sanitizeText(raw);
+  }
+}

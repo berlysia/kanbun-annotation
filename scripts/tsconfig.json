@@ -18,6 +18,7 @@
     "lib/release-after-push-check.ts",
     "lib/release-after-push-check.test.ts",
     "lib/release-sanitize.ts",
+    "lib/release-sanitize.test.ts",
     "lib/release-stop-report.ts",
     "lib/release-stop-report.test.ts",
     "lib/test-workspace.ts",

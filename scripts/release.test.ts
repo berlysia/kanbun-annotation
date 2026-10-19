@@ -53,7 +53,7 @@ import type {
 import type { AfterPushInput } from './release-after-push.ts';
 import { checkChangelog } from './lib/release-check.ts';
 import type { ChangesetStatus, ReleaseFlags, ReleaseLookup } from './lib/release-check.ts';
-import { excerptDetail } from './lib/release-stop-report.ts';
+import { excerptDetail, STAGES } from './lib/release-stop-report.ts';
 import { ENTRY_STOP_ROWS, NO_COMMAND } from './lib/release-types.ts';
 import type {
   AfterPushResult,
@@ -368,6 +368,123 @@ test('normal release: commit and annotated tag exist locally and on origin, tree
     'checkRelease',
     'consumer',
   ]);
+});
+
+// 進み方の行 (段の始めと根拠)
+
+const startsOf = (lines: readonly string[]): string[] =>
+  lines.flatMap((l) => {
+    const m = /^stage (\d+)\/11:/.exec(l);
+    return m === null ? [] : [m[1] ?? ''];
+  });
+
+test('progress: a full front half prints stages 1 to 7 in order, with the evidence of stages 1, 2, 3, 4 and 7', async () => {
+  const repo = makeRepo();
+  const fake = fakeDeps(repo);
+  const before = mustGit(repo.work, ['rev-parse', 'HEAD']);
+  assert.equal((await runRelease(normal, fake.deps)).status, 'released');
+  assert.deepEqual(startsOf(fake.logs), ['1', '2', '3', '4', '5', '6', '7']);
+  const head = mustGit(repo.work, ['rev-parse', 'HEAD']);
+  const oks = fake.logs.filter((l) => l.startsWith('  ok:'));
+  assert.deepEqual(oks, [
+    `  ok: on master at origin/master (${before.slice(0, 12)}); trust ok for 2 packages (release.yml, env npm, createStagedPackage); pnpm verify passed`,
+    '  ok: version 0.2.0',
+    '  ok: publish preconditions passed',
+    '  ok: consumer test passed',
+    `  ok: pushed v0.2.0 at ${head.slice(0, 12)}`,
+  ]);
+  // 各 ok は自分の段の始めの後、次の段の始めの前
+  const order = fake.logs.filter((l) => l.startsWith('stage ') || l.startsWith('  ok:'));
+  assert.deepEqual(
+    order.map((l) => l.slice(0, 10)),
+    [
+      'stage 1/11',
+      '  ok: on m',
+      'stage 2/11',
+      '  ok: vers',
+      'stage 3/11',
+      '  ok: publ',
+      'stage 4/11',
+      '  ok: cons',
+      'stage 5/11',
+      'stage 6/11',
+      'stage 7/11',
+      '  ok: push',
+    ]
+  );
+});
+
+test('progress: the stage text comes from STAGES', async () => {
+  const repo = makeRepo();
+  const fake = fakeDeps(repo);
+  await runRelease(normal, fake.deps);
+  assert.ok(fake.logs.includes(`stage 2/11: ${STAGES[2].what}`), fake.logs.join('\n'));
+});
+
+test('progress: --tag-only has no stage 2', async () => {
+  const repo = makeRepo({ changeset: false, version: '0.2.0' });
+  const fake = fakeDeps(repo);
+  assert.equal((await runRelease(tagOnlyFlags, fake.deps)).status, 'tag-pushed');
+  assert.deepEqual(startsOf(fake.logs), ['1', '3', '4', '5', '6', '7']);
+});
+
+test('progress: a stop at stage 3 is not followed by ok, and the stop report comes after the stage line', async () => {
+  const repo = makeRepo({ version: '0.1.1' });
+  const fake = fakeMain(repo, {
+    status: { kind: 'release', version: '0.2.0' },
+    realFront: true,
+    releaseOverrides: { checkRelease: async () => failing },
+  });
+  assert.equal(await runMain([], fake.deps), 1);
+  const lines = fake.lines().split('\n');
+  const at3 = lines.findIndex((l) => l.startsWith('stage 3/11:'));
+  assert.ok(at3 >= 0, fake.lines());
+  const after = lines.slice(at3 + 1);
+  assert.equal(
+    after.some((l) => l.startsWith('  ok:')),
+    false,
+    fake.lines()
+  );
+  assert.ok(after.includes('error:'), fake.lines());
+  assert.equal(
+    lines.some((l) => l.startsWith('stage 4/11:')),
+    false
+  );
+});
+
+test('progress: the entry line says after-push for an unfinished release', async () => {
+  const repo = makeRepo({ changeset: false, version: '0.2.0' });
+  tagOriginAtHead(repo, 'v0.2.0');
+  const fake = fakeMain(repo);
+  assert.equal(await runMain([], fake.deps), 0, fake.lines());
+  assert.ok(
+    fake
+      .lines()
+      .includes(
+        'entry: version 0.2.0, tag v0.2.0 on origin: present, published 0/2 -> after-push\n'
+      ),
+    fake.lines()
+  );
+});
+
+test('progress: the entry line says check only when everything is published', async () => {
+  const repo = makeRepo({ changeset: false, version: '0.2.0' });
+  tagOriginAtHead(repo, 'v0.2.0');
+  const fake = fakeMain(repo, { published: 'all' });
+  await runMain([], fake.deps);
+  assert.ok(fake.lines().includes('published 2/2 -> after-push (check only)\n'), fake.lines());
+});
+
+test('progress: the entry line says front for a new release', async () => {
+  const repo = makeRepo({ version: '0.1.1' });
+  const fake = fakeMain(repo, { status: { kind: 'release', version: '0.2.0' } });
+  await runMain([], fake.deps);
+  assert.ok(
+    fake
+      .lines()
+      .includes('entry: version 0.1.1, tag v0.1.1 on origin: absent, published 0/2 -> front\n'),
+    fake.lines()
+  );
 });
 
 // 段 1
@@ -1303,6 +1420,8 @@ interface MainOptions {
   gitOverride?: (args: string[]) => GitResult | undefined;
   runOverride?: (joined: string) => CommandResult | undefined;
   statusErrors?: string[];
+  // 前半の deps の一部を差し替える
+  releaseOverrides?: Partial<ReleaseDeps>;
 }
 
 interface MainFake {
@@ -1344,6 +1463,7 @@ function fakeMain(repo: Repo, options: MainOptions = {}): MainFake {
       return true;
     },
     log: (l) => out.output.emit(l),
+    ...options.releaseOverrides,
   };
   const published = options.published ?? 'none';
   const run: Runner = async (cmd, args) => {

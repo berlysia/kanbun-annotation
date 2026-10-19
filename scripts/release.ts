@@ -72,6 +72,9 @@ import {
   diagnose,
   excerptDetail,
   excerptLocalStderr,
+  formatEntry,
+  formatOk,
+  formatStageStart,
   formatStopReport,
   remediesFor,
   STAGES,
@@ -518,6 +521,8 @@ interface FrontState {
   tag: string;
   // 許可リストの 2 回目の検査が返したパス。段 6 はこれだけを add する
   allowed: string[];
+  // 段 1 が読んだ HEAD (進み方の行に先頭 12 文字だけ出す。検査を通らなければ空)
+  head: string;
   // 停止は log に出さず値で返す。表示は reportOutcome だけが行う (外部の文字列は error にだけ入る)
   stop(
     stage: FrontStage,
@@ -531,6 +536,16 @@ interface FrontState {
 type StageResult = ReleaseOutcome | undefined;
 
 const errorText = (r: { errors: string[] }): string => r.errors.join('; ');
+
+// `git rev-parse` の出力は、16 進の検査を通ったものだけを行に出す
+const COMMIT_ID = /^[0-9a-f]{40,64}$/;
+const shortCommit = (raw: string): string => {
+  const id = raw.trim();
+  return COMMIT_ID.test(id) ? id.slice(0, 12) : '';
+};
+
+const stageStart = (s: FrontState, n: 1 | 2 | 3 | 4 | 5 | 6 | 7): void =>
+  s.deps.log(formatStageStart(n, STAGES[n].what));
 
 const STAGE_1 = STAGES[1].name;
 const STAGE_2 = STAGES[2].name;
@@ -697,6 +712,7 @@ function checkGitState(s: FrontState): StageResult {
     const reason = `HEAD is not equal to origin/${BRANCH}`;
     return stopOnErrors(s, STAGE_1, reason, [reason]);
   }
+  s.head = shortCommit(head);
   return undefined;
 }
 
@@ -776,6 +792,14 @@ async function checkPrerequisites(s: FrontState): Promise<StageResult> {
   if (dirty.status !== 0 || dirty.stdout.trim() !== '') {
     return stopDirty(s, STAGE_1, 'pnpm verify left the working tree dirty', dirty);
   }
+  // trust の件数は固定の一覧 (公開パッケージ) の数。release.yml / env npm / createStagedPackage は
+  // trust の検査が期待する定数で、npm の出力の値ではない
+  const trusted = readPublicPackages(s.root, s.deps.git).length;
+  s.deps.log(
+    formatOk(
+      `on ${BRANCH} at origin/${BRANCH}${s.head === '' ? '' : ` (${s.head})`}; trust ok for ${trusted} packages (release.yml, env npm, createStagedPackage); pnpm verify passed`
+    )
+  );
   return undefined;
 }
 
@@ -1005,32 +1029,49 @@ export async function runRelease(flags: ReleaseFlags, deps: ReleaseDeps): Promis
       gitError('git rev-parse --show-toplevel', topLevel)
     );
   }
-  const s: FrontState = { flags, deps, root: topLevel.stdout.trim(), tag: '', allowed: [], stop };
+  const s: FrontState = {
+    flags,
+    deps,
+    root: topLevel.stdout.trim(),
+    tag: '',
+    allowed: [],
+    head: '',
+    stop,
+  };
 
   // 段 1: 前提。何も変えない
+  stageStart(s, 1);
   const prerequisites = await checkPrerequisites(s);
   if (prerequisites) return prerequisites;
 
   // 段 2: 版上げ (--tag-only は飛ばす)
   if (!tagOnly) {
+    stageStart(s, 2);
     const versioned = await versionStage(s);
     if (versioned) return versioned;
+    const shown = s.tag.slice(1);
+    log(formatOk(VERSION_FOR_REFS.test(shown) ? `version ${shown}` : 'versions bumped'));
   }
   const recovery = tagOnly ? undefined : REVERT_VERSIONING;
 
   // 段 3: 公開前提
+  stageStart(s, 3);
   const checked = await deps.checkRelease(s.tag);
   if (!checked.ok) return stopOnCheck(s, STAGE_3, 'check-release failed', checked, recovery);
   if (!tagOnly) {
     const state = tagState(git, s.tag);
     if (!state.ok) return stopOnTagState(s, STAGE_3, state, recovery);
   }
+  log(formatOk('publish preconditions passed'));
 
   // 段 4: 利用者テスト (新しい版の tarball で)
+  stageStart(s, 4);
   const consumed = await deps.consumer();
   if (!consumed.ok) return stopOnCheck(s, STAGE_4, 'consumer test failed', consumed, recovery);
+  log(formatOk('consumer test passed'));
 
-  // 段 5: 確認
+  // 段 5: 確認。y/N の質問が根拠の代わりになるので ok の行は出さない
+  stageStart(s, 5);
   const files = git(['status', '--short']).stdout.trim();
   const question = tagOnly
     ? `Tag HEAD as ${s.tag} and push the tag?`
@@ -1039,11 +1080,13 @@ export async function runRelease(flags: ReleaseFlags, deps: ReleaseDeps): Promis
     return stopOnErrors(s, STAGE_5, 'declined', ['declined'], recovery);
   }
 
-  // 段 6: 記録
+  // 段 6: 記録。段 7 の行が根拠の代わりになる
+  stageStart(s, 6);
   const recorded = record(s, recovery);
   if (recorded) return recorded;
 
   // 段 7: 送信。--atomic で、拒否されたら origin は変わらない。force は使わない
+  stageStart(s, 7);
   const pushArgs = tagOnly
     ? ['push', 'origin', `refs/tags/${s.tag}`]
     : ['push', '--atomic', 'origin', BRANCH, `refs/tags/${s.tag}`];
@@ -1061,7 +1104,9 @@ export async function runRelease(flags: ReleaseFlags, deps: ReleaseDeps): Promis
       undo
     );
   }
-  log(`pushed ${s.tag}`);
+  const pushedCommit = shortCommit(git(['rev-parse', 'HEAD']).stdout);
+  const shownTag = VERSION_FOR_REFS.test(s.tag.slice(1)) ? s.tag : '<tag>';
+  log(formatOk(`pushed ${shownTag}${pushedCommit === '' ? '' : ` at ${pushedCommit}`}`));
   return tagOnly ? { status: 'tag-pushed', tag: s.tag } : { status: 'released', tag: s.tag };
 }
 
@@ -1420,6 +1465,32 @@ function entryDecisionStop(
   return entryStop({ kind: 'row', row: decision.row }, decision.reason, error);
 }
 
+// 入口の判定の 1 行。版と tag は VERSION_FOR_REFS を通った値、数は公開パッケージの固定の一覧の数。
+// 版が決まらなければ tag と公開の観測は意味がないので版だけ(unknown)にする
+function describeEntry(
+  observation: EntryObservation,
+  decision: Exclude<EntryDecision, { kind: 'stop' | 'need-status' }>
+): string {
+  const outcome =
+    decision.kind === 'front'
+      ? 'front'
+      : decision.kind === 'after-push'
+        ? 'after-push'
+        : 'after-push (check only)';
+  const { versions } = observation;
+  if (!versions.ok || !VERSION_FOR_REFS.test(versions.value)) {
+    return formatEntry(`version unknown -> ${outcome}`);
+  }
+  const origin = observation.originTag.kind === 'error' ? 'unknown' : observation.originTag.kind;
+  const published =
+    observation.published.kind === 'counts'
+      ? `${observation.published.published}/${observation.published.total}`
+      : 'unknown';
+  return formatEntry(
+    `version ${versions.value}, tag v${versions.value} on origin: ${origin}, published ${published} -> ${outcome}`
+  );
+}
+
 async function runEntry(argv: readonly string[], deps: MainDeps): Promise<Outcome> {
   const flags = parseReleaseFlags(argv);
   if (!flags.ok) {
@@ -1454,8 +1525,10 @@ async function runEntry(argv: readonly string[], deps: MainDeps): Promise<Outcom
   }
   switch (decision.kind) {
     case 'stop':
+      // 停止の表示の先頭は見出しの行。入口の行は、続けて進む判定にだけ出す
       return entryDecisionStop(decision, status);
     case 'front': {
+      deps.output.emit(describeEntry(observed.observation, decision));
       const front = await deps.runFront(decision.mode, deps.release);
       if (front.status === 'stopped') return { kind: 'front-stopped', stop: front.stop };
       return enterAfterPush(deps, root, false);
@@ -1471,6 +1544,7 @@ async function runEntry(argv: readonly string[], deps: MainDeps): Promise<Outcom
             : excerptDetail('git status --porcelain', 0, dirty.stdout.split('\n'));
         return entryStop({ kind: 'dirty' }, reason, error);
       }
+      deps.output.emit(describeEntry(observed.observation, decision));
       return enterAfterPush(deps, root, decision.kind === 'after-push-check-only');
     }
   }

@@ -354,7 +354,6 @@ export interface ReleaseDeps {
   verifyTrust(): Promise<TrustResult>;
   changesetStatus(): Check<ChangesetStatus>;
   changesetPre(args: string[]): Check<void>;
-  checkVersionBump(): Check<void>;
   verify(): Check<void>;
   changesetVersion(): Check<void>;
   prettier(files: string[]): Check<void>;
@@ -372,7 +371,6 @@ export type ReleaseOutcome =
 
 const BRANCH = 'master';
 const REVERT_VERSIONING = 'git checkout -- . && git clean -fd .changeset packages';
-const NEEDS_NO_PRE_MODE_VERSION = '0.2.0';
 
 export type PreState = { mode: 'none' } | { mode: 'pre'; tag: string };
 
@@ -522,25 +520,6 @@ function describeStatusStop(status: Check<ChangesetStatus>): string | undefined 
   return undefined;
 }
 
-// 出す版が 0.2.0 のときの扱い (K8): pre mode を経ない 0.2.0 だけ check-version-bump を通す
-function checkZeroTwoZero(
-  s: FrontState,
-  wasPre: boolean,
-  stage: string,
-  recovery?: string
-): StageResult {
-  if (wasPre) {
-    return s.stop(
-      stage,
-      `${NEEDS_NO_PRE_MODE_VERSION} must be released without pre mode (release it before entering pre mode, or add more changes first)`,
-      recovery
-    );
-  }
-  const bump = s.deps.checkVersionBump();
-  if (!bump.ok) return s.stop(stage, errorText(bump), recovery);
-  return undefined;
-}
-
 function checkPlannedVersion(s: FrontState): StageResult {
   const { flags, deps } = s;
   const pre = readPreState(s.root);
@@ -555,13 +534,6 @@ function checkPlannedVersion(s: FrontState): StageResult {
   const status = deps.changesetStatus();
   const stopped = describeStatusStop(status);
   if (stopped !== undefined) return s.stop('1 prerequisites', stopped);
-  if (
-    status.ok &&
-    status.value.kind === 'release' &&
-    status.value.version === NEEDS_NO_PRE_MODE_VERSION
-  ) {
-    return checkZeroTwoZero(s, pre.value.mode === 'pre', '1 prerequisites');
-  }
   return undefined;
 }
 
@@ -606,13 +578,6 @@ function changePreMode(s: FrontState): StageResult {
   const status = deps.changesetStatus();
   const stopped = describeStatusStop(status);
   if (stopped !== undefined) return s.stop('2 versioning', stopped, REVERT_VERSIONING);
-  if (
-    status.ok &&
-    status.value.kind === 'release' &&
-    status.value.version === NEEDS_NO_PRE_MODE_VERSION
-  ) {
-    return checkZeroTwoZero(s, before.value.mode === 'pre', '2 versioning', REVERT_VERSIONING);
-  }
   return undefined;
 }
 
@@ -1296,8 +1261,6 @@ export function buildReleaseDeps(
       }
     },
     changesetPre: (args) => spawnChecked(changesetBin, [...changesetRest, 'pre', ...args]),
-    checkVersionBump: () =>
-      spawnChecked(process.execPath, ['packages/integration-tests/scripts/check-version-bump.mjs']),
     verify: () => spawnChecked('pnpm', ['verify']),
     changesetVersion: () => spawnChecked(changesetBin, [...changesetRest, 'version']),
     prettier: (files) =>

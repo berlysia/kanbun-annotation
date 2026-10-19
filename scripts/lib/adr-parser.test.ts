@@ -9,6 +9,7 @@ import {
   getPhase,
   getActionableAdrs,
   formatPlan,
+  getCompleteWithPlanWarnings,
 } from './adr-parser.ts';
 import type { AdrFrontmatter, AdrInfo } from './types.ts';
 
@@ -70,6 +71,32 @@ test('parseFrontmatter: reads deps, and omits the key when empty', () => {
   const empty = parseFrontmatter('---\nstatus: Accepted\ndeps: []\n---\n# T');
   assert.ok(empty);
   assert.equal('deps' in empty, false);
+});
+
+test('parseFrontmatter: trims spaces around deps and reads leading zeros as decimal', () => {
+  const deps = (inner: string) =>
+    parseFrontmatter(`---\nstatus: Accepted\ndeps: [${inner}]\n---\n# T`)?.deps;
+  assert.deepEqual(deps(' 1 , 2 '), [1, 2]);
+  assert.deepEqual(deps('016'), [16]);
+});
+
+test('parseFrontmatter: whitespace-only deps is the same as no deps', () => {
+  const fm = parseFrontmatter('---\nstatus: Accepted\ndeps: [ ]\n---\n# T');
+  assert.ok(fm);
+  assert.equal('deps' in fm, false);
+});
+
+test('parseFrontmatter: throws on a non-numeric deps value, quoting it', () => {
+  const parse = (inner: string) => () =>
+    parseFrontmatter(`---\nstatus: Accepted\ndeps: [${inner}]\n---\n# T`);
+  assert.throws(parse('a'), (e: unknown) => e instanceof Error && e.message.includes('"a"'));
+  assert.throws(
+    parse('ADR-016'),
+    (e: unknown) => e instanceof Error && e.message.includes('"ADR-016"')
+  );
+  assert.throws(parse('1,'), (e: unknown) => e instanceof Error && e.message.includes('""'));
+  assert.throws(parse('1,,2'), Error);
+  assert.throws(parse('1.5'), (e: unknown) => e instanceof Error && e.message.includes('"1.5"'));
 });
 
 test('parseFrontmatter: keeps only valid substatus entries', () => {
@@ -218,4 +245,49 @@ test('parseAdrFile: throws without frontmatter', () => {
     () => parseAdrFile(file, root),
     (e: unknown) => e instanceof Error && e.message.startsWith('No frontmatter found in')
   );
+});
+
+test('parseAdrFile: a non-numeric deps value throws with the relative path and a cause', () => {
+  const root = scratchDir();
+  const file = writeAdr(root, '---\nstatus: Accepted\ndeps: [a]\n---\n# ADR-001: Sample\n');
+
+  assert.throws(
+    () => parseAdrFile(file, root),
+    (e: unknown) =>
+      e instanceof Error &&
+      e.message.includes('docs/decisions/adr-001-sample.md') &&
+      e.message.includes('"a"') &&
+      e.cause instanceof Error
+  );
+});
+
+test('getCompleteWithPlanWarnings: warns on Complete with plan, whether or not the file exists', () => {
+  for (const planExists of [false, true]) {
+    const lines = getCompleteWithPlanWarnings([
+      makeAdr({ frontmatter: { status: 'Complete', plan: 'plan-x.md' }, planExists }),
+    ]);
+    assert.equal(lines.length, 1);
+    assert.ok(lines[0]!.includes('ADR-001'));
+    assert.ok(lines[0]!.includes('plan-x.md'));
+  }
+});
+
+test('getCompleteWithPlanWarnings: no warning without plan or when not Complete', () => {
+  assert.deepEqual(
+    getCompleteWithPlanWarnings([makeAdr({ frontmatter: { status: 'Complete' } })]),
+    []
+  );
+  assert.deepEqual(
+    getCompleteWithPlanWarnings([
+      makeAdr({ frontmatter: { status: 'Accepted', plan: 'plan-x.md' } }),
+    ]),
+    []
+  );
+});
+
+test('getCompleteWithPlanWarnings: zero-pads the ADR number to 3 digits', () => {
+  const lines = getCompleteWithPlanWarnings([
+    makeAdr({ number: 12, frontmatter: { status: 'Complete', plan: 'plan-x.md' } }),
+  ]);
+  assert.ok(lines[0]!.includes('ADR-012'));
 });

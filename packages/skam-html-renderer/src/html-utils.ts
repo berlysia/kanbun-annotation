@@ -34,8 +34,10 @@ export function escapeHtml(text: string): string {
  * @internal
  */
 export function generateEmphasisMarks(text: string, emphasisChar: string): string {
+  // 公開関数なので、直接呼ばれても HTML を壊さないよう傍点の文字をここで 1 回だけ escape する
+  const escapedChar = escapeHtml(emphasisChar);
   return Array.from(text)
-    .map(() => emphasisChar)
+    .map(() => escapedChar)
     .join('');
 }
 

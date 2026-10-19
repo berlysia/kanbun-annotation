@@ -181,6 +181,13 @@ export function getPhase(adr: AdrInfo): AdrPhase {
   return 'implementation';
 }
 
+export function formatPlan(adr: AdrInfo): string {
+  if (!adr.frontmatter.plan) return '-';
+  if (!adr.planExists) return 'missing';
+  if (adr.planValidated) return 'validated';
+  return 'exists';
+}
+
 export function getActionableAdrs(adrs: AdrInfo[]): AdrInfo[] {
   const completeNumbers = new Set(
     adrs.filter((a) => a.frontmatter.status === 'Complete').map((a) => a.number)

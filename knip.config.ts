@@ -7,6 +7,8 @@ const config: KnipConfig = {
       project: ['scripts/**/*.ts'],
       // used only from *.test.ts, which knip ignores
       ignore: ['scripts/lib/test-workspace.ts'],
+      // the consumer check calls node_modules/typescript5/bin/tsc by path, which knip cannot see
+      ignoreDependencies: ['typescript5'],
       vitest: false,
     },
     'packages/skam': {

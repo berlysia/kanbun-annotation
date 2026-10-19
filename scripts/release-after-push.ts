@@ -15,6 +15,7 @@ import {
   ghRunDownloadArgs,
   ghRunListArgs,
   ghRunLogArgs,
+  ghRunLogFailedArgs,
   ghRunViewArgs,
   ghRunWatchArgs,
   attemptKey,
@@ -45,12 +46,25 @@ import type {
   StagedArtifact,
 } from './lib/release-after-push-check.ts';
 import { distTagFor, parseGhReleaseView, parseNpmViewVersions } from './lib/release-check.ts';
+import {
+  excerptDetail,
+  excerptJobLog,
+  excerptLocalStderr,
+  formatOk,
+  formatStageStart,
+  formatWaiting,
+  prependDetail,
+  STAGES,
+} from './lib/release-stop-report.ts';
+import { NO_COMMAND } from './lib/release-types.ts';
 import type {
   AfterPushResult,
   Check,
   ClassifiedStop,
   CommandResult,
   DistTag,
+  ErrorExcerpt,
+  ErrorTool,
   PackageState,
   Published,
   StopObservation,
@@ -137,6 +151,9 @@ export async function pollUntil<T>(
     budget: Budget;
     // true なら最初の probe の前にも待つ (直前に観測済みで、すぐの再観測に意味がないとき)
     delayFirst?: boolean;
+    // 待つ対象の名前。sleep の直前の行 (`waiting for <label>: ...`) に出る
+    label: string;
+    onWait: (line: string) => void;
     probe(): Promise<{ done: true; value: T } | { done: false }>;
   }
 ): Promise<PollResult<T>> {
@@ -149,6 +166,16 @@ export async function pollUntil<T>(
           ? n >= input.budget.attempts
           : clock.now() - start + input.intervalMs > input.budget.ms;
       if (spent) return { kind: 'exhausted' };
+      // 経過は、これから入る sleep が終わる時点。attempt は終えた probe の回数
+      input.onWait(
+        formatWaiting(
+          input.label,
+          clock.now() - start + input.intervalMs,
+          'attempts' in input.budget
+            ? { attempts: input.budget.attempts, attempt: n }
+            : { ms: input.budget.ms }
+        )
+      );
       await clock.sleep(input.intervalMs);
       if (clock.interrupted()) return { kind: 'interrupted' };
     }
@@ -192,6 +219,8 @@ interface Ctx {
   published: Published | undefined;
   temps: string[];
   evidenceDir: string | undefined;
+  // run を特定した後の URL (停止の表示の notes に出す)
+  runUrl: string | undefined;
 }
 
 interface RunInfo {
@@ -213,12 +242,23 @@ const RUN_URL = 'https://github.com/berlysia/kanbun-annotation/actions/runs';
 const messageOf = (error: unknown): string =>
   error instanceof Error ? error.message : String(error);
 
+// コマンドの名前と exit code だけ。stderr の行は error にだけ入る (外部の文字列を理由に入れない)
 function describeFailure(label: string, result: CommandResult): string {
-  const lines = result.stderr.trim().split('\n').filter(Boolean);
-  const tail = lines[lines.length - 1] ?? '';
-  const status = result.status === null ? 'without starting' : String(result.status);
-  return `${label} exited ${status}${tail === '' ? '' : `: ${tail.slice(0, 200)}`}`;
+  return `${label} exited ${result.status === null ? '(signal or not started)' : String(result.status)}`;
 }
+
+const commandLine = (cmd: string, args: readonly string[]): string => [cmd, ...args].join(' ');
+
+function failureError(
+  cmd: string,
+  args: readonly string[],
+  result: CommandResult,
+  tool: ErrorTool
+): ErrorExcerpt {
+  return excerptLocalStderr(commandLine(cmd, args), result.status, result.stderr, { tool });
+}
+
+const toolOf = (cmd: string): ErrorTool => (cmd === 'npm' || cmd === 'gh' ? cmd : 'other');
 
 function parseJson(text: string): unknown {
   try {
@@ -256,7 +296,13 @@ async function runCommandOk(
   options: { stdio: 'pipe' | 'inherit' | 'inherit-keep-stderr'; cwd?: string } = { stdio: 'pipe' }
 ): Promise<CommandResult> {
   const result = await runCommand(ctx, cmd, args, options);
-  if (result.status !== 0) halt({ kind: 'command-failed', what: describeFailure(label, result) });
+  if (result.status !== 0) {
+    halt({
+      kind: 'command-failed',
+      what: describeFailure(label, result),
+      error: failureError(cmd, args, result, toolOf(cmd)),
+    });
+  }
   return result;
 }
 
@@ -286,10 +332,13 @@ function cleanupTemps(ctx: Ctx): void {
 async function pollOrHalt<T>(
   ctx: Ctx,
   wait: WaitSpec,
+  label: string,
   probe: () => Promise<{ done: true; value: T } | { done: false }>,
   delayFirst = false
 ): Promise<T | undefined> {
   const result = await pollUntil(ctx.deps, {
+    label,
+    onWait: ctx.deps.output.emit,
     intervalMs: wait.intervalMs,
     budget: 'attempts' in wait ? { attempts: wait.attempts } : { ms: wait.budgetMs },
     delayFirst,
@@ -309,16 +358,22 @@ function markPublished(ctx: Ctx, name: string): void {
 
 async function findRun(ctx: Ctx): Promise<number> {
   const args = ghRunListArgs(ctx.input.tagCommit);
-  const found = await pollOrHalt(ctx, WAIT.runAppear, async () => {
-    const result = await runCommandOk(ctx, 'gh', args, 'gh run list');
-    saveEvidence(ctx, EVIDENCE_FILES.run, result.stdout);
-    const selected = selectRun(parseJson(result.stdout), ctx.input.tagCommit);
-    if (selected.kind === 'shape-unknown') {
-      halt({ kind: 'shape-unknown', what: selected.what, ...withRaw(ctx) });
+  const found = await pollOrHalt(
+    ctx,
+    WAIT.runAppear,
+    `the Release run for ${ctx.input.tagCommit.slice(0, 12)} to appear`,
+    async () => {
+      const result = await runCommandOk(ctx, 'gh', args, 'gh run list');
+      saveEvidence(ctx, EVIDENCE_FILES.run, result.stdout);
+      const selected = selectRun(parseJson(result.stdout), ctx.input.tagCommit);
+      if (selected.kind === 'shape-unknown') {
+        halt({ kind: 'shape-unknown', what: selected.what, ...withRaw(ctx) });
+      }
+      return selected.kind === 'found' ? { done: true, value: selected.id } : { done: false };
     }
-    return selected.kind === 'found' ? { done: true, value: selected.id } : { done: false };
-  });
+  );
   if (found === undefined) halt({ kind: 'run-not-found' });
+  ctx.runUrl = `${RUN_URL}/${found}`;
   return found;
 }
 
@@ -328,23 +383,73 @@ async function fetchRunView(ctx: Ctx, runId: number): Promise<unknown> {
   return parseJson(result.stdout);
 }
 
-async function judgeRun(ctx: Ctx, runId: number): Promise<number> {
+// 失敗した job の log。取れなければ「読めなかった」印つきの error にする (route は変えない)。
+// 待機は pollOrHalt を通すので、取得中の Ctrl-C は interrupted の停止になる
+async function readFailedJobLog(
+  ctx: Ctx,
+  runId: number,
+  job: 'validate' | 'npm-stage',
+  jobId: number | undefined
+): Promise<ErrorExcerpt> {
+  const unreadable = (exit: number | null, stderr: string): ErrorExcerpt => {
+    const last = excerptLocalStderr('gh', exit, stderr, { tool: 'gh' }).lines.slice(-1);
+    return {
+      command: `gh run view ${runId} --log-failed`,
+      exit,
+      source: 'job-log',
+      tool: 'gh',
+      lines: ['could not read the job log', ...last],
+      matched: [],
+      logUnreadable: true,
+    };
+  };
+  if (jobId === undefined) return unreadable(null, '');
+  const args = argsOrHalt(ghRunLogFailedArgs(runId, jobId));
+  const results: CommandResult[] = [];
+  const text = await pollOrHalt(ctx, WAIT.logFetch, `the ${job} job log`, async () => {
+    const result = await runCommand(ctx, 'gh', args, { stdio: 'pipe' });
+    results.push(result);
+    // 上限を超えた結果は、待っても変わらないので再試行しない
+    if (result.exceeded === true) return { done: true, value: undefined };
+    if (result.status === 0 && result.stdout.trim() !== '') {
+      return { done: true, value: result.stdout };
+    }
+    return { done: false };
+  });
+  if (text !== undefined) return excerptJobLog(commandLine('gh', args), text);
+  // status 0 で空だった失敗は、(exit 0) の失敗として出さない
+  const last = results[results.length - 1];
+  const exit =
+    last === undefined || last.exceeded === true || last.status === 0 ? null : last.status;
+  return unreadable(exit, last?.exceeded === true ? '' : (last?.stderr ?? ''));
+}
+
+async function judgeRun(
+  ctx: Ctx,
+  runId: number
+): Promise<{ validateJobId: number; githubRelease: 'success' | 'failure' }> {
   let judged = judgeJobs(await fetchRunView(ctx, runId));
   if (judged.kind === 'in-progress') {
-    ctx.deps.output.emit(`the Release run is still in progress; waiting (gh run watch ${runId})`);
+    ctx.deps.output.emit(
+      `the Release run is still in progress; waiting (gh run watch ${runId}): ${RUN_URL}/${runId}`
+    );
     await runCommand(ctx, 'gh', argsOrHalt(ghRunWatchArgs(runId)), { stdio: 'inherit' });
     judged = judgeJobs(await fetchRunView(ctx, runId));
   }
   switch (judged.kind) {
     case 'ok':
-      return judged.validateJobId;
+      return { validateJobId: judged.validateJobId, githubRelease: judged.githubRelease };
     case 'in-progress':
       return halt({
         kind: 'command-failed',
         what: 'the Release run did not finish after gh run watch',
       });
     case 'job-failed':
-      return halt({ kind: 'job-failed', job: judged.job });
+      return halt({
+        kind: 'job-failed',
+        job: judged.job,
+        error: await readFailedJobLog(ctx, runId, judged.job, judged.jobId),
+      });
     case 'shape-unknown':
       return halt({ kind: 'unexpected-run-shape', what: judged.what, ...withRaw(ctx) });
   }
@@ -365,9 +470,18 @@ async function ensureSameAttempt(ctx: Ctx, run: RunInfo): Promise<void> {
 }
 
 async function stage8(ctx: Ctx): Promise<RunInfo> {
+  ctx.deps.output.emit(formatStageStart(8, `${STAGES[8].what} (${ctx.input.tag})`));
   const id = await findRun(ctx);
-  const validateJobId = await judgeRun(ctx, id);
+  const { validateJobId, githubRelease } = await judgeRun(ctx, id);
   const key = await readAttemptKey(ctx, id, true);
+  // key の先頭は attemptKey が正の整数と検査した run_attempt。judgeJobs が受け付けた ok は
+  // validate と npm-stage が success で、github-release だけが success か failure
+  const attempt = key.slice(0, key.indexOf(':'));
+  ctx.deps.output.emit(
+    formatOk(
+      `run ${id} attempt ${attempt} (${RUN_URL}/${id}); validate=success, npm-stage=success, github-release=${githubRelease}`
+    )
+  );
   return { id, validateJobId, key };
 }
 
@@ -390,7 +504,7 @@ function expectedOf(ctx: Ctx): {
 async function readLogManifest(ctx: Ctx, run: RunInfo): Promise<LogManifest> {
   let lastWhat = 'the log could not be read';
   const args = argsOrHalt(ghRunLogArgs(run.id, run.validateJobId));
-  const manifest = await pollOrHalt(ctx, WAIT.logFetch, async () => {
+  const manifest = await pollOrHalt(ctx, WAIT.logFetch, 'the validate job log', async () => {
     const result = await ctx.deps.run('gh', args, { stdio: 'pipe' });
     if (result.status !== 0) {
       if (ctx.deps.interrupted()) halt({ kind: 'interrupted' });
@@ -450,8 +564,19 @@ async function readStage(ctx: Ctx, name: string): Promise<PickStageResult> {
 async function readState(ctx: Ctx, name: string, log: LogManifest): Promise<PackageState> {
   const viewResult = await runCommand(ctx, 'npm', npmViewVersionsArgs(name), { stdio: 'pipe' });
   const view = parseNpmViewVersions(viewResult);
-  if (view.kind === 'error')
-    halt({ kind: 'command-failed', what: `npm view ${name}: ${view.message}` });
+  if (view.kind === 'error') {
+    // view.message は npm の出力から作った文なので、stderr と一緒に error の行へ入れる
+    halt({
+      kind: 'command-failed',
+      what: `npm view ${name} failed`,
+      error: excerptLocalStderr(
+        commandLine('npm', npmViewVersionsArgs(name)),
+        viewResult.status,
+        `${view.message}\n${viewResult.stderr}`,
+        { tool: 'npm' }
+      ),
+    });
+  }
   const isPublished = view.kind === 'found' && view.versions.includes(ctx.input.version);
   const publishedIntegrity = isPublished ? await readPublishedIntegrity(ctx, name) : undefined;
   const stage: PickStageResult = isPublished ? { kind: 'none' } : await readStage(ctx, name);
@@ -490,6 +615,7 @@ async function planStage(ctx: Ctx, log: LogManifest): Promise<StagePlan> {
     const settled = await pollOrHalt(
       ctx,
       WAIT.settle,
+      `the stage of ${plan.names[0] ?? 'the packages'} to appear`,
       async () => {
         states = await readStates(ctx, log);
         const next = planApprove(states, false);
@@ -618,22 +744,46 @@ async function judgeTargets(
 
 // --- 段 10: trust の再確認、表示、y/N、approve (K13) ---
 
-function haltOnTrust(trust: TrustResult): void {
+function haltOnTrust(ctx: Ctx, trust: TrustResult): void {
+  const npmError = (failure: { command: string; status: number | null; stderr: string }) =>
+    excerptLocalStderr(failure.command, failure.status, failure.stderr, { tool: 'npm' });
   switch (trust.kind) {
     case 'ok':
       return;
     case 'eotp':
-      return halt({ kind: 'trust-eotp' });
+      return halt({
+        kind: 'trust-eotp',
+        ...(trust.failure === undefined ? {} : { error: npmError(trust.failure) }),
+      });
     case 'mismatch':
       return halt({ kind: 'trust-mismatch', what: trust.what });
     case 'shape-unknown':
+      // what は settleHalt が error.lines の先頭に足す。ここでは npm trust list のコマンドだけを持たせる
       return halt({
         kind: 'shape-unknown',
         what: trust.what,
+        error: excerptDetail(
+          `npm trust list ${ctx.input.names[0] ?? '<package>'} --json`,
+          null,
+          []
+        ),
         ...(trust.rawPath === undefined ? {} : { rawPath: trust.rawPath }),
       });
     case 'command-failed':
-      return halt({ kind: 'command-failed', what: trust.what });
+      // failure があるとき trust.what は stderr を含むので、コマンドと exit code だけにして、
+      // stderr は error の行に入れる (二重に出さない)
+      return halt({
+        kind: 'command-failed',
+        what:
+          trust.failure === undefined
+            ? trust.what
+            : describeFailure(trust.failure.command, {
+                status: trust.failure.status,
+                stdout: '',
+                stderr: '',
+              }),
+        ...(trust.failure === undefined ? {} : { error: npmError(trust.failure) }),
+      });
   }
 }
 
@@ -710,13 +860,15 @@ async function afterApproveFailure(
   ctx: Ctx,
   name: string,
   log: LogManifest,
-  result: CommandResult
+  result: CommandResult,
+  approveArgs: readonly string[]
 ): Promise<FailureVerdict> {
   let state = await readState(ctx, name, log);
   if (state.kind === 'missing') {
     await pollOrHalt(
       ctx,
       WAIT.settle,
+      `${name} to be published or staged`,
       async () => {
         state = await readState(ctx, name, log);
         return state.kind === 'missing' ? { done: false } : { done: true, value: true };
@@ -744,6 +896,7 @@ async function afterApproveFailure(
         kind: 'approve-failed',
         name,
         what: describeFailure('npm stage approve', result),
+        error: failureError('npm', approveArgs, result, 'npm'),
       });
   }
 }
@@ -753,7 +906,7 @@ async function approveOne(
   target: { name: string; stageId: string },
   validatedIds: ReadonlyMap<string, string>,
   log: LogManifest
-): Promise<void> {
+): Promise<'approved' | 'skipped'> {
   const { name } = target;
   const validatedId = validatedIds.get(name);
   if (validatedId === undefined) {
@@ -761,37 +914,50 @@ async function approveOne(
   }
   if ((await recheckBeforeApprove(ctx, name, validatedId, log)) === 'skip') {
     ctx.deps.output.emit(`${name}: already published; skipped`);
-    return;
+    return 'skipped';
   }
   const args = argsOrHalt(npmStageApproveArgs(validatedId));
-  const attempt = (): Promise<CommandResult> =>
-    runCommand(ctx, 'npm', args, { stdio: 'inherit-keep-stderr' });
+  const results: CommandResult[] = [];
+  const attempt = async (): Promise<CommandResult> => {
+    const result = await runCommand(ctx, 'npm', args, { stdio: 'inherit-keep-stderr' });
+    results.push(result);
+    return result;
+  };
   const first = await attempt();
-  if (first.status === 0 || (await afterApproveFailure(ctx, name, log, first)) === 'published') {
+  if (
+    first.status === 0 ||
+    (await afterApproveFailure(ctx, name, log, first, args)) === 'published'
+  ) {
     markPublished(ctx, name);
     ctx.deps.output.emit(`${name}: approved`);
-    return;
+    return 'approved';
   }
   const retried = await pollOrHalt(
     ctx,
     WAIT.conflict,
+    `the npm stage conflict (E409) on ${name} to clear`,
     async () => {
       const result = await attempt();
       const done =
-        result.status === 0 || (await afterApproveFailure(ctx, name, log, result)) === 'published';
+        result.status === 0 ||
+        (await afterApproveFailure(ctx, name, log, result, args)) === 'published';
       return done ? { done: true, value: true } : { done: false };
     },
     true
   );
   if (retried === undefined) {
+    const lastResult = results[results.length - 1];
     halt({
       kind: 'approve-failed',
       name,
       what: `E409 (conflict) persisted after ${WAIT.conflict.attempts} retries`,
+      // 最後の試行の stderr
+      ...(lastResult === undefined ? {} : { error: failureError('npm', args, lastResult, 'npm') }),
     });
   }
   markPublished(ctx, name);
   ctx.deps.output.emit(`${name}: approved`);
+  return 'approved';
 }
 
 async function stage10(
@@ -801,11 +967,19 @@ async function stage10(
   plan: StagePlan,
   validated: Validated
 ): Promise<'approved' | 'declined'> {
-  haltOnTrust(await ctx.deps.verifyTrust());
+  ctx.deps.output.emit(formatStageStart(10, STAGES[10].what));
+  haltOnTrust(ctx, await ctx.deps.verifyTrust());
   showSummary(ctx, run, log, plan, validated);
   const question = `Approve ${plan.targets.length} staged package(s) with npm stage approve (each asks for 2FA)?`;
   if (!(await ctx.deps.confirm(question))) return 'declined';
-  for (const target of plan.targets) await approveOne(ctx, target, validated.validatedIds, log);
+  let approved = 0;
+  for (const target of plan.targets) {
+    if ((await approveOne(ctx, target, validated.validatedIds, log)) === 'approved') approved += 1;
+  }
+  // ここまで通れば全パッケージが公開済み。approve しなかった分は、もとから公開済み
+  ctx.deps.output.emit(
+    formatOk(`approved ${approved}, already published ${ctx.input.names.length - approved}`)
+  );
   return 'approved';
 }
 
@@ -815,14 +989,17 @@ interface PostSnapshot {
   items: { name: string; dist: ParseViewDistResult }[];
   releaseExists: boolean;
   published: readonly string[];
+  // npm view が失敗したパッケージの error (形の不一致の停止に付ける)
+  viewErrors: ReadonlyMap<string, ErrorExcerpt>;
 }
 
 async function readPostCheck(ctx: Ctx): Promise<PostSnapshot> {
   const items: PostSnapshot['items'] = [];
+  const viewErrors = new Map<string, ErrorExcerpt>();
   for (const name of ctx.input.names) {
-    const result = await runCommand(ctx, 'npm', npmViewDistArgs(name, ctx.input.version), {
-      stdio: 'pipe',
-    });
+    const viewArgs = npmViewDistArgs(name, ctx.input.version);
+    const result = await runCommand(ctx, 'npm', viewArgs, { stdio: 'pipe' });
+    if (result.status !== 0) viewErrors.set(name, failureError('npm', viewArgs, result, 'npm'));
     saveEvidence(ctx, EVIDENCE_FILES.view(name), result.stdout);
     items.push({
       name,
@@ -840,6 +1017,7 @@ async function readPostCheck(ctx: Ctx): Promise<PostSnapshot> {
     items,
     releaseExists: parseGhReleaseView(release.status, release.stderr).kind === 'found',
     published: items.filter((i) => i.dist.kind === 'ok').map((i) => i.name),
+    viewErrors,
   };
 }
 
@@ -862,11 +1040,19 @@ function resultLines(
   return lines;
 }
 
+// 段 11 の形の不一致は、npm view が失敗したパッケージなら、その stderr を error に持つ
+function withViewError(obs: StopObservation, snapshot: PostSnapshot | undefined): StopObservation {
+  if (obs.kind !== 'post-check' || obs.name === undefined || obs.error !== undefined) return obs;
+  const error = snapshot?.viewErrors.get(obs.name);
+  return error === undefined ? obs : { ...obs, error };
+}
+
 async function stage11(ctx: Ctx, log: LogManifest): Promise<AfterPushResult> {
+  ctx.deps.output.emit(formatStageStart(11, STAGES[11].what));
   const integrities = new Map(log.packages.map((p) => [p.name, p.integrity]));
   let snapshot: PostSnapshot | undefined;
   let found: StopObservation[] = [];
-  await pollOrHalt(ctx, WAIT.settle, async () => {
+  await pollOrHalt(ctx, WAIT.settle, 'the registry to reflect the release', async () => {
     snapshot = await readPostCheck(ctx);
     found = judgePostCheck(
       snapshot.items,
@@ -877,7 +1063,9 @@ async function stage11(ctx: Ctx, log: LogManifest): Promise<AfterPushResult> {
     return found.length === 0 ? { done: true, value: true } : { done: false };
   });
   const { emit } = ctx.deps.output;
-  const [first, ...rest] = found.map((obs) => classifyStop(obs));
+  const [first, ...rest] = found.map((obs) =>
+    finishStop(ctx, classifyStop(obs), withViewError(obs, snapshot))
+  );
   if (first !== undefined) {
     const stops: readonly [ClassifiedStop, ...ClassifiedStop[]] = [first, ...rest];
     const top = pickRepresentative(stops);
@@ -899,17 +1087,24 @@ async function stage9And10(
   log: LogManifest
 ): Promise<'continue' | 'declined'> {
   const plan = await planStage(ctx, log);
+  const okLine = (): string =>
+    formatOk(
+      `manifest has ${log.packages.length} packages; log and stage integrity match for ${plan.states.length}/${log.packages.length}`
+    );
   if (plan.targets.length === 0) {
     await ensureSameAttempt(ctx, run);
+    ctx.deps.output.emit(okLine());
     return 'continue';
   }
   const validated = await judgeTargets(ctx, run, log, plan.targets);
   await ensureSameAttempt(ctx, run);
+  ctx.deps.output.emit(okLine());
   return (await stage10(ctx, run, log, plan, validated)) === 'declined' ? 'declined' : 'continue';
 }
 
 async function runStages(ctx: Ctx): Promise<AfterPushResult> {
   const run = await stage8(ctx);
+  ctx.deps.output.emit(formatStageStart(9, STAGES[9].what));
   const log = await readLogManifest(ctx, run);
   if (ctx.input.checkOnly) {
     await ensureSameAttempt(ctx, run);
@@ -936,14 +1131,35 @@ async function readPublishedOnce(ctx: Ctx): Promise<Published> {
   }
 }
 
+// 観測の what を error.lines の先頭に足し (matched には入れない)、観測の error が無ければ what か理由の
+// 1 行で作る。rawPath を持つ観測は error.rawPath に写す。classifyStop は error に触れず、写すのはここだけ
+function composeError(stop: ClassifiedStop, observation: StopObservation): ErrorExcerpt {
+  const base =
+    stop.what === undefined
+      ? (observation.error ?? excerptDetail(NO_COMMAND, null, [stop.reason]))
+      : prependDetail(observation.error, stop.what);
+  const rawPath = 'rawPath' in observation ? observation.rawPath : undefined;
+  return rawPath !== undefined && base.rawPath === undefined ? { ...base, rawPath } : base;
+}
+
+function finishStop(
+  ctx: Ctx | undefined,
+  stop: ClassifiedStop,
+  observation: StopObservation
+): ClassifiedStop {
+  return {
+    ...stop,
+    error: composeError(stop, observation),
+    ...(ctx?.runUrl === undefined ? {} : { runUrl: ctx.runUrl }),
+  };
+}
+
 async function settleHalt(ctx: Ctx, caught: Halt): Promise<AfterPushResult> {
   const { reason } = caught;
   if (reason.kind === 'declined') return { kind: 'declined' };
   const published = reason.published ?? ctx.published ?? (await readPublishedOnce(ctx));
-  return {
-    kind: 'stopped',
-    stop: classifyStop({ ...reason.observation, published } as StopObservation),
-  };
+  const observation = { ...reason.observation, published } as StopObservation;
+  return { kind: 'stopped', stop: finishStop(ctx, classifyStop(observation), observation) };
 }
 
 function checkInput(input: AfterPushInput): string | undefined {
@@ -961,9 +1177,14 @@ export async function runAfterPush(
 ): Promise<AfterPushResult> {
   const invalid = checkInput(input);
   if (invalid !== undefined) {
+    const observation: StopObservation = {
+      kind: 'command-failed',
+      what: invalid,
+      published: 'unknown',
+    };
     return {
       kind: 'stopped',
-      stop: classifyStop({ kind: 'command-failed', what: invalid, published: 'unknown' }),
+      stop: finishStop(undefined, classifyStop(observation), observation),
     };
   }
   const ctx: Ctx = {
@@ -973,6 +1194,7 @@ export async function runAfterPush(
     published: undefined,
     temps: [],
     evidenceDir: undefined,
+    runUrl: undefined,
   };
   try {
     return await runStages(ctx);

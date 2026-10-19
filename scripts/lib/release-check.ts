@@ -1,10 +1,14 @@
 // リリース前提の検査の純粋関数。ファイル・ネットワーク・子プロセスには触れない
 // (読み込みと実行は check-release.ts と release.ts が行い、結果をここへ渡す)。
 
+import { StringDecoder } from 'node:string_decoder';
 import type {
   Check,
   CommandResult,
   DistTag,
+  EntryStopRow,
+  ErrorExcerpt,
+  NonEmpty,
   RegistryResponse,
   ReleaseLookup,
   ReleaseManifest,
@@ -31,6 +35,38 @@ const LIFECYCLE_SCRIPTS = ['preinstall', 'install', 'postinstall', 'prepare'];
 const TAG_PATTERN = /^v(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)(-[0-9A-Za-z.-]+)?$/;
 const FILE_PATTERN = /^[A-Za-z0-9._-]+\.tgz$/;
 const INTEGRITY_PATTERN = /^sha512-[A-Za-z0-9+/]+={0,2}$/;
+
+// --- 表示の無害化 ---
+
+const FORMAT_CHAR = /^\p{Cf}$/u;
+
+// C0 (\t と \n を除く。\r は除く)、DEL、C1、Cf、U+2028 / U+2029 (Cf に入らない行と段落の区切り)
+function isStrippedCodePoint(ch: string): boolean {
+  const cp = ch.codePointAt(0) ?? 0;
+  if (cp === 0x09 || cp === 0x0a) return false;
+  if (cp <= 0x1f || (cp >= 0x7f && cp <= 0x9f)) return true;
+  if (cp === 0x2028 || cp === 0x2029) return true;
+  return FORMAT_CHAR.test(ch);
+}
+
+// 停止の表示 (release-stop-report.ts) の切り出しは、これより前にエスケープ列 (CSI / OSC) を丸ごと除く。
+// この関数が除くのは ESC の 1 文字だけで、`[36;1m` のような後続の文字は残る
+export function sanitizeForTerminal(text: string): string {
+  let out = '';
+  for (const ch of text) {
+    if (!isStrippedCodePoint(ch)) out += ch;
+  }
+  return out;
+}
+
+// 文字単位の除去なので、チャンクの境界は多バイト文字の持ち越しだけを扱えばよい
+export function createStreamSanitizer(): { write(chunk: Buffer): string; end(): string } {
+  const decoder = new StringDecoder('utf8');
+  return {
+    write: (chunk) => sanitizeForTerminal(decoder.write(chunk)),
+    end: () => sanitizeForTerminal(decoder.end()),
+  };
+}
 
 const ok = <T>(value: T): Check<T> => ({ ok: true, value });
 const fail = (...errors: string[]): { ok: false; errors: string[] } => ({ ok: false, errors });
@@ -168,6 +204,8 @@ export function parseGhReleaseView(status: number | null, stderr: string): Relea
   return {
     kind: 'error',
     message: `gh release view failed (${status ?? 'not started'}): ${stderr.trim()}`,
+    status,
+    stderr,
   };
 }
 
@@ -420,26 +458,46 @@ export interface EntryObservation {
   head: string;
   // 公開パッケージの版が等しいか (checkSameVersion の結果)
   versions: Check<string>;
-  originTag: { kind: 'present'; commit: string } | { kind: 'absent' } | { kind: 'error' };
+  // error は ls-remote の失敗 (tag が無いのとは別)。error の中身は観測した側が作る
+  originTag:
+    | { kind: 'present'; commit: string }
+    | { kind: 'absent' }
+    | { kind: 'error'; error: ErrorExcerpt };
   localTagCommit: string | undefined;
-  // total は公開パッケージの数 (6 に固定しない)
-  published: { kind: 'counts'; published: number; total: number } | { kind: 'error' };
+  // total は公開パッケージの数 (6 に固定しない)。error の failedNames は固定の一覧のうち失敗した名前
+  published:
+    | { kind: 'counts'; published: number; total: number }
+    | { kind: 'error'; failedNames: readonly string[]; error: ErrorExcerpt };
   preMode: boolean;
 }
 
+// error は観測にあった ErrorExcerpt をそのまま通すときだけ持つ。detail は外部の値 (versions.errors など) を
+// 生のまま持つ。RC は ErrorExcerpt を作らない (作るのは呼び出し側で、外部の値は行の切り出しを通す)
 export type EntryDecision =
   | { kind: 'front'; mode: ReleaseFlags }
   | { kind: 'after-push' }
   | { kind: 'after-push-check-only' }
-  | { kind: 'stop'; row: number; reason: string }
+  | {
+      kind: 'stop';
+      row: EntryStopRow;
+      reason: string;
+      error?: ErrorExcerpt;
+      detail?: readonly string[];
+    }
   | { kind: 'need-status' };
 
 const HEAD_VERSION_PATTERN = /^\d+\.\d+\.\d+(-[0-9A-Za-z.]+)?$/;
 
-const stopAt = (row: number, reason: string): Extract<EntryDecision, { kind: 'stop' }> => ({
+const stopAt = (
+  row: EntryStopRow,
+  reason: string,
+  extra: { error?: ErrorExcerpt; detail?: readonly string[] } = {}
+): Extract<EntryDecision, { kind: 'stop' }> => ({
   kind: 'stop',
   row,
   reason,
+  ...(extra.error === undefined ? {} : { error: extra.error }),
+  ...(extra.detail === undefined ? {} : { detail: extra.detail }),
 });
 
 // changeset status が要る行 (8 以降) の手前までを決める。要るときは need-status を返し、
@@ -448,15 +506,23 @@ export function decideEntry(observed: EntryObservation): EntryDecision {
   const { flags, head, versions, originTag, localTagCommit, published } = observed;
   // 行 0: 観測の失敗
   if (originTag.kind === 'error') {
-    return stopAt(0, 'git ls-remote failed; cannot tell whether the tag exists on origin');
+    return stopAt(0, 'git ls-remote failed; cannot tell whether the tag exists on origin', {
+      error: originTag.error,
+    });
   }
   if (published.kind === 'error') {
-    return stopAt(0, 'npm view failed; cannot tell which packages are published');
+    return stopAt(
+      0,
+      `npm view failed for ${published.failedNames.join(', ')}; cannot tell which packages are published`,
+      { error: published.error }
+    );
   }
-  if (!versions.ok) return stopAt(0, versions.errors.join('; '));
+  if (!versions.ok) return stopAt(0, 'version check failed', { detail: versions.errors });
   const version = versions.value;
   if (!HEAD_VERSION_PATTERN.test(version)) {
-    return stopAt(0, `package version ${JSON.stringify(version)} is not a plain semver`);
+    return stopAt(0, 'package version is not a plain semver', {
+      detail: [JSON.stringify(version)],
+    });
   }
   const tag = `v${version}`;
   const count = `${published.published}/${published.total}`;
@@ -522,9 +588,9 @@ export function decideEntryWithStatus(
   const count = published.kind === 'counts' ? `${published.published}/${published.total}` : '?';
   const publishedNone = published.kind === 'counts' && published.published === 0;
 
-  if (!status.ok) return stopAt(9, `changeset status failed: ${status.errors.join('; ')}`);
+  if (!status.ok) return stopAt(9, 'changeset status failed', { detail: status.errors });
   if (status.value.kind === 'inconsistent') {
-    return stopAt(10, `changeset status is inconsistent: ${status.value.reason}`);
+    return stopAt(10, 'changeset status is inconsistent', { detail: [status.value.reason] });
   }
   if (status.value.kind === 'release') return { kind: 'front', mode: { mode: 'normal' } }; // 行 11
   // release がない。完了済みで tag が HEAD なら後半の確認だけ (行 8)
@@ -864,4 +930,29 @@ export function combineTrustResults(results: readonly TrustResult[]): TrustResul
     if (found) return found;
   }
   return { kind: 'ok' };
+}
+
+// --- pnpm verify を段ごとに流すための分解 (K5) ---
+
+export type VerifyPlan = { kind: 'steps'; names: NonEmpty<string> } | { kind: 'whole' };
+
+// `pnpm <名前>` だけ (フラグも引数も無い)。名前は空白を含まない 1 語
+const PNPM_SCRIPT_STEP = /^pnpm ([^\s]+)$/;
+
+// scripts.verify の本文が `pnpm <script 名> && pnpm <script 名> ...` の連鎖で、全部の名前が
+// scripts に実在するときだけ段に分ける。それ以外 (`||`、`;`、フラグ、引数、実在しない名前) は
+// 丸ごと流す側に倒す。同じ名前が何度も出たら、`pnpm verify` と同じ回数だけ段に入れる
+export function planVerifySteps(
+  verifyBody: string | undefined,
+  scriptNames: readonly string[]
+): VerifyPlan {
+  if (verifyBody === undefined || verifyBody.trim() === '') return { kind: 'whole' };
+  const names: string[] = [];
+  for (const part of verifyBody.split(' && ')) {
+    const name = PNPM_SCRIPT_STEP.exec(part.trim())?.[1];
+    if (name === undefined || !scriptNames.includes(name)) return { kind: 'whole' };
+    names.push(name);
+  }
+  const [first, ...rest] = names;
+  return first === undefined ? { kind: 'whole' } : { kind: 'steps', names: [first, ...rest] };
 }

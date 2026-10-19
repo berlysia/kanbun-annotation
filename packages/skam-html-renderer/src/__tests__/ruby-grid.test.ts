@@ -547,4 +547,125 @@ describe('generateEmphasisMarks', () => {
     expect(generateEmphasisMarks('天下', '\u2022')).toBe('\u2022\u2022');
     expect(generateEmphasisMarks('論語', '\uFE45')).toBe('\uFE45\uFE45');
   });
+
+  it('escapes HTML special characters in the emphasis character exactly once', () => {
+    expect(generateEmphasisMarks('ab', '<')).toBe('&lt;&lt;');
+    expect(generateEmphasisMarks('ab', '&')).toBe('&amp;&amp;');
+    expect(generateEmphasisMarks('ab', '&')).not.toContain('&amp;amp;');
+  });
+
+  it('returns an empty string for empty text', () => {
+    expect(generateEmphasisMarks('', '<')).toBe('');
+  });
+
+  it('counts characters by code point', () => {
+    expect(generateEmphasisMarks('\u{20BB7}a', '\u2605')).toBe('\u2605\u2605');
+  });
+});
+
+describe('grid mode: custom emphasis character', () => {
+  /** emphasis-row の中身だけを取り出す (spacer は '|' に置き換える) */
+  function emphasisRowContents(html: string): string[] {
+    const withoutSpacers = html.replace(/<span class="skam-emphasis-spacer"><\/span>/g, '|');
+    return [...withoutSpacers.matchAll(/skam-emphasis-row[^>]*>([^<]*)<\/span>/g)].map(
+      (m) => m[1]!
+    );
+  }
+
+  const STAR = '\u2605';
+  const emphasis = (style: string, to = 't1') => ({
+    type: 'emphasis' as const,
+    anchor: { from: 't1', to },
+    style,
+  });
+
+  const cases: [string, SKAMDocument][] = [
+    [
+      'yomigana',
+      createDoc({
+        tokens: [{ id: 't1', text: '學' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [
+          { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
+          emphasis(STAR),
+        ],
+      }),
+    ],
+    [
+      'saidoku',
+      createDoc({
+        tokens: [{ id: 't1', text: '將' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [
+          {
+            type: 'saidoku',
+            anchor: { from: 't1', to: 't1' },
+            forms: [
+              { n: 1, yomi: 'まさ', okuri: 'に' },
+              { n: 2, yomi: '', okuri: 'す' },
+            ],
+          },
+          emphasis(STAR),
+        ],
+      }),
+    ],
+    [
+      'highlight group',
+      createDoc({
+        tokens: [
+          { id: 't1', text: '重' },
+          { id: 't2', text: '要' },
+        ],
+        blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
+        marks: [
+          { type: 'highlight', anchor: { from: 't1', to: 't2' }, style: 'solid' },
+          emphasis(STAR, 't2'),
+        ],
+      }),
+    ],
+    [
+      'range group (tateten + yomigana)',
+      createDoc({
+        tokens: [
+          { id: 't1', text: '天' },
+          { id: 't2', text: '下' },
+        ],
+        blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
+        marks: [
+          { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+          { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'てんか' },
+          emphasis(STAR, 't2'),
+        ],
+      }),
+    ],
+  ];
+
+  it.each(cases)('%s: emphasis-row contains only the custom character', (_name, doc) => {
+    const rows = emphasisRowContents(render(doc, { rubyMethod: 'grid' }).html);
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) {
+      expect(row.replace(/\|/g, '')).toMatch(/^\u2605+$/);
+      expect(row).not.toContain('\u2022');
+    }
+  });
+
+  it('keyword style "open sesame" renders the same as before', () => {
+    const doc = createDoc({
+      tokens: [{ id: 't1', text: '學' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+      marks: [
+        { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
+        emphasis('open sesame'),
+      ],
+    });
+    const rows = emphasisRowContents(render(doc, { rubyMethod: 'grid' }).html);
+    expect(rows).toEqual(['\uFE46']);
+  });
+});
+
+describe('suffix-kana', () => {
+  it('does not emit CSS for the .skam-suffix-kana element, which is never rendered', () => {
+    const { css } = render(createDoc());
+    expectNoCSSSelector(css, /suffix-kana/);
+  });
 });

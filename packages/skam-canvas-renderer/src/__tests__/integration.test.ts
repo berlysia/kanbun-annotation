@@ -161,6 +161,48 @@ describe('integration: render()', () => {
     expect(chars).toContain('\uFE45');
   });
 
+  it('renders a custom emphasis character', () => {
+    const canvas = new RecordingCanvas();
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 't1', text: '子' },
+        { id: 't2', text: '曰' },
+      ],
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
+      marks: [{ type: 'emphasis', anchor: { from: 't1', to: 't2' }, style: '\u2605' }],
+      readings: [],
+    };
+    render(doc, canvas);
+
+    const chars = canvas
+      .getContext('2d')
+      .getCalls('fillText')
+      .map((c) => c.args[0]);
+    expect(chars).toContain('\u2605');
+  });
+
+  it.each(['\u2605\u2605', '<'])(
+    'falls back to the default dot for an invalid emphasis style %j',
+    (style) => {
+      const canvas = new RecordingCanvas();
+      const doc = {
+        format: 'skam@0.1',
+        tokens: [{ id: 't1', text: '子' }],
+        blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+        marks: [{ type: 'emphasis', anchor: { from: 't1', to: 't1' }, style }],
+        readings: [],
+      } as SKAMDocument;
+      expect(() => render(doc, canvas)).not.toThrow();
+
+      const chars = canvas
+        .getContext('2d')
+        .getCalls('fillText')
+        .map((c) => c.args[0]);
+      expect(chars).toContain('\u2022');
+    }
+  );
+
   it('renders saidoku marks', () => {
     const canvas = new RecordingCanvas();
     const doc: SKAMDocument = {

@@ -7,7 +7,7 @@
  *   node scripts/adr-status.ts --output x   # Also write to file
  */
 import { writeFileSync } from 'node:fs';
-import { parseAllAdrs, getPhase, getActionableAdrs } from './lib/adr-parser.ts';
+import { parseAllAdrs, getPhase, getActionableAdrs, formatPlan } from './lib/adr-parser.ts';
 import type { AdrInfo, AdrPhase, AdrStatus } from './lib/types.ts';
 
 const REPO_ROOT = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
@@ -34,13 +34,6 @@ function padEnd(s: string, len: number): string {
 
 function formatPhase(phase: AdrPhase): string {
   return phase;
-}
-
-function formatPlan(adr: AdrInfo): string {
-  if (!adr.frontmatter.plan) return '-';
-  if (!adr.planExists) return 'missing';
-  if (adr.planValidated) return 'validated';
-  return 'exists';
 }
 
 function formatRow(adr: AdrInfo): string {

@@ -346,7 +346,8 @@ describe('emphasis custom character output (K4)', () => {
     const root = parse(render(d, { rubyMethod: 'grid' }).html);
     for (const el of Array.from(root.querySelectorAll('[style]'))) el.removeAttribute('style');
     expect(root.innerHTML).not.toContain('\\2605');
-    expect(root.textContent).toContain('•');
+    // grid モードでもカスタム文字がそのまま描かれる (以前は既定の点に落ちていた)
+    expect(root.textContent).toContain('★');
   });
   it('accepts the valid style through the oracle (positive control for the style allowlist)', () => {
     const html = render(emph('★'), { rubyMethod: 'ruby' }).html;

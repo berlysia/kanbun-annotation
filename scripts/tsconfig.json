@@ -14,6 +14,8 @@
     "lib/release-check.test.ts",
     "lib/release-after-push-check.ts",
     "lib/release-after-push-check.test.ts",
+    "lib/release-stop-report.ts",
+    "lib/release-stop-report.test.ts",
     "lib/test-workspace.ts",
     "check-release.ts",
     "check-release.test.ts",

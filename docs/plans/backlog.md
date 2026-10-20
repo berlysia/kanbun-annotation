@@ -55,7 +55,8 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 - **grid baseline 補正の構造的課題 (#2)**: Chromium の補正に構造的な課題がある。補正は `--skam-grid-baseline-fix` と `calibrateGridBaseline()` が担う。Issue は open。出典: #2。規模: 大。
 - **範囲のルビと highlight が重なると、最後の字を 2 回描く**: html-renderer で、2 字以上の範囲の yomigana と highlight が重なると、ルビの範囲の最後の字が 2 回出る。A〜E の文書で、ルビを B〜C、highlight を B〜D に置くと、本文は `ArBCCDE` になる (ルビだけなら `ArBCDE`)。VRT の `emphasis-highlight.png` も「重要要語」と描いている。出典: 束 C の 1 の T1。規模: 中。
 - **ルビや傍点つきの字が highlight の中で傍線とずれる**: `spacing: 'half'` の VRT (`highlight-spacing-*.png`) で、ルビつきの字と傍点つきの字が、横書きでは傍線より下に、縦書きでは傍線から離れて左に描かれる。spacing の無い `emphasis-highlight.png` でも字の位置がずれている。原因は調べていない。#2 (grid baseline の補正) と関係するかも未確認。出典: 束 C の 1 の T1。規模: 中。
-- **注記の引き当て (`getMarksForToken`) の性能**: `packages/skam/src/rendering/mark-lookup.ts` の `getMarksForToken` は、字ごとに文書のすべての注記を見て回る。html-renderer は字ごとに 3 回呼ぶので、字数と注記の数の積で時間がかかる。build 済みの dist で、highlight を字数の 1 割置いた文書の html の `render()` は、1000 字で 644 ms、5000 字で 70 秒だった。出力を変えずに速くする。出典: 束 C の調査。規模: 中。
+- **html の字の描画を AIR のスロットに寄せる**: html-renderer は AIR を使いつつ、`renderToken` で saidoku、okototen、傍点、送り仮名などを索引 (`createMarkLookup`) から引き直している。AIR と html が注記を別々に解決するので、html が `tokens[]` の順序で範囲を判定していた不具合のような食い違いが起きうる。html が AIR の字ごとのスロットだけを読む形にする。出典: 束 C の 2 の plan の白紙案。規模: 大。
+- **描画のメモリ使用量の追跡**: 描画の時間は CI のテスト (10 s の上限) で見ているが、メモリは見ていない。`createMarkLookup` の索引は範囲の注記が覆う字の数に比例し、5000 字の block 全体を覆う highlight 200 個の文書で、html の描画で増える RSS が 22 MB から 70 MB になった (索引のヒープは 10.4 MB)。普通の文書 (5000 字、10 字ごとに 4 字の highlight) では 20 MB と 22 MB で変わらない。メモリの使用量をどう測って追うかを決める。出典: 束 C の 2。規模: 中。
 
 ## テストと CI
 

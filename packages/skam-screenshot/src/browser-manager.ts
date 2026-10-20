@@ -215,10 +215,12 @@ function runCaptureTasks(
  * Captures HTML renderer screenshots from multiple browsers in parallel.
  * Each browser runs independently — one failure does not affect others.
  */
-export const captureScreenshots = runCaptureTasks(captureOne);
+export const captureScreenshots: (tasks: CaptureTask[]) => Promise<CaptureResult[]> =
+  runCaptureTasks(captureOne);
 
 /**
  * Captures Canvas renderer screenshots from multiple browsers in parallel.
  * Each browser runs independently — one failure does not affect others.
  */
-export const captureCanvasScreenshots = runCaptureTasks(captureOneCanvas);
+export const captureCanvasScreenshots: (tasks: CaptureTask[]) => Promise<CaptureResult[]> =
+  runCaptureTasks(captureOneCanvas);

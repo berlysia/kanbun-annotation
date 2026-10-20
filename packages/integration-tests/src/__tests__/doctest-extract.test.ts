@@ -37,7 +37,7 @@ describe('extractDoctests', () => {
     ]);
     expect(r.blocks[3]!.reason).toBe('型の一覧');
   });
-  it('accepts a blank line between the marker and the fence (prettier inserts one)', () => {
+  it('accepts a blank line between the marker and the fence (the formatter inserts one)', () => {
     const r = extractDoctests('<!-- doctest:typecheck -->\n\n```ts\nconst a = 1;\n```', 'R.md');
     expect(r.blocks.map((b) => [b.mode, b.line])).toEqual([['typecheck', 3]]);
     expect(r.unmarked).toEqual([]);

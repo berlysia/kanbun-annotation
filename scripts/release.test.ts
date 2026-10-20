@@ -279,8 +279,8 @@ function fakeDeps(repo: Repo, overrides: Partial<ReleaseDeps> = {}): Fake {
       if (existsSync(preFile) && !(inPre.ok && inPre.value.mode === 'pre')) unlinkSync(preFile);
       return ok;
     },
-    prettier: async () => {
-      calls.push('prettier');
+    oxfmt: async () => {
+      calls.push('oxfmt');
       return ok;
     },
     checkRelease: async () => {
@@ -368,7 +368,7 @@ test('normal release: commit and annotated tag exist locally and on origin, tree
     'changesetStatus',
     'verify',
     'changesetVersion',
-    'prettier',
+    'oxfmt',
     'checkRelease',
     'consumer',
   ]);
@@ -542,7 +542,7 @@ const REVERT = 'git checkout -- . && git clean -fd .changeset packages';
 
 const stopCases: [string, (repo: Repo) => Partial<ReleaseDeps>][] = [
   ['changesetVersion fails', () => ({ changesetVersion: async () => failing })],
-  ['prettier fails', () => ({ prettier: async () => failing })],
+  ['oxfmt fails', () => ({ oxfmt: async () => failing })],
   ['checkRelease fails', () => ({ checkRelease: async () => failing })],
   ['consumer fails', () => ({ consumer: async () => failing })],
   ['confirm is declined', () => ({ confirm: async () => false })],
@@ -867,13 +867,13 @@ test('stage 2: stops and prints the revert command when changeset version touche
   const outcome = await runRelease(normal, fake.deps);
   assert.equal(stoppedStage(outcome), '2 versioning');
   assert.equal(stopOf(outcome).recovery, REVERT);
-  assert.equal(fake.calls.includes('prettier'), false);
+  assert.equal(fake.calls.includes('oxfmt'), false);
 });
 
-test('stage 2: stops at the second allow-list check when prettier changes unexpected files', async () => {
+test('stage 2: stops at the second allow-list check when oxfmt changes unexpected files', async () => {
   const repo = makeRepo();
   const fake = fakeDeps(repo, {
-    prettier: async () => {
+    oxfmt: async () => {
       mkdirSync(join(repo.work, 'scripts'), { recursive: true });
       writeFileSync(join(repo.work, 'scripts', 'stray.txt'), 'x');
       writeFileSync(join(repo.work, 'packages', 'a', 'README.md'), 'changed\n');
@@ -1943,7 +1943,7 @@ test('buildReleaseDeps: the seven front children run through run with the reposi
   await h.deps.verify();
   await h.deps.changesetVersion();
   await h.deps.changesetPre(['exit']);
-  await h.deps.prettier(['a.md']);
+  await h.deps.oxfmt(['a.md']);
   await h.deps.checkRelease('v0.2.0');
   await h.deps.consumer();
   assert.deepEqual(
@@ -1957,6 +1957,8 @@ test('buildReleaseDeps: the seven front children run through run with the reposi
       'pnpm test:consumer',
     ]
   );
+  // `--` keeps a file name that starts with `-` from being read as an option
+  assert.equal(h.calls[3]?.line, 'pnpm exec oxfmt -- a.md');
   for (const call of h.calls) {
     assert.equal(call.stdio, 'inherit-keep-stderr');
     assert.equal(call.cwd, h.root);
@@ -2701,7 +2703,7 @@ function realDeps(repo: Repo): RealFake {
     {
       verifyTrust: async () => ({ kind: 'ok' }),
       verify: async () => ok,
-      prettier: async () => ok,
+      oxfmt: async () => ok,
       // 段 3 の checkChangelog を、fixture の実際の CHANGELOG に当てる
       checkRelease: async (tag) => {
         const errors: string[] = [];

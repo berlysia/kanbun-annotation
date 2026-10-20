@@ -181,7 +181,7 @@ export function extractDoctests(markdown: string, file: string): ExtractResult {
     const where = `${file}:${line}`;
     const checked = TS_LANGS.has(lang) || XML_LANGS.has(lang);
     if (checked) {
-      // prettier inserts a blank line between an HTML comment and the following fence,
+      // the formatter (oxfmt) inserts a blank line between an HTML comment and the following fence,
       // so the marker is the nearest non-blank line above the fence.
       let m = i - 1;
       while (m >= 0 && lines[m]!.trim() === '') m--;

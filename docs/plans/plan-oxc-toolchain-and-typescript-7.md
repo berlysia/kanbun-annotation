@@ -19,13 +19,13 @@ TypeScript の JS API に頼る道具を oxc の上の道具に置き換え、`t
 
 prettier を oxfmt に、Baseline の JS の検査を ESLint から oxlint の JS plugin に移す。typescript-eslint を外す。`minimumReleaseAge` を入れる。
 
-- [x] 完了 (この段の PR)
+- [x] 完了
 
 ### Step 2: tsup から tsdown へ
 
 公開する 6 パッケージと skam-screenshot の build を tsdown にし、型定義を oxc の isolatedDeclarations で作る。出力を ADR-037 KD7 の条件で tsup と比べる。tsup を外す。
 
-- [ ] 完了
+- [x] 完了 (この段の PR)
 
 ### Step 3: knip 6
 

@@ -22,10 +22,10 @@ export const GOJUON_HIRAGANA_SEQUENCE =
   'あいうえおかきくけこさしすせそたちつてとなにぬねのはひふへほまみむめもやゆよらりるれろわをん';
 
 /** 漢数字 */
-export const KANJI_NUMBERS = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
+export const KANJI_NUMBERS: string[] = ['一', '二', '三', '四', '五', '六', '七', '八', '九', '十'];
 
 /** 丸数字（①〜㊿） */
-export const CIRCLED_NUMBERS = [
+export const CIRCLED_NUMBERS: string[] = [
   '①',
   '②',
   '③',

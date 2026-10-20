@@ -45,8 +45,8 @@ npm の `typescript` の 7 系 (7.0.2) は native の実装で、公開の入口
 - **KD3: 新しい道具は版を正確に固定し、公開から 1 週間たった版だけを入れる** — `pnpm-workspace.yaml` の `minimumReleaseAge: 10080`。renovate も `rangeStrategy: 'pin'` と 7 日の待ちである。
 - **KD4: Baseline の JS の検査は oxlint の JS plugin で走らせる** — 設定 (`.oxlintrc.baseline.json`) は Baseline の規則だけを有効にし、`-c` で明示して走らせる。通常の `pnpm lint` は読まない。`available: 'widely'` で、Web API と組み込み関数も見る (`preset: "auto"`)。`pnpm verify` と CI には入れない (JS plugin は alpha で、plugin のコードを lint の中で動かすので、release の job では動かさない)。
 - **KD5: release の段 2 は `pnpm exec oxfmt -- <files>` で整形する** — root の固定版を使う。`--` で、`-` で始まるファイル名を選択肢と読ませない。
-- **KD6: tsdown の型定義は oxc の isolatedDeclarations で作り、出力を tsup と同じ形にする** — (段 2 で確かめて追記する)
-- **KD7: tsdown の出力の受け入れの条件** — dist とパックの中身の差、exports の各パスの存在、型の意味の差 (`@arethetypeswrong/cli` の前後の比較)、consumer の検査、VRT と E2E。(段 2 で確かめて追記する)
+- **KD6: tsdown の型定義は oxc の isolatedDeclarations で作り、出力を tsup と同じ形にする** — 7 つのパッケージの tsconfig で `isolatedDeclarations` を有効にし、型の生成器は `dts.generator: 'oxc'` で固定する (tsconfig を変えても tsgo の生成器に切り替わらない)。出力は `format: ['esm']`、`fixedExtension: false`、`target: 'esnext'`、map を出さない (`dts.sourcemap: false` も)、entry はオブジェクト形式。skam-screenshot の外部の依存は `deps.neverBundle`。canvas-renderer の iife は `platform: 'browser'`、`deps.alwaysBundle` に skam とそのサブパス、entry は `index` (tsdown が `.iife` を足して `index.iife.js` になる)。
+- **KD7: tsdown の出力の受け入れの条件** — dist とパックの中身の差、exports の各パスの存在、型の意味の差 (`@arethetypeswrong/cli` の前後の比較と、全 entry の export の列挙の比較)、consumer の検査、VRT と E2E。前に無かった問題が出たら受け入れない。
 - **KD8: knip は 6 に上げ、新しく出る指摘を 1 件ずつ判断する** — (段 3 で確かめて追記する)
 - **KD9: 型検査は typescript 7.0.2 の `tsc` で行う** — `types` は node を使うパッケージにだけ `node` を書く。(段 4 で確かめて追記する)
 - **KD10: 道具の構成の決定はこの ADR に書く** — 各段で確かめたことを、その段の PR で追記する。
@@ -79,3 +79,15 @@ npm の `typescript` の 7 系 (7.0.2) は native の実装で、公開の入口
   - 強化の後、html-renderer の src (39 ファイル) と `extracted/js` (5 ファイル) の Baseline の警告は 0 件。
   - 違反の例 (`Math.f16round(1)`) には Float16Array の警告が出た。`new Float16Array(1)` だけでは出ない (ESLint でも同じで、plugin の対応表の限り)。
 - `pnpm why typescript`: typescript-eslint の経路は無い。残るのは tsup と knip 5 の peer (5.9.3)、`typescript5`、stylelint の経路。
+
+### 段 2 (tsup から tsdown へ)
+
+- 版: tsdown 0.23.1 (2026-10-10 公開)。tsup を外した。
+- isolatedDeclarations の誤りは、typescript 7.0.2 の `tsc` で 5 か所 (テストを含めて数え、テストには無かった)。注釈を足す前は、tsup の型定義の build も TS9017 で止まった。注釈は今の推論と同じ型で、tsup の型定義は注釈の前後で 1 バイトも変わらなかった。
+- dist のファイルは、hash を含む chunk の名前を除いて同じ。`exports` が指すファイルの欠けは 0。xml-parser の `index.browser.d.ts` も出る。
+- 型の意味: 全 entry の export を TS 5.9 の検査器で列挙して前後を比べ、名前、種類、シグネチャが同じだった (書き方の差を除く)。`@arethetypeswrong/cli` 0.18.5 の結果は前後で同じ (前からの node10 の解決の無さ、ESM だけ、`./browser-bundle` の型の無さ)。
+- 他のパッケージは `@kanbun-skam/*` の名前のまま import し、`../` で中に入る import は無い。skam-screenshot は playwright と `@kanbun-skam/*` を取り込まない。
+- iife: `dist/index.iife.js` に `require(` と `process.` が無く、node の `vm` で読むと `SKAMCanvasRenderer` が ESM と同じ 8 つの export を持つ。build を続けて繰り返しても 3 つの出力が揃う。
+- パックの大きさは 6 パッケージとも増えた (skam 40,991 → 46,661 バイト、canvas-renderer 35,255 → 42,886 バイトなど)。tsdown は js の comment を残す。増えた理由は調べていない。
+- consumer の検査、テスト、Playground の build、`pnpm clean` が通った。VRT は 1 回目に 1 件 (`ruby-range-core`) が画像の差で落ち、続く 3 回は 17 件とも通った。原因は調べていない。
+- `pnpm why typescript`: tsup の経路は無い。tsdown と rolldown-plugin-dts は TypeScript を任意の peer に持ち、今は 5.9.3 に当たる (型の生成器は oxc なので使わない)。段 4 の後は 7.0.2 に当たる。

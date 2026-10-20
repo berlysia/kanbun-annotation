@@ -81,7 +81,7 @@ const BaseElement = (
 ) as typeof HTMLElement;
 
 export class SkamRendererElement extends BaseElement {
-  static observedAttributes = [
+  static observedAttributes: string[] = [
     'writing-mode',
     'profile',
     'inline',

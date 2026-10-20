@@ -2,7 +2,7 @@
 
 公開 6 パッケージ (`@kanbun-skam/skam`、`skam-canvas-renderer`、`skam-html-renderer`、`skam-xml-parser`、`skam-xml-stringify`、`skam-web-component`) の公開は、`v*` tag の push から始まる。`release.yml` が 6 つの tarball を検査して stage し、メンテナが 2FA で approve すると公開される。判断の背景は [ADR-029](decisions/adr-029-staged-release-flow.md) にある。
 
-この文書の手順のうち、npm の stage の画面出力 (`npm stage list` / `view` / `download` の書式) は、手元で実行して確かめていない (`npm trust list --json` の出力は 2026-10-15 の移行で確かめた)。コマンドと引数は `npm help trust` / `npm help stage` (npm 12.2.0) に載っているものだけを書いた。出力の書式が違った場合は、その場で読み替えず、期待値との差を ADR-029 の「最初のリリースで確かめること」の「結果」の欄に書く。
+この文書の手順のうち、npm の stage の画面出力 (`npm stage list` / `view` / `download` の書式) は、手元で実行して確かめていない (`npm trust list --json` の出力は確かめてある)。コマンドと引数は `npm help trust` / `npm help stage` (npm 12.2.0) に載っているものだけを書いた。出力の書式が違った場合は、その場で読み替えず、期待値との差を ADR-029 の「最初のリリースで確かめること」の「結果」の欄に書く。
 
 ## 手元の前提
 
@@ -53,11 +53,11 @@ echo '{"name":"release tags","target":"tag","enforcement":"active","conditions":
 gh api repos/berlysia/kanbun-annotation/rulesets --jq '.[] | {name, target, enforcement}'
 ```
 
-期待: `{"name":"release tags","target":"tag","enforcement":"active"}` の 1 件。作業前の調査 (2026-10-15) では、このリポジトリの rulesets は空だった。
+期待: `{"name":"release tags","target":"tag","enforcement":"active"}` の 1 件。
 
 ### 3. 6 パッケージに trusted publisher を設定する
 
-npm はパッケージごとの設定である。1 つのパッケージに複数の trust が並びうる (2026-10-15 の移行では、旧 `publish.yml` の trust と新しい `release.yml` の trust が 6 つとも並んでいた)。パッケージが npm に存在している必要があるが、6 つとも 0.1.0 が公開済みである。`--allow-stage-publish` だけを許可し、`--allow-publish` は付けない。`npm trust github` / `list` / `revoke` はどれも 2FA を求める (`list` のような読み取りでも)。最初の 1 回で認証の画面が開くので、「次の 5 分間は 2FA を省略する」を選ぶと、続くコマンドを入力なしで流せる。
+npm はパッケージごとの設定である。1 つのパッケージに複数の trust が並びうる (別の workflow 用の古い trust が残っていることがある)。パッケージが npm に存在している必要があるが、6 つとも公開済みである。`--allow-stage-publish` だけを許可し、`--allow-publish` は付けない。`npm trust github` / `list` / `revoke` はどれも 2FA を求める (`list` のような読み取りでも)。最初の 1 回で認証の画面が開くので、「次の 5 分間は 2FA を省略する」を選ぶと、続くコマンドを入力なしで流せる。
 
 読み手がそのまま実行と照合できるように、1 行ずつ並べる。`-y` は "Do you want to proceed? (y/N)" の確認を省く。
 
@@ -98,7 +98,7 @@ for p in skam skam-canvas-renderer skam-html-renderer skam-xml-parser skam-xml-s
 npm trust revoke @kanbun-skam/<name> --id <手順 3 の出力の id>
 ```
 
-消した後に手順 3 の読み戻しを再実行し、6 つとも `release.yml` の 1 件だけになっていることを確かめる。2026-10-15 の移行では、6 パッケージの `publish.yml` の trust をこの手順で消した。
+消した後に手順 3 の読み戻しを再実行し、6 つとも `release.yml` の 1 件だけになっていることを確かめる。
 
 ### 4. 残っている token がないことを確かめる
 
@@ -108,7 +108,7 @@ gh secret list; gh secret list --env npm; gh secret list --env github-pages; gh 
 
 フラグを変数に入れてループで回すと、zsh は変数を空白で分割しないので `--env npm` が 1 つの引数になって失敗する。上のように 1 つずつ書く。
 
-期待: `NPM_TOKEN` がどこにもない (4 つとも `no secrets found`、または `NPM_TOKEN` 以外だけ)。2026-10-15 の移行では 4 つとも `no secrets found` だった。リポジトリの所有者は個人なので、organization の secret はない。
+期待: `NPM_TOKEN` がどこにもない (4 つとも `no secrets found`、または `NPM_TOKEN` 以外だけ)。リポジトリの所有者は個人なので、organization の secret はない。
 
 npm 側は、npmjs.com の「Access Tokens」画面で、これらのパッケージに publish できる granular token がないことを目で確かめる。あれば削除する。
 
@@ -116,9 +116,9 @@ npm 側は、npmjs.com の「Access Tokens」画面で、これらのパッケ�
 
 npmjs.com の各パッケージの Settings → Publishing access (`https://www.npmjs.com/package/@kanbun-skam/<name>/access`) で、6 つとも "Require two-factor authentication and disallow bypass 2fa tokens (recommended)" を選ぶ。npm の docs と以前の画面では "Require two-factor authentication and disallow tokens" と書かれていた選択肢である。手元から 2FA を使った publish はこの設定でも可能で、OIDC が使えないときの最後の手段になる (後述「最後の手段」)。
 
-この設定が止めるのは token による公開で、trusted publishing (OIDC) による stage は止めない。npm はこの設定を trusted publishing と組み合わせて勧めている。この組み合わせで stage が通ることは、0.2.0 の最初の run で確かめる。
+この設定が止めるのは token による公開で、trusted publishing (OIDC) による stage は止めない。npm はこの設定を trusted publishing と組み合わせて勧めている。この組み合わせで stage が通ることは確かめてある。
 
-読み戻し: 6 つの Settings 画面で、上の選択肢が選ばれている。CLI の `npm access set mfa=none|publish|automation` は、どの値がこの選択肢に当たるかが docs で確かめられなかったので使わない。2026-10-15 の移行の時点で、6 つともすでにこの選択肢になっていた。
+読み戻し: 6 つの Settings 画面で、上の選択肢が選ばれている。CLI の `npm access set mfa=none|publish|automation` は、どの値がこの選択肢に当たるかが docs で確かめられなかったので使わない。
 
 ### 移行の完了条件
 
@@ -170,7 +170,7 @@ y/N を聞くのは、段 5 (版と変更ファイル) と段 10 (approve の前
 
 trust の確認は、最初に `npm trust list` を対話で 1 回実行し、続けて 6 パッケージ分を `--json` で取る。対話のときに「次の 5 分間は 2FA を省略する」を選ばないと、続く取得が `EOTP` で止まる (何も変えていないので、再実行すればよい)。
 
-0.2.0 のリリースでは、`npm stage approve` の認証の画面に「次の 5 分間は 2FA を省略する」の選択肢が出なかった。実行のたびに 2FA を求めるか (6 パッケージなら 6 回か) は、確かめていない (未確認)。段 10 の approve は、省略の選択肢が出ないことがある前提で進める。
+`npm stage approve` は、パッケージごとに毎回 2FA を求める (6 パッケージなら 6 回)。「次の 5 分間は 2FA を省略する」の選択肢は出ない。
 
 完了すると `release completed` と表示して exit 0 で終わる。
 
@@ -280,7 +280,7 @@ Ctrl-C は 1 回目で、待機と再試行の区切りで止まり (`Interrupte
 
 ### 待つ時間
 
-待つ時間は `scripts/release-after-push.ts` の `WAIT` にまとめてある。0.2.0 の実測で見直す。
+待つ時間は `scripts/release-after-push.ts` の `WAIT` にまとめてある。
 
 待っている間は、sleep の前に毎回 `waiting for <待つ対象>: <経過秒>s / <上限>` の行が出る。
 
@@ -428,7 +428,7 @@ npm view @kanbun-skam/skam-web-component dist-tags.latest
 
 - `dist-tags`: `npm view <name> dist-tags` が 6 つとも期待どおり。
 - `dist.integrity`: `npm view <name>@X.Y.Z dist.integrity` が、log の表の integrity (summary の step が tgz から計算した値。manifest の `integrity` との一致は verify-manifest が済ませている) と一致する。
-- `dist.attestations`: `npm view <name>@X.Y.Z dist.attestations` の有無を、6 つとも確かめる。あれば、`provenance.predicateType` が `https://slsa.dev/provenance/v1` であることも確かめ、違えば段 11 が形の不一致 (shape) として止まる。止まった時点で公開は済んでいる。確かめるのは registry が申告する形で、attestation の bundle と tgz の digest の照合ではない。無いときは止めない。staged publishing と trusted publishing の組み合わせで provenance が付くかは、npm の docs に記載がなく、未確認である (ADR-029 の R3)。このリポジトリは public なので、確かめられる。0.1.0 には付いていない (2026-10-15 に確認)。0.2.0 には provenance の predicateType が SLSA v1 の attestation が付いている (2026-10-20 に確認)。
+- `dist.attestations`: `npm view <name>@X.Y.Z dist.attestations` の有無を、6 つとも確かめる。あれば、`provenance.predicateType` が `https://slsa.dev/provenance/v1` であることも確かめ、違えば段 11 が形の不一致 (shape) として止まる。止まった時点で公開は済んでいる。確かめるのは registry が申告する形で、attestation の bundle と tgz の digest の照合ではない。無いときは止めない。このリポジトリの staged publishing と trusted publishing では、predicateType が SLSA v1 の provenance の attestation が付く。
 - GitHub Release: `gh release view vX.Y.Z` で存在を確かめる。
 
 ## prerelease
@@ -449,7 +449,7 @@ pnpm run release -- --exit-pre   # pre mode を抜けて、stable を出す
 
 ### 検証で分かった挙動
 
-scratch のコピー (2026-10-15、`@changesets/cli` 2.29.8) で観察した。`pnpm run release` (`release.ts`) を通した確認は、`scripts/release.test.ts` の実際の `changeset` を使うテストである。
+scratch のコピー (`@changesets/cli` 2.29.8) で観察した。`pnpm run release` (`release.ts`) を通した確認は、`scripts/release.test.ts` の実際の `changeset` を使うテストである。
 
 - beta から rc に切り替えると、番号を引き継ぐ。beta.1 の次の rc は `rc.0` でなく `rc.2` になる。
 - pre mode では、`changeset version` の後も changeset の md が消えずに残り、`.changeset/pre.json` の `changesets` に名前が入る。残った md は、次の `changeset status` では未消費と数えない。
@@ -539,27 +539,27 @@ tag の commit の `release.yml` が使われるので、re-run では直らな�
 - 誤って stage した: `npm stage reject <stage-id>`。
 - 公開後に誤りが見つかった: `npm deprecate <name>@X.Y.Z "<理由>"`。
 
-## 最初のリリース (0.2.0) で確かめること
+## approve の前で一度止めて確かめる
 
-0.2.0 の最初の run が本番であり、リハーサルはしない。`pnpm run release` の後半 (段 8〜11) は、0.2.0 で初めて本物の GitHub と npm につながる。npm や log の出力の形が想定と違えば、推測で読み替えずに止まる。そのため、最初の実行は、次の順で進める。
+release の script や npm の版を変えた後は、npm や log の出力の形が想定と違うことがある。`pnpm run release` は、形が違えば推測で読み替えずに止まる。approve の前に保存物を目で確かめたいときは、次の順で進める。リハーサルの環境は無く、この実行が本番である。
 
-1. 0.2.0 は pre mode を経ずに出す。changeset を書いて commit し、`pnpm run release` を実行する。
+1. changeset を書いて commit し、`pnpm run release` を実行する。
 2. 段 5 の y/N は `y`。
 3. 段 10 の y/N (trust の再確認と、判定結果の表示の後) で `N` を答える。exit 0 で終わり、approve はされない。
-4. `.tmp/release/v0.2.0/<時刻>/` の保存物から、次を確かめる。
+4. `.tmp/release/v<版>/<時刻>/` の保存物から、次を確かめる。
    - `log-manifest.txt` の 6 つの integrity が、段 10 の表示の integrity (先頭 16 文字と末尾 8 文字) と一致する。
    - `jobs.json` の 3 つの job (`Validate and pack`、`Stage on npm`、`GitHub Release`) の結論が `success` である。
 
    ```bash
-   cat .tmp/release/v0.2.0/<時刻>/log-manifest.txt
-   jq '.jobs[] | {name, conclusion}' .tmp/release/v0.2.0/<時刻>/jobs.json
+   cat .tmp/release/v<版>/<時刻>/log-manifest.txt
+   jq '.jobs[] | {name, conclusion}' .tmp/release/v<版>/<時刻>/jobs.json
    ```
 
 5. 確かめたら、`pnpm run release` を再実行する。tag が origin にあり HEAD と同じなので、前半は飛ばされて後半から始まる。trust の確認で 2FA がもう一度要る。段 10 の y/N に `y` を答える。
 
 想定内の別の分岐がある。stable の stage で `tag` が省かれていると、段 9 で形の不一致として止まり、y/N は出ない (`[manual]`、`stage item for <名前> has no string tag`)。これは失敗ではない。推測で `latest` とみなして prerelease を `latest` に載せる事故を避けるため、止まるようにしてある (ADR-031 の R1)。`## 手作業の手順` の `### approve の前の確認` から進む。
 
-approve の後に確かめること (「approve の後の確認」) の結果と、手順書の出力の書式が期待と違った点は、ADR-029 の「最初のリリースで確かめること」の「結果」の欄に書く。段 11 が表示する `post-approve results (for the Results section of ADR-029):` の行を写せる。あわせて、ADR-031 の「未確認の事項」(registry の `stage list` の item の形、E409 の実際の stderr、承認済みの stage が `stage list` に残るか、approve 後の反映の遅延の長さ、release.yml の実行) のうち、確かめられたものを書く。待機の値 (上の「待つ時間」) も、実測で見直す。
+approve の後に確かめること (「approve の後の確認」) の結果と、手順書の出力の書式が期待と違った点は、ADR-029 の「最初のリリースで確かめること」の「結果」の欄に書く。段 11 が表示する `post-approve results (for the Results section of ADR-029):` の行を写せる。
 
 ## 最後の手段
 

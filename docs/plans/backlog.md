@@ -53,15 +53,14 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 ## レンダラー
 
 - **grid baseline 補正の構造的課題 (#2)**: Chromium の補正に構造的な課題がある。補正は `--skam-grid-baseline-fix` と `calibrateGridBaseline()` が担う。Issue は open。出典: #2。規模: 大。
-- **highlight の傍線がアキ部分をカバーしない**: `highlight-content` は inline-block で、letter-spacing のアキが box に含まれない。そのため `box-shadow: inset` の傍線がアキ部分に描かれず、途切れて見える。ADR-008 で既知の制約とし、別 ADR で対応するとした。出典: plan-aki-gumi-spacing.md L70、ADR-008「検証 4: エッジケース」。規模: 中。
-- **分析結果キャッシュ (DocumentAnalysis) の再利用**: Canvas の縦書きレイアウトで、分析結果 (`DocumentAnalysis`) を再利用するかを決める。現行のコードで再利用されているかは未確認。出典: ADR-018「未決事項（残件）」。規模: 中。
-- **highlight の group 走査の最適化**: highlight まわりの group の走査を最適化するかを決める。現行のコードで必要かは未確認。出典: ADR-018「未決事項（残件）」。規模: 中。
+- **範囲のルビと highlight が重なると、最後の字を 2 回描く**: html-renderer で、2 字以上の範囲の yomigana と highlight が重なると、ルビの範囲の最後の字が 2 回出る。A〜E の文書で、ルビを B〜C、highlight を B〜D に置くと、本文は `ArBCCDE` になる (ルビだけなら `ArBCDE`)。VRT の `emphasis-highlight.png` も「重要要語」と描いている。出典: 束 C の 1 の T1。規模: 中。
+- **ルビや傍点つきの字が highlight の中で傍線とずれる**: `spacing: 'half'` の VRT (`highlight-spacing-*.png`) で、ルビつきの字と傍点つきの字が、横書きでは傍線より下に、縦書きでは傍線から離れて左に描かれる。spacing の無い `emphasis-highlight.png` でも字の位置がずれている。原因は調べていない。#2 (grid baseline の補正) と関係するかも未確認。出典: 束 C の 1 の T1。規模: 中。
+- **注記の引き当て (`getMarksForToken`) の性能**: `packages/skam/src/rendering/mark-lookup.ts` の `getMarksForToken` は、字ごとに文書のすべての注記を見て回る。html-renderer は字ごとに 3 回呼ぶので、字数と注記の数の積で時間がかかる。build 済みの dist で、highlight を字数の 1 割置いた文書の html の `render()` は、1000 字で 644 ms、5000 字で 70 秒だった。出力を変えずに速くする。出典: 束 C の調査。規模: 中。
 
 ## テストと CI
 
 - **CI の VRT も手元と同じ Docker イメージで動かすか**: 基準画像は手元の Docker (`pnpm test:visual:docker`) で撮り、CI は ubuntu-latest に `playwright install --with-deps chromium` を入れて比べる。撮る環境と比べる環境が違う。CI も同じイメージで動かすかを決める。VRT の揺れ (下の行) との関係は確かめていない。出典: fix/backlog-batch-a (2026-10-21)。規模: 小。
 - **CI の VRT の tateten-kaeri-split が揺れる**: PR #37 の CI で、`visual-regression.spec.ts` の `tateten-kaeri-split` が 2 回続けて落ち (354 pixels、ratio 0.03。許容は `maxDiffPixelRatio: 0.01`)、3 回目の再実行で通った。PR #37 は描画を変えていない。同じ時間帯に master の VRT を 2 回流すと、どちらも通った。手元の Playwright 1.58.0 の Docker イメージでは、network ありで master と PR #37 のどちらも通った。network なし (Google Fonts を読めない) では、字が重なりルビが消えた画像になって落ちた。原因は確かめていない (フォントの読み込みの時間の揺れと推測)。2026-10-20 から、`visual-test` が落ちると expected / actual / diff の画像が artifact `vrt-test-results` に 7 日残る。次に落ちたら画像で原因を確かめ、フォントを同梱するかを決める。artifact が実際に上がるかも、そのときに確かめる。出典: PR #37 の CI (2026-10-20)。規模: 小。
-- **移行表の機械可読化**: 移行表を機械可読形式 (YAML など) にして、各 README の移行の節を生成する。`migration-table.test.ts` は、README の旧挙動・新挙動・回避策の列が正本と一字一句同じかを検査しない。手編集によるずれを検出できない。出典: plan-practical-readiness.md L103、ADR-028「既知の制約と未実施の確認」。規模: 中。
 - **html-renderer の仕様テストの意味論化**: 文字列一致のテストを減らし、意味を検査するテストに置き換える。基盤は ADR-022 と `css-slot-semantics.test.ts` にある。ただし docs/testing/no-test-gap-matrix.md の 4 件はすべて `dual` で、`migrated` は 0 件である。`comprehensive-rendering.test.ts` には、`toContain` などの文字列一致の行が 267 行ある。出典: plan-html-renderer-colocation-and-named-grid-areas.md L295、ADR-020「完了時点で残る作業（Phase3 以降）」。規模: 大。
 - **TypeScript 7 系への移行**: このリポジトリを TypeScript 7 系 (native の `typescript` パッケージ) に移す。tsgo (`@typescript/native-preview`) との関係、typescript-eslint などの JS 実装を要る道具の扱いを決める。consumer の検査の `typescript5` (5.9.3) は、利用者の 5 系の代表として残す。出典: 利用者の方針 (2026-10-19)。規模: 中。
 

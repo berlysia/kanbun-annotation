@@ -7,25 +7,10 @@
  * 3. Light DOM の textContent（フォールバック）
  */
 
-/**
- * SKAM-ML を HTML に埋め込むときのメディアタイプ。仕様の約束であり、実装の都合では変えない。
- * 根拠と範囲は SKAM-ML-draft §3.3 を参照。
- */
-export const SKAM_XML_MEDIA_TYPE = 'application/vnd.berlysia.skam+xml';
+import { extractXmlFromScriptElement } from '@kanbun-skam/skam-xml-parser';
 
-/**
- * <script type="application/vnd.berlysia.skam+xml"> 要素からXMLを取得する
- *
- * @experimental 0.x の minor で変わりうる。
- */
-export function extractXmlFromScriptElement(host: HTMLElement): string | null {
-  const script = host.querySelector(`script[type="${SKAM_XML_MEDIA_TYPE}"]`);
-  if (script) {
-    const text = script.textContent?.trim();
-    return text || null;
-  }
-  return null;
-}
+// parser が実体を持つ。Web Component からの import 元も維持するため再 export する。
+export { SKAM_XML_MEDIA_TYPE, extractXmlFromScriptElement } from '@kanbun-skam/skam-xml-parser';
 
 /**
  * Light DOM の textContent からXMLを取得する（フォールバック）

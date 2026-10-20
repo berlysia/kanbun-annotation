@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import {
+  extractXmlFromScriptElement as parserExtractXmlFromScriptElement,
+  SKAM_XML_MEDIA_TYPE as PARSER_SKAM_XML_MEDIA_TYPE,
+} from '@kanbun-skam/skam-xml-parser';
+import {
   extractXml,
   extractXmlFromScriptElement,
   extractXmlFromLightDOM,
@@ -112,5 +116,19 @@ describe('extractXml', () => {
   it('returns null when nothing is available', () => {
     const el = document.createElement('div');
     expect(extractXml(undefined, el)).toBeNull();
+  });
+});
+
+describe('re-export from @kanbun-skam/skam-xml-parser', () => {
+  it('shares the same references as the parser', () => {
+    expect(extractXmlFromScriptElement).toBe(parserExtractXmlFromScriptElement);
+    expect(SKAM_XML_MEDIA_TYPE).toBe(PARSER_SKAM_XML_MEDIA_TYPE);
+  });
+
+  it('accepts HTMLElement and Document (type check)', () => {
+    const fromElement: string | null = extractXmlFromScriptElement(document.createElement('div'));
+    const fromDocument: string | null = extractXmlFromScriptElement(document);
+    expect(fromElement).toBeNull();
+    expect(fromDocument).toBeNull();
   });
 });

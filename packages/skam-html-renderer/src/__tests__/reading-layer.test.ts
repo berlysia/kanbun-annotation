@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, renderHTML } from '../index.js';
+import { render, renderHTML, generateCSS } from '../index.js';
 import { formatReadingText, renderReadingLayerElement } from '../reading-text.js';
 import type { SKAMDocument } from '@kanbun-skam/skam';
 
@@ -322,5 +322,33 @@ describe('accessibleLabels の正規化', () => {
       accessibleLabels: labels,
     }).html;
     expect(reading(html)?.textContent).toBe('甲、FIRST。乙。');
+  });
+});
+
+describe('reading layer hiding rule', () => {
+  const declarationsOf = (css: string, prefix: string): string[] => {
+    const match = css.match(new RegExp(`:where\\(\\.${prefix}-reading\\)\\s*\\{([^}]*)\\}`));
+    expect(match).not.toBeNull();
+    return match![1]!
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .split(';')
+      .map((d) => d.trim())
+      .filter((d) => d !== '');
+  };
+
+  it.each([
+    ['skam', undefined],
+    ['x', 'x'],
+  ])('puts !important on every declaration (prefix %s)', (prefix, classPrefix) => {
+    const declarations = declarationsOf(
+      generateCSS(classPrefix === undefined ? {} : { classPrefix }),
+      prefix
+    );
+    expect(declarations.length).toBeGreaterThan(0);
+    for (const declaration of declarations) {
+      expect(declaration).toMatch(/\s!important$/);
+    }
+    expect(declarations).toContain('min-width: 0 !important');
+    expect(declarations).toContain('min-height: 0 !important');
   });
 });

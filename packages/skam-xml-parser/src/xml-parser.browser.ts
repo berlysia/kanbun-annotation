@@ -52,12 +52,15 @@ export function parseBrowserErrorLocation(
  * Parse XML string to Document (Browser implementation)
  *
  * @param xml XML string
+ * @param policy Trusted Types policy. When given, its `createHTML(xml)` result is what DOMParser receives
  * @returns Parsed Document
  * @throws SKAMXMLParseError if XML parsing fails
  */
-export function parseXML(xml: string): Document {
+export function parseXML(xml: string, policy?: { createHTML(input: string): unknown }): Document {
   const parser = new DOMParser();
-  const doc = parser.parseFromString(xml, 'application/xml');
+  // createHTML returns unknown, so the type is matched here only (TrustedHTML is accepted at run time)
+  const input = policy ? (policy.createHTML(xml) as string) : xml;
+  const doc = parser.parseFromString(input, 'application/xml');
 
   // Browser DOMParser returns parsererror element on error
   const parseError = doc.querySelector('parsererror');

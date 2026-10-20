@@ -23,7 +23,7 @@ export { SKAM_XML_MEDIA_TYPE, extractXmlFromScriptElement } from './xml-extracti
  * Parse SKAM-ML/XML string to SKAMDocument
  *
  * @param xml XML string
- * @param options Parse options
+ * @param options Parse options. `trustedTypesPolicy` is ignored in this build (xmldom does not use Trusted Types)
  * @returns SKAMDocument
  * @throws SKAMXMLParseError if parsing fails
  */

@@ -47,7 +47,7 @@ npm の `typescript` の 7 系 (7.0.2) は native の実装で、公開の入口
 - **KD5: release の段 2 は `pnpm exec oxfmt -- <files>` で整形する** — root の固定版を使う。`--` で、`-` で始まるファイル名を選択肢と読ませない。
 - **KD6: tsdown の型定義は oxc の isolatedDeclarations で作り、出力を tsup と同じ形にする** — 7 つのパッケージの tsconfig で `isolatedDeclarations` を有効にし、型の生成器は `dts.generator: 'oxc'` で固定する (tsconfig を変えても tsgo の生成器に切り替わらない)。出力は `format: ['esm']`、`fixedExtension: false`、`target: 'esnext'`、map を出さない (`dts.sourcemap: false` も)、entry はオブジェクト形式。skam-screenshot の外部の依存は `deps.neverBundle`。canvas-renderer の iife は `platform: 'browser'`、`deps.alwaysBundle` に skam とそのサブパス、entry は `index` (tsdown が `.iife` を足して `index.iife.js` になる)。
 - **KD7: tsdown の出力の受け入れの条件** — dist とパックの中身の差、exports の各パスの存在、型の意味の差 (`@arethetypeswrong/cli` の前後の比較と、全 entry の export の列挙の比較)、consumer の検査、VRT と E2E。前に無かった問題が出たら受け入れない。
-- **KD8: knip は 6 に上げ、新しく出る指摘を 1 件ずつ判断する** — (段 3 で確かめて追記する)
+- **KD8: knip は 6 に上げ、新しく出る指摘を 1 件ずつ判断する** — 使われていない export は、テスト、scripts、他のパッケージ、README に参照が無いことを確かめて消す。公開 API (package.json の `exports` が指す entry の export と、build した型定義の export の集合) と、テストや script だけが使う export は消さずに設定で外す。迷ったら消さない。knip 6 はテストを entry として扱うので、テストを ignore する設定は要らない。
 - **KD9: 型検査は typescript 7.0.2 の `tsc` で行う** — `types` は node を使うパッケージにだけ `node` を書く。(段 4 で確かめて追記する)
 - **KD10: 道具の構成の決定はこの ADR に書く** — 各段で確かめたことを、その段の PR で追記する。
 
@@ -91,3 +91,12 @@ npm の `typescript` の 7 系 (7.0.2) は native の実装で、公開の入口
 - パックの大きさは 6 パッケージとも増えた (skam 40,991 → 46,661 バイト、canvas-renderer 35,255 → 42,886 バイトなど)。tsdown は js の comment を残す。増えた理由は調べていない。
 - consumer の検査、テスト、Playground の build、`pnpm clean` が通った。VRT は 1 回目に 1 件 (`ruby-range-core`) が画像の差で落ち、続く 3 回は 17 件とも通った。原因は調べていない。
 - `pnpm why typescript`: tsup の経路は無い。tsdown と rolldown-plugin-dts は TypeScript を任意の peer に持ち、今は 5.9.3 に当たる (型の生成器は oxc なので使わない)。段 4 の後は 7.0.2 に当たる。
+
+### 段 3 (knip 6)
+
+- 版: knip 6.41.0 (2026-10-09 公開)。6.42.0 は 2026-10-18 公開で、まだ 1 週間たっていなかった。
+- 新しく出た指摘は 17 件 (未使用の export 8、型 8、`GitResult` 1) と設定の hint 19 件。17 件とも参照が無く、消すか re-export から外した: html-renderer の `renderer.ts` の re-export (どれも、使う側は元のファイルから import している)、`mark-utils.ts` (skam の `getBlockStartMarks` を re-export するだけ)、`styles.ts` の `CopyableElement` の re-export、`scripts/lib/release-check.ts` の `GitResult` の re-export。`mark-utils.ts` を消したので、html-renderer の README の木と `.oxlintrc.json` の上書きの対象からも外した。
+- 設定の hint のとおり、テストを ignore する設定、冗長な `entry`、`ignoreDependencies` を外した。残したのは `typescript5` (root) と `skam-web-component` (integration-tests) で、どちらも理由のコメントがある。新しい ignore は足していない。
+- 7 パッケージの型定義の export の集合 (353 行) は前後で同じ。未使用の export を一時的に足すと指摘が 1 件増え、戻すと 0 件に戻った。
+- oxc-parser の native の依存に build の script は要らず、`onlyBuiltDependencies` は変えていない。
+- `pnpm why typescript`: knip の経路は無い。残るのは tsdown と rolldown-plugin-dts の任意の peer (5.9.3)、`typescript5`、stylelint の経路。

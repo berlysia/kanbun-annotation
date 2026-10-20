@@ -6,6 +6,8 @@
  *
  * Run: pnpm --filter @kanbun-skam/integration-tests test:visual
  * Update baselines: UPDATE_SNAPSHOTS=1 pnpm --filter @kanbun-skam/integration-tests test:visual
+ * In the Playwright Docker image (fixed environment): pnpm test:visual:docker [playwright args]
+ * (UPDATE_SNAPSHOTS=1 pnpm test:visual:docker updates baselines; see scripts/vrt-docker.ts)
  */
 
 import { test, expect } from '@playwright/test';

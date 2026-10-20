@@ -30,6 +30,8 @@
     "release.test.ts",
     "release-after-push.ts",
     "release-after-push.test.ts",
+    "vrt-docker.ts",
+    "vrt-docker.test.ts",
     "workflow-structure.test.ts"
   ]
 }

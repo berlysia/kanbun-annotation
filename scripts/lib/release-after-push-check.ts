@@ -15,6 +15,7 @@ import type {
   RegistryResponse,
   ReleaseManifest,
   StopObservation,
+  StageProvenance,
   StopRoute,
 } from './release-types.ts';
 
@@ -419,7 +420,7 @@ export function judgeLogManifest(
 // --- stage の一覧 (K11 の 4) ---
 
 export type PickStageResult =
-  | { kind: 'one'; id: string }
+  | ({ kind: 'one'; id: string } & StageProvenance)
   | { kind: 'none' }
   | { kind: 'many' }
   | { kind: 'shape-unknown'; what: string }
@@ -473,7 +474,17 @@ export function pickStage(
   if (tag !== distTag) {
     return { kind: 'mismatch', what: `stage tag ${tag} differs from expected ${distTag}` };
   }
-  return { kind: 'one', id };
+  return { kind: 'one', id, ...provenanceOf(only) };
+}
+
+// 文字列のキーだけ持つ (exactOptionalPropertyTypes のため、それ以外は undefined にせずキーごと省く)
+function provenanceOf(item: { [K in keyof StageProvenance]?: unknown }): StageProvenance {
+  const { actor, actorType, createdAt } = item;
+  return {
+    ...(typeof actor === 'string' ? { actor } : {}),
+    ...(typeof actorType === 'string' ? { actorType } : {}),
+    ...(typeof createdAt === 'string' ? { createdAt } : {}),
+  };
 }
 
 // --- tarball と artifact の検査 (K11 の 3、5、6) ---
@@ -818,7 +829,7 @@ export function classifyPackageState(input: {
   }
   switch (stage.kind) {
     case 'one':
-      return ok({ name, kind: 'staged', stageId: stage.id });
+      return ok({ ...provenanceOf(stage), name, kind: 'staged', stageId: stage.id });
     case 'many':
       return ok({ name, kind: 'staged-ambiguous' });
     case 'none':
@@ -831,8 +842,10 @@ export function classifyPackageState(input: {
 
 type WithoutPublished<T> = T extends unknown ? Omit<T, 'published'> : never;
 
+export type ApproveTarget = { name: string; stageId: string } & StageProvenance;
+
 export type ApprovePlan =
-  | { kind: 'approve'; targets: { name: string; stageId: string }[] }
+  | { kind: 'approve'; targets: ApproveTarget[] }
   | { kind: 'done' }
   | { kind: 'wait'; names: string[] }
   | { kind: 'stop'; observation: StopObservation };
@@ -874,7 +887,7 @@ export function planApprove(states: readonly PackageState[], waitExhausted: bool
     });
   }
   const targets = states.flatMap((s) =>
-    s.kind === 'staged' ? [{ name: s.name, stageId: s.stageId }] : []
+    s.kind === 'staged' ? [{ ...provenanceOf(s), name: s.name, stageId: s.stageId }] : []
   );
   return targets.length === 0 ? { kind: 'done' } : { kind: 'approve', targets };
 }

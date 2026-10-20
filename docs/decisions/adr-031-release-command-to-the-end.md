@@ -170,6 +170,7 @@ ADR-029 の本文は変えない。ADR-029 の冒頭に、この ADR への注�
 1. 0.2.0 の実測で、K11 / K12 / K15 の判定と、待機の定数 (`scripts/release-after-push.ts` の `WAIT`) を見直す。
 2. release.yml の summary step で、tgz から sha512 を再計算して log に出す。log の integrity を、manifest の写しではなく、独立に計算した値にする。release.yml はこの作業の範囲の外。
 3. stage の来歴 (`actor`、`createdAt`) の表示 (R9)。形を 0.2.0 で確かめてから、y/N の表示に出すことを検討する。
+   - 2026-10-21 に y/N の前の表示に足した (判定には使わない)。
 4. `dist.attestations` があれば検証する。
 
 以後は docs/plans/backlog.md で追う。

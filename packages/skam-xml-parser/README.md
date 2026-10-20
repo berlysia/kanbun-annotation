@@ -218,13 +218,15 @@ XML には token と mark の ID を書かない。`parse` はこれらの ID �
 
 ## 位置情報
 
-Node 版の `SKAMXMLParseError` は `line` / `column` を持つ。要素の処理中に投げる例外は、すべてその要素の位置を持つ（文書が空のときの `Empty document` だけは位置を持たない）。
+Node 版の `SKAMXMLParseError` は `line` / `column` を持つ。要素の処理中に投げる例外は、すべてその要素の位置を持つ（入力が空、または XML の空白（U+0020、U+0009、U+000D、U+000A）だけのときの `Empty document` だけは位置を持たない。この判定は Node 版でもブラウザ版でも同じで、`''` と空白だけの入力は、どちらでも `Empty document` になる）。
 
 `validate: true`（既定）で検証が失敗したときは、`SKAMValidationError.errors` の各エラーに、元の要素の `line` / `column` が付く。付くのは、`path` が `tokens[i]` / `marks[i]` / `blocks[i]` で始まるエラーだけで、`readings` や文書全体を指すエラーには付かない。1 つの要素から展開された複数の mark は、どれも元の要素の位置を持つ。`trackPositions` の値とは関係なく付く。`@kanbun-skam/skam` の `validateSKAMDocument` を直接呼んだときは付かない。
 
 ブラウザ版（`browser` 条件で解決される DOMParser 実装）も、要素の処理中の誤り、検証の誤り、警告（`onWarning`）に、Node 版と同じ位置を付ける。位置は要素の開始タグの `<` で、行と列は 1 始まり、列は UTF-16 単位で数える。ブラウザの DOM は位置を持たないので、誤りが起きたときに元の文字列の開始タグと文書の要素を順に対応させて求める。数か要素名の並びが合わないときは、位置を付けない。
 
 XML の構文の誤り（タグの食い違いなど）では、ブラウザ版は Chromium と Firefox が報告する位置を読む。値の意味はブラウザごとに違い（Chromium は誤りを見つけた直後、Firefox は誤りの字句の付近）、Node 版の値とも一致しない。誤りの付近を探す手がかりとして使い、値の比較やスナップショットには使わない。報告の形を読めないブラウザ（WebKit は未確認）では、構文の誤りに位置を付けない。
+
+ブラウザ版の構文の誤りのメッセージは `XML parse error: <理由>` の形になる。理由はブラウザが報告する文から取り出した 1 行で、本文はブラウザごとに違い、500 字（UTF-16 の単位）を超えると切って `…` を足す。ブラウザが文に添える補足や、Firefox が写す元の行は含まない。制御文字は取り除く。報告の形を読めないブラウザでは、文全体（同じ規則で整えたもの）が理由になる。
 
 0.2.0 のブラウザ版は、どちらの位置も持たなかった。
 
@@ -252,6 +254,8 @@ try {
 }
 ```
 
+メッセージの文言は互換の対象外。判別には `instanceof` と `line` / `column` を使う。`error.message` は入力から来た文字列（要素名など）を含むので、`innerHTML` に入れない。
+
 `instanceof SKAMXMLParseError` は、依存の重複や iframe でも真になる。クラスに `Symbol.for('@kanbun-skam/skam-xml-parser/SKAMXMLParseError')` の目印を持たせ、それで判別している。依存の重複はテストで確かめた。iframe（別の realm）は、`Symbol.for` のレジストリが realm の間で共有されることに基づく（ADR-033 KD10 で `node:vm` により確かめた）。ただし、目印を入れた版より前のコピーと混在すると、両方向で偽になる。別の realm の誤りは `instanceof Error` が偽になる。`structuredClone` や `postMessage` で複製した誤りは偽になる。目印を手で付けた object も真になるので、`instanceof` は型の判別であって、中身が安全だという保証ではない（`message` や `SKAMValidationError` の `errors` は利用者の入力を含む）。
 
 ## 0.1 からの移行
@@ -271,7 +275,7 @@ try {
 | M23 | なし。                                                                                                                                                                                                                 | `skam`: `isValidEmphasisStyle`、`BLOCK_START_KAERI_HINT`、`HIGHLIGHT_STYLES`、`isValidHighlightStyle`、`resolveOkototenCell`。`skam-xml-parser`: `SKAM_ML_CONTENT_MODEL` (`@experimental`)、`ParseWarning` / `onWarning`。`skam-xml-stringify`: `SKAM_ML_CONTENT_MODEL`、`SKAM_ML_NESTING_ORDER` (どちらも `@experimental`)、`SKAMXMLStringifyError` / `StringifyLoss`。`skam-html-renderer`: `validateRenderOptions` / `validateCSSOptions`。 | 対応は要らない。`@experimental` の API は、0.x の間はマイナーリリースで値が変わりうる。                                                                                                       |
 | M24 | 条件オブジェクトで `import` が `types` より前にあった。`skam-web-component` の `./auto` には `types` がなかった。                                                                                                      | `types` を先頭にする。`./auto` に `types` を足す。サブパスと実体は変わらない。                                                                                                                                                                                                                                                                                                                                                                 | 対応は要らない (非破壊の変更)。                                                                                                                                                               |
 | M26 | 0.8.15 より前の版 (0.8.11 など) に解決された。0.8.11 には、15 件の advisory が関係する (2026-10-15 時点)。                                                                                                             | `^0.8.15` を指定する (0.8.15 以上の 0.8 系。lockfile は 0.8.15 に解決する)。0.8.15 に関係する advisory は 0 件である。advisory の ID は「依存の更新」の節に挙げる。                                                                                                                                                                                                                                                                            | 対応は要らない。利用側で xmldom の版を固定している場合は、0.8.15 以上の 0.8 系に上げる。                                                                                                      |
-| M35 | `SKAMXMLParseError` のうち、ルート要素の違い、必須属性の欠落、未知の kind、空の内容、`<skam:body>` の欠落などは `line` / `column` を持たなかった。                                                                     | 要素の処理中に投げるすべての `SKAMXMLParseError` が、その要素の `line` / `column` を持つ (Node 版)。空文書の `Empty document` は位置を持たない。ブラウザ版は持たない。メッセージの文言は変わらない。                                                                                                                                                                                                                                           | 対応は要らない (非破壊の追加)。                                                                                                                                                               |
+| M35 | `SKAMXMLParseError` のうち、ルート要素の違い、必須属性の欠落、未知の kind、空の内容、`<skam:body>` の欠落などは `line` / `column` を持たなかった。                                                                     | 要素の処理中に投げるすべての `SKAMXMLParseError` が、その要素の `line` / `column` を持つ (Node 版)。空文書の `Empty document` は位置を持たない。ブラウザ版は持たない。メッセージの文言は変わらない。 M35 は 0.2.0 の時点の記述で、現在はメッセージの文言を互換の対象外とする。                                                                                                                                                                 | 対応は要らない (非破壊の追加)。                                                                                                                                                               |
 | M36 | `SKAMValidationError.errors` の各要素は `kind` / `path` / `message` (と `expected` / `actual`) だけで、元の SKAM-ML の位置を示さなかった。                                                                             | `ValidationError` に任意の `line` / `column` を足した。Node 版の `parse()` (`validate: true`) が投げる `SKAMValidationError` で、`path` が `tokens[i]` / `marks[i]` / `blocks[i]` で始まるエラーに付く。`validateSKAMDocument` を直接呼んだときと、ブラウザ版では付かない (キーごと無い)。                                                                                                                                                     | 型は非破壊。parser 経由の検証エラーにはキーが増えるので、エラーを `toEqual` で比べている利用側のテストは差が出る。比較から `line` / `column` を外すか、`toMatchObject` を使う。               |
 
 全体の移行表 (対象パッケージ、依存の更新を含む): https://github.com/berlysia/kanbun-annotation/blob/master/docs/migration-0.1-to-0.2.md

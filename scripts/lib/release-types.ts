@@ -66,8 +66,15 @@ export type StopRoute = 'F1' | 'F2' | 'F3' | 'F4' | 'rerun' | 'manual';
 // 'unknown' は公開の有無を観測できなかったこと (0 件とは区別する)
 export type Published = readonly string[] | 'unknown';
 
+// stage list の項目にある来歴。値が文字列のときだけ持つ。判定には使わず、表示だけに使う
+export interface StageProvenance {
+  actor?: string;
+  actorType?: string;
+  createdAt?: string;
+}
+
 export type PackageState =
-  | { name: string; kind: 'staged'; stageId: string }
+  | ({ name: string; kind: 'staged'; stageId: string } & StageProvenance)
   | { name: string; kind: 'published' | 'published-wrong' | 'staged-ambiguous' | 'missing' };
 
 // 失敗したコマンドの stderr を運ぶ (停止の表示が error の欄に使う)

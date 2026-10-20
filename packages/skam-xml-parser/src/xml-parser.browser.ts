@@ -48,6 +48,39 @@ export function parseBrowserErrorLocation(
   return { line: Number(match[1]), column: Number(match[2]) };
 }
 
+const FIREFOX_PREFIX = 'XML Parsing Error: ';
+const MAX_REASON_LENGTH = 500;
+
+function firstLine(text: string): string {
+  const newline = text.indexOf('\n');
+  return newline === -1 ? text : text.slice(0, newline);
+}
+
+/**
+ * Take the reason out of a `parsererror` sentence, so the message does not carry the rest of it:
+ * Chromium appends a fixed note and Firefox echoes the source line (a 2000 character line made a
+ * 4121 character message). The position is read from the full sentence, not from this reason.
+ *
+ * Control and format characters (Cc, Cf) are removed because the reason can contain text from the
+ * source, and the message may reach a terminal or a log. The cap is in UTF-16 units and does not
+ * split a surrogate pair.
+ */
+function extractBrowserErrorReason(text: string): string {
+  let raw = text;
+  if (text.startsWith(FIREFOX_PREFIX)) {
+    raw = firstLine(text.slice(FIREFOX_PREFIX.length));
+  } else {
+    const chromium = CHROMIUM_LOCATION.exec(text);
+    if (chromium) raw = firstLine(text.slice(chromium.index + chromium[0].length));
+  }
+  const reason = raw.replace(/[\p{Cc}\p{Cf}]/gu, '').trim();
+  if (reason.length <= MAX_REASON_LENGTH) return reason;
+  let end = MAX_REASON_LENGTH;
+  const last = reason.charCodeAt(end - 1);
+  if (last >= 0xd800 && last <= 0xdbff) end -= 1;
+  return `${reason.slice(0, end)}…`;
+}
+
 /**
  * Parse XML string to Document (Browser implementation)
  *
@@ -67,7 +100,11 @@ export function parseXML(xml: string, policy?: { createHTML(input: string): unkn
   if (parseError) {
     const errorText = parseError.textContent ?? 'Unknown XML parse error';
     const location = parseBrowserErrorLocation(errorText);
-    throw new SKAMXMLParseError(`XML parse error: ${errorText}`, location?.line, location?.column);
+    throw new SKAMXMLParseError(
+      `XML parse error: ${extractBrowserErrorReason(errorText)}`,
+      location?.line,
+      location?.column
+    );
   }
 
   return doc;

@@ -1306,6 +1306,10 @@ export function parseWith(
     maxInputLength: options.maxInputLength ?? DEFAULT_INPUT_LIMITS.maxInputLength,
     maxDepth: options.maxDepth ?? DEFAULT_INPUT_LIMITS.maxDepth,
   });
+  // Empty input is decided here so both builds report the same error without reaching the XML parser
+  // (xmldom and the browsers each word it differently, and a Trusted Types policy is not called for it).
+  // Only the four XML whitespace characters count: U+3000 is body text in SKAM.
+  if (/^[ \t\r\n]*$/.test(xml)) throw new SKAMXMLParseError('Empty document');
   return parseFromDocument(parseXML(xml), options, xml);
 }
 

@@ -1,5 +1,6 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { parse, SKAMXMLParseError } from '../index.js';
+import { parseWith } from '../parser-core.js';
 
 // ============================================================================
 // Parser error handling tests (inline, no fixtures required)
@@ -201,10 +202,32 @@ describe('parse - error positions (K7 a)', () => {
   });
 
   it('leaves Empty document without a position', () => {
-    const error = positionOf('');
-    expect(error.message).toBe('XML parse error: invalid doc source');
-    expect(error.line).toBeUndefined();
-    expect(error.column).toBeUndefined();
+    for (const source of ['', ' ', '\n', '   \n  ', '\t\r\n']) {
+      const error = positionOf(source);
+      expect(error.message).toBe('Empty document');
+      expect(error.line).toBeUndefined();
+      expect(error.column).toBeUndefined();
+    }
+  });
+
+  it('does not count U+3000 or U+FEFF as XML whitespace', () => {
+    // Node's xmldom happens to report both as Empty document too; what matters is that the
+    // new check does not intercept them (the parser is still called).
+    for (const source of ['\u3000', '\uFEFF']) {
+      const parseXML = vi.fn(() => {
+        throw new Error('reached the XML parser');
+      });
+      expect(() => parseWith(parseXML, source)).toThrow('reached the XML parser');
+      expect(parseXML).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it('keeps Empty document for an XML declaration only', () => {
+    expect(positionOf('<?xml version="1.0"?>').message).toBe('Empty document');
+  });
+
+  it('reports the input limit before Empty document', () => {
+    expect(() => parse(' '.repeat(20), { maxInputLength: 10 })).toThrow(/maxInputLength/);
   });
 
   it('keeps positions on other element errors (okototen, ref, saidoku)', () => {

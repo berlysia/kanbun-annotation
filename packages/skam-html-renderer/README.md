@@ -58,7 +58,9 @@ const result = render(doc);
 
 ### 読み層とアクセシビリティ
 
-読み層 (支援技術向けの層) は、`readings` に読みがない場合、白文 (原文) になる。`includeReadingLayer: false` にすると、読み層を出さない。この場合、表示層が `aria-hidden` であるため、支援技術には何も読まれない。内容がない読み層は出力から省く。
+読み層 (支援技術向けの層) は、`readings` に読みがない場合、白文 (原文) になる。白文は、ブロックの間に半角空白を 1 つ入れる (`'display'` と同じ区切り)。`includeReadingLayer: false` にすると、読み層を出さない。この場合、表示層が `aria-hidden` であるため、支援技術には何も読まれない。内容がない読み層は出力から省く。
+
+読み層を画面から隠す宣言は `!important` で出る。既定の `@layer` ありでは、ページの CSS が `.skam-reading` に `position` や `min-width` を書いても、読み層は画面に出ない。`useLayer: false` のときは、ページが `!important` で上書きすると負けうる。読み層は画面から隠すだけで、DOM には残る。答えを隠す用途は「出題に使うとき」の節に従う。
 
 `displayLang` は、表示層の `lang` だけを変える。
 

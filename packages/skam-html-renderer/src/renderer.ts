@@ -6,7 +6,7 @@
 
 import type { SKAMDocument, Mark, RefMark, Reading } from '@kanbun-skam/skam';
 import type { AccessibleLabels, Spacing } from '@kanbun-skam/skam/rendering';
-import { resolveRefValues } from '@kanbun-skam/skam/rendering';
+import { groupTokensByBlock, resolveRefValues } from '@kanbun-skam/skam/rendering';
 import { getDefaultStyles } from './styles.js';
 import type {
   RenderProfile,
@@ -239,7 +239,8 @@ export interface CSSOptions {
 // Display layer orchestration: moved to render-display-layer.ts
 
 /**
- * 作者が書いた読み (yomiage → kakikudashi)。無ければ白文 (原文順の本文)
+ * 作者が書いた読み (yomiage → kakikudashi)。無ければ白文 (原文順の本文)。
+ * 白文はブロックごとに連結し、空でないブロックを半角空白で区切る ('display' の区切りと同じ)
  */
 function getReadingsText(doc: SKAMDocument): string {
   const usable = (kind: Reading['kind']): string | undefined => {
@@ -250,9 +251,10 @@ function getReadingsText(doc: SKAMDocument): string {
   return (
     usable('yomiage') ??
     usable('kakikudashi') ??
-    getSourceOrderedTokens(doc)
-      .map((t) => t.text)
-      .join('')
+    groupTokensByBlock(doc.blocks, doc.tokens)
+      .map((group) => group.tokens.map((t) => t.text).join(''))
+      .filter((blockText) => blockText !== '')
+      .join(' ')
   );
 }
 

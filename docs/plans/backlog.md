@@ -57,9 +57,6 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 
 ## レンダラー
 
-- **読み上げ層を隠す規則がページの CSS に負けない形にする**: 読み上げ層を隠す規則は、詳細度 0 の `:where(.skam-reading)` で出る (`styles.ts:460`)。ページの CSS が `.skam-reading` に `position` などを指定すると、読み上げ用の文が画面に出て表示が崩れうる。隠す規則だけ詳細度を上げるか、ページの CSS が `.skam-reading` に触れない前提を README に書く。出典: 利用者のフィードバック 2 回目 (2026-10-20) の 6。規模: 小。
-- **'readings' の白文にブロックの区切りを入れる**: readings の無い文書を `'readings'` で出すと、読み上げ層は白文をブロックの区切りなしに連結する (`renderer.ts:250-256`)。ブロックの境界がスクリーンリーダーの利用者に伝わらない。`'display'` はブロックの間に半角の空白を入れている。出典: 利用者のフィードバック 2 回目 (2026-10-20) の 7。規模: 小。
-
 - **grid baseline 補正の構造的課題 (#2)**: Chromium の補正に構造的な課題がある。補正は `--skam-grid-baseline-fix` と `calibrateGridBaseline()` が担う。Issue は open。出典: #2。規模: 大。
 - **highlight の傍線がアキ部分をカバーしない**: `highlight-content` は inline-block で、letter-spacing のアキが box に含まれない。そのため `box-shadow: inset` の傍線がアキ部分に描かれず、途切れて見える。ADR-008 で既知の制約とし、別 ADR で対応するとした。出典: plan-aki-gumi-spacing.md L70、ADR-008「検証 4: エッジケース」。規模: 中。
 - **分析結果キャッシュ (DocumentAnalysis) の再利用**: Canvas の縦書きレイアウトで、分析結果 (`DocumentAnalysis`) を再利用するかを決める。現行のコードで再利用されているかは未確認。出典: ADR-018「未決事項（残件）」。規模: 中。

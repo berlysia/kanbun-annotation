@@ -456,17 +456,22 @@ function generateCommonStyles(
   word-break: keep-all;
 }
 
-/* Reading Layer (a11y, visually hidden) */
+/* Reading Layer (a11y, visually hidden)
+ * !important: 通常の宣言はレイヤー外のページ CSS に詳細度に関係なく負けるため、
+ * 隠す規則だけはカスケードの順位を逆転させる。min-*: 0 は、ページの min-width/min-height が
+ * 1px を押し広げ clip-path の切り取り範囲も広げるのを防ぐ。 */
 :where(.${prefix}-reading) {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip-path: inset(0);
-  white-space: nowrap;
-  border: 0;
+  position: absolute !important;
+  width: 1px !important;
+  height: 1px !important;
+  min-width: 0 !important;
+  min-height: 0 !important;
+  padding: 0 !important;
+  margin: -1px !important;
+  overflow: hidden !important;
+  clip-path: inset(0) !important;
+  white-space: nowrap !important;
+  border: 0 !important;
 }
 
 /* Token */

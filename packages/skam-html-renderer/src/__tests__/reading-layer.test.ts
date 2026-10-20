@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { render, renderHTML } from '../index.js';
+import { render, renderHTML, generateCSS } from '../index.js';
 import { formatReadingText, renderReadingLayerElement } from '../reading-text.js';
 import type { SKAMDocument } from '@kanbun-skam/skam';
 
@@ -322,5 +322,98 @@ describe('accessibleLabels の正規化', () => {
       accessibleLabels: labels,
     }).html;
     expect(reading(html)?.textContent).toBe('甲、FIRST。乙。');
+  });
+});
+
+describe('reading layer hiding rule', () => {
+  const declarationsOf = (css: string, prefix: string): string[] => {
+    const match = css.match(new RegExp(`:where\\(\\.${prefix}-reading\\)\\s*\\{([^}]*)\\}`));
+    expect(match).not.toBeNull();
+    return match![1]!
+      .replace(/\/\*[\s\S]*?\*\//g, '')
+      .split(';')
+      .map((d) => d.trim())
+      .filter((d) => d !== '');
+  };
+
+  it.each([
+    ['skam', undefined],
+    ['x', 'x'],
+  ])('puts !important on every declaration (prefix %s)', (prefix, classPrefix) => {
+    const declarations = declarationsOf(
+      generateCSS(classPrefix === undefined ? {} : { classPrefix }),
+      prefix
+    );
+    expect(declarations.length).toBeGreaterThan(0);
+    for (const declaration of declarations) {
+      expect(declaration).toMatch(/\s!important$/);
+    }
+    expect(declarations).toContain('min-width: 0 !important');
+    expect(declarations).toContain('min-height: 0 !important');
+  });
+});
+
+describe("readingLayerSource: 'readings' block separator", () => {
+  const block = (id: string, ...ids: string[]) => ({ id, tokenIds: ids });
+  const multi = (over: Partial<SKAMDocument> = {}): SKAMDocument => ({
+    format: 'skam@0.1',
+    tokens: [
+      { id: 'a1', text: '學而時習之' },
+      { id: 'a2', text: '不亦說乎' },
+    ],
+    blocks: [block('b1', 'a1'), block('b2', 'a2')],
+    marks: [],
+    readings: [],
+    ...over,
+  });
+  const text = (doc: SKAMDocument, opts: Parameters<typeof render>[1] = {}) =>
+    reading(render(doc, opts).html)?.textContent;
+
+  it('separates blocks with one half-width space', () => {
+    expect(text(multi())).toBe('學而時習之 不亦說乎');
+  });
+  it('emits a single space around a block whose ids resolve to no token', () => {
+    const doc: SKAMDocument = {
+      ...base(),
+      tokens: [
+        { id: 't1', text: '甲' },
+        { id: 't3', text: '乙' },
+      ],
+      blocks: [block('b1', 't1'), block('b2', 'missing'), block('b3', 't3')],
+    };
+    expect(text(doc)).toBe('甲 乙');
+  });
+  it('emits no separator for blocks made only of empty-text tokens (leading, middle, trailing)', () => {
+    const doc: SKAMDocument = {
+      ...base(),
+      tokens: [
+        { id: 'e1', text: '' },
+        { id: 't1', text: '甲' },
+        { id: 'e2', text: '' },
+        { id: 't3', text: '乙' },
+        { id: 'e3', text: '' },
+      ],
+      blocks: [
+        block('b1', 'e1'),
+        block('b2', 't1'),
+        block('b3', 'e2'),
+        block('b4', 't3'),
+        block('b5', 'e3'),
+      ],
+    };
+    expect(text(doc)).toBe('甲 乙');
+  });
+  it('does not add a separator to the author-written kakikudashi', () => {
+    expect(text(multi({ readings: [{ kind: 'kakikudashi', text: 'K' }] }))).toBe('K');
+  });
+  it('keeps tokens-array order as one group when blocks are empty', () => {
+    expect(text(base({ blocks: [] }))).toBe('乙甲');
+  });
+  it("splits into the same number of blocks, with the same separator, as 'display'", () => {
+    const readings = text(multi(), { readingLayerSource: 'readings' })!;
+    const display = text(multi(), { readingLayerSource: 'display' })!;
+    expect(readings.split(' ')).toHaveLength(2);
+    expect(display.split(' ')).toHaveLength(2);
+    expect(readings.replace(/[^ ]/g, '')).toBe(display.replace(/[^ ]/g, ''));
   });
 });

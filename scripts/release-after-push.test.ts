@@ -148,6 +148,8 @@ interface Options {
   artifact?: ArtifactMode;
   tar?: Partial<Record<string, TarMode>>;
   twoStaged?: string;
+  // stage list の項目へ足すキー (名前ごと)
+  stageExtra?: Record<string, Record<string, unknown>>;
   publishedIntegrity?: Record<string, string>;
   viewLag?: Record<string, number>;
   approve?: (name: string, nth: number, total: number, world: World) => ApproveReply | undefined;
@@ -276,7 +278,13 @@ function makeWorld(options: Options = {}): World {
   const stageList = (name: string): string => {
     const id = staged.get(name);
     if (id === undefined) return '[]';
-    const item = { id, packageName: name, version: VERSION, tag: 'latest' };
+    const item = {
+      id,
+      packageName: name,
+      version: VERSION,
+      tag: 'latest',
+      ...options.stageExtra?.[name],
+    };
     const second = { ...item, id: uuid(9) };
     return JSON.stringify(options.twoStaged === name ? [item, second] : [item]);
   };
@@ -1209,6 +1217,81 @@ test('y/N の前の表示に、manifest の順の名前、stage id、integrity �
   assert.match(text, /artifact: /);
   assert.ok(text.includes('/repo/.tmp/release/v0.2.0/'));
   assert.ok(text.includes(`${RUN_ID}`));
+});
+
+const stagedLineOf = (w: World, name: string): string => {
+  const matching = w.lines.filter((l) => l.includes(` ${name}  stage `));
+  assert.equal(matching.length, 1, `one staged line for ${name}`);
+  return matching[0] ?? '';
+};
+
+test('y/N の前の表示: staged の行の末尾に actor、actorType、createdAt が出る', async () => {
+  const name = NAMES[0] ?? '';
+  const w = makeWorld({
+    confirm: false,
+    stageExtra: {
+      [name]: {
+        actor: 'GitHub Actions',
+        actorType: 'trusted automation',
+        createdAt: '2026-10-19T00:00:00.000Z',
+      },
+    },
+  });
+  await go(w);
+  assert.ok(
+    stagedLineOf(w, name).endsWith(
+      '  actor GitHub Actions (trusted automation)  staged 2026-10-19T00:00:00.000Z'
+    )
+  );
+});
+
+test('y/N の前の表示: 来歴が無い stage は unknown', async () => {
+  const w = makeWorld({ confirm: false });
+  await go(w);
+  assert.ok(stagedLineOf(w, NAMES[0] ?? '').endsWith('  actor unknown (unknown)  staged unknown'));
+});
+
+test('y/N の前の表示: actor が数値なら unknown', async () => {
+  const name = NAMES[0] ?? '';
+  const w = makeWorld({ confirm: false, stageExtra: { [name]: { actor: 42 } } });
+  await go(w);
+  assert.ok(stagedLineOf(w, name).includes('actor unknown ('));
+});
+
+test('y/N の前の表示: 制御文字を含む actor でも、その stage の表示は 1 行で、ESC、C1、U+202E、改行を含まない', async () => {
+  const name = NAMES[0] ?? '';
+  const actor = 'evil\n  ✓ ok\tx\ry‮z\u009bw\u001b[31mred';
+  const w = makeWorld({ confirm: false, stageExtra: { [name]: { actor } } });
+  await go(w);
+  const text = w.lines.join('\n');
+  const staged = w.lines.filter((l) => l.includes(` ${name}  stage `));
+  assert.equal(staged.length, 1);
+  const line = staged[0] ?? '';
+  assert.equal(/[\u001b\u009b‮\n\r\t]/.test(line), false);
+  assert.ok(line.includes('[31m'), 'the characters after ESC remain');
+  assert.equal(
+    w.lines.some((l) => l.trim() === '✓ ok'),
+    false
+  );
+  assert.equal(/\u001b|\u009b|‮/.test(text), false);
+});
+
+test('y/N の前の表示: 200 字の actor は 80 字で切る', async () => {
+  const name = NAMES[0] ?? '';
+  const w = makeWorld({ confirm: false, stageExtra: { [name]: { actor: 'a'.repeat(200) } } });
+  await go(w);
+  const line = stagedLineOf(w, name);
+  assert.ok(line.includes(` actor ${'a'.repeat(80)} (`));
+  assert.equal(line.includes('a'.repeat(81)), false);
+});
+
+test('y/N の前の表示: 公開済みと staged が混ざっても、公開済みの行は来歴を持たない', async () => {
+  const w = makeWorld({ confirm: false, published: 2 });
+  await go(w);
+  const first = w.lines.find((l) => l.includes(NAMES[0] ?? '') && l.includes('already published'));
+  assert.ok(first?.endsWith(')'), 'the published line ends at the integrity');
+  assert.equal(first?.includes('actor'), false);
+  assert.ok(stagedLineOf(w, NAMES[2] ?? '').includes('actor unknown (unknown)'));
 });
 
 // --- E409 と approve の失敗 ---

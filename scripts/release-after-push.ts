@@ -39,13 +39,19 @@ import {
   sha512Integrity,
 } from './lib/release-after-push-check.ts';
 import type {
+  ApproveTarget,
   ArtifactEntry,
   LogManifest,
   ParseViewDistResult,
   PickStageResult,
   StagedArtifact,
 } from './lib/release-after-push-check.ts';
-import { distTagFor, parseGhReleaseView, parseNpmViewVersions } from './lib/release-check.ts';
+import {
+  distTagFor,
+  parseGhReleaseView,
+  parseNpmViewVersions,
+  sanitizeForTerminal,
+} from './lib/release-check.ts';
 import {
   excerptDetail,
   excerptJobLog,
@@ -601,7 +607,7 @@ async function readStates(ctx: Ctx, log: LogManifest): Promise<PackageState[]> {
   return states;
 }
 
-type ApproveTargets = { name: string; stageId: string }[];
+type ApproveTargets = ApproveTarget[];
 interface StagePlan {
   states: PackageState[];
   targets: ApproveTargets;
@@ -787,6 +793,18 @@ function haltOnTrust(ctx: Ctx, trust: TrustResult): void {
   }
 }
 
+const PROVENANCE_MAX = 80;
+
+// npm の応答は外から来る文字列。sanitizeForTerminal は改行とタブを残すので、空白の連なりを 1 つに畳んで 1 行に保つ
+const provenanceText = (value: string | undefined): string => {
+  if (value === undefined) return 'unknown';
+  const text = sanitizeForTerminal(value).replace(/\s+/g, ' ').trim();
+  return text === '' ? 'unknown' : Array.from(text).slice(0, PROVENANCE_MAX).join('');
+};
+
+const provenanceSuffix = (t: ApproveTarget): string =>
+  `  actor ${provenanceText(t.actor)} (${provenanceText(t.actorType)})  staged ${provenanceText(t.createdAt)}`;
+
 const shortIntegrity = (integrity: string): string =>
   `${integrity.slice(0, 16)}...${integrity.slice(-8)}`;
 
@@ -807,14 +825,14 @@ function showSummary(
       : 'artifact: matches the log manifest'
   );
   emit(`evidence: ${ctx.evidenceDir ?? 'not saved'}`);
-  const stageIds = new Map(plan.targets.map((t) => [t.name, t.stageId]));
+  const stagedTargets = new Map(plan.targets.map((t) => [t.name, t]));
   input.names.forEach((name, i) => {
     const integrity = shortIntegrity(integrityFor(log, name));
-    const stageId = stageIds.get(name);
+    const target = stagedTargets.get(name);
     emit(
-      stageId === undefined
+      target === undefined
         ? `${i + 1}. ${name}  already published (integrity ${integrity})`
-        : `${i + 1}. ${name}  stage ${stageId}  integrity ${integrity}  staged tarball matches the log`
+        : `${i + 1}. ${name}  stage ${target.stageId}  integrity ${integrity}  staged tarball matches the log${provenanceSuffix(target)}`
     );
   });
 }

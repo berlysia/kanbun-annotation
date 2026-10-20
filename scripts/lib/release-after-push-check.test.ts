@@ -918,7 +918,65 @@ const pick = (items: unknown, distTag: 'latest' | 'next' = 'latest') =>
   pickStage(JSON.stringify(items), NAMES[0] ?? '', VERSION, distTag);
 
 test('pickStage (合成 (npm 12.2.0 のソースから)): 1 件で tag が一致すれば one (未知のキーは許容)', () => {
-  assert.deepEqual(pick([stageItem()]), { kind: 'one', id: UUID });
+  assert.deepEqual(pick([stageItem()]), {
+    kind: 'one',
+    id: UUID,
+    actor: 'someone',
+    createdAt: '2026-10-15T00:00:00.000Z',
+  });
+});
+
+test('pickStage: actor、actorType、createdAt が文字列なら結果に持たせる', () => {
+  const item = stageItem({
+    actor: 'GitHub Actions',
+    actorType: 'trusted automation',
+    createdAt: '2026-10-19T00:00:00.000Z',
+  });
+  assert.deepEqual(pick([item]), {
+    kind: 'one',
+    id: UUID,
+    actor: 'GitHub Actions',
+    actorType: 'trusted automation',
+    createdAt: '2026-10-19T00:00:00.000Z',
+  });
+});
+
+test('pickStage: 来歴の値が文字列でなければキーごと持たせない', () => {
+  const item = stageItem({ actor: 42, actorType: null, createdAt: { a: 1 } });
+  const result = pick([item]);
+  assert.deepEqual(result, { kind: 'one', id: UUID });
+  assert.equal('actor' in result, false);
+  assert.equal('actorType' in result, false);
+  assert.equal('createdAt' in result, false);
+});
+
+test('classifyPackageState: stage の来歴を staged の状態に運ぶ', () => {
+  const state = must(
+    classify(VIEW_NOT, undefined, {
+      kind: 'one',
+      id: UUID,
+      actor: 'GitHub Actions',
+      createdAt: '2026-10-19T00:00:00.000Z',
+    })
+  );
+  assert.deepEqual(state, {
+    name: NAMES[0],
+    kind: 'staged',
+    stageId: UUID,
+    actor: 'GitHub Actions',
+    createdAt: '2026-10-19T00:00:00.000Z',
+  });
+});
+
+test('planApprove: targets に来歴を運ぶ', () => {
+  const plan = planApprove(
+    [{ name: NAMES[0] ?? '', kind: 'staged', stageId: UUID, actor: 'a', actorType: 't' }],
+    false
+  );
+  assert.deepEqual(plan, {
+    kind: 'approve',
+    targets: [{ name: NAMES[0], stageId: UUID, actor: 'a', actorType: 't' }],
+  });
 });
 
 test('pickStage (合成 (npm 12.2.0 のソースから)): 別の版や別のパッケージが混在しても対象だけで判定', () => {
@@ -927,7 +985,12 @@ test('pickStage (合成 (npm 12.2.0 のソースから)): 別の版や別のパ�
     stageItem(),
     stageItem({ id: UUID2, packageName: NAMES[1] }),
   ];
-  assert.deepEqual(pick(items), { kind: 'one', id: UUID });
+  assert.deepEqual(pick(items), {
+    kind: 'one',
+    id: UUID,
+    actor: 'someone',
+    createdAt: '2026-10-15T00:00:00.000Z',
+  });
 });
 
 test('pickStage (合成 (npm 12.2.0 のソースから)): tag が無い / null / 数値は shape-unknown', () => {

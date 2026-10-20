@@ -161,6 +161,46 @@ export const FIXTURE_REF_SOURCE_ORDER: SKAMDocument = {
   readings: [],
 };
 
+/**
+ * highlight とアキ (spacing: 'half') の組。傍線がアキの部分で途切れないかを画素で見る
+ * (visual-regression.spec.ts の highlight-spacing-*)。
+ * 意味の比較 (cross-renderer-equivalence) と共有しないので FIXTURES には入れない。
+ *
+ * - block 1: 素の solid highlight (2〜6 字目)
+ * - block 2: ルビつきの solid highlight と、傍点つきの solid highlight。間に素の字を挟む。
+ *   ルビは 1 字にだけ付ける (2 字以上の範囲のルビが highlight の中で最後の字を
+ *   重ねて描く既知の問題を、この検査に持ち込まないため)
+ * - block 3: dotted / dashed / wavy / double。周期のある線なので画素の走査はせず、目で見る
+ */
+export const FIXTURE_HIGHLIGHT_SPACING: SKAMDocument = {
+  format: 'skam@0.1',
+  tokens: [
+    ...[...'甲乙丙丁戊己庚'].map((text, i) => ({ id: `a${i + 1}`, text })),
+    ...[...'壱弐参四五六七八九'].map((text, i) => ({ id: `b${i + 1}`, text })),
+    ...[...'春夏秋冬天地人日月星火水木'].map((text, i) => ({ id: `c${i + 1}`, text })),
+  ],
+  blocks: [
+    { id: 'blk1', tokenIds: ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7'] },
+    { id: 'blk2', tokenIds: ['b1', 'b2', 'b3', 'b4', 'b5', 'b6', 'b7', 'b8', 'b9'] },
+    {
+      id: 'blk3',
+      tokenIds: ['c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8', 'c9', 'c10', 'c11', 'c12', 'c13'],
+    },
+  ],
+  marks: [
+    { type: 'highlight', id: 'hl-plain', anchor: { from: 'a2', to: 'a6' }, style: 'solid' },
+    { type: 'yomigana', anchor: { from: 'b2', to: 'b2' }, value: 'ろ' },
+    { type: 'highlight', id: 'hl-ruby', anchor: { from: 'b2', to: 'b4' }, style: 'solid' },
+    { type: 'emphasis', anchor: { from: 'b6', to: 'b8' }, style: 'filled dot' },
+    { type: 'highlight', id: 'hl-emphasis', anchor: { from: 'b6', to: 'b8' }, style: 'solid' },
+    { type: 'highlight', id: 'hl-dotted', anchor: { from: 'c2', to: 'c3' }, style: 'dotted' },
+    { type: 'highlight', id: 'hl-dashed', anchor: { from: 'c5', to: 'c6' }, style: 'dashed' },
+    { type: 'highlight', id: 'hl-wavy', anchor: { from: 'c8', to: 'c9' }, style: 'wavy' },
+    { type: 'highlight', id: 'hl-double', anchor: { from: 'c11', to: 'c12' }, style: 'double' },
+  ],
+  readings: [],
+};
+
 /** All fixtures keyed by case_id (for iteration) */
 export const FIXTURES = {
   'ruby-range-core': FIXTURE_RANGE_RUBY,

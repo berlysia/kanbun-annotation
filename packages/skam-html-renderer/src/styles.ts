@@ -814,9 +814,13 @@ ${
 /*
  * Highlight (傍線) - 教育用途・共通部分
  *
- * box-shadow を使用して傍線を表示。
- * text-decoration は display: inline-block の子要素には伝播しないため、
- * box-shadow で代替実装。inset を使用し、spread で線の太さを制御。
+ * 傍線は text-decoration ではなく highlight-content の背景で描く
+ * (text-decoration は display: inline-block の子要素には伝播しないため)。
+ *   縦書き: background-image + background-position: right (幅 1px の縦線)
+ *   横書き: box-shadow: inset 0 -1px 0 0 currentColor (dotted 等は background-image)
+ *   傍点と組になる縦書き: .highlight::after の border / background で引く
+ * highlight-content は display: inline なので、字間のアキ (letter-spacing) も
+ * 線の途切れなく覆う (visual-regression.spec.ts の highlight-spacing-* で画素を確認)。
  *
  * 構造:
  *   .${prefix}-highlight           - 外側コンテナ（パディングで隣行との間隔を確保）

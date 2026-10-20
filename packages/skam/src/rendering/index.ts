@@ -38,9 +38,13 @@ export type {
 // 表示設定
 export {
   RENDER_PROFILES,
+  RENDER_PROFILE_KEYS,
+  SKAMRenderProfileError,
   resolveRenderProfile,
   type RenderProfile,
+  type RenderProfileErrorKind,
   type RenderProfileInput,
+  type RenderProfileKey,
   type RenderProfileName,
 } from './render-profile.js';
 

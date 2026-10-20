@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import { SkamRendererElement } from '../skam-renderer.js';
 import { extractXmlFromScriptElement } from '../index.js';
+import { SKAMRenderProfileError } from '@kanbun-skam/skam-html-renderer';
 
 if (!customElements.get('skam-renderer')) {
   customElements.define('skam-renderer', SkamRendererElement);
@@ -155,6 +156,27 @@ describe('fail closed attributes (K5)', () => {
     expect(content(el).children).toHaveLength(1);
     expect(content(el).querySelectorAll('[role="alert"]')).toHaveLength(1);
     expect(el.shadowRoot!.querySelector('.skam-document')).toBeNull();
+  });
+
+  it.each([
+    ['{"okuriganaa":false}', 'UNKNOWN_KEY'],
+    ['{"base":"nope"}', 'UNKNOWN_BASE'],
+  ])('reports a SKAMRenderProfileError for profile=%j', async (value, kind) => {
+    const { errors, renders } = mount({ profile: value });
+    await vi.waitFor(() => expect(errors).toHaveLength(1));
+    expect(renders).toHaveLength(0);
+    const error = errors[0]!.detail.error;
+    expect(error).toBeInstanceOf(SKAMRenderProfileError);
+    expect(error).toMatchObject({ kind });
+  });
+
+  // 属性の文字列が JSON としても preset 名としても読めない誤りは、表示設定の検査の前の誤りなので TypeError のまま
+  it.each(['nope', '{not json'])('reports a plain TypeError for profile=%j', async (value) => {
+    const { errors } = mount({ profile: value });
+    await vi.waitFor(() => expect(errors).toHaveLength(1));
+    const error = errors[0]!.detail.error;
+    expect(error).toBeInstanceOf(TypeError);
+    expect(error).not.toBeInstanceOf(SKAMRenderProfileError);
   });
 
   it('does not re-notify the same invalid profile on re-render', async () => {

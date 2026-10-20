@@ -27,6 +27,9 @@ export type RenderProfileInput =
   | (Partial<RenderProfile> & { base?: never })
   | { base: RenderProfileName; overrides?: Partial<RenderProfile> };
 
+/** 表示設定のキー名。`RenderProfile` のキーが正で、`RENDER_PROFILE_KEYS` はこれを写す。 */
+export type RenderProfileKey = keyof RenderProfile;
+
 const PROFILE_KEYS = [
   'yomigana',
   'okurigana',
@@ -41,7 +44,97 @@ const PROFILE_KEYS = [
   'soegana',
   'highlight',
   'ref',
-] as const satisfies readonly (keyof RenderProfile)[];
+] as const satisfies readonly RenderProfileKey[];
+
+// RenderProfile と PROFILE_KEYS が過不足なく一致することを型だけで確かめる。
+// `satisfies` は片方向なので、RenderProfile にキーを足して PROFILE_KEYS に足し忘れても通ってしまう。
+type KeysAreExhaustive = [RenderProfileKey] extends [(typeof PROFILE_KEYS)[number]]
+  ? [(typeof PROFILE_KEYS)[number]] extends [RenderProfileKey]
+    ? true
+    : never
+  : never;
+const keysAreExhaustive: KeysAreExhaustive = true;
+void keysAreExhaustive;
+
+/**
+ * 表示設定で使える 13 個のキー名 (凍結済み)。
+ *
+ * キー名は公開の語彙で、0.x でも改名・削除しない (ADR-033)。並びは契約外で、集合として扱う。
+ * キーを足すときは末尾に足す。
+ */
+export const RENDER_PROFILE_KEYS: readonly RenderProfileKey[] = Object.freeze([...PROFILE_KEYS]);
+
+/** `SKAMRenderProfileError` の種類。値は minor で増えうる。既存の値の意味は変えない。 */
+export type RenderProfileErrorKind =
+  | 'NOT_PLAIN_OBJECT'
+  | 'UNREADABLE_KEY'
+  | 'UNKNOWN_KEY'
+  | 'NOT_BOOLEAN'
+  | 'MIXED_BASE'
+  | 'UNKNOWN_BASE';
+
+type ProfileWhere = 'profile' | 'profile.overrides';
+
+/** 目印のキーの文字列は契約 (ADR-033 KD10)。変えると版の違うコピーの間で判別できなくなる */
+const RENDER_PROFILE_ERROR_BRAND = Symbol.for('@kanbun-skam/skam/SKAMRenderProfileError');
+
+/**
+ * `resolveRenderProfile` が最初に見つけた誤り。`TypeError` を継承するので、`instanceof TypeError` で受けている側はそのまま動く。
+ * 契約はフィールド (`kind` / `where` / `key`) で、メッセージの文言は契約外。
+ */
+export class SKAMRenderProfileError extends TypeError {
+  readonly kind: RenderProfileErrorKind;
+  /** 誤りのあるオブジェクト */
+  readonly where: ProfileWhere;
+  /**
+   * 該当のキー (先頭 64 字)。NOT_PLAIN_OBJECT では無い。それ以外では必ずある。
+   * UNKNOWN_BASE では 'base'、MIXED_BASE では base と混ざった最初のキー
+   */
+  declare readonly key?: string;
+
+  /** 利用者が作ることは想定しない。resolveRenderProfile だけが作る */
+  constructor(
+    message: string,
+    details: {
+      kind: RenderProfileErrorKind;
+      where: ProfileWhere;
+      key?: string;
+      cause?: unknown;
+    }
+  ) {
+    super(message, 'cause' in details ? { cause: details.cause } : undefined);
+    this.name = 'SKAMRenderProfileError';
+    this.kind = details.kind;
+    this.where = details.where;
+    if (details.key !== undefined) this.key = details.key.slice(0, MAX_ECHO);
+  }
+
+  /**
+   * canvas-renderer の IIFE 版 (skam を内包する) との併用、skam の重複、別の realm (iframe) では
+   * クラスが別になり、通常の instanceof が偽になる。Symbol.for のレジストリは同じ agent の
+   * realm の間で共有されるので、目印で判別する (ADR-033 KD10)。
+   * `this` がサブクラスのときは通常の判定に任せ、基底のインスタンスまで真になるのを防ぐ。
+   */
+  static override [Symbol.hasInstance](value: unknown): boolean {
+    if (this !== SKAMRenderProfileError) {
+      return Function.prototype[Symbol.hasInstance].call(this, value);
+    }
+    if ((typeof value !== 'object' && typeof value !== 'function') || value === null) return false;
+    try {
+      return (value as Record<symbol, unknown>)[RENDER_PROFILE_ERROR_BRAND] === true;
+    } catch {
+      // getter や Proxy が投げても、判定は例外を出さない
+      return false;
+    }
+  }
+}
+
+// 目印はプロトタイプの getter。インスタンスの own property にせず、列挙・JSON 化に出さない
+Object.defineProperty(SKAMRenderProfileError.prototype, RENDER_PROFILE_ERROR_BRAND, {
+  get: () => true,
+  enumerable: false,
+  configurable: true,
+});
 
 /** 全要素表示プロファイル */
 const FULL_PROFILE: Readonly<RenderProfile> = Object.freeze({
@@ -112,7 +205,7 @@ function echo(value: unknown): string {
   return String(value).slice(0, MAX_ECHO);
 }
 
-function isProfileKey(key: string): key is keyof RenderProfile {
+function isProfileKey(key: string): key is RenderProfileKey {
   return (PROFILE_KEYS as readonly string[]).includes(key);
 }
 
@@ -130,23 +223,35 @@ function hasPlainPrototypeChain(input: object): boolean {
   return true;
 }
 
+function notPlainObject(where: ProfileWhere, input: unknown): SKAMRenderProfileError {
+  return new SKAMRenderProfileError(`${where} must be a plain object (got ${echo(input)})`, {
+    kind: 'NOT_PLAIN_OBJECT',
+    where,
+  });
+}
+
 /**
  * own enumerable な string キーの値を 1 回だけ読んだ写しを返す。
  * 検証した値と使う値を一致させるため、以降は入力でなくこの写しを見る。
  */
-function snapshotPlainObject(input: unknown, where: string): Map<string, unknown> {
+function snapshotPlainObject(input: unknown, where: ProfileWhere): Map<string, unknown> {
   if (typeof input !== 'object' || input === null || Array.isArray(input)) {
-    throw new TypeError(`${where} must be a plain object (got ${echo(input)})`);
+    throw notPlainObject(where, input);
   }
   if (!hasPlainPrototypeChain(input)) {
-    throw new TypeError(`${where} must be a plain object (got ${echo(input)})`);
+    throw notPlainObject(where, input);
   }
   const snapshot = new Map<string, unknown>();
   for (const key of Object.keys(input)) {
     try {
       snapshot.set(key, (input as Record<string, unknown>)[key]);
     } catch (cause) {
-      throw new TypeError(`${where}.${key.slice(0, MAX_ECHO)} could not be read`, { cause });
+      throw new SKAMRenderProfileError(`${where}.${key.slice(0, MAX_ECHO)} could not be read`, {
+        kind: 'UNREADABLE_KEY',
+        where,
+        key,
+        cause,
+      });
     }
   }
   return snapshot;
@@ -154,17 +259,25 @@ function snapshotPlainObject(input: unknown, where: string): Map<string, unknown
 
 function collectFlags(
   snapshot: Map<string, unknown>,
-  where: string,
+  where: ProfileWhere,
   skip: ReadonlySet<string>
-): Map<keyof RenderProfile, boolean> {
-  const flags = new Map<keyof RenderProfile, boolean>();
+): Map<RenderProfileKey, boolean> {
+  const flags = new Map<RenderProfileKey, boolean>();
   for (const [key, value] of snapshot) {
     if (skip.has(key)) continue;
     if (!isProfileKey(key)) {
-      throw new TypeError(`${where} has an unknown key ${echo(key)}`);
+      throw new SKAMRenderProfileError(`${where} has an unknown key ${echo(key)}`, {
+        kind: 'UNKNOWN_KEY',
+        where,
+        key,
+      });
     }
     if (typeof value !== 'boolean') {
-      throw new TypeError(`${where}.${key} must be a boolean (got ${echo(value)})`);
+      throw new SKAMRenderProfileError(`${where}.${key} must be a boolean (got ${echo(value)})`, {
+        kind: 'NOT_BOOLEAN',
+        where,
+        key,
+      });
     }
     flags.set(key, value);
   }
@@ -173,7 +286,7 @@ function collectFlags(
 
 function freezeMerged(
   baseProfile: Readonly<RenderProfile>,
-  flags: Map<keyof RenderProfile, boolean>
+  flags: Map<RenderProfileKey, boolean>
 ): RenderProfile {
   const merged = {} as RenderProfile;
   for (const key of PROFILE_KEYS) {
@@ -188,14 +301,18 @@ const BASE_FORM_KEYS: ReadonlySet<string> = new Set(['base', 'overrides']);
 function resolveBaseForm(snapshot: Map<string, unknown>): RenderProfile {
   for (const key of snapshot.keys()) {
     if (!BASE_FORM_KEYS.has(key)) {
-      throw new TypeError(
-        `profile with "base" accepts only "base" and "overrides" (got ${echo(key)})`
+      throw new SKAMRenderProfileError(
+        `profile with "base" accepts only "base" and "overrides" (got ${echo(key)})`,
+        { kind: 'MIXED_BASE', where: 'profile', key }
       );
     }
   }
   const base = snapshot.get('base');
   if (typeof base !== 'string' || !Object.hasOwn(RENDER_PROFILES, base)) {
-    throw new TypeError(`profile.base must be a known preset name (got ${echo(base)})`);
+    throw new SKAMRenderProfileError(
+      `profile.base must be a known preset name (got ${echo(base)})`,
+      { kind: 'UNKNOWN_BASE', where: 'profile', key: 'base' }
+    );
   }
   const preset = RENDER_PROFILES[base as RenderProfileName];
   if (!snapshot.has('overrides')) return freezeMerged(preset, new Map());

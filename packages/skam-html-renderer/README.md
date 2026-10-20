@@ -138,7 +138,7 @@ const horizontal = render(doc, { writingMode: 'horizontal' });
 - **部分指定**: 13 個のキーの一部を書く。**書かなかったキーは full（表示）になる**。キーの書き忘れは、隠すつもりの注記が見える側に倒れる。
 - **`{ base, overrides? }`**: プリセット（`full` / `learningBasic` / `learningHint`）から出発し、`overrides` で一部を変える。この形は安定した契約で、注記を隠す用途ではこちらを使う。
 
-2 つの形は混ぜられない。未知のキー、真偽値でない値（`'false'` など）、`null`、`{ base, okurigana: false }` のような混在は `TypeError` になる（Web Component では描画しない）。
+2 つの形は混ぜられない。未知のキー、真偽値でない値（`'false'` など）、`null`、`{ base, okurigana: false }` のような混在は `SKAMRenderProfileError`（`TypeError` のサブクラス。下の「表示設定の誤り」）になる（Web Component では描画しない）。
 
 <!-- doctest:typecheck -->
 
@@ -167,6 +167,86 @@ const partial = render(doc, { profile: { kaeriten: true, okurigana: false } });
 ```
 
 `PROFILES` は凍結されている。書き換えず、`{ base, overrides }` を使う。
+
+#### キー名
+
+キーは次の 13 個で、`RENDER_PROFILE_KEYS`（凍結した配列）からも得られる。値が `false` のキーの注記は、画面にも `readingLayerSource: 'display'` の読み層にも出ない。
+
+| キー        | 隠す・出す注記     |
+| ----------- | ------------------ |
+| `yomigana`  | 読み仮名（ルビ）   |
+| `okurigana` | 送り仮名           |
+| `kaeriten`  | 返り点             |
+| `kutoten`   | 句読点             |
+| `saidoku`   | 再読文字           |
+| `okototen`  | ヲコト点           |
+| `tateten`   | たて点（熟語境界） |
+| `emphasis`  | 傍点・圏点         |
+| `okimoji`   | 置字               |
+| `joji`      | 助字               |
+| `soegana`   | 添え仮名           |
+| `highlight` | 傍線               |
+| `ref`       | 参照識別子・注釈   |
+
+キー名は、作者が教材に書いて使えるよう、0.x の間も改名・削除しない。互換の方針（改名するときの移行期間、キーを足すとき）は [ADR-033](https://github.com/berlysia/kanbun-annotation/blob/master/docs/decisions/adr-033-render-profile-keys-and-errors.md) にある。
+
+- キーは minor で増えうる。増えたキーは、部分指定では表示される側に倒れる。
+- プリセット（`full` / `learningBasic` / `learningHint`）の各キーの値は約束しない。minor で変わりうり、変えるときは changeset に書く。
+- 出題に使うときは、`base` だけに頼らず、隠すキーを `overrides` で明示する。
+- 型 `RenderProfile` は、キーが増えると広がる。13 個の値を自前でそろえて作らず、`resolveRenderProfile` の戻り値か `PROFILES` から得る。
+
+#### 表示設定の誤り
+
+`render` / `renderHTML`（と `resolveRenderProfile`）は、表示設定の誤りに `SKAMRenderProfileError` を投げる。`TypeError` を継承しているので、`instanceof TypeError` で受けているコードはそのまま動く。誤りの種類は `kind`、誤りのあるオブジェクトは `where`（`'profile'` か `'profile.overrides'`）、該当のキーは `key`（先頭 64 字）で読める。
+
+| `kind`             | 場合                                               | `key`              |
+| ------------------ | -------------------------------------------------- | ------------------ |
+| `NOT_PLAIN_OBJECT` | `profile` や `overrides` が plain object でない    | 無い               |
+| `UNREADABLE_KEY`   | キーの読み出しで例外が出た（`cause` に元の例外）   | そのキー           |
+| `UNKNOWN_KEY`      | 未知のキー                                         | そのキー           |
+| `NOT_BOOLEAN`      | 真偽値でない値                                     | そのキー           |
+| `MIXED_BASE`       | `base` と、`base` / `overrides` 以外のキーを混ぜた | 混ざった最初のキー |
+| `UNKNOWN_BASE`     | `base` が既知のプリセット名でない                  | `base`             |
+
+- 契約は `kind` / `where` / `key` で、`message` の文言は minor で変わりうる。作者向けの文は `kind` と `key` から作る。
+- `kind` と `where` の値は minor で増えうる。`kind` で分岐するときは、知らない値のための default 節を持つ。
+- `key` と `message` は利用者の入力を含む。HTML に出すときはエスケープする（下の例は `textContent` を使う）。`cause` は表示や送信に使わない。
+- canvas-renderer の IIFE 版（`browser-bundle`）と併用したり、iframe の中の誤りを受けたりしても、`instanceof SKAMRenderProfileError` は真になる。クラスに `Symbol.for('@kanbun-skam/skam/SKAMRenderProfileError')` の目印を持たせ、それで判別している。ただし、別の realm（iframe）の誤りは `instanceof TypeError` が偽になる。`structuredClone` や `postMessage` で複製した誤りは偽になる。目印を手で付けた object も真になるので、`instanceof` は型の判別であって、中身が安全だという保証ではない。
+
+<!-- doctest:typecheck -->
+
+```typescript
+import { render, SKAMRenderProfileError } from '@kanbun-skam/skam-html-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
+declare const authorProfile: unknown; // 作者が教材に書いた表示設定
+declare const messageArea: HTMLElement;
+
+function describeProfileError(error: SKAMRenderProfileError): string {
+  switch (error.kind) {
+    case 'UNKNOWN_KEY':
+      return `「${error.key ?? ''}」は表示設定のキーではありません`;
+    case 'NOT_BOOLEAN':
+      return `「${error.key ?? ''}」には true か false を書いてください`;
+    case 'UNKNOWN_BASE':
+      return 'base には full / learningBasic / learningHint のどれかを書いてください';
+    default:
+      // 知らない kind (minor で増えうる) も受ける
+      return '表示設定に誤りがあります';
+  }
+}
+
+try {
+  render(doc, { profile: authorProfile as never });
+} catch (error) {
+  if (error instanceof SKAMRenderProfileError) {
+    messageArea.textContent = describeProfileError(error);
+  } else {
+    throw error;
+  }
+}
+```
 
 ### スタイルのカスタマイズ
 

@@ -130,7 +130,7 @@ el.accessibleLabels = { kaeri: () => '返り点' };
 
 `skam-error` には 2 種類ある。
 
-- `recoverable: false`: 描画に失敗した。内容を消して `role="alert"` を表示する。`profile` / `include-reading-layer` / `reading-layer-source` が不正なときも、この形で発火する（`attribute` に属性名が入り、`detail` に属性の生の値は入らない。値は 64 文字に切り詰めて、メッセージに含まれる）。同じ内容で同じエラーが続く間は 1 回だけ発火する。内容かエラーが変わる、描画が成功する、要素を外す、のいずれかで、次の失敗は再び発火する。属性が不正な間は、`<script>` の内容が変わっても空のままで、同じ属性の同じ値では再び発火しない。
+- `recoverable: false`: 描画に失敗した。内容を消して `role="alert"` を表示する。`profile` / `include-reading-layer` / `reading-layer-source` が不正なときも、この形で発火する（`attribute` に属性名が入り、`detail` に属性の生の値は入らない。値は 64 文字に切り詰めて、メッセージに含まれる）。`profile` の誤りの `error` は 2 つの型に分かれる。プリセット名でも JSON でもない値（`profile="nope"`、`profile="{not json"`）は `TypeError` になる。JSON として読めた値の表示設定の誤り（`profile='{"okurigna":false}'`、`profile='{"base":"nope"}'`）は `SKAMRenderProfileError` で、`kind` と `key` を読める（クラスは `@kanbun-skam/skam-html-renderer` から import する。内容は html-renderer の README の「表示設定の誤り」）。同じ内容で同じエラーが続く間は 1 回だけ発火する。内容かエラーが変わる、描画が成功する、要素を外す、のいずれかで、次の失敗は再び発火する。属性が不正な間は、`<script>` の内容が変わっても空のままで、同じ属性の同じ値では再び発火しない。
 - `recoverable: true`: `writing-mode` / `copyable` / `class-prefix` / `display-lang` の値が不正だったため、その属性だけ既定値に戻して描画を続けた（`copyable` は有効な要素名だけを使う）。不正な `accessibleLabels` (プロパティ) は、ラベルなしで描画を続ける。`attribute` に属性名が入る。`skam-render` より前に、`writing-mode` → `copyable` → `class-prefix` → `display-lang` → `accessibleLabels` の順で発火する。`class-prefix` / `display-lang` では、`error.message` に属性の値は含まれない。
 
 回復可能なエラーは、同じ属性に同じ不正値が残っている間は再描画しても再び発火しない。値が変わったときだけ発火する。値が有効になった場合と、要素を DOM から外した場合は、記録が消える。ハンドラが属性を毎回違う不正値に書き換えると、エラー → 再描画 → エラーの連鎖は止まらない。これはハンドラ側の誤りとして扱う。

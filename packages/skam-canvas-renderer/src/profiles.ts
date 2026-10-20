@@ -6,8 +6,12 @@
 
 export {
   RENDER_PROFILES as PROFILES,
+  RENDER_PROFILE_KEYS,
+  SKAMRenderProfileError,
   resolveRenderProfile,
   type RenderProfile,
+  type RenderProfileErrorKind,
   type RenderProfileInput,
+  type RenderProfileKey,
   type RenderProfileName,
 } from '@kanbun-skam/skam/rendering';

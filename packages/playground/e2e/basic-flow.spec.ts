@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { fileURLToPath } from 'node:url';
 
 /**
  * SKAM Playground E2E Tests - Basic Flow
@@ -202,5 +203,105 @@ test.describe('Copy Functionality', () => {
 
     // Click should not throw error
     await copyHtmlBtn.click();
+  });
+});
+
+/**
+ * Error positions reported by the browser build of `parse`.
+ *
+ * The expected element positions are the ones the Node build reports for the same input
+ * (start tag `<`, 1-based, UTF-16 units). The syntax error position is whatever Chromium reports.
+ */
+test.describe('Error positions in the browser', () => {
+  const ERROR_LOCATION = '#error-panel .error-location';
+
+  // Several elements precede the faulty one so that the element-to-start-tag mapping is exercised.
+  // Node `parse` reports line 4, column 21 for the missing `value` attribute.
+  const MISSING_ATTRIBUTE_XML = `<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>學而<skam:kaeri kind="re"/>時習之</skam:block>
+    <skam:block>不亦說乎<skam:kutoten kind="ku"/></skam:block>
+  </skam:body>
+</skam:doc>`;
+
+  // Node `parse` reports a validation error at line 5, column 7 (marks[0], the okototen element).
+  const VALIDATION_ERROR_XML = `<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>學而時習之</skam:block>
+    <skam:block>
+      <skam:okototen grid="5x5" x="9" y="0" shape="dot">甲</skam:okototen>
+    </skam:block>
+  </skam:body>
+</skam:doc>`;
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+  });
+
+  test('syntax error shows the line and column reported by Chromium', async ({ page }) => {
+    await page.fill(
+      '#xml-input',
+      `<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body></skam:block>
+</skam:doc>`
+    );
+    await page.waitForTimeout(400);
+
+    // Measured in Chromium 145: the column just after the mismatched end tag (the line is 26 characters)
+    await expect(page.locator(ERROR_LOCATION)).toHaveText('行 2, 列 27:');
+  });
+
+  test('error while processing an element shows the position Node reports', async ({ page }) => {
+    await page.fill('#xml-input', MISSING_ATTRIBUTE_XML);
+    await page.waitForTimeout(400);
+
+    await expect(page.locator(ERROR_LOCATION)).toHaveText('行 4, 列 21:');
+  });
+
+  test('validation errors carry the position Node reports', async ({ page }) => {
+    // The playground shows only the message of a validation error, so run the same browser build
+    // of the parser inside the page and read `errors[]` directly.
+    const { build } = await import('vite');
+    const result = await build({
+      configFile: false,
+      logLevel: 'silent',
+      resolve: { conditions: ['browser'] },
+      build: {
+        write: false,
+        minify: false,
+        lib: {
+          entry: fileURLToPath(
+            new URL('../../skam-xml-parser/dist/index.browser.js', import.meta.url)
+          ),
+          formats: ['iife'],
+          name: 'SKAMXMLParser',
+        },
+      },
+    });
+    const outputs = Array.isArray(result)
+      ? result.flatMap((r) => ('output' in r ? r.output : []))
+      : [];
+    const chunk = outputs.find((o) => o.type === 'chunk');
+    if (chunk?.type !== 'chunk') throw new Error('browser parser bundle was not produced');
+
+    await page.addScriptTag({ content: chunk.code });
+    const errors = await page.evaluate((xml) => {
+      const parser = (
+        globalThis as unknown as {
+          SKAMXMLParser: { parse(xml: string): unknown };
+        }
+      ).SKAMXMLParser;
+      try {
+        parser.parse(xml);
+      } catch (e) {
+        return (
+          (e as { errors?: { path: string; line?: number; column?: number }[] }).errors ?? null
+        );
+      }
+      return null;
+    }, VALIDATION_ERROR_XML);
+
+    expect(errors).toHaveLength(1);
+    expect(errors?.[0]).toMatchObject({ path: 'marks[0].position.x', line: 5, column: 7 });
   });
 });

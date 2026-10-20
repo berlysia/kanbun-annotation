@@ -180,7 +180,11 @@ Node 版の `SKAMXMLParseError` は `line` / `column` を持つ。要素の処�
 
 `validate: true`（既定）で検証が失敗したときは、`SKAMValidationError.errors` の各エラーに、元の要素の `line` / `column` が付く。付くのは、`path` が `tokens[i]` / `marks[i]` / `blocks[i]` で始まるエラーだけで、`readings` や文書全体を指すエラーには付かない。1 つの要素から展開された複数の mark は、どれも元の要素の位置を持つ。`trackPositions` の値とは関係なく付く。`@kanbun-skam/skam` の `validateSKAMDocument` を直接呼んだときは付かない。
 
-ブラウザ版（`browser` 条件で解決される DOMParser 実装）は、どちらの位置も持たない。
+ブラウザ版（`browser` 条件で解決される DOMParser 実装）も、要素の処理中の誤り、検証の誤り、警告（`onWarning`）に、Node 版と同じ位置を付ける。位置は要素の開始タグの `<` で、行と列は 1 始まり、列は UTF-16 単位で数える。ブラウザの DOM は位置を持たないので、誤りが起きたときに元の文字列の開始タグと文書の要素を順に対応させて求める。数か要素名の並びが合わないときは、位置を付けない。
+
+XML の構文の誤り（タグの食い違いなど）では、ブラウザ版は Chromium と Firefox が報告する位置を読む。値の意味はブラウザごとに違い（Chromium は誤りを見つけた直後、Firefox は誤りの字句の付近）、Node 版の値とも一致しない。誤りの付近を探す手がかりとして使い、値の比較やスナップショットには使わない。報告の形を読めないブラウザ（WebKit は未確認）では、構文の誤りに位置を付けない。
+
+0.2.0 のブラウザ版は、どちらの位置も持たなかった。
 
 ## 実験的な API
 

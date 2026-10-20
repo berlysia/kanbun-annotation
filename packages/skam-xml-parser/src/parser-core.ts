@@ -40,6 +40,12 @@ import {
   isValidHighlightStyle,
 } from '@kanbun-skam/skam';
 import { SKAMXMLParseError, type PositionInfo } from './parse-error.js';
+import {
+  computeLfLineStarts,
+  createElementPositionResolver,
+  lineColumnAt,
+  type ElementPositionResolver,
+} from './position-index.js';
 import { checkInputLimits, DEFAULT_INPUT_LIMITS } from './input-limits.js';
 
 export { SKAMXMLParseError, type PositionInfo } from './parse-error.js';
@@ -128,37 +134,15 @@ class PositionTracker {
 
   constructor(source: string) {
     this.source = source;
-    this.lineStarts = this.computeLineStarts(source);
-  }
-
-  private computeLineStarts(source: string): number[] {
-    const starts = [0];
-    for (let i = 0; i < source.length; i++) {
-      if (source[i] === '\n') {
-        starts.push(i + 1);
-      }
-    }
-    return starts;
+    // trackPositions has always counted only `\n` as a line break; its output must not change
+    this.lineStarts = computeLfLineStarts(source);
   }
 
   /**
    * Convert character offset to PositionInfo
    */
   offsetToPosition(offset: number): PositionInfo {
-    // Binary search for line number
-    let low = 0;
-    let high = this.lineStarts.length - 1;
-    while (low < high) {
-      const mid = Math.ceil((low + high) / 2);
-      if (this.lineStarts[mid]! <= offset) {
-        low = mid;
-      } else {
-        high = mid - 1;
-      }
-    }
-    const line = low + 1; // 1-based
-    const column = offset - this.lineStarts[low]! + 1; // 1-based
-    return { line, column, offset };
+    return { ...lineColumnAt(this.lineStarts, offset), offset };
   }
 
   /**
@@ -201,8 +185,11 @@ interface ParserState {
   currentSearchOffset: number;
   idGenerator: IdGenerator;
   onWarning: ((warning: ParseWarning) => void) | undefined;
-  /** 作った token・mark・block のオブジェクトから、元の要素の位置への対応。検証エラーに行と列を付けるために使う */
-  positions: WeakMap<object, SourcePosition>;
+  /**
+   * 作った token・mark・block のオブジェクトから、元の要素への対応。検証エラーに行と列を付けるときに
+   * (attachPositions で) 位置を引く。位置は誤りが起きるまで計算しない
+   */
+  sourceElements: WeakMap<object, Element>;
 }
 
 function createParserState(
@@ -223,7 +210,7 @@ function createParserState(
     currentSearchOffset: 0,
     idGenerator: idGenerator ?? createRandomIdGenerator(),
     onWarning,
-    positions: new WeakMap(),
+    sourceElements: new WeakMap(),
   };
 }
 
@@ -292,18 +279,35 @@ interface SourcePosition {
   column?: number;
 }
 
-/** xmldom (locator 指定時) が要素に付ける行・列。ブラウザの DOM には無いので undefined になる */
+/**
+ * 文書ごとの、要素から位置を引く関数。parseFromDocument が parse の間だけ登録する。
+ * parseErrorAt など約 35 か所の呼び出しの引数を増やさずに、DOM が位置を持たないときの経路を通すために、
+ * 文書 (node.ownerDocument) をキーにしている。
+ */
+const positionResolvers = new WeakMap<Document, ElementPositionResolver>();
+
+/**
+ * 要素の開始タグの行・列。xmldom が要素に付ける非標準の lineNumber / columnNumber があればそれを返し (Node 版)、
+ * 無ければ (ブラウザの DOM) 登録された resolver が源の走査から求める。開始タグと要素の対応が取れないときは位置を持たない
+ */
 function nodePosition(node: Node): SourcePosition {
   const { lineNumber, columnNumber } = node as { lineNumber?: unknown; columnNumber?: unknown };
   const position: SourcePosition = {};
   if (typeof lineNumber === 'number') position.line = lineNumber;
   if (typeof columnNumber === 'number') position.column = columnNumber;
+  if (position.line !== undefined || position.column !== undefined) return position;
+  if (!isElement(node) || !node.ownerDocument) return position;
+  const found = positionResolvers.get(node.ownerDocument)?.(node);
+  if (found) {
+    position.line = found.line;
+    position.column = found.column;
+  }
   return position;
 }
 
-/** mark を state に積み、元の要素の位置を控える。1 つの要素から複数の mark を作る場合も、どれも同じ位置を継ぐ */
+/** mark を state に積み、元の要素を控える。1 つの要素から複数の mark を作る場合も、どれも同じ要素を指す */
 function pushMark(state: ParserState, mark: Mark, element: Element): void {
-  state.positions.set(mark, nodePosition(element));
+  state.sourceElements.set(mark, element);
   state.marks.push(mark);
 }
 
@@ -479,7 +483,7 @@ function addTokensFromText(text: string, state: ParserState, owner: Element): st
       }
     }
 
-    state.positions.set(token, nodePosition(owner));
+    state.sourceElements.set(token, owner);
     state.tokens.push(token);
     ids.push(id);
   }
@@ -1160,7 +1164,7 @@ function processBlock(element: Element, state: ParserState): void {
 
   // Build Block object and add to state
   const block: Block = { id: blockId, tokenIds };
-  state.positions.set(block, nodePosition(element));
+  state.sourceElements.set(block, element);
   state.blocks.push(block);
 }
 
@@ -1225,20 +1229,22 @@ const ERROR_PATH_ROOT = /^(tokens|marks|blocks)\[(\d+)\]/;
  * 検証エラーの path が指す token・mark・block を作った要素の行と列を、エラーに足す。
  * 表はオブジェクトの同一性で引く (id は重複や自動採番で当てにならない)。
  * validateSKAMDocument は渡された object を複製しないので、skamDoc の配列の要素がそのまま表のキーになる。
- * 引けない path (readings、文書全体など) と、位置を持たないブラウザ版では、元のエラーを返す。
+ * 引けない path (readings、文書全体など) と、開始タグと要素の対応が取れず位置を求められないときは、元のエラーを返す。
  */
 function attachPositions(
   errors: ValidationError[],
   skamDoc: SKAMDocument,
-  positions: WeakMap<object, SourcePosition>
+  sourceElements: WeakMap<object, Element>
 ): ValidationError[] {
   return errors.map((error) => {
     const match = ERROR_PATH_ROOT.exec(error.path);
     if (!match) return error;
     const collection = match[1] as 'tokens' | 'marks' | 'blocks';
     const target = skamDoc[collection][Number(match[2])];
-    const position = target === undefined ? undefined : positions.get(target);
-    if (!position) return error;
+    const element = target === undefined ? undefined : sourceElements.get(target);
+    if (!element) return error;
+    const position = nodePosition(element);
+    if (position.line === undefined && position.column === undefined) return error;
     const located: ValidationError = { ...error };
     if (position.line !== undefined) located.line = position.line;
     if (position.column !== undefined) located.column = position.column;
@@ -1269,7 +1275,7 @@ export interface ParseWarning {
   code: 'UNKNOWN_ELEMENT' | (string & {});
   /** 入力 XML に由来する要素名。エスケープしていないので、HTML に出すときは利用者側でエスケープすること */
   name: string;
-  /** ブラウザ版では undefined */
+  /** 要素の開始タグの位置。開始タグと要素の対応が取れないときは undefined */
   line?: number;
   column?: number;
   message: string;
@@ -1304,6 +1310,33 @@ export function parseFromDocument(
   doc: Document,
   options: ParseOptions = {},
   source?: string
+): SKAMDocument {
+  if (source === undefined) return parseDocument(doc, options, source);
+
+  // 位置の索引は、位置が要るとき (誤り・警告) の最初の 1 回だけ作る。誤りの無い parse では作らない。
+  // 登録は parse の間だけで、位置は例外を投げる前 (この内側) に引き切る。
+  // 同じ文書の入れ子の parse で外側の登録を失わないよう、前の値を控えて戻す
+  let resolve: ElementPositionResolver | undefined;
+  const previous = positionResolvers.get(doc);
+  positionResolvers.set(doc, (element) => {
+    resolve ??= createElementPositionResolver(doc, source);
+    return resolve(element);
+  });
+  try {
+    return parseDocument(doc, options, source);
+  } finally {
+    if (previous) {
+      positionResolvers.set(doc, previous);
+    } else {
+      positionResolvers.delete(doc);
+    }
+  }
+}
+
+function parseDocument(
+  doc: Document,
+  options: ParseOptions,
+  source: string | undefined
 ): SKAMDocument {
   const { validate = true, trackPositions = false, idGenerator, onWarning } = options;
 
@@ -1369,7 +1402,7 @@ export function parseFromDocument(
   if (validate) {
     const result = validateSKAMDocument(skamDoc);
     if (!result.valid) {
-      throw new SKAMValidationError(attachPositions(result.errors, skamDoc, state.positions));
+      throw new SKAMValidationError(attachPositions(result.errors, skamDoc, state.sourceElements));
     }
   }
 

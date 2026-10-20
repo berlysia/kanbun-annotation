@@ -38,9 +38,9 @@ export interface ValidationError {
   /** 実際の値 */
   actual?: unknown;
   /**
-   * 元の SKAM-ML の行 (1 始まり)。`@kanbun-skam/skam-xml-parser` の `parse` (Node 版、`validate: true`) が、
+   * 元の SKAM-ML の行 (1 始まり)。`@kanbun-skam/skam-xml-parser` の `parse` (`validate: true`) が、
    * path が tokens / marks / blocks の要素を指すエラーに足す。
-   * `validateSKAMDocument` を直接呼んだときや、ブラウザ版の parser では付かない。値が無いときはキーごと無い
+   * `validateSKAMDocument` を直接呼んだときや、開始タグと要素の対応が取れないときは付かない。値が無いときはキーごと無い
    */
   line?: number;
   /** 元の SKAM-ML の列。`line` と同じ条件で付く */

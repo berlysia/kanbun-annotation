@@ -8,7 +8,6 @@
 
 import type {
   Token,
-  Mark,
   KaeriMark,
   OkuriganaMark,
   YomiganaMark,
@@ -22,11 +21,8 @@ import type {
   RefMark,
 } from '@kanbun-skam/skam';
 import { KAERI, isValidEmphasisStyle } from '@kanbun-skam/skam';
-import {
-  resolveEmphasisCharacter,
-  getMarksForToken,
-  resolveOkototenCell,
-} from '@kanbun-skam/skam/rendering';
+import { resolveEmphasisCharacter, resolveOkototenCell } from '@kanbun-skam/skam/rendering';
+import type { MarkLookup, TokenMarks } from '@kanbun-skam/skam/rendering';
 import type { RenderProfile, RubyMethod } from './render-config.js';
 import { escapeHtml, generateEmphasisMarks, shouldApplyTateChuYoko } from './html-utils.js';
 import { safeCssInteger, toSafeHtml, type SafeCssValue } from './safe.js';
@@ -41,8 +37,9 @@ import type { RangeMarkContext, RangeTokenInfo, TokenRenderResult } from './rend
 export interface TokenRenderContext {
   prefix: string;
   profile: RenderProfile;
-  tokens: Token[];
-  tokenMarks: Map<Mark['type'], Mark[]>;
+  /** 描画ごとに 1 回作った注記の索引 (字ごとの引き当てに使う) */
+  lookupMarks: MarkLookup;
+  tokenMarks: TokenMarks;
   interactive: boolean;
   rubyMethod: RubyMethod;
   /** false なら style 属性の代わりに data 属性を出す (既定 true)。style-data.ts を参照 */
@@ -252,7 +249,6 @@ function renderOkototen(okototenMark: OkototenMark, prefix: string, inlineStyles
 // oxlint-disable-next-line eslint/complexity
 export function renderToken(
   token: Token,
-  marks: Mark[],
   ctx: Omit<TokenRenderContext, 'tokenMarks'>,
   rangeCtx?: RangeMarkContext,
   refValueMap?: Map<RefMark, string>,
@@ -263,7 +259,7 @@ export function renderToken(
   suppressEmphasis?: boolean
 ): TokenRenderResult {
   const { prefix, profile } = ctx;
-  const tokenMarks = getMarksForToken(token.id, marks, ctx.tokens);
+  const tokenMarks = ctx.lookupMarks(token.id);
 
   const fullCtx: TokenRenderContext = { ...ctx, tokenMarks };
 

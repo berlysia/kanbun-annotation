@@ -72,7 +72,12 @@ export { formatRefIndex, resolveRefValues } from './ref.js';
 export { getTatetenGroups, getHighlightGroups, getRangeMarkGroups } from './mark-groups.js';
 
 // マーク検索
-export { getMarksForToken } from './mark-lookup.js';
+export {
+  getMarksForToken,
+  createMarkLookup,
+  type MarkLookup,
+  type TokenMarks,
+} from './mark-lookup.js';
 
 // ヲコト点
 export { resolveOkototenCell, type OkototenCell } from './okototen.js';

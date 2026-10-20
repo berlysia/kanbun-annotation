@@ -9,7 +9,12 @@
  */
 
 import type { SKAMDocument, HighlightMark } from '@kanbun-skam/skam';
-import { buildAnnotationIR, resolveRefValues } from '@kanbun-skam/skam/rendering';
+import {
+  buildAnnotationIR,
+  createMarkLookup,
+  groupTokensByBlock,
+  resolveRefValues,
+} from '@kanbun-skam/skam/rendering';
 import type { RenderProfile, RubyMethod } from './render-config.js';
 import { escapeHtml, getSourceOrderedTokens } from './html-utils.js';
 import { convertAIRToBlockRenderTrees } from './air-adapter.js';
@@ -33,7 +38,13 @@ export function renderDisplayLayer(
 
   // Pass 1: AIR 経由で BlockRenderTree を構築
   const air = buildAnnotationIR(doc, profile);
-  const blockRenderTrees = convertAIRToBlockRenderTrees(air, prefix, tokens, marks);
+  // 字ごとの注記の引き当ては、AIR と同じく描画する字の列から作った索引 1 つで済ませる
+  // (tokens[] の順序は原文の順序と限らないので、範囲の間の字の判定に使わない)
+  const lookupMarks = createMarkLookup(
+    marks,
+    groupTokensByBlock(doc.blocks ?? [], tokens).map((g) => g.tokens)
+  );
+  const blockRenderTrees = convertAIRToBlockRenderTrees(air, prefix, tokens, lookupMarks);
 
   // Pass 2 用のコンテキスト
   const refValueMap = profile.ref
@@ -52,8 +63,8 @@ export function renderDisplayLayer(
   const renderCtx: RenderTreeContext = {
     prefix,
     profile,
-    tokens,
     marks,
+    lookupMarks,
     interactive,
     rubyMethod,
     inlineStyles,

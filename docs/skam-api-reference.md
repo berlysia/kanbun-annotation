@@ -125,6 +125,7 @@ import {
   getHighlightGroups,
   getRangeMarkGroups,
   // マーク検索
+  createMarkLookup,
   getMarksForToken,
   // ブロック
   groupTokensByBlock,
@@ -144,6 +145,8 @@ import {
 } from '@kanbun-skam/skam/rendering';
 import type {
   RangeMarkGroup,
+  MarkLookup,
+  TokenMarks,
   AIRRenderProfile,
   RenderProfile,
   RenderProfileInput,
@@ -166,6 +169,8 @@ import type {
   AccessibleLabels, // @experimental
 } from '@kanbun-skam/skam/rendering';
 ```
+
+`createMarkLookup(marks, tokenGroups)` は注記の索引を作り、字の id からその字に付く注記を種別ごとに引く関数を返す。`tokenGroups` は描く字の配列の列で、`groupTokensByBlock(blocks, tokens).map((g) => g.tokens)` を渡す。範囲の注記の間の字は、`tokens[]` の順序ではなくこの列の中の位置で決まる。`getMarksForToken(tokenId, marks, allTokens)` は呼ぶたびに索引を作るので、字ごとに引くときは `createMarkLookup` を使う。`@kanbun-skam/skam` の `getMarksForToken(doc, tokenId)` は、編集の操作のための別の関数である。
 
 読み上げ用テキスト（`describeAnnotationIR` / `formatAccessibleText` / `DEFAULT_ACCESSIBLE_LABELS`）はすべて `@experimental`。AIR から「画面に見えている注記だけ」を言葉にする。`formatAccessibleText` は生のテキストを返し、HTML のエスケープをしない。読み上げの言葉は 0.x のマイナーで変わりうる。既知の制約として、竪点のグループからはみ出す読みの範囲（#16）は先頭の字の読み仮名として出る。2 回目の読みが無い再読文字は、1 回目の読みが読み仮名・送り仮名として出る。
 

@@ -3,7 +3,7 @@
  *
  * Simple recursive rendering replaces the flush/accumulator state machine.
  */
-import type { Token, Mark, RefMark } from '@kanbun-skam/skam';
+import type { Mark, RefMark } from '@kanbun-skam/skam';
 import type {
   TokenRenderResult,
   TokenItem,
@@ -14,6 +14,7 @@ import type {
 } from './render-tree-types.js';
 import type { RenderProfile, RubyMethod } from './render-config.js';
 import { resolveEmphasisCharacter, canBreakBefore } from '@kanbun-skam/skam/rendering';
+import type { MarkLookup } from '@kanbun-skam/skam/rendering';
 import { HIGHLIGHT_STYLES } from '@kanbun-skam/skam';
 import { escapeHtml, generateEmphasisMarks } from './html-utils.js';
 import { safeCssKeyword } from './safe.js';
@@ -24,8 +25,8 @@ import { emphasisStyleAttributes } from './style-data.js';
 export interface RenderTreeContext {
   prefix: string;
   profile: RenderProfile;
-  tokens: Token[];
   marks: Mark[];
+  lookupMarks: MarkLookup;
   interactive: boolean;
   rubyMethod: RubyMethod;
   /** false なら style 属性の代わりに data 属性を出す */
@@ -48,11 +49,10 @@ function callRenderToken(
 ): TokenRenderResult {
   return renderToken(
     node.token,
-    ctx.marks,
     {
       prefix: ctx.prefix,
       profile: ctx.profile,
-      tokens: ctx.tokens,
+      lookupMarks: ctx.lookupMarks,
       interactive: ctx.interactive,
       rubyMethod: ctx.rubyMethod,
       inlineStyles: ctx.inlineStyles,

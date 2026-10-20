@@ -16,7 +16,6 @@ import type {
   JojiMark,
   EmphasisMark,
   Token,
-  Mark,
 } from '@kanbun-skam/skam';
 
 import type {
@@ -39,7 +38,7 @@ import type {
   RangeTokenInfo,
 } from './render-tree-types.js';
 import { escapeHtml, shouldApplyTateChuYoko } from './html-utils.js';
-import { getMarksForToken } from '@kanbun-skam/skam/rendering';
+import type { MarkLookup } from '@kanbun-skam/skam/rendering';
 
 // ============================================================================
 // Block-start HTML 生成
@@ -205,8 +204,7 @@ function convertTatetenGroup(airGroup: AIRTatetenGroupNode, tokens: Token[]): Ta
 function convertHighlightGroup(
   airGroup: AIRHighlightGroupNode,
   prefix: string,
-  tokens: Token[],
-  _marks: Mark[]
+  tokens: Token[]
 ): HighlightGroupNode {
   const items: (TokenItem | TatetenGroupNode)[] = airGroup.children.map((child) =>
     child.type === 'token' ? convertTokenNode(child, tokens) : convertTatetenGroup(child, tokens)
@@ -256,10 +254,10 @@ function convertHighlightGroup(
 // ============================================================================
 
 // oxlint-disable-next-line eslint/complexity
-function checkBlockHasRuby(items: RenderNode[], tokens: Token[], marks: Mark[]): boolean {
+function checkBlockHasRuby(items: RenderNode[], lookupMarks: MarkLookup): boolean {
   for (const item of items) {
     if (item.type === 'token') {
-      const tokenMarks = getMarksForToken(item.token.id, marks, tokens);
+      const tokenMarks = lookupMarks(item.token.id);
       if (
         (tokenMarks.get('yomigana')?.length ?? 0) > 0 ||
         (tokenMarks.get('okurigana')?.length ?? 0) > 0 ||
@@ -272,7 +270,7 @@ function checkBlockHasRuby(items: RenderNode[], tokens: Token[], marks: Mark[]):
       }
     } else if (item.type === 'tateten-group') {
       for (const ti of item.items) {
-        const tokenMarks = getMarksForToken(ti.token.id, marks, tokens);
+        const tokenMarks = lookupMarks(ti.token.id);
         if (
           (tokenMarks.get('yomigana')?.length ?? 0) > 0 ||
           (tokenMarks.get('okurigana')?.length ?? 0) > 0 ||
@@ -295,7 +293,7 @@ function checkBlockHasRuby(items: RenderNode[], tokens: Token[], marks: Mark[]):
       // highlight-group
       for (const child of item.items) {
         if (child.type === 'token') {
-          const tokenMarks = getMarksForToken(child.token.id, marks, tokens);
+          const tokenMarks = lookupMarks(child.token.id);
           if (
             (tokenMarks.get('yomigana')?.length ?? 0) > 0 ||
             (tokenMarks.get('okurigana')?.length ?? 0) > 0 ||
@@ -346,7 +344,7 @@ export function convertAIRToBlockRenderTrees(
   air: AIRDocument,
   prefix: string,
   tokens: Token[],
-  marks: Mark[]
+  lookupMarks: MarkLookup
 ): BlockRenderTree[] {
   return air.blocks.map((airBlock) => {
     const blockStartHtml = buildBlockStartHtml(airBlock, prefix);
@@ -361,12 +359,12 @@ export function convertAIRToBlockRenderTrees(
           case 'tateten-group':
             return convertTatetenGroup(child, tokens);
           case 'highlight-group':
-            return convertHighlightGroup(child, prefix, tokens, marks);
+            return convertHighlightGroup(child, prefix, tokens);
         }
       });
 
     // blockHasRuby 判定 & highlight group 内のフラグ更新
-    const blockHasRuby = checkBlockHasRuby(items, tokens, marks);
+    const blockHasRuby = checkBlockHasRuby(items, lookupMarks);
     setBlockHasRuby(items, blockHasRuby);
 
     return { blockId: airBlock.blockId, blockStartHtml, items };

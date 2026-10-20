@@ -59,3 +59,9 @@ export { calibrateGridBaseline } from './calibrate.js';
  * Exposed so wrappers (e.g. web components) can validate user-supplied values before use.
  */
 export { validateRenderOptions, validateCSSOptions } from './render-options.js';
+
+/**
+ * Render into a light DOM container: inserts the CSS once per root, the HTML, and calibrates
+ * the grid baseline right away and again after fonts load. Browser-only.
+ */
+export { mount, type MountOptions, type MountResult } from './mount.js';

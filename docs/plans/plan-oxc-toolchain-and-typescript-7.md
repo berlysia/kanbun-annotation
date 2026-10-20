@@ -25,13 +25,13 @@ prettier を oxfmt に、Baseline の JS の検査を ESLint から oxlint の J
 
 公開する 6 パッケージと skam-screenshot の build を tsdown にし、型定義を oxc の isolatedDeclarations で作る。出力を ADR-037 KD7 の条件で tsup と比べる。tsup を外す。
 
-- [x] 完了 (この段の PR)
+- [x] 完了
 
 ### Step 3: knip 6
 
 knip を 6 に上げ、新しく出る指摘を 1 件ずつ判断する。
 
-- [ ] 完了
+- [x] 完了 (この段の PR)
 
 ### Step 4: TypeScript 7.0.2
 

@@ -3,10 +3,7 @@ import type { KnipConfig } from 'knip';
 const config: KnipConfig = {
   workspaces: {
     '.': {
-      entry: ['scripts/check-release.ts', 'scripts/release.ts'],
       project: ['scripts/**/*.ts'],
-      // used only from *.test.ts, which knip ignores
-      ignore: ['scripts/lib/test-workspace.ts'],
       // the consumer check calls node_modules/typescript5/bin/tsc by path, which knip cannot see
       ignoreDependencies: ['typescript5'],
       vitest: false,
@@ -22,23 +19,16 @@ const config: KnipConfig = {
     },
     'packages/skam-html-renderer': {
       project: ['src/**/*.ts'],
-      ignoreDependencies: [
-        '@kanbun-skam/skam-xml-parser', // used in test files only
-        // oxlint loads these through `jsPlugins` in .oxlintrc.baseline.json, which knip cannot
-        // see; the plugin imports `eslint` itself at runtime (eslint/use-at-your-own-risk)
-        'eslint-plugin-baseline-js',
-        'eslint',
-      ],
     },
     'packages/playground': {
-      entry: ['src/main.ts', 'src/web-component.ts', 'index.html', 'web-component.html'],
+      entry: ['index.html', 'web-component.html'],
       project: ['src/**/*.ts'],
     },
     'packages/integration-tests': {
       entry: ['src/**/*.test.ts'],
       project: ['src/**/*.ts'],
       // used only by the generated .doctest/ and the tarball consumer test, both outside `project`
-      ignoreDependencies: ['@kanbun-skam/skam-canvas-renderer', '@kanbun-skam/skam-web-component'],
+      ignoreDependencies: ['@kanbun-skam/skam-web-component'],
     },
     'packages/skam-screenshot': {
       project: ['src/**/*.ts'],
@@ -49,25 +39,8 @@ const config: KnipConfig = {
     'packages/baseline-check': {
       entry: ['scripts/*.js', 'stylelint-newly.config.js'],
       project: ['scripts/**/*.js'],
-      // oxlint loads these through `jsPlugins` in .oxlintrc.baseline.json (and the yearly configs
-      // written by generate-report.js), which knip cannot see; the plugin imports `eslint`
-      // itself at runtime (eslint/use-at-your-own-risk)
-      ignoreDependencies: ['eslint-plugin-baseline-js', 'eslint'],
     },
   },
-  ignore: [
-    '**/*.test.ts',
-    '**/*.spec.ts',
-    // Test helpers referenced by test files (not reachable from entry points)
-    'packages/skam-canvas-renderer/src/__tests__/recording-context.ts',
-    'packages/skam/src/__tests__/operations/helpers.ts',
-    'packages/skam-html-renderer/src/__tests__/helpers/css-contract.ts',
-    'packages/skam-web-component/src/__tests__/helpers/style-contract.ts',
-    // README doctest extractor, imported only by integration-tests *.test.ts
-    'packages/integration-tests/src/doctest/extract.ts',
-    // Legacy render-tree used by active tests (layout-vertical.test.ts etc.)
-    'packages/skam-canvas-renderer/src/render-tree.ts',
-  ],
   ignoreExportsUsedInFile: true,
 };
 

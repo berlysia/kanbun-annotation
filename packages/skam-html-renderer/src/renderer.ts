@@ -20,19 +20,7 @@ import { renderDisplayLayer } from './render-display-layer.js';
 import { validateCSSOptions, normalizeRenderOptions } from './render-options.js';
 import { buildReadingText, renderReadingLayerElement } from './reading-text.js';
 
-export type {
-  RenderProfile,
-  RenderProfileInput,
-  RenderProfileName,
-  RubyMethod,
-  CopyableElement,
-} from './render-config.js';
-export { PROFILES, resolveRenderProfile } from './render-config.js';
-export { escapeHtml, generateEmphasisMarks, shouldApplyTateChuYoko } from './html-utils.js';
-export { getBlockStartMarks } from './mark-utils.js';
-export { renderToken, type TokenRenderContext } from './token-renderer.js';
-
-export type { RangeMarkContext, RangeTokenInfo, TokenRenderResult } from './render-tree-types.js';
+export type { RenderProfileInput, RubyMethod, CopyableElement } from './render-config.js';
 
 // ============================================================================
 // Types (re-exported from render-config.ts)
@@ -241,7 +229,7 @@ export interface CSSOptions {
 // ============================================================================
 
 // escapeHtml, generateEmphasisMarks, shouldApplyTateChuYoko: moved to html-utils.ts
-// getBlockStartMarks, isBlockStartPosition: moved to mark-utils.ts
+// getBlockStartMarks: moved to @kanbun-skam/skam/rendering
 
 // Token rendering: moved to token-renderer.ts
 

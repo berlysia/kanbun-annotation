@@ -548,7 +548,6 @@ display 実装層
 共通基盤層
   ├── render-config.ts (RenderProfile, RubyMethod, PROFILES)
   ├── html-utils.ts (escapeHtml, shouldApplyTateChuYoko 等)
-  ├── mark-utils.ts (getBlockStartMarks 等)
   └── render-tree-types.ts (IR 型定義)
 ```
 

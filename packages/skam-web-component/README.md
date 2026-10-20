@@ -160,6 +160,12 @@ skam-renderer {
 2. `<script type="application/vnd.berlysia.skam+xml">` 子要素
 3. Light DOM のテキストコンテンツ
 
+2 の取り出しに使う `extractXmlFromScriptElement` と `SKAM_XML_MEDIA_TYPE` は、`@kanbun-skam/skam-xml-parser` のものを再 export している。Web Component を使わずに light DOM へ描くときは、parser から import し、`@kanbun-skam/skam-html-renderer` の `mount` で描ける。
+
+### Trusted Types
+
+`<skam-renderer>` は shadow root の中で `innerHTML` に文字列を入れるので、`require-trusted-types-for 'script'` のページでは使えない。そうしたページでは、`@kanbun-skam/skam-html-renderer` の `mount` に `trustedTypesPolicy` を渡して描く。
+
 ## 0.1 からの移行
 
 0.1.x からの変更のうち、このパッケージに関わるものです。ID は全体の移行表と共通です。

@@ -18,6 +18,7 @@ export {
   type PositionInfo,
   type TokenPosition,
 } from './parser-core.js';
+export { SKAM_XML_MEDIA_TYPE, extractXmlFromScriptElement } from './xml-extraction.js';
 /**
  * Parse SKAM-ML/XML string to SKAMDocument
  *

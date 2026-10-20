@@ -14,7 +14,68 @@ pnpm add @kanbun-skam/skam-html-renderer
 
 ## 使い方
 
-DOM に置くときは、次の 3 手順を踏む。
+### DOM に描く (`mount`、`@experimental`)
+
+ページの要素に描くときは `mount` を使う。`mount` は次をまとめて行う。
+
+- `render` の `css` を、その要素が属する document の `head`（shadow root の中なら、その shadow root）に 1 回だけ入れる。同じ CSS の `<style data-skam-css>` が既にあれば入れない。html-renderer のコピーがページに 2 つあっても同じ。
+- `html` を要素に入れる。
+- `calibrateGridBaseline` を、すぐに 1 回、`document.fonts.ready` の後にもう 1 回呼ぶ。2 回目の完了は `fontsCalibrated` で分かる。待たなくてもよい。この Promise は reject しない（2 回目の補正に失敗したときは `console.warn` を出して解決する）。
+
+<!-- doctest:typecheck -->
+
+```typescript
+import { mount } from '@kanbun-skam/skam-html-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
+
+const container = document.getElementById('kanbun')!;
+const { fontsCalibrated } = mount(container, doc, { writingMode: 'vertical' });
+await fontsCalibrated; // フォントの読み込み後の補正まで待つ場合
+```
+
+- `mount` の入力は `SKAMDocument` で、SKAM-ML の文字列から描くときは先に `@kanbun-skam/skam-xml-parser` の `parse` を呼ぶ。
+- 要素は document に接続しておく。接続されていない要素には `TypeError` を投げ、DOM を変えない。オプションの誤り（`SKAMRenderProfileError` など）も、DOM を変えずに投げる。
+- `mount` は Web フォント（Noto Serif JP など）を読み込まない。フォントはページの側で読み込む。Web Component が足している CSS 変数の上書きも行わない。
+- 出題のように注記を隠すときは、`readingLayerSource: 'display'` を指定する（下の「出題に使うとき」）。既定の `'readings'` は `render` と同じで、隠した注記も読み層に出す。
+- 入れた `<style>` を後から外す手段は無い。オプションが違えば CSS も違うので、`<style>` が増える。
+
+#### CSP と Trusted Types
+
+- `style-src` に nonce を使うページでは、`nonce` を渡すと、新しく入れる `<style>` に付く。nonce が一致しない既存の `<style>` は使い回さない。ただし描画の HTML は、ヲコト点の位置と傍点の形をインラインの `style` 属性で出す。nonce は `<style>` 要素にしか効かないので、これらの属性を許すには `style-src-attr` が要る（許さないと、ヲコト点と傍点の表示が崩れる）。
+- `require-trusted-types-for 'script'` のページでは、`innerHTML` に文字列を入れると例外になる。ページが許した名前の policy を作り、`trustedTypesPolicy` に渡す。渡さないと `TypeError` を投げ、そのとき CSS は入ったまま残る。
+
+<!-- doctest:typecheck -->
+
+```typescript
+import { mount } from '@kanbun-skam/skam-html-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
+declare const container: HTMLElement;
+declare const trustedTypes: {
+  createPolicy(
+    name: string,
+    rules: { createHTML(input: string): string }
+  ): {
+    createHTML(input: string): unknown;
+  };
+};
+
+// CSP: require-trusted-types-for 'script'; trusted-types skam-kanbun
+// mount 専用の policy。モジュールの外 (window など) に出さない
+const policy = trustedTypes.createPolicy('skam-kanbun', { createHTML: (html) => html });
+mount(container, doc, { trustedTypesPolicy: policy });
+```
+
+- 上の素通しの policy は、`render` の出力がエスケープ済みであることを前提にしている。同じ policy を他のコードが使えると、ページ全体の Trusted Types の保護が外れる。policy は mount 専用に作ってモジュールの中に閉じ、`default` の policy を素通しにせず、CSP の `trusted-types` には専用の名前だけを書く。
+- サニタイズする policy（DOMPurify など）を使うときは、`ruby`、`data-*`、インラインの `style` 属性を落とさない設定にする。落とすと表示と補正が崩れる。その設定はこのライブラリでは保証しない。`createHTML` は文字列か TrustedHTML を返すこと。
+- `<style>` の中身と補正は Trusted Types の対象ではない。
+
+### `mount` を使わずに描く
+
+`render` の戻り値を自分で置くときは、次の 3 手順を踏む。
 
 1. `render` の `css` を、ページに 1 回だけ入れる。
 2. `html` を挿入する。

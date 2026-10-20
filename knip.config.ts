@@ -25,7 +25,8 @@ const config: KnipConfig = {
       project: ['src/**/*.ts'],
     },
     'packages/integration-tests': {
-      entry: ['src/**/*.test.ts'],
+      // bench と取得 CLI は package.json の script / README の手順から直接実行される
+      entry: ['src/**/*.test.ts', 'src/**/*.bench.ts', 'src/fixtures/kojiki/update-source.ts'],
       project: ['src/**/*.ts'],
       // used only by the generated .doctest/ and the tarball consumer test, both outside `project`
       ignoreDependencies: ['@kanbun-skam/skam-web-component'],

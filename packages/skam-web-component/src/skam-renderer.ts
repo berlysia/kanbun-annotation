@@ -98,6 +98,8 @@ export class SkamRendererElement extends BaseElement {
   #errorStyle: HTMLStyleElement;
   #fontStyle: HTMLStyleElement;
   #contentDiv: HTMLDivElement;
+  /** shadow の <style> に設定済みの nonce。#error-css の中身を入れ直すかの判断に使う */
+  #appliedNonce: string | undefined;
 
   #xmlContent: string | undefined;
   #accessibleLabels: Partial<AccessibleLabels> | undefined;
@@ -198,7 +200,7 @@ export class SkamRendererElement extends BaseElement {
 
   connectedCallback(): void {
     // auto-font 属性があれば Google Fonts を注入
-    this.#ensureFont();
+    this.#ensureFont(this.#readNonce());
 
     // MutationObserver で Light DOM の変更を検知
     this.#observer = new MutationObserver(() => {
@@ -248,6 +250,9 @@ export class SkamRendererElement extends BaseElement {
     // mount は接続されていない container で投げる。接続前は描かず、connectedCallback の予約で描く
     if (!this.isConnected) return;
 
+    const nonce = this.#readNonce();
+    this.#applyNonce(nonce);
+
     // shadow root の描画 CSS はすべてこの要素のもの。どの経路でも先に消し、描けたときだけ mount が入れ直す
     for (const style of Array.from(this.#shadow.querySelectorAll(STYLE_MARKER_SELECTOR))) {
       style.remove();
@@ -293,12 +298,15 @@ export class SkamRendererElement extends BaseElement {
       const classPrefix = options.classPrefix ?? 'skam';
       const variablePrefix = options.variablePrefix ?? 'skam';
       this.#mainStyle.textContent = generateVarOverrideCss(classPrefix, variablePrefix);
-      this.#ensureFont();
+      this.#ensureFont(nonce);
       this.#updateFontStyle(variablePrefix);
 
       // CSS の挿入、HTML の差し込み、直後とフォント読み込み後の補正は mount が持つ。
       // fontsCalibrated は待たない (reject しない Promise)
       const mountOptions: MountOptions = { ...options };
+      if (nonce !== undefined) {
+        mountOptions.nonce = nonce;
+      }
       if (policy !== undefined) {
         mountOptions.trustedTypesPolicy = policy;
       }
@@ -445,10 +453,38 @@ export class SkamRendererElement extends BaseElement {
     this.#fatalAlert = null;
   }
 
+  /**
+   * CSP の nonce。描画のたびに読む (observedAttributes には入れない: CSP がヘッダで与えられると
+   * ブラウザが内容属性を空にし、そのたびに再描画が走るため)。IDL 属性を優先し、無い環境
+   * (happy-dom など) では内容属性を読む。空なら undefined。
+   */
+  #readNonce(): string | undefined {
+    const value = typeof this.nonce === 'string' ? this.nonce : this.getAttribute('nonce');
+    return value ? value : undefined;
+  }
+
+  /**
+   * shadow の 3 つの <style> に nonce を設定する。内容属性として設定すると、ブラウザは CSP が見る
+   * nonce の値も更新する。CSP は中身が入るときに nonce を見るので、#error-css (constructor で
+   * 中身を入れている) は nonce が変わったときに空にしてから入れ直す。#main-css と #font-css は
+   * この後の描画で中身を入れ直す。
+   */
+  #applyNonce(nonce: string | undefined): void {
+    if (nonce === undefined) return;
+    for (const style of [this.#fontStyle, this.#mainStyle, this.#errorStyle]) {
+      style.setAttribute('nonce', nonce);
+    }
+    if (this.#appliedNonce !== nonce) {
+      this.#errorStyle.textContent = '';
+      this.#errorStyle.textContent = ERROR_CSS;
+      this.#appliedNonce = nonce;
+    }
+  }
+
   /** auto-font 属性があれば Google Fonts <link> を document.head に注入 */
-  #ensureFont(): void {
+  #ensureFont(nonce?: string): void {
     if (this.hasAttribute('auto-font')) {
-      injectGoogleFontsLink();
+      injectGoogleFontsLink(nonce);
     }
   }
 

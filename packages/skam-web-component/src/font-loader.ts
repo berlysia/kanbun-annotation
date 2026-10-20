@@ -14,15 +14,18 @@ const LINK_SELECTOR = 'link[href*="fonts.googleapis.com"][href*="Noto+Serif+JP"]
 
 /**
  * Google Fonts CSS <link> を document.head に注入する（冪等）。
- * 既に同等の <link> が存在する場合はスキップ。
+ * 既に同等の <link> が存在する場合はスキップ (既存の <link> の nonce は変えない)。
+ * `nonce` を渡すと、新しく作る <link> にだけ setAttribute で設定する。
+ * 内容属性として設定すると、ブラウザは CSP が見る nonce の値も更新する。
  */
-export function injectGoogleFontsLink(): void {
+export function injectGoogleFontsLink(nonce?: string): void {
   if (typeof document === 'undefined') return;
 
   if (!document.querySelector(LINK_SELECTOR)) {
     const link = document.createElement('link');
     link.rel = 'stylesheet';
     link.href = GOOGLE_FONTS_URL;
+    if (nonce) link.setAttribute('nonce', nonce);
     document.head.appendChild(link);
   }
 }

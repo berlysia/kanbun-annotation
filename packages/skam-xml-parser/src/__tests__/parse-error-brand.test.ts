@@ -83,22 +83,28 @@ describe('SKAMXMLParseError の判別 (KD10)', () => {
   });
 
   // 依存の重複の実際の形: 読み直した parser は読み直した skam を使い、元の skam の SKAMValidationError とは別のクラスを投げる
-  it('読み直した parser が投げる SKAMValidationError は、元の skam の instanceof で真', async () => {
-    const { SKAMValidationError: original } = await import('@kanbun-skam/skam');
-    vi.resetModules();
-    const reloaded = await import('@kanbun-skam/skam');
-    // 読み直されず外部化されていると、この前提が崩れる
-    expect(reloaded.SKAMValidationError).not.toBe(original);
-    const { parse } = await import('../index.js');
-    const invalid =
-      '<skam:doc xmlns:skam="urn:skam:1"><skam:body><skam:block>甲</skam:block></skam:body><skam:readings><skam:reading kind="bogus">x</skam:reading></skam:readings></skam:doc>';
-    let thrown: unknown;
-    try {
-      parse(invalid);
-    } catch (e) {
-      thrown = e;
+  // resetModules の後の import は parser と skam を変換し直す。全パッケージを並列に流す負荷の下で 5.7 秒かかった記録があるので、
+  // ssr-import.test.ts とそろえて既定の 5 秒より長く待つ
+  it(
+    '読み直した parser が投げる SKAMValidationError は、元の skam の instanceof で真',
+    { timeout: 60_000 },
+    async () => {
+      const { SKAMValidationError: original } = await import('@kanbun-skam/skam');
+      vi.resetModules();
+      const reloaded = await import('@kanbun-skam/skam');
+      // 読み直されず外部化されていると、この前提が崩れる
+      expect(reloaded.SKAMValidationError).not.toBe(original);
+      const { parse } = await import('../index.js');
+      const invalid =
+        '<skam:doc xmlns:skam="urn:skam:1"><skam:body><skam:block>甲</skam:block></skam:body><skam:readings><skam:reading kind="bogus">x</skam:reading></skam:readings></skam:doc>';
+      let thrown: unknown;
+      try {
+        parse(invalid);
+      } catch (e) {
+        thrown = e;
+      }
+      expect(thrown).toBeInstanceOf(reloaded.SKAMValidationError);
+      expect(thrown instanceof original).toBe(true);
     }
-    expect(thrown).toBeInstanceOf(reloaded.SKAMValidationError);
-    expect(thrown instanceof original).toBe(true);
-  });
+  );
 });

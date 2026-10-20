@@ -26,7 +26,8 @@ export function renderDisplayLayer(
   profile: RenderProfile,
   inline: boolean,
   interactive: boolean,
-  rubyMethod: RubyMethod = 'grid'
+  rubyMethod: RubyMethod = 'grid',
+  inlineStyles = true
 ): { tokens: string; prefix: string } {
   const { tokens, marks } = doc;
 
@@ -55,6 +56,7 @@ export function renderDisplayLayer(
     marks,
     interactive,
     rubyMethod,
+    inlineStyles,
     refValueMap,
     highlightRefIds,
   };

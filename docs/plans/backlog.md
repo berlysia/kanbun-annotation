@@ -31,7 +31,6 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 ## Web Component
 
 - **attribute-validation.test.ts の flaky なテスト**: 2026-10-15 に `pnpm test` で 1 回だけ落ちた。落ちたのは `renders vertically and reports writing-mode once` である。2026-10-19 に 120 回流したが、再現しなかった。内訳は、8 コアすべてに CPU 負荷をかけた `attribute-validation.test.ts` が 100 回、`turbo run test:run --force` が 20 回である。vitest 4.0.18、happy-dom 20.3.9。失敗率が 2.5% (3/120) 以上なら 95% の確からしさで検出できたので、それ未満の失敗率は否定できない。候補だった happy-dom の MutationObserver の件 (GC で通知を落とす) は 20.14.6 で直っている (#24)。再発しなければ、この行を消す。出典: plan-release-automation.md L77。規模: 小。
-- **Web Component の `<style>` の nonce**: `<skam-renderer>` の shadow root の `<style>` (描画の CSS、変数の上書き、フォント、エラー) は nonce を持たない。`style-src` に nonce だけを使う CSP のページでは止められ、表示が崩れる。nonce を受けるプロパティを足すかを決める。描画の HTML のインラインの `style` 属性の件 (レンダラーの節) とあわせて考える。出典: ADR-035「提供しないもの」。規模: 小。
 
 ## データモデルと仕様
 
@@ -55,7 +54,6 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 
 ## レンダラー
 
-- **インラインの style 属性を出さない描画**: 描画の HTML は、ヲコト点の位置 (`token-renderer.ts`) と傍点の形 (`token-renderer.ts`、`render-tree.ts`) をインラインの `style` 属性で出す。`style-src` に nonce だけを使う CSP では、これらが止められて表示が崩れる。CSS 変数やクラスに移すかを決める。出典: ADR-034 KD6。規模: 中。
 - **grid baseline 補正の構造的課題 (#2)**: Chromium の補正に構造的な課題がある。補正は `--skam-grid-baseline-fix` と `calibrateGridBaseline()` が担う。Issue は open。出典: #2。規模: 大。
 - **highlight の傍線がアキ部分をカバーしない**: `highlight-content` は inline-block で、letter-spacing のアキが box に含まれない。そのため `box-shadow: inset` の傍線がアキ部分に描かれず、途切れて見える。ADR-008 で既知の制約とし、別 ADR で対応するとした。出典: plan-aki-gumi-spacing.md L70、ADR-008「検証 4: エッジケース」。規模: 中。
 - **分析結果キャッシュ (DocumentAnalysis) の再利用**: Canvas の縦書きレイアウトで、分析結果 (`DocumentAnalysis`) を再利用するかを決める。現行のコードで再利用されているかは未確認。出典: ADR-018「未決事項（残件）」。規模: 中。

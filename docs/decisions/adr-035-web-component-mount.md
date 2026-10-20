@@ -65,6 +65,7 @@ ADR-034 で light DOM 向けの `mount()` を足した後も、`<skam-renderer>`
 ## 提供しないもの
 
 - Web Component の `<style>` の nonce。shadow root の `<style>` に nonce が無いので、nonce だけの `style-src` では止められる。docs/plans/backlog.md で追う。
+  - 以後は ADR-036 を参照。2026-10-20 に `nonce` 属性で対応した。
 - フォントの読み込みの後の補正の完了を知らせるイベント。
 - `customElements.define` より前にインスタンスへ代入した `trustedTypesPolicy` と `accessibleLabels` の取り込み (own property になり setter を通らない)。README に define の後に代入するよう書いた。
 

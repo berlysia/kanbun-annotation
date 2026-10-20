@@ -39,8 +39,8 @@ const overrideDeclarations = [
 const override = (important: boolean) =>
   `.skam-reading { ${overrideDeclarations.map((d) => `${d}${important ? ' !important' : ''};`).join(' ')} }`;
 
-const load = async (page: Page, styles: string[]) => {
-  const { html } = render(doc);
+const load = async (page: Page, styles: string[], options: Parameters<typeof render>[1] = {}) => {
+  const { html } = render(doc, options);
   await page.setContent(
     `<!DOCTYPE html><html><head><meta charset="UTF-8">${styles
       .map((s) => `<style>${s}</style>`)
@@ -100,4 +100,30 @@ test('useLayer: false stays hidden when the page override comes after the genera
 }) => {
   await load(page, [generateCSS({ useLayer: false }), override(false)]);
   await expectHidden(page);
+});
+
+// The accessibility tree is what assistive technology receives. It must hold only the reading
+// layer (the display layer is aria-hidden), keep the half-width space between blocks under
+// white-space: nowrap, and stay the same when the page CSS overrides .skam-reading.
+// It does not show how a screen reader speaks the text; that needs a real device.
+const accessibleTree = (page: Page) => page.locator('#skam-root').ariaSnapshot();
+
+test('exposes only the reading layer, with blocks separated, to the accessibility tree', async ({
+  page,
+}) => {
+  await load(page, [generateCSS()]);
+  expect(await accessibleTree(page)).toBe('- text: 學而時習之 不亦說乎');
+});
+
+test('keeps the same accessibility tree when the page overrides .skam-reading', async ({
+  page,
+}) => {
+  await load(page, [generateCSS(), override(true)]);
+  expect(await accessibleTree(page)).toBe('- text: 學而時習之 不亦說乎');
+});
+
+test("separates blocks the same way in the accessibility tree for 'display'", async ({ page }) => {
+  // 'display' ends each unit with 。; the separator between blocks is the same half-width space
+  await load(page, [generateCSS()], { readingLayerSource: 'display' });
+  expect(await accessibleTree(page)).toBe('- text: 學而時習之。 不亦說乎。');
 });

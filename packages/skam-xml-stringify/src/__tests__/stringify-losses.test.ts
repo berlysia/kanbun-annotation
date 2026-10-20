@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { describe, it, expect, vi } from 'vitest';
 import { stringify, SKAMXMLStringifyError, type StringifyLoss } from '../index.js';
 import type { SKAMDocument } from '@kanbun-skam/skam';

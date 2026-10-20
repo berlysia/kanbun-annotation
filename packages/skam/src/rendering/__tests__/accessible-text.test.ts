@@ -1,3 +1,4 @@
+/// <reference types="node" />
 import { describe, it, expect, expectTypeOf } from 'vitest';
 import type { SKAMDocument, Mark } from '../../index.js';
 import { buildAnnotationIR } from '../build-annotation-ir.js';

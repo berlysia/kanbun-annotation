@@ -4,7 +4,8 @@
     "outDir": "./dist",
     "rootDir": "./src",
     "isolatedDeclarations": true,
-    "lib": ["ESNext", "DOM"]
+    "lib": ["ESNext", "DOM"],
+    "types": ["node"]
   },
   "include": ["src/**/*"]
 }

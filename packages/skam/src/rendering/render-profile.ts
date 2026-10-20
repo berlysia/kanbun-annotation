@@ -75,6 +75,9 @@ export type RenderProfileErrorKind =
 
 type ProfileWhere = 'profile' | 'profile.overrides';
 
+/** 目印のキーの文字列は契約 (ADR-033 KD10)。変えると版の違うコピーの間で判別できなくなる */
+const RENDER_PROFILE_ERROR_BRAND = Symbol.for('@kanbun-skam/skam/SKAMRenderProfileError');
+
 /**
  * `resolveRenderProfile` が最初に見つけた誤り。`TypeError` を継承するので、`instanceof TypeError` で受けている側はそのまま動く。
  * 契約はフィールド (`kind` / `where` / `key`) で、メッセージの文言は契約外。
@@ -105,7 +108,33 @@ export class SKAMRenderProfileError extends TypeError {
     this.where = details.where;
     if (details.key !== undefined) this.key = details.key.slice(0, MAX_ECHO);
   }
+
+  /**
+   * canvas-renderer の IIFE 版 (skam を内包する) との併用、skam の重複、別の realm (iframe) では
+   * クラスが別になり、通常の instanceof が偽になる。Symbol.for のレジストリは同じ agent の
+   * realm の間で共有されるので、目印で判別する (ADR-033 KD10)。
+   * `this` がサブクラスのときは通常の判定に任せ、基底のインスタンスまで真になるのを防ぐ。
+   */
+  static override [Symbol.hasInstance](value: unknown): boolean {
+    if (this !== SKAMRenderProfileError) {
+      return Function.prototype[Symbol.hasInstance].call(this, value);
+    }
+    if ((typeof value !== 'object' && typeof value !== 'function') || value === null) return false;
+    try {
+      return (value as Record<symbol, unknown>)[RENDER_PROFILE_ERROR_BRAND] === true;
+    } catch {
+      // getter や Proxy が投げても、判定は例外を出さない
+      return false;
+    }
+  }
 }
+
+// 目印はプロトタイプの getter。インスタンスの own property にせず、列挙・JSON 化に出さない
+Object.defineProperty(SKAMRenderProfileError.prototype, RENDER_PROFILE_ERROR_BRAND, {
+  get: () => true,
+  enumerable: false,
+  configurable: true,
+});
 
 /** 全要素表示プロファイル */
 const FULL_PROFILE: Readonly<RenderProfile> = Object.freeze({

@@ -332,3 +332,82 @@ describe('RENDER_PROFILE_KEYS', () => {
     }
   });
 });
+
+// ADR-033 KD10: コピーと realm をまたぐ instanceof
+describe('SKAMRenderProfileError の判別 (KD10)', () => {
+  // このキーの文字列は ADR-033 の互換の方針の対象。変えると版の違うコピーの間で判別できなくなる
+  const BRAND = Symbol.for('@kanbun-skam/skam/SKAMRenderProfileError');
+
+  const catchError = (resolve: typeof resolveRenderProfile): unknown => {
+    try {
+      resolve({ okurigna: false } as never);
+    } catch (e) {
+      return e;
+    }
+    throw new Error('expected throw');
+  };
+
+  it('目印のキーの値は true', () => {
+    const error = catchError(resolveRenderProfile) as Record<symbol, unknown>;
+    expect(error[BRAND]).toBe(true);
+  });
+
+  it('目印は own property にならず、列挙も JSON 化もされない', () => {
+    const error = catchError(resolveRenderProfile) as Error;
+    expect(Object.getOwnPropertySymbols(error)).not.toContain(BRAND);
+    expect(Object.keys(error).sort()).toEqual(['key', 'kind', 'name', 'where']);
+    expect(Object.keys(JSON.parse(JSON.stringify(error))).sort()).toEqual([
+      'key',
+      'kind',
+      'name',
+      'where',
+    ]);
+    expect(
+      Object.getOwnPropertyDescriptor(SKAMRenderProfileError.prototype, BRAND)?.enumerable
+    ).toBe(false);
+  });
+
+  it('別のコピーのモジュールが投げた誤りでも instanceof が真', async () => {
+    const { vi } = await import('vitest');
+    vi.resetModules();
+    const other = await import('../render-profile.js');
+    expect(other.SKAMRenderProfileError).not.toBe(SKAMRenderProfileError);
+    const error = catchError(other.resolveRenderProfile);
+    expect(error instanceof SKAMRenderProfileError).toBe(true);
+    expect(error instanceof other.SKAMRenderProfileError).toBe(true);
+  });
+
+  it('関係のない値は偽で、例外を投げない', () => {
+    for (const v of [new TypeError('x'), null, undefined, 'x', 1, {}, []]) {
+      expect(v instanceof SKAMRenderProfileError).toBe(false);
+    }
+  });
+
+  it('目印の読み出しが例外を投げる object と、目印が true でない object は偽', () => {
+    const throwing = {
+      get [BRAND](): boolean {
+        throw new Error('boom');
+      },
+    };
+    const proxy = new Proxy(
+      {},
+      {
+        get() {
+          throw new Error('boom');
+        },
+      }
+    );
+    expect(throwing instanceof SKAMRenderProfileError).toBe(false);
+    expect(proxy instanceof SKAMRenderProfileError).toBe(false);
+    expect({ [BRAND]: 1 } instanceof SKAMRenderProfileError).toBe(false);
+  });
+
+  it('サブクラスでは通常の判定になり、基底のインスタンスは偽', () => {
+    class Sub extends SKAMRenderProfileError {}
+    const base = catchError(resolveRenderProfile);
+    expect(base instanceof Sub).toBe(false);
+    const sub = new Sub('m', { kind: 'UNKNOWN_KEY', where: 'profile', key: 'k' });
+    expect(sub instanceof Sub).toBe(true);
+    expect(sub instanceof SKAMRenderProfileError).toBe(true);
+  });
+});

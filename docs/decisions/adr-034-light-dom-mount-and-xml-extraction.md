@@ -56,10 +56,12 @@ status: Complete
 
 - 入れた `<style>` を外す手段 (dispose)。オプションが違えば `<style>` が増える。
 - Web Component の Trusted Types への対応。
+  - 以後は ADR-035 を参照。2026-10-20 に `trustedTypesPolicy` プロパティで対応した。
 
 ## 残る作業
 
 docs/plans/backlog.md で追う。
 
 - Web Component の描画を mount に寄せるか (補正の時機、`classPrefix` と `variablePrefix`、Trusted Types)。
+  - 以後は ADR-035 を参照。2026-10-20 に mount に寄せた。
 - インラインの `style` 属性を出さない描画にするか (nonce だけの CSP で表示が崩れる)。

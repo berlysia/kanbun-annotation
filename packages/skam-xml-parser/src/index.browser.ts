@@ -28,5 +28,5 @@ export { SKAM_XML_MEDIA_TYPE, extractXmlFromScriptElement } from './xml-extracti
  * @throws SKAMXMLParseError if parsing fails
  */
 export function parse(xml: string, options: ParseOptions = {}): SKAMDocument {
-  return parseWith(parseXML, xml, options);
+  return parseWith((source) => parseXML(source, options.trustedTypesPolicy), xml, options);
 }

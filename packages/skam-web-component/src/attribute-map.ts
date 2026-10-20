@@ -208,7 +208,11 @@ export function buildRenderOptions(attrs: AttributeValues): BuiltRenderOptions {
   if (classPrefix != null) {
     const problem = checkAttribute('class-prefix', { classPrefix });
     if (problem) invalid.push(problem);
-    else options.classPrefix = classPrefix;
+    else {
+      // 変数名 (--{prefix}-*) もクラス名と同じ値に揃える。CLASS_PREFIX の検証は共通
+      options.classPrefix = classPrefix;
+      options.variablePrefix = classPrefix;
+    }
   }
 
   const displayLang = attrs['display-lang'];

@@ -1269,6 +1269,18 @@ export interface ParseOptions {
   maxDepth?: number;
   /** Receives non-fatal diagnostics (e.g. unknown skam:* elements). Omit to drop them */
   onWarning?: (warning: ParseWarning) => void;
+  /**
+   * Trusted Types が必須のページで、ブラウザ版が `DOMParser.parseFromString` に渡す XML を
+   * 包むための policy。`createHTML` は事前走査の後に、parse 1 回につき 1 回、元の XML で呼ばれる。
+   * Node 版 (xmldom) は Trusted Types と関係が無いので、受け取っても使わない (呼ばない)。
+   *
+   * `createHTML` は XML をそのまま返すこと。入力の上限と位置は元の文字列に対して扱うので、
+   * XML を書き換える policy (HTML 用の sanitizer など) では上限が効かず、位置がずれ、文書が壊れうる。
+   * `createHTML` が投げた例外は包まずにそのまま投げる。
+   *
+   * @experimental
+   */
+  trustedTypesPolicy?: { createHTML(input: string): unknown };
 }
 
 export interface ParseWarning {

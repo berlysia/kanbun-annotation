@@ -7,10 +7,10 @@
 
 import { parse } from '@kanbun-skam/skam-xml-parser';
 import {
-  render,
-  calibrateGridBaseline,
+  mount,
   validateRenderOptions,
   type AccessibleLabels,
+  type MountOptions,
 } from '@kanbun-skam/skam-html-renderer';
 import {
   buildRenderOptions,
@@ -19,6 +19,9 @@ import {
 } from './attribute-map.js';
 import { extractXml } from './xml-extraction.js';
 import { injectGoogleFontsLink, buildFontStyle } from './font-loader.js';
+
+/** mount が shadow root に入れる描画 CSS の <style> の印。mount (ADR-034 KD4) と同じ文字列 */
+const STYLE_MARKER_SELECTOR = 'style[data-skam-css]';
 
 const ERROR_CSS = `
 [role="alert"] {
@@ -44,8 +47,8 @@ const ERROR_CSS = `
  * ここでは :host のデフォルトを宣言しない（cascade 順序で上書きしてしまう）。
  * .document 側は inherit のままで問題ない（生成 CSS も元から inherit）。
  */
-function generateVarOverrideCss(prefix: string): string {
-  const vp = prefix;
+function generateVarOverrideCss(classPrefix: string, variablePrefix: string): string {
+  const vp = variablePrefix;
   return `
 :host {
   --${vp}-color-fg: currentColor;
@@ -57,7 +60,7 @@ function generateVarOverrideCss(prefix: string): string {
   --${vp}-line-height: 2;
   --${vp}-letter-spacing: 0;
 }
-.${vp}-document {
+.${classPrefix}-document {
   --${vp}-color-fg: inherit;
   --${vp}-color-kaeriten: inherit;
   --${vp}-color-ruby: inherit;
@@ -98,6 +101,7 @@ export class SkamRendererElement extends BaseElement {
 
   #xmlContent: string | undefined;
   #accessibleLabels: Partial<AccessibleLabels> | undefined;
+  #trustedTypesPolicy: MountOptions['trustedTypesPolicy'] | undefined;
   /** skam-error で通知した不正な accessibleLabels の参照。同じ参照では再通知しない */
   #reportedLabels: { ref: unknown } | null = null;
   #observer: MutationObserver | null = null;
@@ -171,6 +175,27 @@ export class SkamRendererElement extends BaseElement {
     this.#scheduleRender();
   }
 
+  /**
+   * Trusted Types が必須のページで、文字列を DOM の sink に渡すための policy。JS のプロパティだけで、
+   * 属性は無い。値は検証せず、parse (ブラウザ版) と mount の両方に渡す。`createHTML` は元の XML と
+   * 描画の HTML の両方で呼ばれ、XML はそのまま返すこと。何を検査するかは利用者の責任で、
+   * 描画の HTML の安全性は render のエスケープに依る。変えるときは新しいオブジェクトを代入する
+   * (同じ参照の再代入は再描画しない)。null は指定なしとして扱う。
+   * customElements.define の前にインスタンスへ代入した値は、このアクセサを通らない。
+   *
+   * @experimental
+   */
+  get trustedTypesPolicy(): MountOptions['trustedTypesPolicy'] | undefined {
+    return this.#trustedTypesPolicy;
+  }
+
+  set trustedTypesPolicy(value: MountOptions['trustedTypesPolicy'] | null | undefined) {
+    const next = value ?? undefined;
+    if (Object.is(next, this.#trustedTypesPolicy)) return;
+    this.#trustedTypesPolicy = next;
+    this.#scheduleRender();
+  }
+
   connectedCallback(): void {
     // auto-font 属性があれば Google Fonts を注入
     this.#ensureFont();
@@ -220,6 +245,14 @@ export class SkamRendererElement extends BaseElement {
   }
 
   #performRender(): void {
+    // mount は接続されていない container で投げる。接続前は描かず、connectedCallback の予約で描く
+    if (!this.isConnected) return;
+
+    // shadow root の描画 CSS はすべてこの要素のもの。どの経路でも先に消し、描けたときだけ mount が入れ直す
+    for (const style of Array.from(this.#shadow.querySelectorAll(STYLE_MARKER_SELECTOR))) {
+      style.remove();
+    }
+
     const attrs = this.#getAttributeValues();
     // 注記を隠す属性が不正な間は、内容が変わっても描画しない (fail closed)
     const { options, invalid, blocked } = buildRenderOptions(attrs);
@@ -234,7 +267,7 @@ export class SkamRendererElement extends BaseElement {
 
     if (!xml) {
       this.#clearFatal();
-      this.#contentDiv.innerHTML = '';
+      this.#contentDiv.replaceChildren();
       this.#mainStyle.textContent = '';
       return;
     }
@@ -252,20 +285,24 @@ export class SkamRendererElement extends BaseElement {
         }
       }
 
-      const doc = parse(xml);
-      const { html, css } = render(doc, options);
+      // ブラウザ版の parse は parseFromString に文字列を渡すので、同じ policy を渡す (Node 版は使わない)
+      const policy = this.#trustedTypesPolicy;
+      const doc = policy === undefined ? parse(xml) : parse(xml, { trustedTypesPolicy: policy });
 
       // 検証を通った値だけから prefix を決める
-      const prefix = options.classPrefix ?? 'skam';
-      this.#mainStyle.textContent = css + generateVarOverrideCss(prefix);
+      const classPrefix = options.classPrefix ?? 'skam';
+      const variablePrefix = options.variablePrefix ?? 'skam';
+      this.#mainStyle.textContent = generateVarOverrideCss(classPrefix, variablePrefix);
       this.#ensureFont();
-      this.#updateFontStyle(prefix);
-      this.#contentDiv.innerHTML = html;
+      this.#updateFontStyle(variablePrefix);
 
-      // Chromium inline-grid baseline bug の検出・補正
-      calibrateGridBaseline(this.#contentDiv, {
-        variablePrefix: prefix,
-      });
+      // CSS の挿入、HTML の差し込み、直後とフォント読み込み後の補正は mount が持つ。
+      // fontsCalibrated は待たない (reject しない Promise)
+      const mountOptions: MountOptions = { ...options };
+      if (policy !== undefined) {
+        mountOptions.trustedTypesPolicy = policy;
+      }
+      mount(this.#contentDiv, doc, mountOptions);
 
       this.#reportInvalid(invalid, attrs);
       this.#reportInvalidLabels(labels, labelsError);
@@ -340,7 +377,7 @@ export class SkamRendererElement extends BaseElement {
       if (!names.has(name)) this.#reportedBlocked.delete(name);
     }
 
-    this.#contentDiv.innerHTML = '';
+    this.#contentDiv.replaceChildren();
     const alert = document.createElement('div');
     alert.setAttribute('role', 'alert');
     alert.textContent = blocked.map((b) => b.error.message).join('\n');

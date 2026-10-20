@@ -143,7 +143,7 @@ el.accessibleLabels = { kaeri: () => '返り点' };
 
 ### CSS Variables によるカスタマイズ
 
-Shadow DOM 内のスタイルはホスト要素の CSS Variables で制御可能。変数一覧は [skam-html-renderer の CSS Variables セクション](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-html-renderer#css-variables-によるカスタマイズ)を参照。
+Shadow DOM 内のスタイルはホスト要素の CSS Variables で制御可能。変数一覧は [skam-html-renderer の CSS Variables セクション](https://github.com/berlysia/kanbun-annotation/tree/master/packages/skam-html-renderer#css-variables-によるカスタマイズ)を参照。変数名の接頭辞は `class-prefix` に従う。`class-prefix="foo"` なら `--foo-color-fg` のようになる。
 
 ```css
 skam-renderer {
@@ -161,6 +161,37 @@ skam-renderer {
 3. Light DOM のテキストコンテンツ
 
 2 の取り出しに使う `extractXmlFromScriptElement` と `SKAM_XML_MEDIA_TYPE` は、`@kanbun-skam/skam-xml-parser` のものを再 export している。Web Component を使わずに light DOM へ描くときは、parser から import し、`@kanbun-skam/skam-html-renderer` の `mount` で描ける。
+
+### 描画の時機と補正
+
+`<skam-renderer>` は、`@kanbun-skam/skam-html-renderer` の `mount` で shadow root に描く。
+
+- 文書に接続した後に描く。接続する前に `xmlContent` や属性を設定しても、描画と `skam-render` は接続の後になる。
+- グリッドの基線の補正は、描画の直後と `document.fonts.ready` の後の 2 回行う。`skam-render` は 1 回目の補正の後に発火する。
+- 描画の CSS は shadow root の `<style data-skam-css>` に 1 つだけ置き、描くたびに入れ替える。
+
+### Trusted Types
+
+`require-trusted-types-for 'script'` の CSP のページでは、Trusted Types の policy を `trustedTypesPolicy` (`@experimental`) プロパティで渡す。属性では渡せない。
+
+<!-- doctest:typecheck -->
+
+```typescript
+import type { SkamRendererElement } from '@kanbun-skam/skam-web-component';
+
+declare const policy: { createHTML(input: string): unknown };
+
+const el = document.querySelector('skam-renderer') as SkamRendererElement;
+el.trustedTypesPolicy = policy;
+```
+
+- 要素は同じ policy を、SKAM-ML の parse と描画の両方に使う。`createHTML` は 1 回の描画につき、元の XML、描画の HTML の順で 2 回呼ばれる。XML はそのまま返す (書き換えると文書が壊れうる)。HTML 用のサニタイザ (DOMPurify など) をそのまま渡さない。
+- 何を検査するかは利用者の責任で、素通しの policy は Trusted Types の強制を満たすだけである。描画の HTML の安全性は `render` のエスケープに依る。素通しの policy は、他のコードから使えない場所に置く。
+- `createHTML` が例外を投げると、`recoverable: false` の `skam-error` になり、その例外のメッセージが alert と `error.message` に出る。メッセージに秘密を入れない。
+- policy を渡さずに Trusted Types が必須のページで描くと、`recoverable: false` の `skam-error` になる。
+- `null` は指定なしとして扱う。同じ policy を代入し直しても再描画しない。
+- `customElements.define` の後に代入する。define の前に要素へ代入した値は使われない (`accessibleLabels` も同じ)。
+- shadow root の `<style>` は nonce を持たないので、`style-src` に nonce だけを使う CSP では止められる。
 
 ### Trusted Types
 

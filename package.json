@@ -22,6 +22,7 @@
     "test:run": "turbo test:run",
     "test:semantic": "pnpm --filter @kanbun-skam/integration-tests test:semantic",
     "test:visual": "pnpm --filter @kanbun-skam/integration-tests test:visual",
+    "test:visual:docker": "node scripts/vrt-docker.ts",
     "test:consumer": "pnpm build && pnpm --filter @kanbun-skam/integration-tests test:consumer",
     "clean": "knip",
     "playground:dev": "pnpm --filter @kanbun-skam/playground dev",

@@ -9,7 +9,7 @@ SKAM (Stand-off Kanbun Annotation Model) は漢文の訓点・注記・読みを
 ```bash
 pnpm build / test / typecheck       # 全パッケージ
 pnpm --filter <pkg> test -- <file>   # 単一テスト
-pnpm format / lint / clean           # フォーマット・リント・未使用コード検出
+pnpm format / lint / clean           # フォーマット (oxfmt)・リント (oxlint)・未使用コード検出 (knip)
 pnpm playground:dev / playground:build / playground:preview
 pnpm verify / release                # 検査一式 / リリース (手順: docs/releasing.md)
 ```

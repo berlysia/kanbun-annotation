@@ -1,7 +1,7 @@
 /**
  * Generate a Baseline compatibility report with yearly analysis and fallback info.
  *
- * Runs stylelint/eslint with year-based configs (Baseline 2022–current),
+ * Runs stylelint/oxlint with year-based configs (Baseline 2022–current),
  * merges with manual overrides, and outputs a markdown report.
  */
 
@@ -13,6 +13,8 @@ import { fileURLToPath } from 'node:url';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const pkgDir = join(__dirname, '..');
 const bin = join(pkgDir, 'node_modules', '.bin');
+// oxlint is a root devDependency, so its binary is not in the package's own .bin
+const oxlintBin = join(pkgDir, '..', '..', 'node_modules', '.bin', 'oxlint');
 
 const BASELINE_START_YEAR = 2022;
 const CURRENT_YEAR = new Date().getFullYear();
@@ -53,25 +55,23 @@ function extractJsonArray(raw) {
   return raw.slice(start, end + 1);
 }
 
-/** Parse ESLint JSON output → { file, feature, category, message }[] */
-function parseEslintJson(json, source) {
+/** Parse `oxlint -f json` output → { file, feature, category, message }[] */
+function parseOxlintJson(json, source) {
   if (!json.trim()) return [];
-  const data = JSON.parse(extractJsonArray(json));
+  const data = JSON.parse(json.slice(json.indexOf('{'), json.lastIndexOf('}') + 1));
   const results = [];
-  for (const file of data) {
-    const name = basename(file.filePath);
-    for (const msg of file.messages) {
-      results.push({
-        source,
-        file: name,
-        feature: extractFeature(msg.message),
-        category: extractCategory(msg.message),
-        message: msg.message,
-        line: msg.line,
-        ruleId: msg.ruleId,
-        severity: msg.severity === 2 ? 'error' : 'warning',
-      });
-    }
+  for (const d of data.diagnostics ?? []) {
+    results.push({
+      source,
+      file: basename(d.filename),
+      feature: extractFeature(d.message),
+      category: extractCategory(d.message),
+      message: d.message,
+      line: d.labels?.[0]?.span?.line,
+      // oxlint writes the rule as `plugin(rule)`; stylelint writes `plugin/rule`
+      ruleId: d.code.replace(/^(.+)\((.+)\)$/, '$1/$2'),
+      severity: d.severity === 'error' ? 'error' : 'warning',
+    });
   }
   return results;
 }
@@ -101,6 +101,11 @@ function parseStylelintJson(json) {
 
 /** Extract the CSS/JS feature name from a warning message */
 function extractFeature(msg) {
+  // baseline-js: "Feature 'Temporal' (temporal) is not a widely available ..." — the message
+  // also carries the year being checked, so only the feature name is used as the key.
+  const jsMatch = msg.match(/^Feature '(.+?)' \(/);
+  if (jsMatch) return jsMatch[1];
+
   const valueMatch = msg.match(/Value ['"](.+?)['"] of property ['"](.+?)['"]/);
   if (valueMatch) return `${valueMatch[2]}: ${valueMatch[1]}`;
 
@@ -133,16 +138,24 @@ function writeYearlyStylelintConfig(year) {
   return path;
 }
 
-function writeYearlyEslintConfig(year) {
-  const config = `import baselineJs from 'eslint-plugin-baseline-js';
-export default [
-  { plugins: { 'baseline-js': baselineJs } },
-  baselineJs.configs.recommended({ available: ${year}, level: 'warn' }),
-  { files: ['**/*.js'], rules: { 'baseline-js/use-baseline': ['warn', { available: ${year} }] } },
-];
-`;
-  const path = join(pkgDir, `.eslint-${year}.config.js`);
-  writeFileSync(path, config, 'utf-8');
+function writeYearlyOxlintConfig(year) {
+  const config = {
+    plugins: [],
+    categories: { correctness: 'off' },
+    jsPlugins: ['eslint-plugin-baseline-js'],
+    rules: {
+      'baseline-js/use-baseline': [
+        'warn',
+        {
+          available: year,
+          includeWebApis: { preset: 'auto' },
+          includeJsBuiltins: { preset: 'auto' },
+        },
+      ],
+    },
+  };
+  const path = join(pkgDir, `.oxlint-baseline-${year}.json`);
+  writeFileSync(path, JSON.stringify(config, null, 2) + '\n', 'utf-8');
   return path;
 }
 
@@ -211,22 +224,24 @@ function main() {
   for (const year of years) {
     console.error(`Running checks for Baseline ${year}...`);
     const stylelintConfig = writeYearlyStylelintConfig(year);
-    const eslintConfig = writeYearlyEslintConfig(year);
+    const oxlintConfig = writeYearlyOxlintConfig(year);
     try {
       const cssOut = runCaptureBoth(
         `${bin}/stylelint -f json --config ${stylelintConfig} 'extracted/css/**/*.css'`
       );
-      const jsOut = run(`${bin}/eslint -c ${eslintConfig} -f json 'extracted/js/**/*.js'`);
+      // extracted/ is gitignored, which oxlint honors when it walks a directory, so the files
+      // are named explicitly (shell glob)
+      const jsOut = run(`${oxlintBin} -c ${oxlintConfig} -f json extracted/js/*.js`);
       yearlyResults.set(year, {
         css: parseStylelintJson(cssOut.stderr || cssOut.stdout),
-        js: parseEslintJson(jsOut, 'eslint-js'),
+        js: parseOxlintJson(jsOut, 'oxlint-js'),
       });
     } finally {
       try {
         unlinkSync(stylelintConfig);
       } catch {}
       try {
-        unlinkSync(eslintConfig);
+        unlinkSync(oxlintConfig);
       } catch {}
     }
   }

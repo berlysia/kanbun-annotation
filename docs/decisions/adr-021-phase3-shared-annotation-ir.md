@@ -198,13 +198,13 @@ ADR-021 の同値テスト規約は AIR 統合の設計要件に限定し、運�
 
 ### 判断軸と検証コマンドの対応
 
-| 判断軸           | 検証コマンド                                                                                                              | 合格条件                               |
+| 判断軸 | 検証コマンド | 合格条件 |
 | ---------------- | ------------------------------------------------------------------------------------------------------------------------- | -------------------------------------- | ------------------ | ------------------------------------------------------------------------------------------------------------ | ------------------------------- |
-| 意味整合性       | `rg -n "buildAnnotationIR" packages/skam-html-renderer/src packages/skam-canvas-renderer/src packages/skam/src/rendering` | Resolver 実装 + 両 renderer 利用を確認 |
-| 変更局所性       | `rg -n "getRangeMarkGroups                                                                                                | getTatetenGroups                       | getHighlightGroups | groupTokensByBlock" packages/skam-html-renderer/src packages/skam-canvas-renderer/src -g '!**/**tests**/**'` | 直接呼び出し 0 件               |
-| 回帰検出力       | `rg -n "range ruby                                                                                                        | tateten\\+kaeri                        | highlight\\+ref    | saidoku" packages -g "*cross-renderer*test.ts"`                                                              | 固定4ケースが test 名として存在 |
-| 移行安全性       | `pnpm --filter @kanbun-skam/skam-html-renderer test:run && pnpm --filter @kanbun-skam/skam-canvas-renderer test:run`      | 両テスト成功                           |
-| 実装コスト妥当性 | `pnpm typecheck`                                                                                                          | 成功                                   |
+| 意味整合性 | `rg -n "buildAnnotationIR" packages/skam-html-renderer/src packages/skam-canvas-renderer/src packages/skam/src/rendering` | Resolver 実装 + 両 renderer 利用を確認 |
+| 変更局所性 | `rg -n "getRangeMarkGroups                                                                                                | getTatetenGroups                       | getHighlightGroups | groupTokensByBlock" packages/skam-html-renderer/src packages/skam-canvas-renderer/src -g '!**/**tests**/**'` | 直接呼び出し 0 件 |
+| 回帰検出力 | `rg -n "range ruby                                                                                                        | tateten\\+kaeri                        | highlight\\+ref    | saidoku" packages -g "*cross-renderer*test.ts"` | 固定4ケースが test 名として存在 |
+| 移行安全性 | `pnpm --filter @kanbun-skam/skam-html-renderer test:run && pnpm --filter @kanbun-skam/skam-canvas-renderer test:run` | 両テスト成功 |
+| 実装コスト妥当性 | `pnpm typecheck` | 成功 |
 
 ## 完了判定手順（再現可能）
 

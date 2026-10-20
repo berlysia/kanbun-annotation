@@ -22,7 +22,13 @@ const config: KnipConfig = {
     },
     'packages/skam-html-renderer': {
       project: ['src/**/*.ts'],
-      ignoreDependencies: ['@kanbun-skam/skam-xml-parser'], // used in test files only
+      ignoreDependencies: [
+        '@kanbun-skam/skam-xml-parser', // used in test files only
+        // oxlint loads these through `jsPlugins` in .oxlintrc.baseline.json, which knip cannot
+        // see; the plugin imports `eslint` itself at runtime (eslint/use-at-your-own-risk)
+        'eslint-plugin-baseline-js',
+        'eslint',
+      ],
     },
     'packages/playground': {
       entry: ['src/main.ts', 'src/web-component.ts', 'index.html', 'web-component.html'],
@@ -43,6 +49,10 @@ const config: KnipConfig = {
     'packages/baseline-check': {
       entry: ['scripts/*.js', 'stylelint-newly.config.js'],
       project: ['scripts/**/*.js'],
+      // oxlint loads these through `jsPlugins` in .oxlintrc.baseline.json (and the yearly configs
+      // written by generate-report.js), which knip cannot see; the plugin imports `eslint`
+      // itself at runtime (eslint/use-at-your-own-risk)
+      ignoreDependencies: ['eslint-plugin-baseline-js', 'eslint'],
     },
   },
   ignore: [

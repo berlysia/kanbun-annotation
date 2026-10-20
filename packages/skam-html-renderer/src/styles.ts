@@ -3,7 +3,7 @@
  */
 
 import { css } from './css-tag.js';
-import type { CopyableElement, RubyMethod } from './render-config.js';
+import type { RubyMethod } from './render-config.js';
 import type { Spacing } from '@kanbun-skam/skam/rendering';
 import { resolveSpacingEm } from '@kanbun-skam/skam/rendering';
 import { validateCSSOptions } from './render-options.js';
@@ -1020,8 +1020,9 @@ function generateWritingModeStyles(
       :where(.${prefix}-note-marker--half-width) {
         text-combine-upright: all;
       }
-      ${includeGrid
-        ? css`
+      ${
+        includeGrid
+          ? css`
             /* highlight が ruby-grid のグリッドアイテムの場合、padding-right をリセット。
              * 書字方向スタイルの後に配置して source order でオーバーライドする。
              * padding-right は通常、傍線と隣列の間隔確保に使われるが、
@@ -1129,7 +1130,8 @@ function generateWritingModeStyles(
               right: calc(${annotationRowH} + ${highlightColumnGap} - ${noKanaReduction} - 1px);
             }
           `
-        : ''}
+          : ''
+      }
     `;
   } else {
     return css`
@@ -1212,8 +1214,9 @@ function generateWritingModeStyles(
       :where(.${prefix}-ref--half-width) {
         /* No text-combine-upright needed for horizontal */
       }
-      ${includeGrid
-        ? css`
+      ${
+        includeGrid
+          ? css`
             /* highlight が ruby-grid のグリッドアイテムの場合、padding-bottom をリセット */
             :where(.${prefix}-ruby-grid) > :where(.${prefix}-highlight),
             :where(.${prefix}-ruby-grid--emphasis) > :where(.${prefix}-highlight),
@@ -1221,7 +1224,8 @@ function generateWritingModeStyles(
               padding-bottom: 0;
             }
           `
-        : ''}
+          : ''
+      }
     `;
   }
 }

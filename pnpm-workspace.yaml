@@ -1,2 +1,6 @@
 packages:
   - 'packages/*'
+
+# Refuse versions published less than 7 days ago (10080 minutes).
+# Guards against freshly published malicious releases; renovate.json5 uses the same window.
+minimumReleaseAge: 10080

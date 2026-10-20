@@ -1,0 +1,11 @@
+{
+  "$schema": "./node_modules/oxfmt/configuration_schema.json",
+  "semi": true,
+  "singleQuote": true,
+  "trailingComma": "es5",
+  "printWidth": 100,
+  "tabWidth": 2,
+  "embeddedLanguageFormatting": "off",
+  "sortPackageJson": false,
+  "ignorePatterns": ["pnpm-lock.yaml", "packages/integration-tests/.doctest/"]
+}

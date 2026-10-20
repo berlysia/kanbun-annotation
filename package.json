@@ -16,8 +16,8 @@
     "build": "turbo build",
     "typecheck": "turbo typecheck",
     "lint": "turbo lint",
-    "format": "prettier --write .",
-    "format:check": "prettier --check .",
+    "format": "oxfmt .",
+    "format:check": "oxfmt --check .",
     "test": "turbo test",
     "test:run": "turbo test:run",
     "test:semantic": "pnpm --filter @kanbun-skam/integration-tests test:semantic",
@@ -50,8 +50,8 @@
     "husky": "9.1.7",
     "knip": "5.82.1",
     "lint-staged": "16.2.7",
-    "oxlint": "1.41.0",
-    "prettier": "3.8.1",
+    "oxfmt": "0.73.0",
+    "oxlint": "1.88.0",
     "tsup": "8.5.1",
     "turbo": "2.8.1",
     "typescript5": "npm:typescript@5.9.3",
@@ -61,9 +61,9 @@
   "lint-staged": {
     "*.{ts,tsx,js,jsx}": [
       "oxlint",
-      "prettier --write"
+      "oxfmt --no-error-on-unmatched-pattern"
     ],
-    "*.{json,md,html,css}": "prettier --write"
+    "*.{json,md,html,css}": "oxfmt --no-error-on-unmatched-pattern"
   },
   "packageManager": "pnpm@10.27.0",
   "pnpm": {

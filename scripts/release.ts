@@ -436,7 +436,7 @@ export interface ReleaseDeps {
   changesetPre(args: string[]): Promise<FrontCheck<void>>;
   verify(): Promise<FrontCheck<void>>;
   changesetVersion(): Promise<FrontCheck<void>>;
-  prettier(files: string[]): Promise<FrontCheck<void>>;
+  oxfmt(files: string[]): Promise<FrontCheck<void>>;
   checkRelease(tag: string): Promise<FrontCheck<void>>;
   consumer(): Promise<FrontCheck<void>>;
   ghRelease(tag: string): ReleaseLookup;
@@ -962,11 +962,11 @@ async function versionStage(s: FrontState): Promise<StageResult> {
   fillChangelogs(s, version.value);
   const before = checkAllowedChanges(s);
   if (!before.ok) return stopAllowed(before);
-  const formatted = await deps.prettier(before.value.filter((p) => existsSync(join(s.root, p))));
+  const formatted = await deps.oxfmt(before.value.filter((p) => existsSync(join(s.root, p))));
   if (!formatted.ok) {
-    return stopOnCheck(s, STAGE_2, 'prettier failed', formatted, REVERT_VERSIONING);
+    return stopOnCheck(s, STAGE_2, 'oxfmt failed', formatted, REVERT_VERSIONING);
   }
-  // prettier や他のプロセスが、検査の後に別の変更を足していないかをもう一度確かめる
+  // oxfmt や他のプロセスが、検査の後に別の変更を足していないかをもう一度確かめる
   const after = checkAllowedChanges(s);
   if (!after.ok) return stopAllowed(after);
   s.allowed = after.value;
@@ -1807,7 +1807,7 @@ export type FrontChild =
   | 'changesetPre'
   | 'verify'
   | 'changesetVersion'
-  | 'prettier'
+  | 'oxfmt'
   | 'checkRelease'
   | 'consumer';
 
@@ -1816,7 +1816,7 @@ const FRONT_CHILD_STDIO: Readonly<Record<FrontChild, RunStdio>> = {
   changesetPre: 'inherit-keep-stderr',
   verify: 'inherit-keep-stderr',
   changesetVersion: 'inherit-keep-stderr',
-  prettier: 'inherit-keep-stderr',
+  oxfmt: 'inherit-keep-stderr',
   checkRelease: 'inherit-keep-stderr',
   consumer: 'inherit-keep-stderr',
 };
@@ -1949,10 +1949,10 @@ export function buildReleaseDeps(
     },
     changesetVersion: () =>
       runChild('changesetVersion', changesetBin, [...changesetRest, 'version']),
-    prettier: async (files) =>
+    oxfmt: async (files) =>
       files.length === 0
         ? { ok: true, value: undefined }
-        : runChild('prettier', 'pnpm', ['exec', 'prettier', '--write', ...files]),
+        : runChild('oxfmt', 'pnpm', ['exec', 'oxfmt', '--', ...files]),
     checkRelease: (tag) =>
       runChild('checkRelease', process.execPath, [
         checkReleaseScript,

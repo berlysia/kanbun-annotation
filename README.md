@@ -179,10 +179,10 @@ pnpm typecheck
 # テスト
 pnpm test
 
-# リント
+# リント (oxlint)
 pnpm lint
 
-# フォーマット
+# フォーマット (oxfmt)
 pnpm format
 ```
 

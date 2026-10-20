@@ -80,6 +80,9 @@ export function createValidationError(
   return error;
 }
 
+/** 目印のキーの文字列は契約 (ADR-033 KD10)。変えると版の違うコピーの間で判別できなくなる */
+const VALIDATION_ERROR_BRAND = Symbol.for('@kanbun-skam/skam/SKAMValidationError');
+
 /** ValidationErrorをthrow可能なErrorに変換 */
 export class SKAMValidationError extends Error {
   readonly errors: ValidationError[];
@@ -94,4 +97,30 @@ export class SKAMValidationError extends Error {
     this.name = 'SKAMValidationError';
     this.errors = errors;
   }
+  /**
+   * skam の重複、canvas-renderer の IIFE 版との併用、別の realm (iframe) ではクラスが別になり、
+   * 通常の instanceof が偽になる。Symbol.for のレジストリは同じ agent の realm の間で共有されるので、
+   * 目印で判別する (ADR-033 KD10)。
+   * `this` がサブクラスのときは通常の判定に任せ、基底のインスタンスまで真になるのを防ぐ。
+   */
+  static override [Symbol.hasInstance](value: unknown): boolean {
+    if (this !== SKAMValidationError) {
+      return Function.prototype[Symbol.hasInstance].call(this, value);
+    }
+    try {
+      if ((typeof value !== 'object' && typeof value !== 'function') || value === null)
+        return false;
+      return (value as Record<symbol, unknown>)[VALIDATION_ERROR_BRAND] === true;
+    } catch {
+      // getter や Proxy が投げても、判定は例外を出さない
+      return false;
+    }
+  }
 }
+
+// 目印はプロトタイプの getter。インスタンスの own property にせず、列挙・JSON 化に出さない
+Object.defineProperty(SKAMValidationError.prototype, VALIDATION_ERROR_BRAND, {
+  get: () => true,
+  enumerable: false,
+  configurable: true,
+});

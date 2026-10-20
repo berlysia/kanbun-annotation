@@ -202,8 +202,9 @@ describe('parse - error positions (K7 a)', () => {
 
   it('leaves Empty document without a position', () => {
     const error = positionOf('');
-    expect(error.message).toMatch(/Empty document|XML parse error/);
+    expect(error.message).toBe('XML parse error: invalid doc source');
     expect(error.line).toBeUndefined();
+    expect(error.column).toBeUndefined();
   });
 
   it('keeps positions on other element errors (okototen, ref, saidoku)', () => {

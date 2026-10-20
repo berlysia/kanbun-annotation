@@ -73,6 +73,8 @@ SKAM-ML で表現できない内容は、黙って捨てない。`stringify` は
 
 各 loss は `category`、`code`、`path`（JSON Pointer）、`message`（必要なら `markId`）を持つ。
 
+`instanceof SKAMXMLStringifyError` は、依存の重複や iframe でも真になる。クラスに `Symbol.for('@kanbun-skam/skam-xml-stringify/SKAMXMLStringifyError')` の目印を持たせ、それで判別している。依存の重複はテストで確かめた。iframe（別の realm）は、`Symbol.for` のレジストリが realm の間で共有されることに基づく（ADR-033 KD10 で `node:vm` により確かめた）。ただし、目印を入れた版より前のコピーと混在すると、両方向で偽になる。別の realm の誤りは `instanceof Error` が偽になる。`structuredClone` や `postMessage` で複製した誤りは偽になる。目印を手で付けた object も真になるので、`instanceof` は型の判別であって、中身が安全だという保証ではない（`losses` や `message` は利用者の入力を含む）。
+
 ### `lossy` と `onLoss`
 
 - `lossy: false`（既定）: 欠落が 1 つでもあれば `SKAMXMLStringifyError` を投げる。

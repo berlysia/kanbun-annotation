@@ -77,3 +77,4 @@ status: Complete
 ## 残る作業
 
 - `SKAMValidationError`、`SKAMXMLParseError`、`SKAMXMLStringifyError` も、コピーや realm をまたぐと `instanceof` が偽になる。KD10 と同じ目印を入れるかを決める。docs/plans/backlog.md で追う。
+  - 2026-10-20 に 3 つのクラスへ KD10 の目印を入れた。キーは `@kanbun-skam/<パッケージ名>/<クラス名>`、値が `true` であることも契約。規則は 4 つのクラスに複製してあり、変えるときは 4 か所を同時に直す。

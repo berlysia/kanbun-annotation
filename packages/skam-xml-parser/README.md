@@ -231,6 +231,8 @@ try {
 }
 ```
 
+`instanceof SKAMXMLParseError` は、依存の重複や iframe でも真になる。クラスに `Symbol.for('@kanbun-skam/skam-xml-parser/SKAMXMLParseError')` の目印を持たせ、それで判別している。依存の重複はテストで確かめた。iframe（別の realm）は、`Symbol.for` のレジストリが realm の間で共有されることに基づく（ADR-033 KD10 で `node:vm` により確かめた）。ただし、目印を入れた版より前のコピーと混在すると、両方向で偽になる。別の realm の誤りは `instanceof Error` が偽になる。`structuredClone` や `postMessage` で複製した誤りは偽になる。目印を手で付けた object も真になるので、`instanceof` は型の判別であって、中身が安全だという保証ではない（`message` や `SKAMValidationError` の `errors` は利用者の入力を含む）。
+
 ## 0.1 からの移行
 
 0.1.x からの変更のうち、このパッケージに関わるものです。ID は全体の移行表と共通です。

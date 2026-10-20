@@ -4,6 +4,13 @@
   "categories": { "correctness": "off" },
   "jsPlugins": ["eslint-plugin-baseline-js"],
   "rules": {
-    "baseline-js/use-baseline": ["warn", { "available": "widely" }]
+    "baseline-js/use-baseline": [
+      "warn",
+      {
+        "available": "widely",
+        "includeWebApis": { "preset": "auto" },
+        "includeJsBuiltins": { "preset": "auto" }
+      }
+    ]
   }
 }

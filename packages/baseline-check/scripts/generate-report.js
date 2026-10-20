@@ -143,7 +143,16 @@ function writeYearlyOxlintConfig(year) {
     plugins: [],
     categories: { correctness: 'off' },
     jsPlugins: ['eslint-plugin-baseline-js'],
-    rules: { 'baseline-js/use-baseline': ['warn', { available: year }] },
+    rules: {
+      'baseline-js/use-baseline': [
+        'warn',
+        {
+          available: year,
+          includeWebApis: { preset: 'auto' },
+          includeJsBuiltins: { preset: 'auto' },
+        },
+      ],
+    },
   };
   const path = join(pkgDir, `.oxlint-baseline-${year}.json`);
   writeFileSync(path, JSON.stringify(config, null, 2) + '\n', 'utf-8');

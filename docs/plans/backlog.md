@@ -19,7 +19,6 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 - **release の進み方の行の見え方の確認**: `pnpm run release` の `entry:` の行、`stage N/11:` / `ok:` / `waiting for` の行と、子の stderr (`inherit-keep-stderr` で流れるもの) の並びが、実際の端末で読めるかを確かめる。2026-10-19 の確認は入口で止まる経路だけで、これらの行は出なかった (未確認)。次のリリースで見る。出典: ADR-032「確かめた事実」と R9。規模: 小。
 - **approve が実行のたびに 2FA を求めるかの確認**: `npm stage approve` が実行のたびに 2FA を求めるか (6 パッケージなら 6 回か) を確かめる。0.2.0 では、approve の認証の画面に「次の 5 分間は 2FA を省略する」の選択肢が出なかった (未確認)。確かめたら、releasing.md の段 10 の記述を直す。出典: releasing.md 段 10、PR #16。規模: 小。
 - **判定 (K11 / K12 / K15) と待機の定数の見直し**: 0.2.0 の実測を使って、次の 2 つを見直す。K11 / K12 / K15 の判定と、`scripts/release-after-push.ts` の `WAIT` である。出典: plan-release-automation.md L73、ADR-031「Followup」の 1。規模: 小。
-- **stage の来歴の表示**: stage の `actor` と `createdAt` を、y/N の表示に出すか検討する (R9)。形は 0.2.0 で確かめた。`actor` は `GitHub Actions`、`actorType` は `trusted automation` だった。出典: plan-release-automation.md L75、ADR-031「Followup」の 3、ADR-029「結果」。規模: 小。
 - **attestation の bundle と tgz の digest の照合**: `dist.attestations.url` の bundle を取得し、in-toto の statement の subject の sha512 が log の tgz と一致するかを確かめる。いまは registry が申告する provenance の predicateType の形だけを確かめ、attestation が無いとき (provenance が消えた公開) は止めない。出典: feat/release-integrity-and-attestations の spec K8。規模: 中。
 - **npm stage view の出力の確認**: 手作業の手順は、integrity の照合に `npm stage view <stage-id>` を使う。0.2.0 では使っておらず、出力の書式は未確認である。`npm stage list` の書式は確かめた。releasing.md の冒頭の注記も、確かめた範囲に合わせて直す。出典: ADR-029「未確認の事項」と「結果」。規模: 小。
 - **E409 の実際の stderr の確認**: `automated review hasn't finished` の E409 は、shiori の手順書の記録しかなく、実物を見ていない (未確認)。出典: ADR-031「未確認の事項」。規模: 小。
@@ -48,8 +47,7 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 
 ## パーサー
 
-- **空の入力の誤りの文言**: Node 版は、`''` で `XML parse error: invalid doc source`、空白だけの入力で `Empty document` を投げる。ブラウザ版の文言は確かめていない (未確認)。揃えるかを決める。メッセージを変えると利用者のテストに響く。出典: fix/backlog-small-fixes (2026-10-20)。規模: 小。
-- **ブラウザ版の構文の誤りのメッセージが長い**: ブラウザ版の構文の誤りのメッセージは、`parsererror` の文全体である。Chromium は `This page contains the following errors:` などの前置きを含み、Firefox は誤りのある元の行を写す (5,000,000 字の 1 行の入力なら、メッセージも同じ長さになる)。前置きを除くか長さで切るかを決める。メッセージを変えると利用者のテストに響く。出典: feat/browser-parser-positions の調査 (2026-10-20)。規模: 小。
+- **誤りの種類を構造で持つ**: parser の誤り (`SKAMXMLParseError`) に種類 (`kind`) を足し、利用者がメッセージの文言に頼らずに誤りを判別できるようにするかを決める。メッセージの文言は互換の対象外 (2026-10-21 に README に書いた)。parser の公開 API の追加になる。出典: fix/backlog-batch-a (2026-10-21)。規模: 中。
 - **WebKit の parsererror の文の確認**: ブラウザ版は、Chromium と Firefox の報告の形から構文の誤りの位置を読む。WebKit (Safari) の形は、手元の WSL で WebKit が起動せず確かめていない (未確認)。Chromium と同じ形でなければ、Safari では構文の誤りに位置が付かない。出典: feat/browser-parser-positions の調査 (2026-10-20)。規模: 小。
 
 ## レンダラー
@@ -61,7 +59,7 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 
 ## テストと CI
 
-- **手元 (WSL) で VRT が撮影できない**: 手元の headless chromium 145 (Playwright 1.58.0) は `requestAnimationFrame` が呼ばれず、`toHaveScreenshot` が要素の安定待ちで 5 秒のタイムアウトになる (素の `<div>` でも同じ。`--disable-gpu` などの起動の引数でも直らない)。ベースラインは Playwright 公式の Docker イメージで作った (`docker run ... mcr.microsoft.com/playwright:v1.58.0-noble ./node_modules/.bin/playwright test`)。手元の `pnpm test:visual` を動かすか、Docker での実行を script にするかを決める。出典: test/vrt-ref-order (2026-10-20)。規模: 小。
+- **CI の VRT も手元と同じ Docker イメージで動かすか**: 基準画像は手元の Docker (`pnpm test:visual:docker`) で撮り、CI は ubuntu-latest に `playwright install --with-deps chromium` を入れて比べる。撮る環境と比べる環境が違う。CI も同じイメージで動かすかを決める。VRT の揺れ (下の行) との関係は確かめていない。出典: fix/backlog-batch-a (2026-10-21)。規模: 小。
 - **CI の VRT の tateten-kaeri-split が揺れる**: PR #37 の CI で、`visual-regression.spec.ts` の `tateten-kaeri-split` が 2 回続けて落ち (354 pixels、ratio 0.03。許容は `maxDiffPixelRatio: 0.01`)、3 回目の再実行で通った。PR #37 は描画を変えていない。同じ時間帯に master の VRT を 2 回流すと、どちらも通った。手元の Playwright 1.58.0 の Docker イメージでは、network ありで master と PR #37 のどちらも通った。network なし (Google Fonts を読めない) では、字が重なりルビが消えた画像になって落ちた。原因は確かめていない (フォントの読み込みの時間の揺れと推測)。2026-10-20 から、`visual-test` が落ちると expected / actual / diff の画像が artifact `vrt-test-results` に 7 日残る。次に落ちたら画像で原因を確かめ、フォントを同梱するかを決める。artifact が実際に上がるかも、そのときに確かめる。出典: PR #37 の CI (2026-10-20)。規模: 小。
 - **移行表の機械可読化**: 移行表を機械可読形式 (YAML など) にして、各 README の移行の節を生成する。`migration-table.test.ts` は、README の旧挙動・新挙動・回避策の列が正本と一字一句同じかを検査しない。手編集によるずれを検出できない。出典: plan-practical-readiness.md L103、ADR-028「既知の制約と未実施の確認」。規模: 中。
 - **html-renderer の仕様テストの意味論化**: 文字列一致のテストを減らし、意味を検査するテストに置き換える。基盤は ADR-022 と `css-slot-semantics.test.ts` にある。ただし docs/testing/no-test-gap-matrix.md の 4 件はすべて `dual` で、`migrated` は 0 件である。`comprehensive-rendering.test.ts` には、`toContain` などの文字列一致の行が 267 行ある。出典: plan-html-renderer-colocation-and-named-grid-areas.md L295、ADR-020「完了時点で残る作業（Phase3 以降）」。規模: 大。

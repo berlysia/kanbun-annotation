@@ -63,7 +63,9 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 - **CI の VRT も手元と同じ Docker イメージで動かすか**: 基準画像は手元の Docker (`pnpm test:visual:docker`) で撮り、CI は ubuntu-latest に `playwright install --with-deps chromium` を入れて比べる。撮る環境と比べる環境が違う。CI も同じイメージで動かすかを決める。VRT の揺れ (下の行) との関係は確かめていない。出典: fix/backlog-batch-a (2026-10-21)。規模: 小。
 - **CI の VRT の tateten-kaeri-split が揺れる**: PR #37 の CI で、`visual-regression.spec.ts` の `tateten-kaeri-split` が 2 回続けて落ち (354 pixels、ratio 0.03。許容は `maxDiffPixelRatio: 0.01`)、3 回目の再実行で通った。PR #37 は描画を変えていない。同じ時間帯に master の VRT を 2 回流すと、どちらも通った。手元の Playwright 1.58.0 の Docker イメージでは、network ありで master と PR #37 のどちらも通った。network なし (Google Fonts を読めない) では、字が重なりルビが消えた画像になって落ちた。原因は確かめていない (フォントの読み込みの時間の揺れと推測)。2026-10-20 から、`visual-test` が落ちると expected / actual / diff の画像が artifact `vrt-test-results` に 7 日残る。次に落ちたら画像で原因を確かめ、フォントを同梱するかを決める。artifact が実際に上がるかも、そのときに確かめる。出典: PR #37 の CI (2026-10-20)。規模: 小。
 - **html-renderer の仕様テストの意味論化**: 文字列一致のテストを減らし、意味を検査するテストに置き換える。基盤は ADR-022 と `css-slot-semantics.test.ts` にある。ただし docs/testing/no-test-gap-matrix.md の 4 件はすべて `dual` で、`migrated` は 0 件である。`comprehensive-rendering.test.ts` には、`toContain` などの文字列一致の行が 267 行ある。出典: plan-html-renderer-colocation-and-named-grid-areas.md L295、ADR-020「完了時点で残る作業（Phase3 以降）」。規模: 大。
-- **TypeScript 7 系への移行**: このリポジトリを TypeScript 7 系 (native の `typescript` パッケージ) に移す。tsgo (`@typescript/native-preview`) との関係、typescript-eslint などの JS 実装を要る道具の扱いを決める。consumer の検査の `typescript5` (5.9.3) は、利用者の 5 系の代表として残す。出典: 利用者の方針 (2026-10-19)。規模: 中。
+- **TypeScript 7 系への移行**: 4 つの段で進めている。進み具合は [Plan](plan-oxc-toolchain-and-typescript-7.md)、決定は [ADR-037](../decisions/adr-037-oxc-toolchain-and-typescript-7.md)。規模: 大。
+- **fallow の試用**: 未使用の検出の fallow (Rust、Oxc。TypeScript も Node も要らない) を knip と並べて走らせ、設定を詰める。`knip.config.ts` は自動で移せず、設定なしでは Web Component のライフサイクルの関数や canvas-renderer のテストを未使用と判定した。出典: ADR-037 の却下した案。規模: 中。
+- **stylelint の代わり**: TS の中の CSS の構文と Baseline を、TypeScript の JS API なしで検査する方法を探す。今の stylelint の `postcss-styled-syntax` は TypeScript の JS API で TS を読み、ADR-037 の例外になっている。出典: ADR-037 の例外。規模: 中。
 
 ## 外部利用
 

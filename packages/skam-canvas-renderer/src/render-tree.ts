@@ -7,7 +7,6 @@
 
 import type {
   SKAMDocument,
-  Token,
   Mark,
   KaeriMark,
   YomiganaMark,
@@ -23,14 +22,14 @@ import type {
 import {
   resolveEmphasisCharacter,
   resolveRefValues,
-  getMarksForToken as resolveTokenMarks,
+  createMarkLookup,
   getRangeMarkGroups,
   getTatetenGroups,
   getHighlightGroups,
   groupTokensByBlock,
   splitKaeriForTateten,
 } from '@kanbun-skam/skam/rendering';
-import type { RangeMarkGroup } from '@kanbun-skam/skam/rendering';
+import type { MarkLookup, RangeMarkGroup } from '@kanbun-skam/skam/rendering';
 
 import type {
   CanvasRenderTree,
@@ -50,11 +49,10 @@ import type { RenderProfile } from './profiles.js';
 // oxlint-disable-next-line eslint/complexity
 function resolveSlots(
   tokenId: string,
-  marks: Mark[],
   profile: RenderProfile,
-  allTokens: Token[]
+  lookupMarks: MarkLookup
 ): TokenSlots {
-  const tokenMarks = resolveTokenMarks(tokenId, marks, allTokens);
+  const tokenMarks = lookupMarks(tokenId);
   const slots: TokenSlots = {};
 
   // yomigana -> ruby
@@ -337,6 +335,11 @@ export function buildRenderTree(doc: SKAMDocument, profile: RenderProfile): Canv
 
   // ref 解決: 文書順のトークン列から ref ラベルマップを生成
   const allTokensOrdered = blockGroups.flatMap((g) => g.tokens);
+  // 字ごとの注記の引き当ては、描画する字の列から作った索引 1 つで済ませる
+  const lookupMarks = createMarkLookup(
+    marks,
+    blockGroups.map((g) => g.tokens)
+  );
   const refValueMap = profile.ref
     ? resolveRefValues(allTokensOrdered, marks)
     : new Map<RefMark, string>();
@@ -366,7 +369,7 @@ export function buildRenderTree(doc: SKAMDocument, profile: RenderProfile): Canv
     const tokenNodes: CanvasTokenNode[] = group.tokens.map((token) => ({
       type: 'token' as const,
       token,
-      slots: resolveSlots(token.id, marks, profile, group.tokens),
+      slots: resolveSlots(token.id, profile, lookupMarks),
     }));
 
     // range mark 処理: 各タイプの range mark を対応するスロットに集約

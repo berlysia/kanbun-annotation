@@ -40,7 +40,7 @@ import type {
 } from './air-types.js';
 import type { RangeMarkGroup } from './types.js';
 
-import { getMarksForToken } from './mark-lookup.js';
+import { createMarkLookup, type MarkLookup } from './mark-lookup.js';
 import { getRangeMarkGroups, getTatetenGroups, getHighlightGroups } from './mark-groups.js';
 import { groupTokensByBlock } from './block-utils.js';
 import { getBlockStartMarks } from './block-start.js';
@@ -56,11 +56,10 @@ import { resolveOkototenCell } from './okototen.js';
 // oxlint-disable-next-line eslint/complexity
 function resolveTokenSlots(
   tokenId: string,
-  marks: Mark[],
   profile: AIRRenderProfile,
-  allTokens: Token[]
+  lookupMarks: MarkLookup
 ): AIRTokenSlots {
-  const tokenMarks = getMarksForToken(tokenId, marks, allTokens);
+  const tokenMarks = lookupMarks(tokenId);
   const slots: AIRTokenSlots = {};
 
   if (profile.yomigana) {
@@ -222,8 +221,7 @@ interface RangeGroupSet {
 function buildRangeInfo(
   leadTokenId: string,
   blockTokens: Token[],
-  allTokens: Token[],
-  marks: Mark[],
+  lookupMarks: MarkLookup,
   profile: AIRRenderProfile,
   rangeGroups: RangeGroupSet,
   refValueMap: Map<RefMark, string>,
@@ -294,7 +292,7 @@ function buildRangeInfo(
   // trailing marks（後続トークンから収集）
   const trailingTokenIds = tokenIds.slice(1);
   for (const tid of trailingTokenIds) {
-    const tokenMarks = getMarksForToken(tid, marks, allTokens);
+    const tokenMarks = lookupMarks(tid);
     for (const [type, markList] of tokenMarks) {
       for (const m of markList) {
         if (type === 'kaeri' && profile.kaeriten) {
@@ -394,8 +392,7 @@ function buildAIRTatetenGroup(
 function buildTatetenRangeInfo(
   tokenNodes: AIRTokenNode[],
   blockTokens: Token[],
-  allTokens: Token[],
-  marks: Mark[],
+  lookupMarks: MarkLookup,
   profile: AIRRenderProfile,
   rangeGroups: RangeGroupSet,
   refValueMap: Map<RefMark, string>,
@@ -418,8 +415,7 @@ function buildTatetenRangeInfo(
   return buildRangeInfo(
     firstTokenId,
     blockTokens,
-    allTokens,
-    marks,
+    lookupMarks,
     profile,
     rangeGroups,
     refValueMap,
@@ -519,6 +515,11 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
 
   // ref 解決
   const allTokensOrdered = blockGroups.flatMap((g) => g.tokens);
+  // 字ごとの注記の引き当ては、描画する字の列から作った索引 1 つで済ませる
+  const lookupMarks = createMarkLookup(
+    marks,
+    blockGroups.map((g) => g.tokens)
+  );
   const refValueMap = profile.ref
     ? resolveRefValues(allTokensOrdered, marks)
     : new Map<RefMark, string>();
@@ -560,7 +561,7 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
 
     // Build token nodes
     const tokenNodes: AIRTokenNode[] = group.tokens.map((token) => {
-      const slots = resolveTokenSlots(token.id, marks, profile, group.tokens);
+      const slots = resolveTokenSlots(token.id, profile, lookupMarks);
       const node: AIRTokenNode = { type: 'token' as const, token, slots };
 
       // Range info（tateten 重複チェック付き）
@@ -578,8 +579,7 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
         const rangeInfo = buildRangeInfo(
           token.id,
           group.tokens,
-          group.tokens,
-          marks,
+          lookupMarks,
           profile,
           rangeGroups,
           refValueMap,
@@ -662,8 +662,7 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
           const rangeInfo = buildTatetenRangeInfo(
             groupTokens,
             group.tokens,
-            group.tokens,
-            marks,
+            lookupMarks,
             profile,
             rangeGroups,
             refValueMap,

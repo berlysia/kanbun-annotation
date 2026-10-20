@@ -157,6 +157,18 @@ jobs:
       - name: Run visual tests
         run: pnpm --filter @kanbun-skam/integration-tests test:visual
 
+      # Keeps the expected / actual / diff PNGs so a flaky failure can be inspected after the run.
+      # Artifacts of this public repository can be downloaded by anyone: if trace or video is
+      # enabled in playwright.config.ts, revisit what this step uploads.
+      - name: Upload visual test results
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: vrt-test-results
+          path: packages/integration-tests/test-results/
+          if-no-files-found: warn
+          retention-days: 7
+
   e2e:
     name: Playground E2E
     runs-on: ubuntu-latest

@@ -1234,7 +1234,7 @@ function markdownCodeBlocks(body: string): string[] {
 }
 
 const MANUAL_SECTION = '## 手作業の手順';
-const FIRST_RELEASE_SECTION = '## 最初のリリース (0.2.0) で確かめること';
+const STOP_BEFORE_APPROVE_SECTION = '## approve の前で一度止めて確かめる';
 const PRERELEASE_SECTION = '## prerelease';
 const MANUAL_COMMANDS = [
   'npm stage list',
@@ -1261,12 +1261,12 @@ function findManualStepViolations(text: string): string[] {
   );
 }
 
-function findFirstReleaseViolations(text: string): string[] {
-  const body = markdownSection(text, FIRST_RELEASE_SECTION);
-  if (body === undefined) return [`no section ${FIRST_RELEASE_SECTION}`];
+function findStopBeforeApproveViolations(text: string): string[] {
+  const body = markdownSection(text, STOP_BEFORE_APPROVE_SECTION);
+  if (body === undefined) return [`no section ${STOP_BEFORE_APPROVE_SECTION}`];
   return ['段 10', '`N`', '.tmp/release/']
     .filter((needle) => !body.includes(needle))
-    .map((needle) => `${FIRST_RELEASE_SECTION}: no ${needle}`);
+    .map((needle) => `${STOP_BEFORE_APPROVE_SECTION}: no ${needle}`);
 }
 
 function findPrereleaseViolations(text: string): string[] {
@@ -1347,17 +1347,17 @@ describe('releasing.md structure', () => {
     );
   });
 
-  test('(11c) the first release section names stage 10, the N answer and the saved files', () => {
-    assert.deepEqual(findFirstReleaseViolations(releasing), []);
-    assert.deepEqual(findFirstReleaseViolations(releasing.replaceAll('段 10', '段 9')), [
-      `${FIRST_RELEASE_SECTION}: no 段 10`,
+  test('(11c) the stop-before-approve section names stage 10, the N answer and the saved files', () => {
+    assert.deepEqual(findStopBeforeApproveViolations(releasing), []);
+    assert.deepEqual(findStopBeforeApproveViolations(releasing.replaceAll('段 10', '段 9')), [
+      `${STOP_BEFORE_APPROVE_SECTION}: no 段 10`,
     ]);
-    assert.deepEqual(findFirstReleaseViolations(releasing.replaceAll('`N`', 'N')), [
-      `${FIRST_RELEASE_SECTION}: no \`N\``,
+    assert.deepEqual(findStopBeforeApproveViolations(releasing.replaceAll('`N`', 'N')), [
+      `${STOP_BEFORE_APPROVE_SECTION}: no \`N\``,
     ]);
     assert.deepEqual(
-      findFirstReleaseViolations(releasing.replaceAll('.tmp/release/', '.tmp/rel/')),
-      [`${FIRST_RELEASE_SECTION}: no .tmp/release/`]
+      findStopBeforeApproveViolations(releasing.replaceAll('.tmp/release/', '.tmp/rel/')),
+      [`${STOP_BEFORE_APPROVE_SECTION}: no .tmp/release/`]
     );
   });
 

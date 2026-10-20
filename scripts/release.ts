@@ -1706,6 +1706,48 @@ async function interruptibleSleep(ms: number, interrupted: () => boolean): Promi
   }
 }
 
+// attestation の bundle を取る本物の fetchText。URL は registry が申告した値で、応答の大きさも中身も
+// registry 次第なので、時間・redirect・大きさに上限を持つ。
+// - 10 秒で打ち切る (6 パッケージを並列に取るので、1 周の取得も 10 秒を超えない)
+// - redirect は追わない (検査した URL 以外へ行かせない)
+// - 本文はストリームで読み、5 MB を超えたら読むのをやめて失敗にする (Content-Length には頼らない)
+export const ATTESTATION_FETCH_TIMEOUT_MS = 10_000;
+export const ATTESTATION_MAX_BYTES = 5 * 1024 * 1024;
+
+export async function fetchTextWithLimits(
+  url: string,
+  fetchImpl: typeof fetch = fetch
+): Promise<{ status: number; contentType: string; body: string }> {
+  const response = await fetchImpl(url, {
+    redirect: 'error',
+    signal: AbortSignal.timeout(ATTESTATION_FETCH_TIMEOUT_MS),
+  });
+  const chunks: Uint8Array[] = [];
+  let total = 0;
+  if (response.body !== null) {
+    const reader = response.body.getReader();
+    try {
+      for (;;) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        total += value.byteLength;
+        if (total > ATTESTATION_MAX_BYTES) {
+          throw new Error(`the response is larger than ${ATTESTATION_MAX_BYTES} bytes`);
+        }
+        chunks.push(value);
+      }
+    } finally {
+      // 上限を超えたときも、残りを読まずに接続を閉じる
+      await reader.cancel().catch(() => undefined);
+    }
+  }
+  return {
+    status: response.status,
+    contentType: response.headers.get('content-type') ?? '',
+    body: Buffer.concat(chunks).toString('utf8'),
+  };
+}
+
 export interface AfterPushBuildOptions {
   cwd: string;
   version: string;
@@ -1717,6 +1759,7 @@ export interface AfterPushBuildOptions {
   fsApi?: FsApi;
   tmpRoot?: string;
   now?: () => Date;
+  fetchText?: AfterPushDeps['fetchText'];
 }
 
 export function buildAfterPushDeps(options: AfterPushBuildOptions): AfterPushDeps {
@@ -1730,6 +1773,7 @@ export function buildAfterPushDeps(options: AfterPushBuildOptions): AfterPushDep
     interrupted: options.interrupted,
     confirm: options.confirm,
     verifyTrust: options.verifyTrust,
+    fetchText: options.fetchText ?? ((url) => fetchTextWithLimits(url)),
     ...temp,
     saveEvidence: createEvidenceStore(
       fsApi,

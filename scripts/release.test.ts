@@ -3,6 +3,8 @@ import type { TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { EventEmitter, once } from 'node:events';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import {
   existsSync,
   mkdirSync,
@@ -26,6 +28,8 @@ import {
   createOutput,
   createRunner,
   createTempFs,
+  fetchTextWithLimits,
+  ATTESTATION_MAX_BYTES,
   nodeFsApi,
   nodeSpawn,
   pumpSanitizedStderr,
@@ -3045,4 +3049,76 @@ test('createEvidenceStore: a name with a path separator or a version that is not
     createEvidenceStore(nodeFsApi, root, '../0.2.0', () => new Date(0))('x', 'y')
   );
   assert.equal(existsSync(join(root, '.tmp', 'release', 'x')), false);
+});
+
+// --- attestation の取得 (fetchTextWithLimits) ---
+
+// 手元の HTTP サーバーに本物の fetch で要求し、status と content-type の受け渡し、
+// redirect の拒否、本文の上限を確かめる
+async function withServer(
+  t: TestContext,
+  handler: Parameters<typeof createServer>[1]
+): Promise<string> {
+  const server = createServer(handler);
+  server.listen(0, '127.0.0.1');
+  await once(server, 'listening');
+  t.after(() => server.close());
+  return `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+}
+
+test('fetchTextWithLimits passes the status, content-type and body through', async (t) => {
+  const base = await withServer(t, (req, res) => {
+    if (req.url === '/ok') {
+      res.setHeader('content-type', 'application/json');
+      res.end('{"attestations":[]}');
+    } else {
+      res.statusCode = 404;
+      res.setHeader('content-type', 'text/html');
+      res.end('<p>not found</p>');
+    }
+  });
+  assert.deepEqual(await fetchTextWithLimits(`${base}/ok`), {
+    status: 200,
+    contentType: 'application/json',
+    body: '{"attestations":[]}',
+  });
+  assert.deepEqual(await fetchTextWithLimits(`${base}/missing`), {
+    status: 404,
+    contentType: 'text/html',
+    body: '<p>not found</p>',
+  });
+});
+
+test('fetchTextWithLimits does not follow a redirect', async (t) => {
+  let followed = false;
+  const base = await withServer(t, (req, res) => {
+    if (req.url === '/target') followed = true;
+    res.statusCode = 302;
+    res.setHeader('location', '/target');
+    res.end();
+  });
+  await assert.rejects(fetchTextWithLimits(`${base}/start`));
+  assert.equal(followed, false);
+});
+
+test('fetchTextWithLimits stops reading a body over the limit without a content-length', async (t) => {
+  const base = await withServer(t, (_req, res) => {
+    res.setHeader('content-type', 'application/json');
+    // chunked で送り、content-length に頼らずに数えることを確かめる
+    const chunk = Buffer.alloc(1024 * 1024, 97);
+    for (let i = 0; i <= ATTESTATION_MAX_BYTES / chunk.length; i += 1) res.write(chunk);
+    res.end();
+  });
+  await assert.rejects(fetchTextWithLimits(`${base}/big`), /larger than/);
+});
+
+test('fetchTextWithLimits asks fetch for no redirects and a timeout signal', async () => {
+  let seen: RequestInit | undefined;
+  const fake = (async (_url: string | URL | Request, init?: RequestInit) => {
+    seen = init;
+    return new Response('{}', { status: 200, headers: { 'content-type': 'application/json' } });
+  }) as typeof fetch;
+  await fetchTextWithLimits('https://registry.npmjs.org/-/npm/v1/attestations/x', fake);
+  assert.equal(seen?.redirect, 'error');
+  assert.ok(seen?.signal instanceof AbortSignal);
 });

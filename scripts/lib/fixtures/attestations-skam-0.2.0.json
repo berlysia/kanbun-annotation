@@ -1,0 +1,20 @@
+{
+  "attestations": [
+    {
+      "predicateType": "https://github.com/npm/attestation/tree/main/specs/publish/v0.1",
+      "bundle": {
+        "dsseEnvelope": {
+          "payload": "eyJfdHlwZSI6Imh0dHBzOi8vaW4tdG90by5pby9TdGF0ZW1lbnQvdjAuMSIsInN1YmplY3QiOlt7Im5hbWUiOiJwa2c6bnBtLyU0MGthbmJ1bi1za2FtL3NrYW1AMC4yLjAiLCJkaWdlc3QiOnsic2hhNTEyIjoiOGUwZWJiY2E1MTdjMWNlYTAyNzhjODQ1YmZhZTQzNGFlNmY3NzI1MmFlY2M0MjgyNTAxNWYzOGFlYjcxMWFiNGNjOWE5NDIzMmZkZGI1MzIzOWYyNmUxYWU1YjIxYWNlOGViZTk3NTQwOWQ4N2IxMTI0YmVlY2ZkMzYxYzlkZDQifX1dLCJwcmVkaWNhdGVUeXBlIjoiaHR0cHM6Ly9naXRodWIuY29tL25wbS9hdHRlc3RhdGlvbi90cmVlL21haW4vc3BlY3MvcHVibGlzaC92MC4xIiwicHJlZGljYXRlIjp7Im5hbWUiOiJAa2FuYnVuLXNrYW0vc2thbSIsInZlcnNpb24iOiIwLjIuMCIsInJlZ2lzdHJ5IjoiaHR0cHM6Ly9yZWdpc3RyeS5ucG1qcy5vcmcifX0="
+        }
+      }
+    },
+    {
+      "predicateType": "https://slsa.dev/provenance/v1",
+      "bundle": {
+        "dsseEnvelope": {
+          "payload": "eyJfdHlwZSI6Imh0dHBzOi8vaW4tdG90by5pby9TdGF0ZW1lbnQvdjEiLCJzdWJqZWN0IjpbeyJuYW1lIjoicGtnOm5wbS8lNDBrYW5idW4tc2thbS9za2FtQDAuMi4wIiwiZGlnZXN0Ijp7InNoYTUxMiI6IjhlMGViYmNhNTE3YzFjZWEwMjc4Yzg0NWJmYWU0MzRhZTZmNzcyNTJhZWNjNDI4MjUwMTVmMzhhZWI3MTFhYjRjYzlhOTQyMzJmZGRiNTMyMzlmMjZlMWFlNWIyMWFjZThlYmU5NzU0MDlkODdiMTEyNGJlZWNmZDM2MWM5ZGQ0In19XSwicHJlZGljYXRlVHlwZSI6Imh0dHBzOi8vc2xzYS5kZXYvcHJvdmVuYW5jZS92MSIsInByZWRpY2F0ZSI6eyJidWlsZERlZmluaXRpb24iOnsiYnVpbGRUeXBlIjoiaHR0cHM6Ly9zbHNhLWZyYW1ld29yay5naXRodWIuaW8vZ2l0aHViLWFjdGlvbnMtYnVpbGR0eXBlcy93b3JrZmxvdy92MSIsImV4dGVybmFsUGFyYW1ldGVycyI6eyJ3b3JrZmxvdyI6eyJyZWYiOiJyZWZzL3RhZ3MvdjAuMi4wIiwicmVwb3NpdG9yeSI6Imh0dHBzOi8vZ2l0aHViLmNvbS9iZXJseXNpYS9rYW5idW4tYW5ub3RhdGlvbiIsInBhdGgiOiIuZ2l0aHViL3dvcmtmbG93cy9yZWxlYXNlLnltbCJ9fSwiaW50ZXJuYWxQYXJhbWV0ZXJzIjp7ImdpdGh1YiI6eyJldmVudF9uYW1lIjoicHVzaCIsInJlcG9zaXRvcnlfaWQiOiIxMTQ2MzU5MTg0IiwicmVwb3NpdG9yeV9vd25lcl9pZCI6Ijk1MDU3MyJ9fSwicmVzb2x2ZWREZXBlbmRlbmNpZXMiOlt7InVyaSI6ImdpdCtodHRwczovL2dpdGh1Yi5jb20vYmVybHlzaWEva2FuYnVuLWFubm90YXRpb25AcmVmcy90YWdzL3YwLjIuMCIsImRpZ2VzdCI6eyJnaXRDb21taXQiOiI1MDNlZTIyYzQ2NGNhMjFiODljNTc0NDIyMzM3NWE1MjJlNjcyNDdkIn19XX0sInJ1bkRldGFpbHMiOnsiYnVpbGRlciI6eyJpZCI6Imh0dHBzOi8vZ2l0aHViLmNvbS9hY3Rpb25zL3J1bm5lci9naXRodWItaG9zdGVkIn0sIm1ldGFkYXRhIjp7Imludm9jYXRpb25JZCI6Imh0dHBzOi8vZ2l0aHViLmNvbS9iZXJseXNpYS9rYW5idW4tYW5ub3RhdGlvbi9hY3Rpb25zL3J1bnMvMzkyMDA4NDQ2OTYvYXR0ZW1wdHMvMSJ9fX19"
+        }
+      }
+    }
+  ]
+}

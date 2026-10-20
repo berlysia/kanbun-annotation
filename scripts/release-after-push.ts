@@ -10,6 +10,7 @@ import {
   classifyPackageState,
   classifyStop,
   extractLogManifest,
+  formatWaits,
   ghReleaseViewArgs,
   ghRunAttemptArgs,
   ghRunDownloadArgs,
@@ -19,12 +20,14 @@ import {
   ghRunViewArgs,
   ghRunWatchArgs,
   attemptKey,
+  attestationUrlOf,
   isE409,
   judgeArtifactDir,
   judgeJobs,
   judgeLogManifest,
   judgePostCheck,
   judgeStaged,
+  makeWaitEntry,
   npmStageApproveArgs,
   npmStageDownloadArgs,
   npmStageListArgs,
@@ -37,14 +40,18 @@ import {
   RELEASE_JOB_NAMES,
   selectRun,
   sha512Integrity,
+  verifyAttestationBundle,
 } from './lib/release-after-push-check.ts';
 import type {
   ApproveTarget,
   ArtifactEntry,
+  AttestationFetch,
   LogManifest,
   ParseViewDistResult,
   PickStageResult,
   StagedArtifact,
+  WaitEntry,
+  WaitOutcome,
 } from './lib/release-after-push-check.ts';
 import {
   distTagFor,
@@ -109,6 +116,9 @@ export interface AfterPushDeps {
   readFile(path: string, maxBytes: number): Buffer;
   // 保存した先のディレクトリを返す
   saveEvidence(name: string, content: string): string;
+  // registry が申告した URL の本文を取る (attestation の bundle)。応答は status と content-type も返す。
+  // 時間と大きさの上限、redirect の拒否は実装が持ち、超えたら例外を投げる
+  fetchText(url: string): Promise<{ status: number; contentType: string; body: string }>;
 }
 
 // --- 待機 (0.2.0 の実測で見直す。ADR-031 の Followup) ---
@@ -138,6 +148,10 @@ export const EVIDENCE_FILES = {
   logManifest: 'log-manifest.txt',
   stageList: (name: string): string => `stage-list-${shortName(name)}.json`,
   view: (name: string): string => `view-${shortName(name)}.json`,
+  // 取得した attestation の bundle (保存時に sanitize されるので、元のバイト列とは違う)
+  attestations: (name: string): string => `attestations-${shortName(name)}.json`,
+  // 待ちごとの対象、結果、probe の回数、経過秒 (WAIT の定数を実測で見直すための記録)
+  waits: 'waits.json',
 };
 
 // --- 待機の道具 ---
@@ -227,6 +241,16 @@ interface Ctx {
   evidenceDir: string | undefined;
   // run を特定した後の URL (停止の表示の notes に出す)
   runUrl: string | undefined;
+  // 待ちの記録。pollOrHalt が待ちを始めた順に足し、waits.json に保存する
+  waits: WaitRecord[];
+  // いま待っている最中のもの (段 11 が周ごとの残りを足すため)
+  activeWait: WaitRecord | undefined;
+}
+
+interface WaitRecord {
+  entry: WaitEntry;
+  startedAt: number;
+  rounds: { atMs: number; remaining: readonly string[] }[] | undefined;
 }
 
 interface RunInfo {
@@ -334,24 +358,93 @@ function cleanupTemps(ctx: Ctx): void {
   }
 }
 
-// 待って、予算を使い切ったら undefined。Ctrl-C は halt
+function saveWaits(ctx: Ctx): void {
+  try {
+    // ctx.evidenceDir は更新しない (rawPath は判定の根拠のファイルだけを指す)
+    ctx.deps.saveEvidence(EVIDENCE_FILES.waits, formatWaits(ctx.waits.map((w) => w.entry)));
+  } catch (error) {
+    // 記録の失敗は表示するが、元の結果や例外を置き換えない
+    ctx.deps.output.emit(`could not save waits.json: ${messageOf(error)}`);
+  }
+}
+
+// 段 11 が、その周に残った観察を記録する (いま待っている最中の待ちにだけ付く)
+function noteWaitRound(ctx: Ctx, remaining: readonly string[]): void {
+  const active = ctx.activeWait;
+  if (active?.rounds === undefined) return;
+  active.rounds.push({ atMs: ctx.deps.now() - active.startedAt, remaining });
+}
+
+// 待って、予算を使い切ったら undefined。Ctrl-C は halt。
+// 待ちの全体を waits.json に残す: 始めに running で保存し (強制終了しても、どこで待っていたかが残る)、
+// 終わり方 (done / exhausted / interrupted / halted / error) で更新して保存し直す
 async function pollOrHalt<T>(
   ctx: Ctx,
   wait: WaitSpec,
   label: string,
   probe: () => Promise<{ done: true; value: T } | { done: false }>,
-  delayFirst = false
+  delayFirst = false,
+  options: { rounds?: boolean } = {}
 ): Promise<T | undefined> {
-  const result = await pollUntil(ctx.deps, {
-    label,
-    onWait: ctx.deps.output.emit,
-    intervalMs: wait.intervalMs,
-    budget: 'attempts' in wait ? { attempts: wait.attempts } : { ms: wait.budgetMs },
-    delayFirst,
-    probe,
-  });
-  if (result.kind === 'interrupted') halt({ kind: 'interrupted' });
-  return result.kind === 'done' ? result.value : undefined;
+  const budget = 'attempts' in wait ? { attempts: wait.attempts } : { ms: wait.budgetMs };
+  const startedAt = ctx.deps.now();
+  const record: WaitRecord = {
+    entry: makeWaitEntry({
+      label,
+      outcome: 'running',
+      probes: 0,
+      elapsedMs: 0,
+      intervalMs: wait.intervalMs,
+      budget,
+    }),
+    startedAt,
+    rounds: options.rounds === true ? [] : undefined,
+  };
+  ctx.waits.push(record);
+  ctx.activeWait = record;
+  let probes = 0;
+  let outcome: WaitOutcome = 'error';
+  saveWaits(ctx);
+  try {
+    const result = await pollUntil(ctx.deps, {
+      label,
+      onWait: ctx.deps.output.emit,
+      intervalMs: wait.intervalMs,
+      budget,
+      delayFirst,
+      probe: async () => {
+        probes += 1;
+        try {
+          return await probe();
+        } catch (error) {
+          outcome =
+            error instanceof Halt &&
+            error.reason.kind === 'stop' &&
+            error.reason.observation.kind === 'interrupted'
+              ? 'interrupted'
+              : error instanceof Halt
+                ? 'halted'
+                : 'error';
+          throw error;
+        }
+      },
+    });
+    outcome = result.kind;
+    if (result.kind === 'interrupted') halt({ kind: 'interrupted' });
+    return result.kind === 'done' ? result.value : undefined;
+  } finally {
+    record.entry = makeWaitEntry({
+      label,
+      outcome,
+      probes,
+      elapsedMs: ctx.deps.now() - startedAt,
+      intervalMs: wait.intervalMs,
+      budget,
+      ...(record.rounds === undefined ? {} : { rounds: record.rounds }),
+    });
+    ctx.activeWait = undefined;
+    saveWaits(ctx);
+  }
 }
 
 function markPublished(ctx: Ctx, name: string): void {
@@ -1004,14 +1097,29 @@ async function stage10(
 // --- 段 11: approve の後の判定 (K14) ---
 
 interface PostSnapshot {
-  items: { name: string; dist: ParseViewDistResult }[];
+  items: { name: string; dist: ParseViewDistResult; attestation?: AttestationFetch }[];
   releaseExists: boolean;
   published: readonly string[];
   // npm view が失敗したパッケージの error (形の不一致の停止に付ける)
   viewErrors: ReadonlyMap<string, ErrorExcerpt>;
 }
 
-async function readPostCheck(ctx: Ctx): Promise<PostSnapshot> {
+// 1 つのパッケージの bundle を取る。例外は取得の失敗として返す (他のパッケージの照合を止めない)
+async function fetchAttestation(ctx: Ctx, url: string): Promise<AttestationFetch> {
+  try {
+    return { kind: 'fetched', ...(await ctx.deps.fetchText(url)) };
+  } catch (error) {
+    return { kind: 'failed', what: messageOf(error) };
+  }
+}
+
+// decided: 前の周で本文を取れ、照合の結果 (一致か digest の不一致) が出たパッケージの本文。
+// 結果は本文の内容で決まるので取り直さない。新しく決まったものはここに足す
+async function readPostCheck(
+  ctx: Ctx,
+  integrities: ReadonlyMap<string, string>,
+  decided: Map<string, AttestationFetch>
+): Promise<PostSnapshot> {
   const items: PostSnapshot['items'] = [];
   const viewErrors = new Map<string, ErrorExcerpt>();
   for (const name of ctx.input.names) {
@@ -1027,6 +1135,27 @@ async function readPostCheck(ctx: Ctx): Promise<PostSnapshot> {
           ? parseViewDist(result.stdout)
           : { kind: 'shape-unknown', what: describeFailure('npm view', result) },
     });
+  }
+  // 6 パッケージの bundle を並列に取る (1 周の取得が fetchText の上限 1 回分に収まるように)
+  const fetched = await Promise.all(
+    items.map(async (item) => {
+      const carried = decided.get(item.name);
+      if (carried !== undefined) return { item, attestation: carried, fresh: false };
+      const url = item.dist.kind === 'ok' ? attestationUrlOf(item.dist.dist) : undefined;
+      if (url === undefined) return { item, attestation: undefined, fresh: false };
+      return { item, attestation: await fetchAttestation(ctx, url), fresh: true };
+    })
+  );
+  for (const { item, attestation, fresh } of fetched) {
+    if (attestation === undefined) continue;
+    item.attestation = attestation;
+    if (!fresh || attestation.kind !== 'fetched') continue;
+    saveEvidence(ctx, EVIDENCE_FILES.attestations(item.name), attestation.body);
+    const wanted = integrities.get(item.name);
+    const verdict = wanted === undefined ? undefined : verifyAttestationBundle(attestation, wanted);
+    if (verdict?.kind === 'match' || verdict?.kind === 'digest-mismatch') {
+      decided.set(item.name, attestation);
+    }
   }
   const release = await runCommand(ctx, 'gh', argsOrHalt(ghReleaseViewArgs(ctx.input.tag)), {
     stdio: 'pipe',
@@ -1049,9 +1178,18 @@ function resultLines(
   );
   const mark = (check: string, name: string): string =>
     failed.has(`${check}:${name}`) ? 'NG' : 'ok';
+  // digest の照合だけを表す (署名と出所は見ないので、検証済みと読まれないよう digest と書く)
+  const provenance = (name: string): string =>
+    failed.has(`attestation-digest:${name}`)
+      ? 'provenance digest NG'
+      : failed.has(`attestation-missing:${name}`)
+        ? 'provenance missing'
+        : failed.has(`shape:${name}`)
+          ? 'provenance unreadable'
+          : 'provenance digest ok';
   const lines = snapshot.items.map(({ name, dist }) =>
     dist.kind === 'ok'
-      ? `${name}: integrity ${mark('integrity', name)}, dist-tag ${ctx.distTag} ${mark('dist-tag', name)}, attestations ${dist.dist.hasAttestations ? 'yes' : 'no'}`
+      ? `${name}: integrity ${mark('integrity', name)}, dist-tag ${ctx.distTag} ${mark('dist-tag', name)}, ${provenance(name)}`
       : `${name}: unreadable (${dist.what})`
   );
   lines.push(`GitHub Release: ${failed.has('release:') ? 'missing' : 'ok'}`);
@@ -1070,16 +1208,36 @@ async function stage11(ctx: Ctx, log: LogManifest): Promise<AfterPushResult> {
   const integrities = new Map(log.packages.map((p) => [p.name, p.integrity]));
   let snapshot: PostSnapshot | undefined;
   let found: StopObservation[] = [];
-  await pollOrHalt(ctx, WAIT.settle, 'the registry to reflect the release', async () => {
-    snapshot = await readPostCheck(ctx);
-    found = judgePostCheck(
-      snapshot.items,
-      { version: ctx.input.version, distTag: ctx.distTag, integrities },
-      snapshot.releaseExists,
-      snapshot.published
-    );
-    return found.length === 0 ? { done: true, value: true } : { done: false };
-  });
+  // 本文を取れて照合の結果が出たパッケージ (周をまたいで持つ。取り直さない)
+  const decided = new Map<string, AttestationFetch>();
+  await pollOrHalt(
+    ctx,
+    WAIT.settle,
+    'the registry to reflect the release',
+    async () => {
+      snapshot = await readPostCheck(ctx, integrities, decided);
+      found = judgePostCheck(
+        snapshot.items,
+        { version: ctx.input.version, distTag: ctx.distTag, integrities },
+        snapshot.releaseExists,
+        snapshot.published
+      );
+      // dist-tag と attestation のどちらが何秒で現れたかを、次のリリースから読めるように残す
+      noteWaitRound(
+        ctx,
+        found.map((o) =>
+          o.kind === 'post-check'
+            ? o.name === undefined
+              ? o.check
+              : `${o.check}:${shortName(o.name)}`
+            : o.kind
+        )
+      );
+      return found.length === 0 ? { done: true, value: true } : { done: false };
+    },
+    false,
+    { rounds: true }
+  );
   const { emit } = ctx.deps.output;
   const [first, ...rest] = found.map((obs) =>
     finishStop(ctx, classifyStop(obs), withViewError(obs, snapshot))
@@ -1213,6 +1371,8 @@ export async function runAfterPush(
     temps: [],
     evidenceDir: undefined,
     runUrl: undefined,
+    waits: [],
+    activeWait: undefined,
   };
   try {
     return await runStages(ctx);

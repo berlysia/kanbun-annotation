@@ -1,4 +1,4 @@
 extracted/css/
 extracted/js/
 .stylelint-*.config.js
-.eslint-*.config.js
+.oxlint-baseline-*.json

@@ -1,0 +1,9 @@
+{
+  "$schema": "../../node_modules/oxlint/configuration_schema.json",
+  "plugins": [],
+  "categories": { "correctness": "off" },
+  "jsPlugins": ["eslint-plugin-baseline-js"],
+  "rules": {
+    "baseline-js/use-baseline": ["warn", { "available": "widely" }]
+  }
+}

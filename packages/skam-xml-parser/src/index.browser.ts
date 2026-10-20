@@ -5,7 +5,7 @@
  */
 
 import type { SKAMDocument } from '@kanbun-skam/skam';
-import { parseWith, SKAMXMLParseError, type ParseOptions } from './parser-core.js';
+import { parseWith, type ParseOptions } from './parser-core.js';
 import { parseXML } from './xml-parser.browser.js';
 
 export type { SKAMDocument } from '@kanbun-skam/skam';

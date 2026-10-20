@@ -3,7 +3,7 @@
  */
 
 import { css } from './css-tag.js';
-import type { CopyableElement, RubyMethod } from './render-config.js';
+import type { RubyMethod } from './render-config.js';
 import type { Spacing } from '@kanbun-skam/skam/rendering';
 import { resolveSpacingEm } from '@kanbun-skam/skam/rendering';
 import { validateCSSOptions } from './render-options.js';

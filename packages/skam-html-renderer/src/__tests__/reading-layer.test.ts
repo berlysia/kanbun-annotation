@@ -352,3 +352,68 @@ describe('reading layer hiding rule', () => {
     expect(declarations).toContain('min-height: 0 !important');
   });
 });
+
+describe("readingLayerSource: 'readings' block separator", () => {
+  const block = (id: string, ...ids: string[]) => ({ id, tokenIds: ids });
+  const multi = (over: Partial<SKAMDocument> = {}): SKAMDocument => ({
+    format: 'skam@0.1',
+    tokens: [
+      { id: 'a1', text: '學而時習之' },
+      { id: 'a2', text: '不亦說乎' },
+    ],
+    blocks: [block('b1', 'a1'), block('b2', 'a2')],
+    marks: [],
+    readings: [],
+    ...over,
+  });
+  const text = (doc: SKAMDocument, opts: Parameters<typeof render>[1] = {}) =>
+    reading(render(doc, opts).html)?.textContent;
+
+  it('separates blocks with one half-width space', () => {
+    expect(text(multi())).toBe('學而時習之 不亦說乎');
+  });
+  it('emits a single space around a block whose ids resolve to no token', () => {
+    const doc: SKAMDocument = {
+      ...base(),
+      tokens: [
+        { id: 't1', text: '甲' },
+        { id: 't3', text: '乙' },
+      ],
+      blocks: [block('b1', 't1'), block('b2', 'missing'), block('b3', 't3')],
+    };
+    expect(text(doc)).toBe('甲 乙');
+  });
+  it('emits no separator for blocks made only of empty-text tokens (leading, middle, trailing)', () => {
+    const doc: SKAMDocument = {
+      ...base(),
+      tokens: [
+        { id: 'e1', text: '' },
+        { id: 't1', text: '甲' },
+        { id: 'e2', text: '' },
+        { id: 't3', text: '乙' },
+        { id: 'e3', text: '' },
+      ],
+      blocks: [
+        block('b1', 'e1'),
+        block('b2', 't1'),
+        block('b3', 'e2'),
+        block('b4', 't3'),
+        block('b5', 'e3'),
+      ],
+    };
+    expect(text(doc)).toBe('甲 乙');
+  });
+  it('does not add a separator to the author-written kakikudashi', () => {
+    expect(text(multi({ readings: [{ kind: 'kakikudashi', text: 'K' }] }))).toBe('K');
+  });
+  it('keeps tokens-array order as one group when blocks are empty', () => {
+    expect(text(base({ blocks: [] }))).toBe('乙甲');
+  });
+  it("splits into the same number of blocks, with the same separator, as 'display'", () => {
+    const readings = text(multi(), { readingLayerSource: 'readings' })!;
+    const display = text(multi(), { readingLayerSource: 'display' })!;
+    expect(readings.split(' ')).toHaveLength(2);
+    expect(display.split(' ')).toHaveLength(2);
+    expect(readings.replace(/[^ ]/g, '')).toBe(display.replace(/[^ ]/g, ''));
+  });
+});

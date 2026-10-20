@@ -31,7 +31,7 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 ## Web Component
 
 - **attribute-validation.test.ts の flaky なテスト**: 2026-10-15 に `pnpm test` で 1 回だけ落ちた。落ちたのは `renders vertically and reports writing-mode once` である。2026-10-19 に 120 回流したが、再現しなかった。内訳は、8 コアすべてに CPU 負荷をかけた `attribute-validation.test.ts` が 100 回、`turbo run test:run --force` が 20 回である。vitest 4.0.18、happy-dom 20.3.9。失敗率が 2.5% (3/120) 以上なら 95% の確からしさで検出できたので、それ未満の失敗率は否定できない。候補だった happy-dom の MutationObserver の件 (GC で通知を落とす) は 20.14.6 で直っている (#24)。再発しなければ、この行を消す。出典: plan-release-automation.md L77。規模: 小。
-- **Web Component の描画を mount に寄せる**: `<skam-renderer>` は mount と別の経路で描く。補正はフォントの読み込みを待たない 1 回だけで、`variablePrefix` でなく `classPrefix` を補正に渡している (バグの可能性)。`innerHTML` に文字列を入れるので、Trusted Types が必須のページでは使えない。mount に寄せて揃えるかを決める。出典: ADR-034 KD7、KD11。規模: 小。
+- **Web Component の `<style>` の nonce**: `<skam-renderer>` の shadow root の `<style>` (描画の CSS、変数の上書き、フォント、エラー) は nonce を持たない。`style-src` に nonce だけを使う CSP のページでは止められ、表示が崩れる。nonce を受けるプロパティを足すかを決める。描画の HTML のインラインの `style` 属性の件 (レンダラーの節) とあわせて考える。出典: ADR-035「提供しないもの」。規模: 小。
 
 ## データモデルと仕様
 

@@ -58,6 +58,27 @@ if (xml !== null) {
 - 取り出した文字列は、必ず `parse` に通してから使う。
 - Web Component (`@kanbun-skam/skam-web-component`) からも同じ関数を import できる。
 
+### Trusted Types が必須のページ (`@experimental`)
+
+ブラウザ版の `parse` は `DOMParser.parseFromString` を使う。`require-trusted-types-for 'script'` のページでは、これに文字列を渡すと例外になる。`trustedTypesPolicy` に policy を渡すと、`parse` は事前の検査 (入力の長さと入れ子の深さ) の後に `createHTML(xml)` を 1 回呼び、その戻り値を `parseFromString` に渡す。
+
+<!-- doctest:typecheck -->
+
+```typescript
+import { parse } from '@kanbun-skam/skam-xml-parser';
+
+declare const xml: string;
+declare const policy: { createHTML(input: string): unknown };
+
+const doc = parse(xml, { trustedTypesPolicy: policy });
+```
+
+- `createHTML` は受け取った XML をそのまま返す。XML を書き換えると、入力の上限の検査と位置の計算が元の文字列とずれ、文書が壊れうる。HTML 用のサニタイザ (DOMPurify など) をそのまま渡さない。
+- `application/xml` で読む文書ではスクリプトは動かないので、素通しの policy で足りる。policy は他のコードから使えない場所に置く。
+- `createHTML` が投げた例外は、包まずにそのまま投げる。
+- Node 版は xmldom で読むので、policy を受け取っても `createHTML` を呼ばない。
+- `@kanbun-skam/skam-html-renderer` の `mount` に同じ policy を渡すと、`createHTML` は描画の HTML も受け取る。
+
 ## SKAM-ML 構文
 
 ### ルート要素

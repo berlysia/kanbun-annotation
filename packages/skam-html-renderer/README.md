@@ -72,6 +72,7 @@ mount(container, doc, { trustedTypesPolicy: policy });
 - 上の素通しの policy は、`render` の出力がエスケープ済みであることを前提にしている。同じ policy を他のコードが使えると、ページ全体の Trusted Types の保護が外れる。policy は mount 専用に作ってモジュールの中に閉じ、`default` の policy を素通しにせず、CSP の `trusted-types` には専用の名前だけを書く。
 - サニタイズする policy（DOMPurify など）を使うときは、`ruby`、`data-*`、インラインの `style` 属性を落とさない設定にする。落とすと表示と補正が崩れる。その設定はこのライブラリでは保証しない。`createHTML` は文字列か TrustedHTML を返すこと。
 - `<style>` の中身と補正は Trusted Types の対象ではない。
+- 同じページのブラウザで SKAM-ML を `parse` するときは、`@kanbun-skam/skam-xml-parser` の `parse` にも `trustedTypesPolicy` を渡す。ブラウザ版の `parse` が使う `DOMParser.parseFromString` も、Trusted Types の対象である。同じ policy を使うと、`createHTML` は元の XML と描画の HTML の両方を受け取るので、XML はそのまま返す。
 
 ### `mount` を使わずに描く
 

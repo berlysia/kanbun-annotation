@@ -20,7 +20,6 @@ import type {
 export type {
   Check,
   DistTag,
-  GitResult,
   RegistryResponse,
   ReleaseLookup,
   ReleaseManifest,

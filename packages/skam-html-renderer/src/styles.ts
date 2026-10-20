@@ -8,7 +8,7 @@ import type { Spacing } from '@kanbun-skam/skam/rendering';
 import { resolveSpacingEm } from '@kanbun-skam/skam/rendering';
 import { validateCSSOptions } from './render-options.js';
 
-export type { CopyableElement, RubyMethod } from './render-config.js';
+export type { RubyMethod } from './render-config.js';
 
 export interface StyleOptions {
   /** CSSクラス名プレフィックス（default: 'skam'） */

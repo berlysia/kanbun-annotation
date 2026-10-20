@@ -9,7 +9,6 @@
         "src/render-tree-types.ts",
         "src/html-utils.ts",
         "src/css-tag.ts",
-        "src/mark-utils.ts",
         "src/styles.ts"
       ],
       "rules": {
@@ -19,19 +18,19 @@
             "paths": [
               {
                 "name": "./build-render-tree.js",
-                "message": "Shared layer must not import from Display layer. WHY: ADR-019/020 unidirectional dependency (Shared → Display → API). FIX: Move shared logic to render-config.ts, html-utils.ts, or mark-utils.ts."
+                "message": "Shared layer must not import from Display layer. WHY: ADR-019/020 unidirectional dependency (Shared → Display → API). FIX: Move shared logic to render-config.ts or html-utils.ts."
               },
               {
                 "name": "./render-tree.js",
-                "message": "Shared layer must not import from Display layer. WHY: ADR-019/020 unidirectional dependency (Shared → Display → API). FIX: Move shared logic to render-config.ts, html-utils.ts, or mark-utils.ts."
+                "message": "Shared layer must not import from Display layer. WHY: ADR-019/020 unidirectional dependency (Shared → Display → API). FIX: Move shared logic to render-config.ts or html-utils.ts."
               },
               {
                 "name": "./token-renderer.js",
-                "message": "Shared layer must not import from Display layer. WHY: ADR-019/020 unidirectional dependency (Shared → Display → API). FIX: Move shared logic to render-config.ts, html-utils.ts, or mark-utils.ts."
+                "message": "Shared layer must not import from Display layer. WHY: ADR-019/020 unidirectional dependency (Shared → Display → API). FIX: Move shared logic to render-config.ts or html-utils.ts."
               },
               {
                 "name": "./render-display-layer.js",
-                "message": "Shared layer must not import from Display layer. WHY: ADR-019/020 unidirectional dependency (Shared → Display → API). FIX: Move shared logic to render-config.ts, html-utils.ts, or mark-utils.ts."
+                "message": "Shared layer must not import from Display layer. WHY: ADR-019/020 unidirectional dependency (Shared → Display → API). FIX: Move shared logic to render-config.ts or html-utils.ts."
               },
               {
                 "name": "./renderer.js",

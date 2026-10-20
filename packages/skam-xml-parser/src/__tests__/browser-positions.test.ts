@@ -69,6 +69,143 @@ describe('parseBrowserErrorLocation', () => {
   });
 });
 
+// Reasons for '<a>\n\n  <b></c></a>', measured in Chromium 145 and Firefox 146 (Playwright 1.58.0).
+// Re-measure and update these sentences when the browsers' wording changes.
+const CHROMIUM_MISMATCH =
+  'This page contains the following errors:error on line 3 at column 10: Opening and ending tag mismatch: b line 3 and c\nBelow is a rendering of the page up to the first error.';
+const FIREFOX_MISMATCH =
+  'XML Parsing Error: mismatched tag. Expected: </b>.\nLocation: about:blank\nLine Number 3, Column 8:  <b></c></a>\n-------^';
+
+function stubParserError(textContent: string | null) {
+  vi.stubGlobal(
+    'DOMParser',
+    class {
+      parseFromString() {
+        return {
+          querySelector: (selector: string) =>
+            selector === 'parsererror' ? { textContent } : null,
+        };
+      }
+    }
+  );
+}
+
+function thrownBy(fn: () => unknown): SKAMXMLParseError {
+  try {
+    fn();
+  } catch (e) {
+    expect(e).toBeInstanceOf(SKAMXMLParseError);
+    return e as SKAMXMLParseError;
+  }
+  throw new Error('expected a throw');
+}
+
+describe('browser parseXML message', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+  const messageOf = (text: string) => {
+    stubParserError(text);
+    return thrownBy(() => parseXML('<a/>'));
+  };
+
+  it('keeps only the reason of a Chromium sentence', () => {
+    const error = messageOf(CHROMIUM_MISMATCH);
+    expect(error.message).toBe('XML parse error: Opening and ending tag mismatch: b line 3 and c');
+    expect([error.line, error.column]).toEqual([3, 10]);
+  });
+
+  it('keeps only the reason of a Firefox sentence', () => {
+    const error = messageOf(FIREFOX_MISMATCH);
+    expect(error.message).toBe('XML parse error: mismatched tag. Expected: </b>.');
+    expect([error.line, error.column]).toEqual([3, 8]);
+  });
+
+  it('does not carry a long echoed source line', () => {
+    const text = `XML Parsing Error: mismatched tag. Expected: </b>.\nLocation: about:blank\nLine Number 3, Column 8:${'x'.repeat(2000)}\n-------^`;
+    expect(messageOf(text).message).toBe('XML parse error: mismatched tag. Expected: </b>.');
+  });
+
+  it('takes the first line as the Firefox reason even if the echoed line repeats the prefix', () => {
+    const text =
+      'XML Parsing Error: mismatched tag. Expected: </b>.\nLocation: about:blank\nLine Number 1, Column 8:XML Parsing Error: fake\n-------^';
+    expect(messageOf(text).message).toBe('XML parse error: mismatched tag. Expected: </b>.');
+  });
+
+  it('allows ": " inside a Chromium reason', () => {
+    const text =
+      "This page contains the following errors:error on line 1 at column 5: Entity 'a: b' not defined\nBelow is a rendering of the page up to the first error.";
+    expect(messageOf(text).message).toBe("XML parse error: Entity 'a: b' not defined");
+  });
+
+  it('uses the whole sentence for an unknown form and caps it at 500 UTF-16 units', () => {
+    expect(messageOf('something odd').message).toBe('XML parse error: something odd');
+    expect(messageOf('a'.repeat(2000)).message).toBe(`XML parse error: ${'a'.repeat(500)}…`);
+  });
+
+  it('does not split a surrogate pair at the cap', () => {
+    const text = `${'a'.repeat(499)}\u{1F600}${'b'.repeat(10)}`;
+    const reason = messageOf(text).message.slice('XML parse error: '.length);
+    expect(reason).toBe(`${'a'.repeat(499)}…`);
+  });
+
+  it('removes control and format characters, then trims', () => {
+    const text = '  bad \u202E\u001B[31mname\t\u200B  ';
+    expect(messageOf(text).message).toBe('XML parse error: bad [31mname');
+  });
+
+  it('keeps Unknown XML parse error when the element has no text', () => {
+    expect(messageOf(null as unknown as string).message).toBe(
+      'XML parse error: Unknown XML parse error'
+    );
+  });
+});
+
+describe('browser parse: empty input', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('throws Empty document without calling DOMParser or the policy', async () => {
+    const parseFromString = vi.fn();
+    vi.stubGlobal(
+      'DOMParser',
+      class {
+        parseFromString = parseFromString;
+      }
+    );
+    const createHTML = vi.fn((s: string) => s);
+    const { parse: parseBrowser } = await import('../index.browser.js');
+    for (const source of ['', ' \n']) {
+      const error = thrownBy(() => parseBrowser(source, { trustedTypesPolicy: { createHTML } }));
+      expect(error.message).toBe('Empty document');
+      expect(error.line).toBeUndefined();
+      expect(error.column).toBeUndefined();
+    }
+    expect(parseFromString).not.toHaveBeenCalled();
+    expect(createHTML).not.toHaveBeenCalled();
+  });
+
+  it('does not treat U+3000 or U+FEFF as empty', async () => {
+    const parseFromString = vi.fn(() => ({ querySelector: () => null, documentElement: null }));
+    vi.stubGlobal(
+      'DOMParser',
+      class {
+        parseFromString = parseFromString;
+      }
+    );
+    const { parse: parseBrowser } = await import('../index.browser.js');
+    for (const source of ['\u3000', '\uFEFF']) {
+      try {
+        parseBrowser(source);
+      } catch {
+        // the outcome after DOMParser is not under test here
+      }
+    }
+    expect(parseFromString).toHaveBeenCalledTimes(2);
+  });
+});
+
 describe('browser parseXML', () => {
   afterEach(() => {
     vi.unstubAllGlobals();
@@ -96,7 +233,7 @@ describe('browser parseXML', () => {
     const error = thrown as SKAMXMLParseError;
     expect(error.line).toBe(2);
     expect(error.column).toBe(12);
-    expect(error.message).toBe(`XML parse error: ${CHROMIUM_SENTENCE}`);
+    expect(error.message).toBe('XML parse error: Opening and ending tag mismatch: b line 2 and c');
   });
 });
 

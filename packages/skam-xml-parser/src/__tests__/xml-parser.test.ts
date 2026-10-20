@@ -62,9 +62,9 @@ describe('parse - xmldom error reports', () => {
     throw new Error('expected SKAMXMLParseError');
   };
 
-  it('drops the fragment and the position for empty input', () => {
+  it('reports empty input as Empty document without a position', () => {
     const error = errorOf('');
-    expect(error.message).toBe('XML parse error: invalid doc source');
+    expect(error.message).toBe('Empty document');
     expect(error.line).toBeUndefined();
     expect(error.column).toBeUndefined();
   });

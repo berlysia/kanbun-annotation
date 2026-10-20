@@ -27,6 +27,9 @@ export interface StringifyLoss {
   message: string;
 }
 
+/** The brand key string is a contract (ADR-033 KD10): changing it breaks detection across copies of different versions. */
+const STRINGIFY_ERROR_BRAND = Symbol.for('@kanbun-skam/skam-xml-stringify/SKAMXMLStringifyError');
+
 export class SKAMXMLStringifyError extends Error {
   readonly losses: readonly StringifyLoss[];
 
@@ -40,7 +43,33 @@ export class SKAMXMLStringifyError extends Error {
     this.name = 'SKAMXMLStringifyError';
     this.losses = losses;
   }
+
+  /**
+   * Duplicated installs and other realms (iframes) yield distinct classes, so plain instanceof is false.
+   * The Symbol.for registry is shared across realms of one agent, so detect by brand (ADR-033 KD10).
+   * For a subclass, fall back to ordinary instanceof so base instances do not match.
+   */
+  static override [Symbol.hasInstance](value: unknown): boolean {
+    if (this !== SKAMXMLStringifyError) {
+      return Function.prototype[Symbol.hasInstance].call(this, value);
+    }
+    try {
+      if ((typeof value !== 'object' && typeof value !== 'function') || value === null)
+        return false;
+      return (value as Record<symbol, unknown>)[STRINGIFY_ERROR_BRAND] === true;
+    } catch {
+      // A throwing getter or Proxy must not make the check throw
+      return false;
+    }
+  }
 }
+
+// The brand is a prototype getter: not an own property, so it stays out of enumeration and JSON
+Object.defineProperty(SKAMXMLStringifyError.prototype, STRINGIFY_ERROR_BRAND, {
+  get: () => true,
+  enumerable: false,
+  configurable: true,
+});
 
 /** Sort key. Document-level losses use blockIndex = -1; fieldOrder breaks ties at the same position (ext=0, derivations=1). */
 export interface LossSortKey {

@@ -16,9 +16,13 @@ export {
 
 export {
   PROFILES,
+  RENDER_PROFILE_KEYS,
+  SKAMRenderProfileError,
   resolveRenderProfile,
   type RenderProfile,
+  type RenderProfileErrorKind,
   type RenderProfileInput,
+  type RenderProfileKey,
   type RenderProfileName,
   type CopyableElement,
   type RubyMethod,

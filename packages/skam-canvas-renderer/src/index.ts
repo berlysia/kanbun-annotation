@@ -9,8 +9,19 @@ export { render, measure } from './renderer.js';
 export { loadDefaultFont, DEFAULT_FONT_FAMILY } from './font-loader.js';
 
 // Profiles
-export { PROFILES, resolveRenderProfile } from './profiles.js';
-export type { RenderProfile, RenderProfileInput, RenderProfileName } from './profiles.js';
+export {
+  PROFILES,
+  RENDER_PROFILE_KEYS,
+  SKAMRenderProfileError,
+  resolveRenderProfile,
+} from './profiles.js';
+export type {
+  RenderProfile,
+  RenderProfileErrorKind,
+  RenderProfileInput,
+  RenderProfileKey,
+  RenderProfileName,
+} from './profiles.js';
 
 // Types
 export type {

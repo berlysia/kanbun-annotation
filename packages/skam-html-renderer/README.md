@@ -43,7 +43,30 @@ await fontsCalibrated; // フォントの読み込み後の補正まで待つ場
 
 #### CSP と Trusted Types
 
-- `style-src` に nonce を使うページでは、`nonce` を渡すと、新しく入れる `<style>` に付く。nonce が一致しない既存の `<style>` は使い回さない。ただし描画の HTML は、ヲコト点の位置と傍点の形をインラインの `style` 属性で出す。nonce は `<style>` 要素にしか効かないので、これらの属性を許すには `style-src-attr` が要る（許さないと、ヲコト点と傍点の表示が崩れる）。
+- `style-src` に nonce を使うページでは、`nonce` を渡すと、新しく入れる `<style>` に付く。nonce が一致しない既存の `<style>` は使い回さない。`mount` はヲコト点の位置と傍点の形を、インラインの `style` 属性でなく CSSOM で設定するので、`style-src-attr` は要らない。
+- そのため `mount` が返す `html` は、`style` 属性の代わりに data 属性を持つ。この HTML を別の場所に入れたときは、下の `applyRenderedStyles` を呼ぶ。
+
+#### `render` の文字列を CSP のページで使う (`@experimental`)
+
+`render` は既定では、ヲコト点の位置と傍点の形をインラインの `style` 属性で出す。`style-src` に nonce だけを使うページでは、これが止められる。`inlineStyles: false` を渡すと、`style` 属性の代わりに data 属性を出す。DOM に入れた後に `applyRenderedStyles` を呼ぶと、CSSOM で値を設定する。CSSOM での設定は CSP に止められない。
+
+<!-- doctest:typecheck -->
+
+```typescript
+import { applyRenderedStyles, render } from '@kanbun-skam/skam-html-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
+declare const container: HTMLElement;
+
+const { html } = render(doc, { inlineStyles: false });
+container.innerHTML = html;
+applyRenderedStyles(container);
+```
+
+- `applyRenderedStyles` を呼ばないと、ヲコト点と傍点の表示が崩れる。
+- 設定するのは、ヲコト点の位置の CSS 変数 4 つと `text-emphasis-style` だけである。値は整数か、傍点のキーワードか 1 字に限り、それ以外の data 属性の値は無視する。
+- CSS (`render` の `css`) は、nonce つきの `<style>` に入れる。
 - `require-trusted-types-for 'script'` のページでは、`innerHTML` に文字列を入れると例外になる。ページが許した名前の policy を作り、`trustedTypesPolicy` に渡す。渡さないと `TypeError` を投げ、そのとき CSS は入ったまま残る。
 
 <!-- doctest:typecheck -->

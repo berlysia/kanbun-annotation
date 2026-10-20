@@ -35,6 +35,7 @@ status: Complete
 - **KD4 CSS を 1 回だけ入れる判定**: 入れる先 (`container.getRootNode()` が Document ならその `head`、無ければ `documentElement`、ShadowRoot ならその shadow root) に、`data-skam-css` 属性を持ち中身が同じ CSS の `<style>` があれば入れない。判定は DOM だけで行い、モジュールの中に記録を持たない。html-renderer のコピーが 2 つあるページでも重複しない (ADR-033 KD10 と同じ考え方)。古い `<style>` は消さない。
 - **KD5 接続されていない要素**: `TypeError` を投げ、DOM を変えない。CSS の入れ先と、補正のためのレイアウトが無いため。オプションの誤りも、DOM を変える前に投げる。
 - **KD6 nonce** (利用者の要望でなく、レビューで足した): mount は自分で `<style>` を入れるので、`style-src` に nonce を使う CSP のページのために `nonce` を受ける。既にある `<style>` は、nonce が一致するときだけ使い回す (先に nonce なしで入れて CSP に止められた `<style>` を使い回さないため)。nonce は `<style>` 要素にしか効かず、描画の HTML のインラインの `style` 属性を許すには `style-src-attr` が要る。
+  - 以後は ADR-036 を参照。2026-10-20 に、mount はインラインの `style` 属性を出さない描画にした。
 - **KD7 Web Component との食い違い**: 描画の経路が mount と Web Component の 2 本になり、補正の時機と prefix の扱いが違う。Web Component の補正に `classPrefix` を渡しているのはバグの可能性がある。今回は揃えず、docs/plans/backlog.md で追う。
 - **KD8 実験的な API**: `mount` と `extractXmlFromScriptElement` は `@experimental` で、0.x の minor で変わりうる。`SKAM_XML_MEDIA_TYPE` は仕様で確定した文字列なので安定した API とする。
 - **KD9 出題に使うとき**: mount の `readingLayerSource` の既定は `render` と同じ `'readings'` にした。同じオプションで出力が変わると分かりにくいため。そのため mount は、既定では隠した注記も読み層に出す。注記を隠すときは `'display'` を指定するよう README に書いた。

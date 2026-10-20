@@ -191,7 +191,25 @@ el.trustedTypesPolicy = policy;
 - policy を渡さずに Trusted Types が必須のページで描くと、`recoverable: false` の `skam-error` になる。
 - `null` は指定なしとして扱う。同じ policy を代入し直しても再描画しない。
 - `customElements.define` の後に代入する。define の前に要素へ代入した値は使われない (`accessibleLabels` も同じ)。
-- shadow root の `<style>` は nonce を持たないので、`style-src` に nonce だけを使う CSP では止められる。
+- `style-src` に nonce だけを使う CSP のページでは、下の `nonce` 属性も書く。
+
+### CSP の nonce
+
+`style-src` に nonce を使う CSP のページでは、`nonce` 属性に、そのページの nonce と同じ値を書く。
+
+```html
+<skam-renderer nonce="（ページの nonce）">
+  <script type="application/vnd.berlysia.skam+xml">
+    ...
+  </script>
+</skam-renderer>
+```
+
+- 要素は、shadow root の `<style>` (描画の CSS、変数の上書き、フォント、エラーの表示) に nonce を付ける。ヲコト点の位置と傍点の形は、インラインの `style` 属性でなく CSSOM で設定するので、`style-src-attr` は要らない。
+- `auto-font` の Google Fonts の `<link>` を新しく入れるときも、nonce を付ける。フォント本体を読むには、別に `font-src https://fonts.gstatic.com` が要る。nonce の無い link が既にあるときは、それを使い、止められたままになる。
+- nonce は接続の前に書く。接続した後に変えても、それだけでは描き直さない (次に描くときに新しい値を使う)。
+- CSP をヘッダで送るページでは、ブラウザが `nonce` 属性の値を空にして隠す。要素は `nonce` プロパティから値を読むので、隠されても動く。ただし `innerHTML` や `cloneNode` で要素を作り直すと値は引き継がれない。
+- nonce はリクエストごとに変える値である。固定の値を書くと、CSP の保護にならない。
 
 ### Trusted Types
 

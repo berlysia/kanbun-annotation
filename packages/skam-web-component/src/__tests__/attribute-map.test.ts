@@ -187,6 +187,13 @@ describe('buildRenderOptions', () => {
       'class-prefix': 'my-prefix',
     });
     expect(options.classPrefix).toBe('my-prefix');
+    expect(options.variablePrefix).toBe('my-prefix');
+  });
+
+  it('does not set classPrefix or variablePrefix without class-prefix', () => {
+    const { options } = buildRenderOptions(defaultAttrs);
+    expect('classPrefix' in options).toBe(false);
+    expect('variablePrefix' in options).toBe(false);
   });
 
   it('maps copyable attribute', () => {
@@ -213,6 +220,7 @@ describe('buildRenderOptions', () => {
       'display-lang': 'ja"><b',
     });
     expect(options.classPrefix).toBeUndefined();
+    expect('variablePrefix' in options).toBe(false);
     expect(options.displayLang).toBeUndefined();
     expect(invalid.map((i) => i.attribute)).toEqual(['class-prefix', 'display-lang']);
   });

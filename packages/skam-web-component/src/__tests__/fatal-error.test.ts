@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { parse } from '@kanbun-skam/skam-xml-parser';
-import { calibrateGridBaseline } from '@kanbun-skam/skam-html-renderer';
+import { mount as mountRenderer } from '@kanbun-skam/skam-html-renderer';
 import { SkamRendererElement } from '../skam-renderer.js';
 
 // 例外の経路だけを差し替えるため、元の実装を呼ぶ vi.fn にしておく。
@@ -11,7 +11,7 @@ vi.mock('@kanbun-skam/skam-xml-parser', async (importOriginal) => {
 });
 vi.mock('@kanbun-skam/skam-html-renderer', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@kanbun-skam/skam-html-renderer')>();
-  return { ...actual, calibrateGridBaseline: vi.fn(actual.calibrateGridBaseline) };
+  return { ...actual, mount: vi.fn(actual.mount) };
 });
 
 if (!customElements.get('skam-renderer')) {
@@ -19,9 +19,9 @@ if (!customElements.get('skam-renderer')) {
 }
 
 const parseMock = vi.mocked(parse);
-const calibrateMock = vi.mocked(calibrateGridBaseline);
+const mountMock = vi.mocked(mountRenderer);
 let actualParse: typeof parse;
-let actualCalibrate: typeof calibrateGridBaseline;
+let actualMount: typeof mountRenderer;
 
 const FRAMES = 5;
 
@@ -63,11 +63,11 @@ beforeEach(async () => {
     '@kanbun-skam/skam-html-renderer'
   );
   actualParse = parser.parse;
-  actualCalibrate = html.calibrateGridBaseline;
+  actualMount = html.mount;
   parseMock.mockReset();
   parseMock.mockImplementation(actualParse);
-  calibrateMock.mockReset();
-  calibrateMock.mockImplementation(actualCalibrate);
+  mountMock.mockReset();
+  mountMock.mockImplementation(actualMount);
 });
 
 afterEach(() => {
@@ -171,8 +171,10 @@ describe('fatal error notification (K2)', () => {
     expect(errors[0]!.detail.error).toBe(thrown);
   });
 
-  it('notifies once and leaves only the alert when calibrateGridBaseline always throws', async () => {
-    calibrateMock.mockImplementation(() => {
+  it('notifies once and leaves only the alert when mount throws after writing the body', async () => {
+    // 本物の mount が本文と CSS を書いた後に投げる (mount の中の補正が投げた場合に相当する)
+    mountMock.mockImplementation((...args) => {
+      actualMount(...args);
       throw new Error('calibrate failed');
     });
     const { el, errors, renders } = mount(VALID);

@@ -53,7 +53,9 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 
 ## パーサー
 
-- **ブラウザ版の parser でも誤りに行と列を付ける**: `SKAMXMLParseError` の `line` と `column` は、Node 版 (xmldom の locator) だけが付ける。ブラウザ版は `parsererror` の文だけを渡し、位置は `undefined` になる (`xml-parser.browser.ts:24`)。本番はブラウザ版なので作者が誤りの場所を探せず、Node 版のテストでは位置が付くため気づきにくい。`parsererror` の文から位置を取る案は、ブラウザごとに文が違う (未確認)。出典: 利用者のフィードバック 2 回目 (2026-10-20) の 5。規模: 中。
+- **Node 版で空文字を parse したときのメッセージ**: 空文字を Node 版の `parse` に渡すと、メッセージが `XML parse error: invalid doc source\n@#[line:0,col:undefined]` になる。`xml-parser.ts` の `LOCATION` の正規表現が `col:undefined` に当たらず、位置の表記がメッセージに残る。出典: feat/browser-parser-positions の調査 (2026-10-20)。規模: 小。
+- **ブラウザ版の構文の誤りのメッセージが長い**: ブラウザ版の構文の誤りのメッセージは、`parsererror` の文全体である。Chromium は `This page contains the following errors:` などの前置きを含み、Firefox は誤りのある元の行を写す (5,000,000 字の 1 行の入力なら、メッセージも同じ長さになる)。前置きを除くか長さで切るかを決める。メッセージを変えると利用者のテストに響く。出典: feat/browser-parser-positions の調査 (2026-10-20)。規模: 小。
+- **WebKit の parsererror の文の確認**: ブラウザ版は、Chromium と Firefox の報告の形から構文の誤りの位置を読む。WebKit (Safari) の形は、手元の WSL で WebKit が起動せず確かめていない (未確認)。Chromium と同じ形でなければ、Safari では構文の誤りに位置が付かない。出典: feat/browser-parser-positions の調査 (2026-10-20)。規模: 小。
 
 ## レンダラー
 

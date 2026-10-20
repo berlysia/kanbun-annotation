@@ -16,7 +16,7 @@ function makeDoc(text: string, withOkurigana = false): SKAMDocument {
     tokens: [{ id: 't1', text }],
     blocks: [{ id: 'b1', tokenIds: ['t1'] }],
     marks: withOkurigana
-      ? [{ id: 'm1', type: 'okurigana', anchor: { tokenId: 't1' }, text: 'ヒミツ' } as never]
+      ? [{ type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'ヒミツ' }]
       : [],
     readings: [],
   };
@@ -241,11 +241,17 @@ describe('mount: errors leave the DOM untouched', () => {
 });
 
 describe('mount: readingLayerSource display', () => {
+  it('shows the okurigana when the profile does not hide it (control)', () => {
+    const container = connectedContainer();
+    mount(container, makeDoc('甲', true), { readingLayerSource: 'display' });
+    expect(container.innerHTML).toContain('ヒミツ');
+  });
+
   it('does not leak hidden annotations into the reading layer', () => {
     const container = connectedContainer();
     const d = makeDoc('甲', true);
     mount(container, d, {
-      profile: { base: 'full', overrides: { okurigana: false } } as never,
+      profile: { base: 'full', overrides: { okurigana: false } },
       readingLayerSource: 'display',
     });
     expect(container.innerHTML).not.toContain('ヒミツ');

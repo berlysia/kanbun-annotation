@@ -33,7 +33,7 @@
     "changeset": "changeset",
     "changeset:version": "changeset version",
     "screenshot": "turbo build --filter=@kanbun-skam/skam-screenshot && node packages/skam-screenshot/dist/cli.js",
-    "typecheck:scripts": "tsgo -p scripts/tsconfig.json",
+    "typecheck:scripts": "tsc -p scripts/tsconfig.json",
     "test:scripts": "node --test \"scripts/**/*.test.ts\"",
     "verify": "pnpm adr:check && pnpm build && pnpm typecheck && pnpm typecheck:scripts && pnpm lint && pnpm format:check && pnpm test:run && pnpm test:scripts && pnpm clean && pnpm test:consumer",
     "release": "node scripts/release.ts",
@@ -45,7 +45,6 @@
   "devDependencies": {
     "@changesets/cli": "2.29.8",
     "@types/node": "25.0.10",
-    "@typescript/native-preview": "7.0.0-dev.20260122.4",
     "happy-dom": "20.14.6",
     "husky": "9.1.7",
     "knip": "6.41.0",
@@ -54,6 +53,7 @@
     "oxlint": "1.88.0",
     "tsdown": "0.23.1",
     "turbo": "2.8.1",
+    "typescript": "7.0.2",
     "typescript5": "npm:typescript@5.9.3",
     "vitest": "4.0.18",
     "yaml": "2.8.2"

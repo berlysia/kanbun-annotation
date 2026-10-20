@@ -61,22 +61,20 @@ beforeAll(() => {
     })
   );
   try {
-    execFileSync(
-      resolve(root, 'node_modules/.bin/tsgo'),
-      ['-p', resolve(outDir, 'tsconfig.json')],
-      { encoding: 'utf8' }
-    );
+    execFileSync(resolve(root, 'node_modules/.bin/tsc'), ['-p', resolve(outDir, 'tsconfig.json')], {
+      encoding: 'utf8',
+    });
   } catch (e) {
     const err = e as { status?: number | null; stdout?: string; code?: string };
     // 起動できなかった (ENOENT など) ことと、型エラーを区別して報告する
     typeErrors = err.code
-      ? `tsgo failed to start: ${err.code}`
-      : err.stdout || `tsgo exited with ${err.status}`;
+      ? `tsc failed to start: ${err.code}`
+      : err.stdout || `tsc exited with ${err.status}`;
   }
 }, 120_000);
 
 describe('README doctests (K9)', () => {
-  it('emitted one .js per run/typecheck block (tsgo actually ran)', () => {
+  it('emitted one .js per run/typecheck block (tsc actually ran)', () => {
     for (const b of blocks.filter((x) => x.mode === 'run' || x.mode === 'typecheck')) {
       expect(existsSync(resolve(outDir, 'out', `${base(b)}.js`)), `${b.file}:${b.line}`).toBe(true);
     }

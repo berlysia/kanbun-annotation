@@ -215,14 +215,27 @@ function main(tmp, tarballsOption) {
   // 5. 利用者として使う
   for (const f of ['smoke.mjs', 'smoke.ts', 'tsconfig.bundler.json', 'tsconfig.nodenext.json'])
     copyFileSync(join(here, f), join(appDir, f));
-  const tsgo = join(repoRoot, 'node_modules', '.bin', 'tsgo');
   runChecked('node smoke.mjs', process.execPath, ['smoke.mjs'], { cwd: appDir, env });
-  for (const config of ['tsconfig.bundler.json', 'tsconfig.nodenext.json'])
-    runChecked(`tsgo -p ${config}`, tsgo, ['-p', config], { cwd: appDir, env });
+  // 利用者の typescript@7 を代表する tsc 7 (root の typescript)。typescript5 も `tsc` bin を持つため、
+  // bin の名前ではなくパッケージ内の bin を直接呼んで版を固定する
+  const tsc7 = join(repoRoot, 'node_modules', 'typescript', 'bin', 'tsc');
   // 利用者の typescript@5 を代表する tsc 5.9.3。別名 typescript5 の bin を直接呼ぶ
-  const tsc = join(repoRoot, 'node_modules', 'typescript5', 'bin', 'tsc');
-  for (const config of ['tsconfig.bundler.json', 'tsconfig.nodenext.json'])
-    runChecked(`tsc -p ${config}`, process.execPath, [tsc, '-p', config], { cwd: appDir, env });
+  const tsc5 = join(repoRoot, 'node_modules', 'typescript5', 'bin', 'tsc');
+  for (const [label, tsc] of [
+    ['tsc7', tsc7],
+    ['tsc5', tsc5],
+  ]) {
+    process.stdout.write(`${label}: `);
+    runChecked(`${label} --version`, process.execPath, [tsc, '--version'], {
+      cwd: appDir,
+      env,
+    });
+    for (const config of ['tsconfig.bundler.json', 'tsconfig.nodenext.json'])
+      runChecked(`${label} -p ${config}`, process.execPath, [tsc, '-p', config], {
+        cwd: appDir,
+        env,
+      });
+  }
 }
 
 const tmp = mkdtempSync(join(tmpdir(), 'skam-consumer-'));

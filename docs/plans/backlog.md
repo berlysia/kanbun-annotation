@@ -48,8 +48,7 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 - **竪点のグループからはみ出す読みの範囲 (#16)**: はみ出す読みの範囲は、先頭の字の読みとして出る。2 回目の読みが無い再読文字は、読み仮名として読まれる。扱いを決める。出典: plan-consumer-feedback.md L64、ADR-030「既知の制約」、#16。規模: 小。
 - **readingLayerSource の既定の見直し**: 次の破壊的リリースで、profile を指定して `readingLayerSource` を省いたときの既定 (`'readings'`) を見直す。2 回目のフィードバックは `'display'` を既定にするよう求めた。既定のまま出題に使うと、答えがスクリーンリーダーの利用者にだけ渡るためである。同じフィードバックが求めた README の注意は、html-renderer の README の「出題に使うとき」の節に書いてある。出典: plan-consumer-feedback.md L62、ADR-030「リスク R1〜R8 の結果」の R6、利用者のフィードバック 2 回目 (2026-10-20) の 9。規模: 小。
 - **'display' の読み上げ層の実機確認**: NVDA (Windows、日本語) と VoiceOver (macOS) で確かめる (未確認)。合格の条件は 2 つある。`習、送り仮名 フ、レ点。` の各語が言葉として発話されること。表示層のルビや返り点が、読み上げ層と重ねて読まれないこと。確かめたら、experimental を外すかを決める。あわせて、注記の無い字が `學。而。時。` のように 1 字ごとに区切られる読み上げが聞きにくくないかを聞き、続く字をつなげる形にするかを決める (利用者の提案、未検証)。出典: plan-consumer-feedback.md L61、ADR-030「リスク R1〜R8 の結果」の R1、利用者のフィードバック 2 回目 (2026-10-20) の 8。規模: 中。
-- **表示設定のキー名を互換を約束する語彙にする**: `resolveRenderProfile` の 13 個のキー名は、安定と明記されていない。安定と書いてあるのは `{ base, overrides }` の形だけである (`render-profile.ts:22`)。利用者は教材の `data-hide="kaeriten okurigana"` のような値にキー名をそのまま使っており、キー名が変わると教材をすべて書き換えることになる。キー名を公開の語彙として README に書き、0.x の間にキー名を変えるときの方針 (旧キーを一定期間残すなど) を決める。出典: 利用者のフィードバック 2 回目 (2026-10-20) の 1。規模: 中。
-- **表示設定の誤りを構造のある形で返す**: `resolveRenderProfile` の誤りは、英語のメッセージだけを持つ `TypeError` である (`render-profile.ts:164`)。利用者は作者に日本語で誤りと候補を示すため、同じ検査を手前で二重に持っている。誤りの種類 (未知のキー、値の型の違い、`base` との混在) と該当するキーを、`TypeError` のサブクラスのフィールドなどで返す。公開 API の変更になる。出典: 利用者のフィードバック 2 回目 (2026-10-20) の 4。規模: 中。
+- **誤りのクラスの instanceof をコピーと realm をまたいで効かせる**: `SKAMValidationError`、`SKAMXMLParseError`、`SKAMXMLStringifyError` は、canvas-renderer の IIFE 版と ESM 版の併用、skam の重複、iframe でクラスが別になり、`instanceof` が偽になる。ADR-033 KD10 と同じ目印 (`Symbol.for('@kanbun-skam/<パッケージ名>/<クラス名>')` と `Symbol.hasInstance`) を入れるかを決める。出典: ADR-033「残る作業」。規模: 小。
 
 ## パーサー
 

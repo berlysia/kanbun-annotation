@@ -125,11 +125,21 @@ export type FrontStage =
   | '6 record'
   | '7 push';
 
+// 段 11 の観察の種類。attestation-missing は provenance が registry に無い (遅れか欠落)、
+// attestation-digest は provenance の subject が validate の tarball と別の内容を指す
+export type PostCheckKind =
+  | 'integrity'
+  | 'dist-tag'
+  | 'release'
+  | 'shape'
+  | 'attestation-missing'
+  | 'attestation-digest';
+
 export type AfterPushSite = {
   side: 'after-push';
   where: StopObservation['kind'];
   job?: 'validate' | 'npm-stage'; // job-failed のとき
-  check?: 'integrity' | 'dist-tag' | 'release' | 'shape'; // post-check のとき
+  check?: PostCheckKind; // post-check のとき
 };
 
 export type StopSite =
@@ -179,7 +189,7 @@ export type StopObservation = { published: Published; error?: ErrorExcerpt } & (
   | { kind: 'trust-mismatch'; what: string }
   | {
       kind: 'post-check';
-      check: 'integrity' | 'dist-tag' | 'release' | 'shape';
+      check: PostCheckKind;
       name?: string;
       what: string;
     }

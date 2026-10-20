@@ -120,6 +120,39 @@ function buildLog(): string {
   ].join('\n')}\n`;
 }
 
+// --- attestation の bundle ---
+
+const SLSA_PROVENANCE = { predicateType: 'https://slsa.dev/provenance/v1' };
+const PUBLISH_PREDICATE = 'https://github.com/npm/attestation/tree/main/specs/publish/v0.1';
+const attestationUrl = (name: string): string =>
+  `https://registry.npmjs.org/-/npm/v1/attestations/@kanbun-skam%2f${shortOf(name)}@${VERSION}`;
+
+const statementPayload = (integrity: string): string =>
+  Buffer.from(
+    JSON.stringify({
+      _type: 'https://in-toto.io/Statement/v1',
+      subject: [
+        {
+          name: 'pkg:npm/x',
+          digest: {
+            sha512: Buffer.from(integrity.slice('sha512-'.length), 'base64').toString('hex'),
+          },
+        },
+      ],
+    })
+  ).toString('base64');
+
+// publish attestation と SLSA provenance の 2 件 (実物と同じ並び)。subject は integrity に一致する
+function matchingBundle(integrity: string): string {
+  const element = (predicateType: string): object => ({
+    predicateType,
+    bundle: { dsseEnvelope: { payload: statementPayload(integrity) } },
+  });
+  return JSON.stringify({
+    attestations: [element(PUBLISH_PREDICATE), element(SLSA_PROVENANCE.predicateType)],
+  });
+}
+
 // --- 偽の世界 ---
 
 type ArtifactMode = 'ok' | 'fail' | 'symlink' | 'subdir' | 'extra' | 'other-integrity';
@@ -166,6 +199,18 @@ interface Options {
   // npm-stage の job の databaseId。'omit' なら欄ごと無い
   npmStageId?: unknown;
   runListFails?: CommandResult;
+  // dist.attestations が npm view に現れる最初の呼び出し (1 から。名前ごと。未指定は 1)。
+  // Infinity なら最後まで現れない
+  attestationFrom?: Record<string, number>;
+  // fetchText の n 回目 (1 から、名前ごと) の応答。未指定の名前は log の integrity と一致する bundle。
+  // 例外を投げれば取得の失敗になる
+  fetchReply?: (name: string, nth: number) => FetchReply | undefined;
+}
+
+interface FetchReply {
+  status: number;
+  contentType: string;
+  body: string;
 }
 
 interface Call {
@@ -188,6 +233,9 @@ interface World {
   removed: string[];
   evidence: { name: string; content: string }[];
   confirmQuestions: string[];
+  // fetchText に渡された URL (呼ばれた順)
+  fetched: string[];
+  fetchCount: (name: string) => number;
   fs: Map<string, Map<string, FsEntry>>;
   interrupted: boolean;
   releaseViews: number;
@@ -219,6 +267,8 @@ function makeWorld(options: Options = {}): World {
   let approveTotal = 0;
   let confirmed = false;
   const versionViews: Record<string, number> = {};
+  const distViews: Record<string, number> = {};
+  const fetchCounts: Record<string, number> = {};
   const approveCounts: Record<string, number> = {};
   const w: World = {
     deps: undefined as unknown as AfterPushDeps,
@@ -239,6 +289,8 @@ function makeWorld(options: Options = {}): World {
     removed: [],
     evidence: [],
     confirmQuestions: [],
+    fetched: [],
+    fetchCount: (name) => w.fetched.filter((u) => u.includes(`%2f${shortOf(name)}@`)).length,
     fs: new Map(),
     interrupted: false,
     releaseViews: 0,
@@ -416,7 +468,19 @@ function makeWorld(options: Options = {}): World {
     if (!published.has(name)) return E404;
     const integrity =
       options.postViewIntegrity?.[name] ?? options.publishedIntegrity?.[name] ?? integrityOf(name);
-    return OK(JSON.stringify([{ 'dist-tags': { latest: VERSION }, 'dist.integrity': integrity }]));
+    distViews[name] = (distViews[name] ?? 0) + 1;
+    const withAttestations = (distViews[name] ?? 0) >= (options.attestationFrom?.[name] ?? 1);
+    return OK(
+      JSON.stringify([
+        {
+          'dist-tags': { latest: VERSION },
+          'dist.integrity': integrity,
+          ...(withAttestations
+            ? { 'dist.attestations': { url: attestationUrl(name), provenance: SLSA_PROVENANCE } }
+            : {}),
+        },
+      ])
+    );
   };
 
   const approve = (id: string): CommandResult => {
@@ -514,6 +578,19 @@ function makeWorld(options: Options = {}): World {
       if (entry === undefined) throw new Error(`no such file ${path}`);
       if ((entry.readSize ?? entry.data.length) > maxBytes) throw new Error('file is too large');
       return entry.data;
+    },
+    fetchText: async (url) => {
+      w.fetched.push(url);
+      const name = NAMES.find((n) => url.includes(`%2f${shortOf(n)}@`));
+      if (name === undefined) throw new Error(`fetchText of an unknown url ${url}`);
+      fetchCounts[name] = (fetchCounts[name] ?? 0) + 1;
+      return (
+        options.fetchReply?.(name, fetchCounts[name] ?? 0) ?? {
+          status: 200,
+          contentType: 'application/json; charset=utf-8',
+          body: matchingBundle(integrityOf(name)),
+        }
+      );
     },
     saveEvidence: (name, content) => {
       w.evidence.push({ name, content });
@@ -1876,4 +1953,272 @@ test('入口: version が semver でなければ止まる (保存先のパスに
     assert.equal(result.kind, 'stopped', version);
   }
   assert.equal(w.calls.length, 0);
+});
+
+// --- waits.json (待ちの記録) ---
+
+interface WaitEntryJson {
+  label: string;
+  outcome: string;
+  probes: number;
+  elapsedSeconds: number;
+  intervalSeconds: number;
+  budget: { seconds: number } | { attempts: number };
+  rounds?: { atSeconds: number; remaining: string[] }[];
+}
+
+// 偽の saveEvidence は配列に積むので、最後に保存した waits.json が最新
+function lastWaits(world: World): WaitEntryJson[] {
+  const saved = world.evidence.filter((e) => e.name === EVIDENCE_FILES.waits);
+  const last = saved[saved.length - 1];
+  assert.notEqual(last, undefined, 'waits.json was never saved');
+  return JSON.parse(last?.content ?? '[]') as WaitEntryJson[];
+}
+
+test('waits.json: run が 2 回目の probe で見つかれば done、probe 2 回、経過 10 秒', async () => {
+  const w = makeWorld({ runListEmptyCalls: 1 });
+  await go(w);
+  const first = lastWaits(w)[0];
+  assert.deepEqual(first, {
+    label: `the Release run for ${COMMIT.slice(0, 12)} to appear`,
+    outcome: 'done',
+    probes: 2,
+    elapsedSeconds: 10,
+    intervalSeconds: 10,
+    budget: { seconds: 180 },
+  });
+});
+
+test('waits.json: 段 11 が 300 秒を使い切れば exhausted、probe 11 回、周ごとの残りが 11 件', async () => {
+  const w = makeWorld({ releaseAt: 1_000_000 });
+  const result = await go(w);
+  assert.equal(result.kind, 'post-check-failed');
+  const waits = lastWaits(w);
+  const last = waits[waits.length - 1];
+  assert.equal(last?.outcome, 'exhausted');
+  assert.equal(last?.probes, 11);
+  assert.equal(last?.elapsedSeconds, 300);
+  assert.deepEqual(last?.budget, { seconds: 300 });
+  assert.equal(last?.rounds?.length, 11);
+  assert.deepEqual(last?.rounds?.[0], { atSeconds: 0, remaining: ['release'] });
+  assert.equal(last?.rounds?.[10]?.atSeconds, 300);
+});
+
+test('waits.json: 待ちの途中で Ctrl-C なら interrupted', async () => {
+  const w = makeWorld({ runListEmptyCalls: 1000 });
+  const sleep = w.deps.sleep;
+  w.deps.sleep = async (ms) => {
+    await sleep(ms);
+    w.interrupted = true;
+  };
+  const stop = stopOf(await go(w));
+  assert.equal(stop.site.where, 'interrupted');
+  assert.equal(lastWaits(w)[0]?.outcome, 'interrupted');
+});
+
+test('waits.json: probe の中の halt は halted で、停止の内容は変わらない', async () => {
+  const w = makeWorld({ runListFails: { status: 1, stdout: '', stderr: 'boom' } });
+  const stop = stopOf(await go(w));
+  assert.equal(stop.site.where, 'command-failed');
+  const first = lastWaits(w)[0];
+  assert.equal(first?.outcome, 'halted');
+  assert.equal(first?.probes, 1);
+});
+
+test('waits.json: probe の中の素の例外は error で、例外はそのまま伝わる', async () => {
+  const w = makeWorld();
+  const run = w.deps.run;
+  w.deps.run = async (cmd, args, options) => {
+    if (cmd === 'gh' && args[0] === 'run' && args[1] === 'list') throw new Error('spawn failed');
+    return run(cmd, args, options);
+  };
+  await assert.rejects(go(w), /spawn failed/);
+  assert.equal(lastWaits(w)[0]?.outcome, 'error');
+});
+
+test('waits.json: 待ちを始めた直後に outcome running で保存する', async () => {
+  const w = makeWorld();
+  const saved: string[] = [];
+  const save = w.deps.saveEvidence;
+  w.deps.saveEvidence = (name, content) => {
+    if (name === EVIDENCE_FILES.waits) saved.push(content);
+    return save(name, content);
+  };
+  await go(w);
+  const firstSave = JSON.parse(saved[0] ?? '[]') as WaitEntryJson[];
+  assert.equal(firstSave.length, 1);
+  assert.deepEqual(firstSave[0], {
+    label: `the Release run for ${COMMIT.slice(0, 12)} to appear`,
+    outcome: 'running',
+    probes: 0,
+    elapsedSeconds: 0,
+    intervalSeconds: 10,
+    budget: { seconds: 180 },
+  });
+});
+
+test('waits.json: 記録は待ちを始めた順で、log の取得は回数の予算で残る', async () => {
+  const w = makeWorld();
+  await go(w);
+  const labels = lastWaits(w).map((e) => e.label);
+  assert.equal(labels[0], `the Release run for ${COMMIT.slice(0, 12)} to appear`);
+  assert.equal(labels[1], 'the validate job log');
+  assert.deepEqual(lastWaits(w)[1]?.budget, { attempts: 3 });
+  assert.equal(labels[labels.length - 1], 'the registry to reflect the release');
+});
+
+test('waits.json: 保存の失敗は表示だけで、リリースの結果は変わらない', async () => {
+  const w = makeWorld();
+  const save = w.deps.saveEvidence;
+  w.deps.saveEvidence = (name, content) => {
+    if (name === EVIDENCE_FILES.waits) throw new Error('disk full');
+    return save(name, content);
+  };
+  const result = await go(w);
+  assert.deepEqual(result, { kind: 'completed' }, w.lines.join('\n'));
+  assert.ok(
+    w.lines.some((l) => l.startsWith('could not save waits.json: disk full')),
+    w.lines.join('\n')
+  );
+});
+
+// --- 段 11: attestation の digest の照合 ---
+
+const stage11Waits = (w: World): WaitEntryJson | undefined =>
+  lastWaits(w).find((e) => e.label === 'the registry to reflect the release');
+
+const otherIntegrity = (name: string): string => integrityOf(NAMES[NAMES.indexOf(name) + 1] ?? '');
+
+test('段 11 (attestation): 6 つとも一致すれば 1 周で completed、provenance digest ok が 6 つ、本文を 6 つ保存する', async () => {
+  const w = makeWorld();
+  const result = await go(w);
+  assert.deepEqual(result, { kind: 'completed' }, w.lines.join('\n'));
+  assert.equal(w.lines.filter((l) => l.includes('provenance digest ok')).length, 6);
+  for (const name of NAMES) {
+    assert.equal(w.fetchCount(name), 1, name);
+    assert.ok(
+      w.evidence.some((e) => e.name === EVIDENCE_FILES.attestations(name)),
+      name
+    );
+  }
+  assert.equal(stage11Waits(w)?.probes, 1);
+  assert.deepEqual(w.fetched[0], attestationUrl(NAMES[0] ?? ''));
+});
+
+test('段 11 (attestation): 1 つだけ別の digest なら attestation-digest (manual、F3 の可能性なし) で止まり、他の 5 つは ok', async () => {
+  const bad = NAMES[3] ?? '';
+  const w = makeWorld({
+    fetchReply: (name) =>
+      name === bad
+        ? {
+            status: 200,
+            contentType: 'application/json',
+            body: matchingBundle(otherIntegrity(name)),
+          }
+        : undefined,
+  });
+  const result = await go(w);
+  assert.equal(result.kind, 'post-check-failed', w.lines.join('\n'));
+  if (result.kind !== 'post-check-failed') return;
+  assert.equal(result.stops.length, 1);
+  const stop = result.stops[0];
+  assert.equal(stop?.site.check, 'attestation-digest');
+  assert.equal(stop?.route, 'manual');
+  assert.equal(stop?.mayBeF3, false);
+  assert.equal(w.lines.filter((l) => l.includes('provenance digest ok')).length, 5);
+  assert.ok(w.lines.some((l) => l.startsWith(`${bad}:`) && l.includes('provenance digest NG')));
+  // digest の不一致は本文の内容で決まるので、読み直しても取り直さない
+  assert.equal(w.fetchCount(bad), 1);
+  assert.equal(stage11Waits(w)?.outcome, 'exhausted');
+});
+
+test('段 11 (attestation): dist.attestations が 3 周目に現れれば completed で、1、2 周目の残りに attestation-missing が残る', async () => {
+  const late = NAMES[1] ?? '';
+  const w = makeWorld({ attestationFrom: { [late]: 3 } });
+  const result = await go(w);
+  assert.deepEqual(result, { kind: 'completed' }, w.lines.join('\n'));
+  const rounds = stage11Waits(w)?.rounds;
+  assert.deepEqual(
+    rounds?.map((r) => r.remaining),
+    [['attestation-missing:skam-xml-parser'], ['attestation-missing:skam-xml-parser'], []]
+  );
+  assert.equal(w.fetchCount(late), 1);
+});
+
+test('段 11 (attestation): 最後まで dist.attestations が無ければ 300 秒の後に attestation-missing (rerun) で止まる', async () => {
+  const none = NAMES[2] ?? '';
+  const w = makeWorld({ attestationFrom: { [none]: Number.POSITIVE_INFINITY } });
+  const result = await go(w);
+  assert.equal(result.kind, 'post-check-failed', w.lines.join('\n'));
+  if (result.kind !== 'post-check-failed') return;
+  assert.equal(result.stops.length, 1);
+  assert.equal(result.stops[0]?.site.check, 'attestation-missing');
+  assert.equal(result.stops[0]?.route, 'rerun');
+  assert.equal(w.fetchCount(none), 0);
+  assert.equal(stage11Waits(w)?.probes, 11);
+  assert.ok(w.lines.some((l) => l.startsWith(`${none}:`) && l.endsWith('provenance missing')));
+});
+
+test('段 11 (attestation): fetchText が例外を投げ続けても、404 を返し続けても shape で止まり、他の 5 つは ok', async () => {
+  const bad = NAMES[4] ?? '';
+  const replies: [string, (name: string) => FetchReply | undefined][] = [
+    [
+      'throw',
+      (name) => {
+        if (name === bad) throw new Error('network down\nsecond line');
+        return undefined;
+      },
+    ],
+    [
+      '404',
+      (name) =>
+        name === bad ? { status: 404, contentType: 'text/html', body: '<html>' } : undefined,
+    ],
+  ];
+  for (const [label, fetchReply] of replies) {
+    const w = makeWorld({ fetchReply });
+    const result = await go(w);
+    assert.equal(result.kind, 'post-check-failed', label);
+    if (result.kind !== 'post-check-failed') return;
+    assert.equal(result.stops.length, 1, label);
+    assert.equal(result.stops[0]?.site.check, 'shape', label);
+    assert.equal(w.lines.filter((l) => l.includes('provenance digest ok')).length, 5, label);
+    assert.ok(
+      w.lines.some((l) => l.startsWith(`${bad}:`) && l.endsWith('provenance unreadable')),
+      label
+    );
+    // 取れなかったものは次の周でも取り直す
+    assert.equal(w.fetchCount(bad), 11, label);
+  }
+});
+
+test('段 11 (attestation): 許可されない URL は要求を出さずに shape で止まる', async () => {
+  const w = makeWorld();
+  const run = w.deps.run;
+  w.deps.run = async (cmd, args, options) => {
+    const result = await run(cmd, args, options);
+    if (cmd === 'npm' && args[0] === 'view' && args[2] !== 'versions' && result.stdout !== '') {
+      return OK(result.stdout.replace('https://registry.npmjs.org', 'https://example.com'));
+    }
+    return result;
+  };
+  const result = await go(w);
+  assert.equal(result.kind, 'post-check-failed');
+  assert.equal(w.fetched.length, 0);
+});
+
+test('段 11 (attestation): 一致したパッケージは 2 周目以降 fetchText を呼ばない', async () => {
+  const w = makeWorld({ releaseAt: 3 });
+  const result = await go(w);
+  assert.deepEqual(result, { kind: 'completed' }, w.lines.join('\n'));
+  assert.equal(w.releaseViews, 4);
+  for (const name of NAMES) assert.equal(w.fetchCount(name), 1, name);
+});
+
+test('段 11 (attestation): 公開済みの world から再実行しても stage 11 だけで照合する', async () => {
+  const w = makeWorld({ published: 6 });
+  const result = await go(w);
+  assert.deepEqual(result, { kind: 'completed' }, w.lines.join('\n'));
+  assert.equal(approveIds(w).length, 0);
+  assert.equal(w.fetched.length, 6);
 });

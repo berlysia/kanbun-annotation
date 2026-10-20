@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
+import { readFileSync } from 'node:fs';
 import zlib from 'node:zlib';
 import {
   GH_245_LIST_ALLOWED,
@@ -10,10 +11,12 @@ import {
   RELEASE_JOB_NAMES,
   RELEASING_SECTIONS,
   attemptKey,
+  attestationUrlOf,
   classifyPackageState,
   classifyStop,
   compareArtifactWithLog,
   createStreamSanitizer,
+  describeAttestationUrl,
   extractLogManifest,
   ghReleaseViewArgs,
   ghRunAttemptArgs,
@@ -44,8 +47,9 @@ import {
   sanitizeForTerminal,
   selectRun,
   sha512Integrity,
+  verifyAttestationBundle,
 } from './release-after-push-check.ts';
-import type { LogManifest } from './release-after-push-check.ts';
+import type { AttestationFetch, LogManifest } from './release-after-push-check.ts';
 import type {
   Check,
   ClassifiedStop,
@@ -1903,9 +1907,72 @@ test('parseViewDist: dist-tags の辞書は own property だけを見る (継承
   assert.equal(r.dist.distTags['latest'], '0.2.0');
 });
 
+// --- attestation の bundle (digest の照合) ---
+
+const ATT_SLSA_V1 = 'https://slsa.dev/provenance/v1';
+const ATT_PUBLISH = 'https://github.com/npm/attestation/tree/main/specs/publish/v0.1';
+const REAL_ATT_URL = 'https://registry.npmjs.org/-/npm/v1/attestations/@kanbun-skam%2fskam@0.2.0';
+const JSON_TYPE = 'application/json; charset=utf-8';
+
+const hexOfIntegrity = (integrity: string): string =>
+  Buffer.from(integrity.replace(/^sha512-/, ''), 'base64').toString('hex');
+
+const statementPayload = (sha512: unknown): string =>
+  Buffer.from(
+    JSON.stringify({
+      _type: 'https://in-toto.io/Statement/v1',
+      subject: [{ name: 'pkg:npm/%40kanbun-skam/skam@0.2.0', digest: { sha512 } }],
+    })
+  ).toString('base64');
+
+const attElement = (predicateType: unknown, payload: unknown): unknown => ({
+  predicateType,
+  bundle: { dsseEnvelope: { payload } },
+});
+
+const bundleBody = (...elements: unknown[]): string => JSON.stringify({ attestations: elements });
+
+// SLSA provenance の subject が integrity と一致する bundle を、publish attestation と並べて返す
+function matchingBundle(integrity: string): string {
+  const hex = hexOfIntegrity(integrity);
+  return bundleBody(
+    attElement(ATT_PUBLISH, statementPayload(hex)),
+    attElement(ATT_SLSA_V1, statementPayload(hex))
+  );
+}
+
+const fetchedBody = (body: string): AttestationFetch => ({
+  kind: 'fetched',
+  status: 200,
+  contentType: JSON_TYPE,
+  body,
+});
+
+const fetchedFor = (integrity: string): AttestationFetch => fetchedBody(matchingBundle(integrity));
+
+// 実物 (0.2.0 の skam。各要素の predicateType と bundle.dsseEnvelope.payload だけを残した)
+const REAL_ATT_BUNDLE = readFileSync(
+  new URL('./fixtures/attestations-skam-0.2.0.json', import.meta.url),
+  'utf8'
+);
+const REAL_SKAM_INTEGRITY =
+  'sha512-jg67ylF8HOoCeMhFv65DSub3clKuzEKCUBXziutxGrTMmpQjL921MjnybhrlshrOjr6XVAnYexEkvuz9Nhyd1A==';
+const realResponse = { status: 200, contentType: JSON_TYPE, body: REAL_ATT_BUNDLE };
+
 function viewItem(name: string, version: string, integrity: string) {
-  const raw = JSON.stringify([{ 'dist-tags': { latest: version }, 'dist.integrity': integrity }]);
-  return { name, dist: parseViewDist(raw) };
+  const raw = JSON.stringify([
+    {
+      'dist-tags': { latest: version },
+      'dist.integrity': integrity,
+      'dist.attestations': { url: REAL_ATT_URL, provenance: { predicateType: ATT_SLSA_V1 } },
+    },
+  ]);
+  // 期待する integrity (integrityMap) に一致する bundle。npm view の integrity が違う場合も bundle は変えない
+  return {
+    name,
+    dist: parseViewDist(raw),
+    attestation: fetchedFor(integrityOf(NAMES.indexOf(name) + 1)),
+  };
 }
 
 function integrityMap(): Map<string, string> {
@@ -1974,7 +2041,7 @@ function attItem(name: string, i: number, attestations: unknown) {
       ...(attestations === undefined ? {} : { 'dist.attestations': attestations }),
     },
   ]);
-  return { name, dist: parseViewDist(raw) };
+  return { name, dist: parseViewDist(raw), attestation: fetchedFor(integrityOf(i + 1)) };
 }
 
 const REAL_ATTESTATIONS: unknown = (
@@ -1996,8 +2063,13 @@ test('judgePostCheck: 6 パッケージとも 0.2.0 の実物の attestations �
   assert.deepEqual(judgeWithAttestations(REAL_ATTESTATIONS), []);
 });
 
-test('judgePostCheck: attestations が undefined (キーなし) なら何も足さない', () => {
-  assert.deepEqual(judgeWithAttestations(undefined), []);
+test('judgePostCheck: attestations が undefined (キーなし) なら attestation-missing が 1 つ', () => {
+  const out = judgeWithAttestations(undefined);
+  assert.equal(out.length, 1);
+  const f = out[0];
+  assert.ok(f !== undefined && f.kind === 'post-check');
+  assert.equal(f.check, 'attestation-missing');
+  assert.equal(f.name, NAMES[0]);
 });
 
 test('judgePostCheck: predicateType が v0.2 なら、そのパッケージの shape が 1 つ', () => {
@@ -2050,12 +2122,284 @@ test('judgePostCheck: predicateType に改行があっても what は 1 行で�
   assert.ok(f.what.length < 400, String(f.what.length));
 });
 
+// --- verifyAttestationBundle (純粋) ---
+
+const verify = (body: string, integrity = REAL_SKAM_INTEGRITY, status = 200, type = JSON_TYPE) =>
+  verifyAttestationBundle({ status, contentType: type, body }, integrity);
+
+function assertUnreadable(result: ReturnType<typeof verify>, pattern: RegExp): void {
+  assert.equal(result.kind, 'unreadable', JSON.stringify(result));
+  if (result.kind !== 'unreadable') return;
+  assert.match(result.what, pattern);
+  assert.ok(!result.what.includes('\n'));
+}
+
+test('verifyAttestationBundle (実物 0.2.0 の skam): SLSA provenance の subject が integrity と一致する', () => {
+  assert.deepEqual(verifyAttestationBundle(realResponse, REAL_SKAM_INTEGRITY), { kind: 'match' });
+});
+
+test('verifyAttestationBundle: 期待する integrity の 1 字が違えば digest の不一致', () => {
+  const changed = `${REAL_SKAM_INTEGRITY.slice(0, 10)}A${REAL_SKAM_INTEGRITY.slice(11)}`;
+  const r = verifyAttestationBundle(realResponse, changed);
+  assert.equal(r.kind, 'digest-mismatch');
+  if (r.kind === 'digest-mismatch') assert.match(r.what, /sha512/);
+});
+
+test('verifyAttestationBundle: publish attestation の要素だけなら SLSA provenance が無い (unreadable)', () => {
+  const hex = hexOfIntegrity(REAL_SKAM_INTEGRITY);
+  assertUnreadable(
+    verify(bundleBody(attElement(ATT_PUBLISH, statementPayload(hex)))),
+    /no .*provenance/i
+  );
+});
+
+test('verifyAttestationBundle: SLSA の要素が配列の 1 件目でも一致する', () => {
+  const hex = hexOfIntegrity(REAL_SKAM_INTEGRITY);
+  const body = bundleBody(
+    attElement(ATT_SLSA_V1, statementPayload(hex)),
+    attElement(ATT_PUBLISH, statementPayload(hex))
+  );
+  assert.deepEqual(verify(body), { kind: 'match' });
+});
+
+test('verifyAttestationBundle: SLSA の要素が 2 件で片方だけ digest が違えば digest の不一致', () => {
+  const hex = hexOfIntegrity(REAL_SKAM_INTEGRITY);
+  const other = hexOfIntegrity(integrityOf(7));
+  for (const order of [
+    [hex, other],
+    [other, hex],
+  ]) {
+    const body = bundleBody(...order.map((h) => attElement(ATT_SLSA_V1, statementPayload(h))));
+    assert.equal(verify(body).kind, 'digest-mismatch');
+  }
+});
+
+test('verifyAttestationBundle: 2 件とも一致すれば一致', () => {
+  const hex = hexOfIntegrity(REAL_SKAM_INTEGRITY);
+  const body = bundleBody(
+    attElement(ATT_SLSA_V1, statementPayload(hex)),
+    attElement(ATT_SLSA_V1, statementPayload(hex))
+  );
+  assert.deepEqual(verify(body), { kind: 'match' });
+});
+
+test('verifyAttestationBundle: status / content-type / 本文の崩れは例外を投げず unreadable', () => {
+  const good = REAL_ATT_BUNDLE;
+  const hex = hexOfIntegrity(REAL_SKAM_INTEGRITY);
+  const slsa = (payload: unknown): string => bundleBody(attElement(ATT_SLSA_V1, payload));
+  assertUnreadable(verify(good, REAL_SKAM_INTEGRITY, 404), /404/);
+  assertUnreadable(verify(good, REAL_SKAM_INTEGRITY, 200, 'text/html'), /content-type/);
+  assertUnreadable(verify('not json'), /not JSON/);
+  assertUnreadable(verify(JSON.stringify({ attestations: {} })), /attestations/);
+  assertUnreadable(verify(JSON.stringify([])), /attestations/);
+  assertUnreadable(verify(slsa('***not base64***')), /base64/);
+  assertUnreadable(verify(slsa(undefined)), /payload/);
+  assertUnreadable(verify(slsa(Buffer.from('not json').toString('base64'))), /payload is not JSON/);
+  assertUnreadable(
+    verify(slsa(Buffer.from(JSON.stringify({ subject: [] })).toString('base64'))),
+    /subject/
+  );
+  assertUnreadable(verify(slsa(Buffer.from(JSON.stringify({})).toString('base64'))), /subject/);
+  assertUnreadable(verify(slsa(statementPayload(hex.toUpperCase()))), /sha512/);
+  assertUnreadable(verify(slsa(statementPayload(hex.slice(0, 127)))), /sha512/);
+  assertUnreadable(verify(slsa(statementPayload(undefined))), /sha512/);
+  assertUnreadable(verify(good, 'sha1-abc='), /integrity/);
+});
+
+test('verifyAttestationBundle: registry の値は 1 行にして 200 字で切って what に入れる', () => {
+  const evilType = `a\nb${'x'.repeat(300)}`;
+  const r = verify(bundleBody(attElement(evilType, 'x')), REAL_SKAM_INTEGRITY);
+  assertUnreadable(r, /provenance/);
+  const hex = hexOfIntegrity(REAL_SKAM_INTEGRITY);
+  const payload = Buffer.from(
+    '{"subject":[{"digest":{"sha512":"' + 'y'.repeat(300) + '"}}]}'
+  ).toString('base64');
+  const r2 = verify(bundleBody(attElement(ATT_SLSA_V1, payload)));
+  assertUnreadable(r2, /sha512/);
+  if (r2.kind === 'unreadable') assert.ok(r2.what.length < 400, String(r2.what.length));
+  void hex;
+  const r3 = verify(`{"attestations":[${JSON.stringify({ predicateType: 1 })}]}`);
+  assertUnreadable(r3, /provenance/);
+  const r4 = verifyAttestationBundle(
+    { status: 200, contentType: `application/xml\n${'z'.repeat(300)}`, body: '' },
+    REAL_SKAM_INTEGRITY
+  );
+  assertUnreadable(r4, /content-type/);
+  if (r4.kind === 'unreadable') assert.ok(r4.what.length < 400, String(r4.what.length));
+});
+
+test('describeAttestationUrl: registry の attestations の URL だけを許す', () => {
+  const base = 'https://registry.npmjs.org/-/npm/v1/attestations/';
+  assert.equal(describeAttestationUrl(REAL_ATT_URL), null);
+  const rejected = [
+    'https://example.com/-/npm/v1/attestations/x',
+    'http://registry.npmjs.org/-/npm/v1/attestations/x',
+    'https://registry.npmjs.org:8443/-/npm/v1/attestations/x',
+    'https://u:p@registry.npmjs.org/-/npm/v1/attestations/x',
+    `${base}../../x`,
+    `${base}%2e%2e/x`,
+    `${base}%2E%2E/x`,
+    `${base}x%5cy`,
+    `${base}x%5Cy`,
+    `${base}x\\y`,
+    `${base}x?y=1`,
+    `${base}x#y`,
+    'https://registry.npmjs.org/other/path',
+    'not a url',
+    '',
+  ];
+  for (const url of rejected) assert.notEqual(describeAttestationUrl(url), null, url);
+});
+
+test('attestationUrlOf: 形が正しく URL が許可されるときだけ URL を返す', () => {
+  const parse = (att: unknown) => {
+    const r = parseViewDist(
+      JSON.stringify([
+        {
+          'dist-tags': {},
+          'dist.integrity': 'x',
+          ...(att === undefined ? {} : { 'dist.attestations': att }),
+        },
+      ])
+    );
+    assert.equal(r.kind, 'ok');
+    if (r.kind !== 'ok') throw new Error('unreachable');
+    return r.dist;
+  };
+  const provenance = { predicateType: ATT_SLSA_V1 };
+  assert.equal(attestationUrlOf(parse({ url: REAL_ATT_URL, provenance })), REAL_ATT_URL);
+  assert.equal(attestationUrlOf(parse(undefined)), undefined);
+  assert.equal(attestationUrlOf(parse({ url: 'https://example.com/x', provenance })), undefined);
+  assert.equal(attestationUrlOf(parse({ url: 1, provenance })), undefined);
+  assert.equal(attestationUrlOf(parse({ url: REAL_ATT_URL })), undefined);
+});
+
+// --- judgePostCheck: bundle の照合 ---
+
+function judgeWithFetch(
+  override: (name: string, i: number) => AttestationFetch | undefined | 'keep',
+  attestations: unknown = REAL_ATTESTATIONS
+) {
+  const items = NAMES.map((n, i) => {
+    const item = attItem(n, i, i === 0 ? attestations : REAL_ATTESTATIONS);
+    const replaced = override(n, i);
+    if (replaced === 'keep') return item;
+    return replaced === undefined
+      ? { name: item.name, dist: item.dist }
+      : { ...item, attestation: replaced };
+  });
+  return judgePostCheck(
+    items,
+    { version: VERSION, distTag: 'latest', integrities: integrityMap() },
+    true,
+    PUBLISHED_ALL
+  );
+}
+
+test('judgePostCheck: bundle の digest が違えば attestation-digest が 1 つ', () => {
+  const out = judgeWithFetch((_n, i) => (i === 2 ? fetchedFor(integrityOf(99)) : 'keep'));
+  assert.equal(out.length, 1);
+  const f = out[0];
+  assert.ok(f !== undefined && f.kind === 'post-check');
+  assert.equal(f.check, 'attestation-digest');
+  assert.equal(f.name, NAMES[2]);
+});
+
+test('judgePostCheck: 取得の失敗 / 404 / 本文の崩れは shape で、他のパッケージを止めない', () => {
+  const failures: AttestationFetch[] = [
+    { kind: 'failed', what: 'timeout\nof 10s' },
+    { kind: 'fetched', status: 404, contentType: 'text/html', body: '<html>' },
+    fetchedBody('not json'),
+    fetchedBody(bundleBody(attElement(ATT_PUBLISH, 'x'))),
+  ];
+  for (const failure of failures) {
+    const out = judgeWithFetch((_n, i) => (i === 1 ? failure : 'keep'));
+    assert.equal(out.length, 1, JSON.stringify(failure));
+    const f = out[0];
+    assert.ok(f !== undefined && f.kind === 'post-check' && f.check === 'shape');
+    assert.equal(f.name, NAMES[1]);
+    assert.ok(!f.what.includes('\n'));
+  }
+});
+
+test('judgePostCheck: URL が許可されなければ取得の結果を見ずに shape', () => {
+  const out = judgeWithFetch((_n, i) => (i === 0 ? undefined : 'keep'), {
+    url: 'https://example.com/-/npm/v1/attestations/x',
+    provenance: { predicateType: ATT_SLSA_V1 },
+  });
+  assert.equal(out.length, 1);
+  const f = out[0];
+  assert.ok(f !== undefined && f.kind === 'post-check' && f.check === 'shape');
+  assert.ok(f.what.includes('url'), f.what);
+});
+
+test('judgePostCheck: url が文字列でなければ shape', () => {
+  const out = judgeWithFetch((_n, i) => (i === 0 ? undefined : 'keep'), {
+    url: 5,
+    provenance: { predicateType: ATT_SLSA_V1 },
+  });
+  const f = out.find((o) => o.kind === 'post-check' && o.name === NAMES[0]);
+  assert.ok(f !== undefined && f.kind === 'post-check' && f.check === 'shape');
+});
+
+test('judgePostCheck: 照合の結果はあるのに integrity の期待が無いパッケージは integrity だけを足す', () => {
+  const items = [attItem(NAMES[0] ?? '', 0, REAL_ATTESTATIONS)];
+  const out = judgePostCheck(
+    items,
+    { version: VERSION, distTag: 'latest', integrities: new Map() },
+    true,
+    PUBLISHED_ALL
+  );
+  assert.deepEqual(
+    out.map((o) => (o.kind === 'post-check' ? o.check : o.kind)),
+    ['integrity']
+  );
+});
+
+test('pickRepresentative: attestation-digest (manual) は attestation-missing (rerun) より先頭に出る', () => {
+  const stops = [
+    classifyStop({
+      kind: 'post-check',
+      check: 'attestation-missing',
+      name: 'a',
+      what: 'x',
+      published: PUBLISHED_ALL,
+    }),
+    classifyStop({
+      kind: 'post-check',
+      check: 'attestation-digest',
+      name: 'b',
+      what: 'x',
+      published: PUBLISHED_ALL,
+    }),
+  ] as const;
+  assert.equal(pickRepresentative(stops).site.check, 'attestation-digest');
+});
+
+test('classifyStop: attestation-missing の next は数分待っての再実行と ADR-029 の記録を指す', () => {
+  const c = classifyStop({
+    kind: 'post-check',
+    check: 'attestation-missing',
+    name: 'a',
+    what: 'x',
+    published: PUBLISHED_ALL,
+  });
+  assert.equal(c.route, 'rerun');
+  assert.equal(c.mayBeF3, false);
+  assert.match(c.next, /ADR-029/);
+  assert.match(c.next, /few minutes/);
+});
+
 test('judgePostCheck: distTag が next なら next の tag を見る', () => {
   const raw = JSON.stringify([
-    { 'dist-tags': { latest: '0.1.1', next: '0.2.0-beta.1' }, 'dist.integrity': integrityOf(1) },
+    {
+      'dist-tags': { latest: '0.1.1', next: '0.2.0-beta.1' },
+      'dist.integrity': integrityOf(1),
+      'dist.attestations': REAL_ATTESTATIONS,
+    },
   ]);
   const out = judgePostCheck(
-    [{ name: NAMES[0] ?? '', dist: parseViewDist(raw) }],
+    [{ name: NAMES[0] ?? '', dist: parseViewDist(raw), attestation: fetchedFor(integrityOf(1)) }],
     {
       version: '0.2.0-beta.1',
       distTag: 'next',
@@ -2199,6 +2543,20 @@ const STOP_TABLE: Variant[] = [
     (published) => ({ kind: 'post-check', check: 'shape', what: 'x', published }),
     MANUAL,
     MANUAL_F3,
+    MANUAL_F3,
+  ],
+  [
+    'post-check attestation-missing',
+    (published) => ({ kind: 'post-check', check: 'attestation-missing', what: 'x', published }),
+    RERUN,
+    RERUN,
+    RERUN_F3,
+  ],
+  [
+    'post-check attestation-digest',
+    (published) => ({ kind: 'post-check', check: 'attestation-digest', what: 'x', published }),
+    MANUAL,
+    MANUAL,
     MANUAL_F3,
   ],
 ];

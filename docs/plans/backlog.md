@@ -18,8 +18,8 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 - **approve の窓の上限の確認**: 0.2.0 では stage から公開まで約 10 分かかり、その間は失効しなかった。窓の上限は調べていない (未確認)。出典: ADR-029「結果」。規模: 小。
 - **release の進み方の行の見え方の確認**: `pnpm run release` の `entry:` の行、`stage N/11:` / `ok:` / `waiting for` の行と、子の stderr (`inherit-keep-stderr` で流れるもの) の並びが、実際の端末で読めるかを確かめる。2026-10-19 の確認は入口で止まる経路だけで、これらの行は出なかった (未確認)。次のリリースで見る。出典: ADR-032「確かめた事実」と R9。規模: 小。
 - **approve が実行のたびに 2FA を求めるかの確認**: `npm stage approve` が実行のたびに 2FA を求めるか (6 パッケージなら 6 回か) を確かめる。0.2.0 では、approve の認証の画面に「次の 5 分間は 2FA を省略する」の選択肢が出なかった (未確認)。確かめたら、releasing.md の段 10 の記述を直す。出典: releasing.md 段 10、PR #16。規模: 小。
-- **判定 (K11 / K12 / K15) と待機の定数の見直し**: 0.2.0 の実測を使って、次の 2 つを見直す。K11 / K12 / K15 の判定と、`scripts/release-after-push.ts` の `WAIT` である。出典: plan-release-automation.md L73、ADR-031「Followup」の 1。規模: 小。
-- **attestation の bundle と tgz の digest の照合**: `dist.attestations.url` の bundle を取得し、in-toto の statement の subject の sha512 が log の tgz と一致するかを確かめる。いまは registry が申告する provenance の predicateType の形だけを確かめ、attestation が無いとき (provenance が消えた公開) は止めない。出典: feat/release-integrity-and-attestations の spec K8。規模: 中。
+- **判定 (K11 / K12 / K15) と待機の定数の見直し**: 次のリリースの証拠の `waits.json` (待ちごとの回数、経過秒、段 11 の周ごとに残った観察) を読んで、`scripts/release-after-push.ts` の `WAIT` の定数と、K11 / K12 / K15 の判定を見直す。出典: ADR-031「Followup」の 1。規模: 小。
+- **attestation の bundle の署名の検証**: 段 11 は SLSA provenance の subject の sha512 を log の integrity と照合するが、bundle の署名 (sigstore の証明書の連鎖と透明性ログ) と、署名した workflow の identity は検証しない。registry か通信の途中が同じ digest の偽の bundle を返すと区別できない。検証には `sigstore` などの依存と、identity の期待値 (workflow のパス、ref) の設計が要る。出典: 束 C の 3。規模: 中。
 - **npm stage view の出力の確認**: 手作業の手順は、integrity の照合に `npm stage view <stage-id>` を使う。0.2.0 では使っておらず、出力の書式は未確認である。`npm stage list` の書式は確かめた。releasing.md の冒頭の注記も、確かめた範囲に合わせて直す。出典: ADR-029「未確認の事項」と「結果」。規模: 小。
 - **E409 の実際の stderr の確認**: `automated review hasn't finished` の E409 は、shiori の手順書の記録しかなく、実物を見ていない (未確認)。出典: ADR-031「未確認の事項」。規模: 小。
 - **tag push の run の headBranch の確認**: tag の push の run の `headBranch` に tag 名が入るかを見ていない (未確認)。いまは表示にとどめている。出典: ADR-031「未確認の事項」。規模: 小。

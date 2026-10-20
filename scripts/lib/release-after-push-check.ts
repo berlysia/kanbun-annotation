@@ -11,6 +11,7 @@ import type {
   ClassifiedStop,
   DistTag,
   PackageState,
+  PostCheckKind,
   Published,
   RegistryResponse,
   ReleaseManifest,
@@ -962,6 +963,60 @@ export function judgeStaged(input: {
   return { kind: 'ok', validatedIds };
 }
 
+// --- 待ちの記録 (waits.json) ---
+
+export type WaitOutcome = 'running' | 'done' | 'exhausted' | 'interrupted' | 'halted' | 'error';
+
+export interface WaitRound {
+  atSeconds: number;
+  // その周に残った観察の種類とパッケージの短い名前 (`<check>:<short>`)
+  remaining: string[];
+}
+
+export interface WaitEntry {
+  label: string;
+  outcome: WaitOutcome;
+  probes: number;
+  elapsedSeconds: number;
+  intervalSeconds: number;
+  budget: { seconds: number } | { attempts: number };
+  // 段 11 だけが持つ
+  rounds?: WaitRound[];
+}
+
+// 秒は小数 1 桁。偽の時計と実時間のどちらでも同じ形で残す
+const toSeconds = (ms: number): number => Math.round(ms / 100) / 10;
+
+export function makeWaitEntry(input: {
+  label: string;
+  outcome: WaitOutcome;
+  probes: number;
+  elapsedMs: number;
+  intervalMs: number;
+  budget: { ms: number } | { attempts: number };
+  rounds?: readonly { atMs: number; remaining: readonly string[] }[];
+}): WaitEntry {
+  return {
+    label: input.label,
+    outcome: input.outcome,
+    probes: input.probes,
+    elapsedSeconds: toSeconds(input.elapsedMs),
+    intervalSeconds: toSeconds(input.intervalMs),
+    budget: 'ms' in input.budget ? { seconds: toSeconds(input.budget.ms) } : input.budget,
+    ...(input.rounds === undefined
+      ? {}
+      : {
+          rounds: input.rounds.map((r) => ({
+            atSeconds: toSeconds(r.atMs),
+            remaining: [...r.remaining],
+          })),
+        }),
+  };
+}
+
+export const formatWaits = (entries: readonly WaitEntry[]): string =>
+  `${JSON.stringify(entries, null, 2)}\n`;
+
 // --- E409、approve の後の判定 (K13、K14) ---
 
 export function isE409(stderr: string): boolean {
@@ -1021,9 +1076,40 @@ const quoteForWhat = (v: unknown): string => {
   return text.length > 200 ? `${text.slice(0, 200)}...` : text;
 };
 
-// 値が undefined (キーなし) なら null を返す。あれば崩れていた所を 1 つ返す
+const ATTESTATION_HOST = 'registry.npmjs.org';
+const ATTESTATION_PATH_PREFIX = '/-/npm/v1/attestations/';
+
+// bundle を取りに行く URL の検査。registry が申告した値なので、host を固定し、port・userinfo・query・
+// fragment・dot-segment・区切りの迂回 (%2e、%5c、\) を含むものは取りに行かない。
+// 問題が無ければ null、あれば崩れていた所を 1 つ返す (registry の値は quoteForWhat を通す)
+export function describeAttestationUrl(url: string): string | null {
+  const shown = quoteForWhat(url);
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return `dist.attestations.url ${shown} is not a URL`;
+  }
+  const problem = (reason: string): string => `dist.attestations.url ${shown} ${reason}`;
+  if (parsed.protocol !== 'https:') return problem('is not https');
+  if (parsed.hostname !== ATTESTATION_HOST) return problem(`is not on ${ATTESTATION_HOST}`);
+  if (parsed.port !== '') return problem('has a port');
+  if (parsed.username !== '' || parsed.password !== '') return problem('has userinfo');
+  if (parsed.search !== '' || parsed.hash !== '' || /[?#]/.test(url)) {
+    return problem('has a query or a fragment');
+  }
+  if (!parsed.pathname.startsWith(ATTESTATION_PATH_PREFIX)) {
+    return problem(`is not under ${ATTESTATION_PATH_PREFIX}`);
+  }
+  if (url.includes('..') || /%2e|%5c/i.test(url) || url.includes('\\')) {
+    return problem('has a dot segment or an escaped separator');
+  }
+  return null;
+}
+
+// キーが無いこと (undefined) は呼び出し側が attestation-missing として扱う。
+// あれば、registry が申告する形と URL の崩れていた所を 1 つ返す
 function describeAttestationsMismatch(attestations: unknown): string | null {
-  if (attestations === undefined) return null;
   if (!isPlainObject(attestations)) {
     return `dist.attestations is ${quoteForWhat(attestations)}, expected an object`;
   }
@@ -1037,21 +1123,130 @@ function describeAttestationsMismatch(attestations: unknown): string | null {
   if (predicateType !== SLSA_PROVENANCE_V1) {
     return `dist.attestations.provenance.predicateType is ${quoteForWhat(predicateType)}, expected ${JSON.stringify(SLSA_PROVENANCE_V1)}`;
   }
-  return null;
+  const url = attestations['url'];
+  if (typeof url !== 'string') {
+    return `dist.attestations.url is ${quoteForWhat(url)}, expected a string`;
+  }
+  return describeAttestationUrl(url);
+}
+
+// bundle を取りに行く URL。形が正しく、URL が許可されるときだけ返す (外れは judgePostCheck が shape にする)
+export function attestationUrlOf(dist: ViewDist): string | undefined {
+  const att = dist.attestations;
+  if (att === undefined || describeAttestationsMismatch(att) !== null) return undefined;
+  const url = isPlainObject(att) ? att['url'] : undefined;
+  return typeof url === 'string' ? url : undefined;
+}
+
+// 取得の結果。fetchText が返した応答か、取れなかった理由 (例外のメッセージ)
+export type AttestationFetch =
+  | { kind: 'fetched'; status: number; contentType: string; body: string }
+  | { kind: 'failed'; what: string };
+
+export type AttestationVerdict =
+  | { kind: 'match' }
+  // SLSA provenance の subject が、期待する integrity と別の内容を指す
+  | { kind: 'digest-mismatch'; what: string }
+  // 応答や本文が読めない、SLSA provenance が無い
+  | { kind: 'unreadable'; what: string };
+
+const SHA512_HEX_PATTERN = /^[0-9a-f]{128}$/;
+const BASE64_PATTERN = /^[A-Za-z0-9+/]+={0,2}$/;
+
+// SLSA provenance の subject[0].digest.sha512 を取り出す。取れなければ崩れていた所
+function readSubjectSha512(element: Record<string, unknown>): Check<string> {
+  const bundle = element['bundle'];
+  const envelope = isPlainObject(bundle) ? bundle['dsseEnvelope'] : undefined;
+  const payload = isPlainObject(envelope) ? envelope['payload'] : undefined;
+  if (typeof payload !== 'string') {
+    return fail(`bundle.dsseEnvelope.payload is ${quoteForWhat(payload)}, expected a string`);
+  }
+  if (payload.length % 4 !== 0 || !BASE64_PATTERN.test(payload)) {
+    return fail('bundle.dsseEnvelope.payload is not base64');
+  }
+  let statement: unknown;
+  try {
+    statement = JSON.parse(Buffer.from(payload, 'base64').toString('utf8'));
+  } catch {
+    return fail('bundle.dsseEnvelope.payload is not JSON after base64 decoding');
+  }
+  const subject = isPlainObject(statement) ? statement['subject'] : undefined;
+  if (!Array.isArray(subject) || subject.length === 0) {
+    return fail('the provenance statement has no subject (expected a non-empty array)');
+  }
+  const first: unknown = subject[0];
+  const digest = isPlainObject(first) ? first['digest'] : undefined;
+  const sha512 = isPlainObject(digest) ? digest['sha512'] : undefined;
+  if (typeof sha512 !== 'string' || !SHA512_HEX_PATTERN.test(sha512)) {
+    return fail(
+      `subject[0].digest.sha512 is ${quoteForWhat(sha512)}, expected 128 lowercase hex characters`
+    );
+  }
+  return ok(sha512);
+}
+
+// 取得した bundle の SLSA provenance の subject の sha512 が、期待する integrity (SRI) と一致するかを見る。
+// 見るのは digest の一致だけで、bundle の署名と、署名した workflow (出所) は検証しない。
+// digest が一致しても、registry (か通信の途中) が同じ digest を持つ偽の bundle を返す場合とは区別できない
+export function verifyAttestationBundle(
+  response: { status: number; contentType: string; body: string },
+  expectedIntegrity: string
+): AttestationVerdict {
+  const unreadable = (what: string): AttestationVerdict => ({ kind: 'unreadable', what });
+  if (!SHA512_PATTERN.test(expectedIntegrity)) {
+    return unreadable('the validated integrity is not a sha512 base64');
+  }
+  if (response.status !== 200) {
+    return unreadable(`the attestations answered HTTP ${String(response.status)}, expected 200`);
+  }
+  if (!response.contentType.toLowerCase().startsWith('application/json')) {
+    return unreadable(
+      `the attestations content-type is ${quoteForWhat(response.contentType)}, expected application/json`
+    );
+  }
+  let json: unknown;
+  try {
+    json = JSON.parse(response.body);
+  } catch {
+    return unreadable('the attestations body is not JSON');
+  }
+  const elements = isPlainObject(json) ? json['attestations'] : undefined;
+  if (!Array.isArray(elements)) return unreadable('body.attestations is not an array');
+  const provenances = elements.filter(
+    (e): e is Record<string, unknown> =>
+      isPlainObject(e) && e['predicateType'] === SLSA_PROVENANCE_V1
+  );
+  if (provenances.length === 0) {
+    const types = elements.map((e) => (isPlainObject(e) ? e['predicateType'] : undefined));
+    return unreadable(
+      `the body has no element with predicateType ${JSON.stringify(SLSA_PROVENANCE_V1)} (found ${quoteForWhat(types)})`
+    );
+  }
+  const expectedHex = Buffer.from(expectedIntegrity.slice('sha512-'.length), 'base64').toString(
+    'hex'
+  );
+  // SLSA provenance が 2 件以上のときは、全部が一致したときだけ一致とする
+  for (const element of provenances) {
+    const subject = readSubjectSha512(element);
+    if (!subject.ok) return unreadable(subject.errors.join('; '));
+    if (subject.value !== expectedHex) {
+      return {
+        kind: 'digest-mismatch',
+        what: `the provenance subject[0].digest.sha512 is ${subject.value}, the validated one is ${expectedHex}`,
+      };
+    }
+  }
+  return { kind: 'match' };
 }
 
 export function judgePostCheck(
-  items: readonly { name: string; dist: ParseViewDistResult }[],
+  items: readonly { name: string; dist: ParseViewDistResult; attestation?: AttestationFetch }[],
   expected: { version: string; distTag: DistTag; integrities: ReadonlyMap<string, string> },
   releaseExists: boolean,
   published: Published
 ): StopObservation[] {
   const out: StopObservation[] = [];
-  const add = (
-    check: 'integrity' | 'dist-tag' | 'release' | 'shape',
-    what: string,
-    name?: string
-  ): void => {
+  const add = (check: PostCheckKind, what: string, name?: string): void => {
     out.push({
       kind: 'post-check',
       check,
@@ -1061,7 +1256,7 @@ export function judgePostCheck(
     });
   };
   const seen = new Set<string>();
-  for (const { name, dist } of items) {
+  for (const { name, dist, attestation } of items) {
     seen.add(name);
     if (dist.kind !== 'ok') {
       add('shape', `${name}: ${dist.what}`, name);
@@ -1079,8 +1274,34 @@ export function judgePostCheck(
     if (!Object.hasOwn(tags, expected.distTag) || tags[expected.distTag] !== expected.version) {
       add('dist-tag', `${name}: dist-tag ${expected.distTag} is not ${expected.version}`, name);
     }
+    // provenance が registry に無い (遅れか欠落)。申告があるのに崩れている shape とは分ける
+    if (dist.dist.attestations === undefined) {
+      add('attestation-missing', `${name}: dist.attestations is missing`, name);
+      continue;
+    }
     const attestationsProblem = describeAttestationsMismatch(dist.dist.attestations);
-    if (attestationsProblem !== null) add('shape', `${name}: ${attestationsProblem}`, name);
+    if (attestationsProblem !== null) {
+      add('shape', `${name}: ${attestationsProblem}`, name);
+      continue;
+    }
+    // integrity の期待が無いパッケージは、上の integrity の観察が出ているので照合しない
+    if (wanted === undefined) continue;
+    if (attestation === undefined) {
+      add('shape', `${name}: the attestation bundle was not fetched`, name);
+    } else if (attestation.kind === 'failed') {
+      add(
+        'shape',
+        `${name}: could not fetch the attestation bundle: ${quoteForWhat(attestation.what)}`,
+        name
+      );
+    } else {
+      const verdict = verifyAttestationBundle(attestation, wanted);
+      if (verdict.kind === 'digest-mismatch')
+        add('attestation-digest', `${name}: ${verdict.what}`, name);
+      if (verdict.kind === 'unreadable') {
+        add('shape', `${name}: the attestation bundle is unreadable: ${verdict.what}`, name);
+      }
+    }
   }
   for (const name of expected.integrities.keys()) {
     if (!seen.has(name)) add('shape', `${name}: no npm view result`, name);
@@ -1151,6 +1372,27 @@ function postCheckRow(obs: Extract<StopObservation, { kind: 'post-check' }>): St
           rerun:
             'Re-run the github-release job; if the tag is re-created, delete the Release first',
           fallback: BY_HAND,
+        },
+      };
+    case 'attestation-missing':
+      return {
+        zero: cell('rerun'),
+        some: cell('rerun'),
+        reason,
+        next: {
+          rerun:
+            'The provenance is not on the registry yet, or the package was published without it. Wait a few minutes and run the same command again; if it stays, record it as published without provenance in the Results section of ADR-029',
+          fallback: BY_HAND,
+        },
+      };
+    case 'attestation-digest':
+      return {
+        zero: cell('manual'),
+        some: cell('manual'),
+        reason,
+        next: {
+          fallback:
+            'The provenance points at content other than the validated tarball. Compare the saved attestations-<short>.json with log-manifest.txt; the published integrity matches, so the tarball is the validated one',
         },
       };
     case 'shape':

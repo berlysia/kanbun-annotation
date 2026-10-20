@@ -556,7 +556,16 @@ const ALL_AFTER_PUSH: Record<StopObservation['kind'], AfterPushSite[]> = {
   'command-failed': [{ side: 'after-push', where: 'command-failed' }],
   'trust-eotp': [{ side: 'after-push', where: 'trust-eotp' }],
   'trust-mismatch': [{ side: 'after-push', where: 'trust-mismatch' }],
-  'post-check': (['integrity', 'dist-tag', 'release', 'shape'] as const).map((check) => ({
+  'post-check': (
+    [
+      'integrity',
+      'dist-tag',
+      'release',
+      'shape',
+      'attestation-missing',
+      'attestation-digest',
+    ] as const
+  ).map((check) => ({
     side: 'after-push' as const,
     where: 'post-check' as const,
     check,
@@ -588,7 +597,7 @@ const ALL_SITES: StopSite[] = [
 ];
 
 test('diagnose: すべての停止の場所に 1 件以上の候補があり、cause / check / 対処が空でない', () => {
-  assert.equal(ALL_SITES.length, 19 + 7 + 18);
+  assert.equal(ALL_SITES.length, 19 + 7 + 18 + 2);
   for (const site of ALL_SITES) {
     const causes = diagnose(site, errorOf({}));
     assert.ok(causes.length >= 1, JSON.stringify(site));

@@ -11,6 +11,7 @@ import type {
   ErrorExcerpt,
   ErrorTool,
   FrontStage,
+  PostCheckKind,
   NonEmpty,
   StopObservation,
   StopReport,
@@ -370,9 +371,7 @@ const JOB_FAILED_DEFAULTS: Readonly<Record<'validate' | 'npm-stage', Default>> =
   ),
 };
 
-const POST_CHECK_DEFAULTS: Readonly<
-  Record<'integrity' | 'dist-tag' | 'release' | 'shape', Default>
-> = {
+const POST_CHECK_DEFAULTS: Readonly<Record<PostCheckKind, Default>> = {
   integrity: def(
     'default:after-push:post-check:integrity',
     'The published tarball differs from the validated bytes',
@@ -390,6 +389,18 @@ const POST_CHECK_DEFAULTS: Readonly<
     'The GitHub Release does not exist',
     'Open the github-release job in the Actions tab',
     'Re-run the github-release job; if the tag has to be created again, delete the Release first'
+  ),
+  'attestation-missing': def(
+    'default:after-push:post-check:attestation-missing',
+    'The registry shows no provenance for a package (not yet reflected, or published without it)',
+    '`npm view <name>@<version> dist.attestations --json`',
+    'Wait a few minutes and run the same command again; if it stays, record it in ADR-029'
+  ),
+  'attestation-digest': def(
+    'default:after-push:post-check:attestation-digest',
+    'The provenance of a package points at content other than the validated tarball',
+    'Compare the saved attestations-<short>.json with log-manifest.txt',
+    'The published integrity matches the validated one; compare the saved files by hand'
   ),
   shape: def(
     'default:after-push:post-check:shape',

@@ -8,12 +8,14 @@
 import type { SKAMDocument } from '@kanbun-skam/skam';
 import { calibrateGridBaseline } from './calibrate.js';
 import { render, type RenderOptions } from './renderer.js';
+import { applyRenderedStyles } from './style-data.js';
 
 const STYLE_MARKER_ATTRIBUTE = 'data-skam-css';
 const FONTS_CALIBRATION_WARNING = 'skam mount: calibrateGridBaseline failed after fonts loaded';
 
-export interface MountOptions extends RenderOptions {
-  /** 新しく入れる <style> の nonce。インラインの style 属性には効かない */
+/** `inlineStyles` は指定できない。mount は常に false で描く (style 属性を出さず、CSSOM で値を設定する) */
+export interface MountOptions extends Omit<RenderOptions, 'inlineStyles'> {
+  /** 新しく入れる <style> の nonce */
   nonce?: string;
   /**
    * Trusted Types の policy。渡すと innerHTML に `createHTML` の戻り値を入れる。
@@ -23,6 +25,10 @@ export interface MountOptions extends RenderOptions {
 }
 
 export interface MountResult {
+  /**
+   * 描いた HTML。style 属性は無く、ヲコト点と傍点の値は data 属性にある。
+   * この HTML だけを別の場所に入れるときは、入れた後に `applyRenderedStyles` を呼ぶ。
+   */
   html: string;
   css: string;
   /** フォントの読み込みの後の 2 回目の補正が終わったら解決する。reject しない */
@@ -101,7 +107,7 @@ export function mount(
   }
 
   const { nonce, trustedTypesPolicy } = options;
-  const { html, css } = render(doc, options);
+  const { html, css } = render(doc, { ...options, inlineStyles: false });
   // DOM を変える前に作る。createHTML が投げても container と head は変わらない
   const htmlToInsert = trustedTypesPolicy ? trustedTypesPolicy.createHTML(html) : html;
 
@@ -109,6 +115,8 @@ export function mount(
 
   // TrustedHTML の型は DOM の型定義の版で違うため、代入の箇所だけで型を合わせる
   container.innerHTML = htmlToInsert as string;
+  // style 属性の代わりの data 属性から値を設定する。補正は値が入った後のレイアウトを測る
+  applyRenderedStyles(container);
 
   const variablePrefix = options.variablePrefix ?? 'skam';
   calibrateGridBaseline(container, { variablePrefix });

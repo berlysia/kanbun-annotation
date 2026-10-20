@@ -29,7 +29,8 @@ import {
 } from '@kanbun-skam/skam/rendering';
 import type { RenderProfile, RubyMethod } from './render-config.js';
 import { escapeHtml, generateEmphasisMarks, shouldApplyTateChuYoko } from './html-utils.js';
-import { safeCssInteger, toCssEmphasisValue, toSafeHtml, type SafeCssValue } from './safe.js';
+import { safeCssInteger, toSafeHtml, type SafeCssValue } from './safe.js';
+import { emphasisStyleAttributes, okototenStyleAttributes } from './style-data.js';
 import type { RangeMarkContext, RangeTokenInfo, TokenRenderResult } from './render-tree-types.js';
 
 // ============================================================================
@@ -44,6 +45,8 @@ export interface TokenRenderContext {
   tokenMarks: Map<Mark['type'], Mark[]>;
   interactive: boolean;
   rubyMethod: RubyMethod;
+  /** false なら style 属性の代わりに data 属性を出す (既定 true)。style-data.ts を参照 */
+  inlineStyles?: boolean;
 }
 
 // ============================================================================
@@ -223,7 +226,7 @@ function renderSaidokuToken(
 /**
  * ヲコト点を生成
  */
-function renderOkototen(okototenMark: OkototenMark, prefix: string): string {
+function renderOkototen(okototenMark: OkototenMark, prefix: string, inlineStyles: boolean): string {
   // 格子の規則を満たさない点は描かない (validator を通った文書では起きない)
   const cell = resolveOkototenCell(okototenMark);
   if (!cell) return '';
@@ -232,7 +235,8 @@ function renderOkototen(okototenMark: OkototenMark, prefix: string): string {
   const cols = safeCssInteger(cell.cols);
   const rows = safeCssInteger(cell.rows);
 
-  return `<span class="${prefix}-okototen" data-shape="${escapeHtml(cell.shape)}" style="--okototen-x: ${x}; --okototen-y: ${y}; --okototen-grid: ${cols}; --okototen-grid-rows: ${rows};"></span>`;
+  const styleAttributes = okototenStyleAttributes({ x, y, cols, rows }, inlineStyles);
+  return `<span class="${prefix}-okototen" data-shape="${escapeHtml(cell.shape)}"${styleAttributes}></span>`;
 }
 
 // ============================================================================
@@ -272,7 +276,7 @@ export function renderToken(
   const allEmphasisMarks = [...emphasisMarks, ...(rangeCtx?.trailingEmphasisMarks ?? [])];
   const hasEmphasis = profile.emphasis && allEmphasisMarks.length > 0;
   // 検証を通らない style (型違いを含む) は既定値にする。キーワードか 1 文字のままの値を保持し、
-  // CSS 文字列への変換は出力する 2 か所 (toCssEmphasisValue) でだけ行う
+  // CSS 文字列への変換はstyle-data.ts の出力と applyRenderedStyles でだけ行う
   const rawEmphasisStyle: unknown = allEmphasisMarks[0]?.style;
   const resolvedEmphasisStyle = hasEmphasis
     ? typeof rawEmphasisStyle === 'string' && isValidEmphasisStyle(rawEmphasisStyle)
@@ -449,7 +453,9 @@ export function renderToken(
   // ヲコト点追加
   let okototenHtml = '';
   if (hasOkototen) {
-    okototenHtml = okototenMarks.map((m) => renderOkototen(m, prefix)).join('');
+    okototenHtml = okototenMarks
+      .map((m) => renderOkototen(m, prefix, ctx.inlineStyles !== false))
+      .join('');
   }
 
   // クラス名構築
@@ -500,10 +506,13 @@ export function renderToken(
   // data-token-id属性（interactiveモードの場合のみ）
   const tokenIdAttr = ctx.interactive ? ` data-token-id="${escapeHtml(token.id)}"` : '';
 
-  // 傍点スタイル（インラインスタイル、デフォルト: filled dot）
+  // 傍点スタイル（インラインスタイル、または inlineStyles: false なら data 属性。デフォルト: filled dot）
   let emphasisInlineStyle = '';
   if (applyEmphasis && resolvedEmphasisStyle) {
-    emphasisInlineStyle = ` style="text-emphasis-style: ${escapeHtml(toCssEmphasisValue(resolvedEmphasisStyle))};"`;
+    emphasisInlineStyle = emphasisStyleAttributes(
+      resolvedEmphasisStyle,
+      ctx.inlineStyles !== false
+    );
   }
 
   const result: TokenRenderResult = {

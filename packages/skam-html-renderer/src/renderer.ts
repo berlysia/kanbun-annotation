@@ -115,6 +115,17 @@ export interface RenderOptions {
   spacing?: Spacing;
   /** 表示層の言語タグ (BCP 47) */
   displayLang?: string;
+  /**
+   * style 属性を出すか (default: true)
+   *
+   * false にすると HTML に style 属性を 1 つも出さず、ヲコト点の位置と傍点の形を data 属性で持つ。
+   * 値は DOM に入れた後に `applyRenderedStyles` で CSSOM に設定する (呼ばないと崩れる)。
+   * `style-src` が nonce だけのページで、インラインの style 属性が CSP に止められるときに使う。
+   * `mount` は常に false で描く。真偽値でない値は TypeError。
+   *
+   * @experimental
+   */
+  inlineStyles?: boolean;
 }
 
 /**
@@ -184,6 +195,8 @@ export interface RenderHTMLOptions {
   rubyMethod?: RubyMethod;
   /** 表示層の言語タグ (BCP 47) */
   displayLang?: string;
+  /** style 属性を出すか (default: true)。`RenderOptions.inlineStyles` を参照 @experimental */
+  inlineStyles?: boolean;
 }
 
 /**
@@ -315,7 +328,15 @@ function renderDocumentHtml(
   const displayLang = options.displayLang ?? 'ja';
 
   // Display層
-  const displayResult = renderDisplayLayer(doc, prefix, profile, inline, interactive, rubyMethod);
+  const displayResult = renderDisplayLayer(
+    doc,
+    prefix,
+    profile,
+    inline,
+    interactive,
+    rubyMethod,
+    options.inlineStyles ?? true
+  );
   const displayTag = inline ? 'span' : 'div';
   const displayHtml = `<${displayTag} class="${prefix}-display" lang="${displayLang}" aria-hidden="true">${displayResult.tokens}</${displayTag}>`;
 

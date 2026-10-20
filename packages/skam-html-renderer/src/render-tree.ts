@@ -16,8 +16,9 @@ import type { RenderProfile, RubyMethod } from './render-config.js';
 import { resolveEmphasisCharacter, canBreakBefore } from '@kanbun-skam/skam/rendering';
 import { HIGHLIGHT_STYLES } from '@kanbun-skam/skam';
 import { escapeHtml, generateEmphasisMarks } from './html-utils.js';
-import { safeCssKeyword, toCssEmphasisValue } from './safe.js';
+import { safeCssKeyword } from './safe.js';
 import { renderToken } from './token-renderer.js';
+import { emphasisStyleAttributes } from './style-data.js';
 
 /** @internal */
 export interface RenderTreeContext {
@@ -27,6 +28,8 @@ export interface RenderTreeContext {
   marks: Mark[];
   interactive: boolean;
   rubyMethod: RubyMethod;
+  /** false なら style 属性の代わりに data 属性を出す */
+  inlineStyles: boolean;
   refValueMap: Map<RefMark, string>;
   highlightRefIds: Set<string>;
 }
@@ -52,6 +55,7 @@ function callRenderToken(
       tokens: ctx.tokens,
       interactive: ctx.interactive,
       rubyMethod: ctx.rubyMethod,
+      inlineStyles: ctx.inlineStyles,
     },
     node.rangeCtx,
     ctx.refValueMap,
@@ -234,7 +238,7 @@ function wrapInTatetenRuby(
       result = `<ruby${inner.dataAttrs}><rb>${baseHtml}</rb><rt class="${prefix}-ruby">${inner.yomigana}</rt>${suffixHtml}</ruby>`;
     }
     if (inner.groupEmphasisStyle) {
-      result = `<span class="${prefix}-emphasis" style="text-emphasis-style: ${escapeHtml(toCssEmphasisValue(inner.groupEmphasisStyle))};">${result}</span>`;
+      result = `<span class="${prefix}-emphasis"${emphasisStyleAttributes(inner.groupEmphasisStyle, ctx.inlineStyles)}>${result}</span>`;
     }
     return result;
   }

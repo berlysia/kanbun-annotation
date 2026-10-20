@@ -335,3 +335,60 @@ describe('mount: fonts', () => {
     expect(calibrate).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('mount: no inline style attributes', () => {
+  const styledDoc: SKAMDocument = {
+    format: 'skam@0.1',
+    tokens: [
+      { id: 't1', text: '甲' },
+      { id: 't2', text: '乙' },
+    ],
+    blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
+    marks: [
+      {
+        type: 'okototen',
+        anchor: { from: 't1', to: 't1' },
+        position: { system: 'glyph-grid', grid: '4x4', x: 3, y: 1 },
+        shape: 'dot',
+      },
+      { type: 'emphasis', anchor: { from: 't2', to: 't2' }, style: '★' },
+    ],
+    readings: [],
+  };
+
+  it('returns html without style attributes and sets the values through the CSSOM', () => {
+    const container = connectedContainer();
+    const result = mount(container, styledDoc);
+    expect(result.html).not.toContain(' style="');
+    expect(result.html).toBe(render(styledDoc, { inlineStyles: false }).html);
+    const okototen = container.querySelector<HTMLElement>('[data-okototen-x]');
+    expect(okototen?.style.getPropertyValue('--okototen-x')).toBe('3');
+    const emphasis = container.querySelector<HTMLElement>('[data-emphasis-style]');
+    expect(emphasis?.style.getPropertyValue('text-emphasis-style')).toBe('"\\2605 "');
+  });
+
+  it('applies the values before the first calibration', () => {
+    const container = connectedContainer();
+    let seen: string | undefined;
+    calibrate.mockImplementation((root) => {
+      seen = root
+        .querySelector<HTMLElement>('[data-okototen-x]')
+        ?.style.getPropertyValue('--okototen-x');
+    });
+    mount(container, styledDoc);
+    expect(seen).toBe('3');
+  });
+
+  it('overrides inlineStyles: true passed at runtime', () => {
+    const options = { inlineStyles: true } as unknown as MountOptions;
+    const result = mount(connectedContainer(), styledDoc, options);
+    expect(result.html).not.toContain(' style="');
+  });
+
+  it('passes the data-attribute html to createHTML', () => {
+    const createHTML = vi.fn((input: string) => input);
+    mount(connectedContainer(), styledDoc, { trustedTypesPolicy: { createHTML } });
+    expect(createHTML).toHaveBeenCalledTimes(1);
+    expect(createHTML.mock.calls[0]?.[0]).not.toContain(' style="');
+  });
+});

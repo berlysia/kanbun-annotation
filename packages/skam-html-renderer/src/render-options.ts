@@ -98,6 +98,12 @@ function assertIncludeReadingLayer(v: unknown): void {
   }
 }
 
+function assertInlineStyles(v: unknown): void {
+  if (typeof v !== 'boolean') {
+    throw new TypeError('inlineStyles must be a boolean');
+  }
+}
+
 function assertReadingLayerSource(v: unknown): void {
   if (v !== 'readings' && v !== 'display') {
     throw new TypeError('readingLayerSource must be a known reading layer source');
@@ -120,6 +126,7 @@ const RENDER_OPTION_KEYS = [
   'displayLang',
   'readingLayerSource',
   'accessibleLabels',
+  'inlineStyles',
 ] as const satisfies readonly (keyof RenderOptions)[];
 
 /**
@@ -155,6 +162,7 @@ export function normalizeRenderOptions(options: RenderOptions): RenderOptions {
   check(o.spacing, assertSpacing);
   check(o.displayLang, assertDisplayLang);
   check(o.readingLayerSource, assertReadingLayerSource);
+  check(o.inlineStyles, assertInlineStyles);
   const labels = normalizeAccessibleLabels(o.accessibleLabels);
   if (labels !== undefined) o.accessibleLabels = labels;
   return o;

@@ -65,3 +65,9 @@ export { validateRenderOptions, validateCSSOptions } from './render-options.js';
  * the grid baseline right away and again after fonts load. Browser-only.
  */
 export { mount, type MountOptions, type MountResult } from './mount.js';
+
+/**
+ * Sets the values of an `inlineStyles: false` HTML through the CSSOM (no inline style attributes,
+ * so a nonce-only `style-src` does not block them). Browser-only.
+ */
+export { applyRenderedStyles } from './style-data.js';

@@ -32,8 +32,7 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 
 - **attribute-validation.test.ts の flaky なテスト**: 2026-10-15 に `pnpm test` で 1 回だけ落ちた。落ちたのは `renders vertically and reports writing-mode once` である。2026-10-19 に 120 回流したが、再現しなかった。内訳は、8 コアすべてに CPU 負荷をかけた `attribute-validation.test.ts` が 100 回、`turbo run test:run --force` が 20 回である。vitest 4.0.18、happy-dom 20.3.9。失敗率が 2.5% (3/120) 以上なら 95% の確からしさで検出できたので、それ未満の失敗率は否定できない。候補だった happy-dom の MutationObserver の件 (GC で通知を落とす) は 20.14.6 で直っている (#24)。再発しなければ、この行を消す。出典: plan-release-automation.md L77。規模: 小。
 - **ssr-import.test.ts の動的 import が負荷の下で時間切れになる**: 2026-10-20 に、全パッケージを並列に流した `pnpm test` で `imports index without HTMLElement / customElements` (ssr-import.test.ts:20-22) が 1 回落ちた。テストは `vi.resetModules()` の後に `index.js` を読み直すので、依存を毎回変換し直す。単独では 147 ms で終わり、そのときの全体の log は import 27 秒、environment 115 秒だった。直後の `pnpm test:run --force` と単独の実行では通った。既定の 5 秒の timeout を延ばすか、読み直しの範囲を絞るかを決める。出典: 2026-10-20 の完了の確認。規模: 小。
-- **mount() 関数 (#11)**: DOM へ描く `mount()` 関数を足し、CSS の 1 回だけの注入とフォント読み込み後の補正をまとめる。2 回目のフィードバックでも求められた。補正を知らない利用者は縦書きの表示がずれる。出典: plan-consumer-feedback.md L65、#11、利用者のフィードバック 2 回目 (2026-10-20) の 2。規模: 中。
-- **extractXmlFromScriptElement を Web Component から切り離す**: `extractXmlFromScriptElement` は `skam-web-component` から experimental で出ている (`src/index.ts:12`)。light DOM に描く利用者は Web Component を入れずに同じ処理を書き、MIME タイプの扱いが利用者ごとにずれうる。Web Component に依存しないパッケージから出す。mount() と同じ場所が候補である。出典: 利用者のフィードバック 2 回目 (2026-10-20) の 3、ADR-030 K10。規模: 小。
+- **Web Component の描画を mount に寄せる**: `<skam-renderer>` は mount と別の経路で描く。補正はフォントの読み込みを待たない 1 回だけで、`variablePrefix` でなく `classPrefix` を補正に渡している (バグの可能性)。`innerHTML` に文字列を入れるので、Trusted Types が必須のページでは使えない。mount に寄せて揃えるかを決める。出典: ADR-034 KD7、KD11。規模: 小。
 
 ## データモデルと仕様
 
@@ -58,6 +57,7 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 
 ## レンダラー
 
+- **インラインの style 属性を出さない描画**: 描画の HTML は、ヲコト点の位置 (`token-renderer.ts`) と傍点の形 (`token-renderer.ts`、`render-tree.ts`) をインラインの `style` 属性で出す。`style-src` に nonce だけを使う CSP では、これらが止められて表示が崩れる。CSS 変数やクラスに移すかを決める。出典: ADR-034 KD6。規模: 中。
 - **grid baseline 補正の構造的課題 (#2)**: Chromium の補正に構造的な課題がある。補正は `--skam-grid-baseline-fix` と `calibrateGridBaseline()` が担う。Issue は open。出典: #2。規模: 大。
 - **highlight の傍線がアキ部分をカバーしない**: `highlight-content` は inline-block で、letter-spacing のアキが box に含まれない。そのため `box-shadow: inset` の傍線がアキ部分に描かれず、途切れて見える。ADR-008 で既知の制約とし、別 ADR で対応するとした。出典: plan-aki-gumi-spacing.md L70、ADR-008「検証 4: エッジケース」。規模: 中。
 - **分析結果キャッシュ (DocumentAnalysis) の再利用**: Canvas の縦書きレイアウトで、分析結果 (`DocumentAnalysis`) を再利用するかを決める。現行のコードで再利用されているかは未確認。出典: ADR-018「未決事項（残件）」。規模: 中。

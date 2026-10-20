@@ -37,6 +37,27 @@ const doc = parse(xml);
 // doc: SKAMDocument
 ```
 
+### `<script>` から SKAM-ML を取り出す (`@experimental`)
+
+HTML に `<script type="application/vnd.berlysia.skam+xml">` で埋め込んだ SKAM-ML は、`extractXmlFromScriptElement` で取り出せる。メディアタイプは `SKAM_XML_MEDIA_TYPE` (SKAM-ML 仕様 §3.3 で確定)。最初に見つかった要素の中身を trim して返し、無いか空なら `null` を返す。
+
+<!-- doctest:typecheck -->
+
+```typescript
+import { extractXmlFromScriptElement, parse } from '@kanbun-skam/skam-xml-parser';
+
+declare const lesson: { querySelector(selector: string): { textContent: string | null } | null };
+
+const xml = extractXmlFromScriptElement(lesson); // HTMLElement や Document も渡せる
+if (xml !== null) {
+  const doc = parse(xml);
+}
+```
+
+- 第三者が書ける領域 (コメント欄など) があるページでは、`document` でなく、教材を置いた信頼できる要素を渡す。`document` を渡すと、ページ全体で最初に見つかった `<script>` を取る。
+- 取り出した文字列は、必ず `parse` に通してから使う。
+- Web Component (`@kanbun-skam/skam-web-component`) からも同じ関数を import できる。
+
 ## SKAM-ML 構文
 
 ### ルート要素

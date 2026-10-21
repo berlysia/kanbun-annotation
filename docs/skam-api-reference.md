@@ -44,6 +44,14 @@ import { getLinebreakPlacementIssues } from '@kanbun-skam/skam';
 - `LEGACY_EXT_REGISTERED_NAME`: `LEGACY_EXT` のうち、`ext` のキーが登録済みの拡張の名前と同じもの。宣言の書き忘れの疑い。`path` は `marks[i].ext.edu` など。0.4.0 では無くなる（`LEGACY_EXT` の誤りが同じ所を指す）
 - `ValidationWarningKind` に値を足すのは minor の変更
 
+### 言語タグ
+
+```typescript
+import { isLanguageTag } from '@kanbun-skam/skam';
+```
+
+`isLanguageTag(value)` は、`value` が文字列で、英字 2〜8 字に `-` で区切った英数字 1〜8 字の部分が続く形（例 `ja`、`lzh`、`zh-Hant`）なら true を返す型ガード。登録されたサブタグかは確かめない。validator は文書の `lang` をこの形で検査し（文字列でなければ `INVALID_TYPE`、形に合わなければ `INVALID_VALUE`、`path` は `lang`）、html の描画は文書の `lang` と `displayLang` をこの形に合うときだけ属性に出す。
+
 ### 拡張
 
 ```typescript
@@ -294,6 +302,8 @@ import { parse } from '@kanbun-skam/skam-xml-parser';
 const doc = parse(xmlString);
 ```
 
+ルートの `xml:lang` は文書の `lang` になる（空の値なら `lang` を持たない）。`validate: true` なら形の誤りは `SKAMValidationError`（`path` は `lang`、位置は付かない）。`validate: false` では値をそのまま入れるので、HTML に使うときは `isLanguageTag` を通す。
+
 `skam:meta` の子の `skam:extension` は `extensions` と `extensionsRequired` になり、拡張の名前空間の属性（例 `edu:quiz`）は `ext.<拡張の名前>` になる。選択肢 `extensions` で、既定の束に利用者の拡張の定義を足せる。知らない必須の拡張を宣言した文書は、`validate` の値にかかわらず誤り。
 
 `onWarning` には、未知の要素（`UNKNOWN_ELEMENT`）のほかに、ハイフンで連結した `kind` の `skam:kaeri`（`KAERI_MULTI_CHARACTER`）の警告が届く。後者は `validate` の値に関係なく 1 要素につき 1 回出る。validator の `warnings` は `onWarning` に流れない。
@@ -306,6 +316,8 @@ import { stringify } from '@kanbun-skam/skam-xml-stringify';
 // SKAM JSON → XML
 const xml = stringify(doc);
 ```
+
+文書の `lang` が文字列なら、ルートに `xml:lang` を書く（値は escape する）。
 
 宣言のある文書は、`skam:meta` に `skam:extension` を、ルートに拡張の名前空間を書き、拡張の値を定義の `writeXmlAttributes` で属性にする。選択肢 `extensions` で拡張の定義を足せる。書き方を知らない拡張の値は欠落 `UNKNOWN_EXTENSION` になる。
 
@@ -330,6 +342,8 @@ const { html, css } = render(doc);
 // 出題の印を隠す（@experimental）: { hideQuiz: true | ['問1'] }
 //   印の付いた注記の中身を 1 字ずつ空白に置き換え、class と aria-hidden を付ける。
 //   hideQuiz を渡して readingLayerSource を書かないときは、読み層も 'display' になる
+// 表示層の lang: displayLang → 文書の lang → 'ja' の順（形に合わない値は使わない）。コンテナは 'ja'。
+//   読み層は、readings の経路で白文に戻ったときだけ文書の lang を持つ
 // 読み層の出どころ（@experimental）: { readingLayerSource: 'readings' | 'display' }
 //   'display' は profile で見えている注記だけを言葉にする（readings も白文も参照しない）。
 //   言葉の上書き: { accessibleLabels: { kaeri: (note) => '...' } }

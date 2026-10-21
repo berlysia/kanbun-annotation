@@ -56,6 +56,10 @@ xmlns:skam="urn:skam:1"
 </skam:doc>
 ```
 
+- ルートの `xml:lang` は、JSON の文書の `lang`（本文の言語）と往復する（任意）。値の形は SKAM-draft §3 の `lang` と同じ。
+- 空の値（`xml:lang=""`）は、言語の情報が無いことを表す。JSON では `lang` を持たない文書になる。
+- ルート以外の要素の `xml:lang` は読まない。
+
 ### 3.3 埋め込み時のメディアタイプ（規範）
 
 SKAM-ML を HTML の `<script>` 要素に埋め込むときの `type` は、次の文字列とする。

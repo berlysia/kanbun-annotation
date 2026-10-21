@@ -22,6 +22,17 @@ SKAM の 6 つの公開パッケージ (`@kanbun-skam/skam`、`skam-xml-parser`�
 - 対象: `MarkType`、`Mark`、`ValidationErrorKind` を網羅の `switch` で扱っている。`RenderProfile` や `AIRRenderProfile` を、すべてのキーを書いた object で作っている。
 - やること: `linebreak` (`ValidationErrorKind` は `INVALID_LINEBREAK`) を足す。profile は `resolveRenderProfile` に一部のキーだけを渡せば、残りは既定の値で埋まる。
 
+### 拡張を使う文書は 0.3.x で揃えて扱う (すべてのパッケージ)
+
+- 対象: 文書に拡張の宣言 (`extensions`、`extensionsRequired`、SKAM-ML の `skam:extension`) や拡張の値 (`ext.edu` など) がある。例: 学習・教育用拡張の出題の印。
+- 0.2.x の parser は拡張の宣言と名前空間の属性を黙って捨て、validator は宣言を落とし、html の描画は出題の答えをそのまま描く。必須の拡張でも止まらない。
+- やること: 拡張を使う文書を読み書き、描画する所を、すべて 0.3.x に上げる。
+
+### 検証の誤りの種類を列挙している所に足す (skam)
+
+- 対象: `ValidationErrorKind` を網羅の `switch` で扱っている。
+- やること: `INVALID_EXTENSION` を足す。
+
 ### 検証の結果を丸ごと比べるテストを直す (skam)
 
 - 対象: `validateSKAMDocument` の `valid: true` の結果を `toEqual` などで丸ごと比べている。

@@ -51,3 +51,6 @@ packages/integration-tests/.doctest/
 
 # 古事記の本文 (取得して作るキャッシュ。commit しない)
 packages/kojiki/.cache/
+
+# KanbunKundoku のデータ (取得して作るキャッシュ。commit しない)
+packages/integration-tests/.cache/kundoku/

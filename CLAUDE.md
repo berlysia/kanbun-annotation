@@ -12,7 +12,7 @@ pnpm --filter <pkg> test -- <file>   # 単一テスト
 pnpm format / lint / clean           # フォーマット (oxfmt)・リント (oxlint)・未使用コード検出 (knip)
 pnpm playground:dev / playground:build / playground:preview
 pnpm verify / release                # 検査一式 / リリース (手順: docs/releasing.md)
-pnpm bench                           # 古事記の描画時間 (build 込み。初回は本文を取得する (要ネットワーク)。取得 CLI (kojiki の fetch) は dist を使うので、単体の --filter 実行は要 build。比較は bench の引数に --outputJson=<f> / --compare=<f>)
+pnpm bench                           # 古事記と KanbunKundoku の描画時間 (build 込み。初回は本文とデータを取得する (要ネットワーク)。取得 CLI (kojiki の fetch) は dist を使うので、単体の --filter 実行は要 build。比較は bench の引数に --outputJson=<f> / --compare=<f>)
 ```
 
 ## Architecture

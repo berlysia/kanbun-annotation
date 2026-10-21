@@ -8,6 +8,48 @@ export interface Sample {
   xml: string;
 }
 
+/*
+ * 末尾の KanbunKundoku の見本 4 つは、shiryusann/KanbunKundoku の test の 1 文ずつを、データの訓点のとおりに
+ * SKAM-ML にしたもの (作り直す手順: packages/integration-tests/src/kundoku/make-samples.ts)。
+ * 元データは MIT で、次の表示と許諾を添える。
+ *
+ * MIT License
+ *
+ * Copyright (c) 2025 shiryusann
+ *
+ * Permission is hereby granted, free of charge, to any person obtaining a copy
+ * of this software and associated documentation files (the "Software"), to deal
+ * in the Software without restriction, including without limitation the rights
+ * to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+ * copies of the Software, and to permit persons to whom the Software is
+ * furnished to do so, subject to the following conditions:
+ *
+ * The above copyright notice and this permission notice shall be included in all
+ * copies or substantial portions of the Software.
+ *
+ * THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+ * IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+ * FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+ * AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+ * LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+ * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+ * SOFTWARE.
+ */
+const KUNDOKU_SOURCE =
+  '出典: 論文 Translation via Annotation: A Computational Study of Translating Classical Chinese into Japanese のデータ ' +
+  '(github.com/shiryusann/KanbunKundoku、MIT、Copyright (c) 2025 shiryusann) の test の 1 文。' +
+  '元データは Web漢文大系で、その利用条件は確かめていない。' +
+  '再読文字の 2 回目の読みなど、このモデルに載せない訓点は含めていない。' +
+  '助詞は添え仮名、送り仮名と添え仮名はカタカナで描く。';
+
+function kundokuSample(sentence: string, feature: string, xml: string): Sample {
+  return {
+    name: `KanbunKundoku: ${sentence}`,
+    description: `${feature}。${KUNDOKU_SOURCE}`,
+    xml,
+  };
+}
+
 export const SAMPLES: Sample[] = [
   {
     name: '學而時習之（基本）',
@@ -372,4 +414,64 @@ export const SAMPLES: Sample[] = [
   </skam:readings>
 </skam:doc>`,
   },
+  kundokuSample(
+    '拝而受之。',
+    'レ点の基本',
+    `<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1">
+  <skam:meta tokenization="char"/>
+  <skam:body>
+    <skam:block xml:id="b0"><skam:kun okuri="シ" soe="テ">拝</skam:kun>而<skam:kun okuri="ク">受</skam:kun><skam:kaeri kind="re"/><skam:kun soe="ヲ">之</skam:kun><skam:kutoten value="。"/></skam:block>
+  </skam:body>
+
+  <skam:readings>
+    <skam:reading kind="kakikudashi">拝して之を受く。</skam:reading>
+  </skam:readings>
+</skam:doc>`
+  ),
+  kundokuSample(
+    '夜半鐘声到客船',
+    '一二点。「到」から「船」へ返る',
+    `<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1">
+  <skam:meta tokenization="char"/>
+  <skam:body>
+    <skam:block xml:id="b0">夜<skam:kun soe="ノ">半</skam:kun>鐘声<skam:kun okuri="ル">到</skam:kun><skam:kaeri kind="ni"/>客<skam:kun soe="ニ">船</skam:kun><skam:kaeri kind="ichi"/></skam:block>
+  </skam:body>
+
+  <skam:readings>
+    <skam:reading kind="kakikudashi">夜半の鐘声客船に到る</skam:reading>
+  </skam:readings>
+</skam:doc>`
+  ),
+  kundokuSample(
+    '孝者所以事君也。',
+    '一レ点とたて点。「所以」を一語として二点で返る',
+    `<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1">
+  <skam:meta tokenization="char"/>
+  <skam:body>
+    <skam:block xml:id="b0"><skam:kun soe="ハ">孝</skam:kun>者<skam:tateten>所<skam:kaeri kind="ni"/>以</skam:tateten><skam:kun okuri="ウル">事</skam:kun><skam:kaeri kind="ichi"/><skam:kaeri kind="re"/><skam:kun soe="ニ">君</skam:kun>也<skam:kutoten value="。"/></skam:block>
+  </skam:body>
+
+  <skam:readings>
+    <skam:reading kind="kakikudashi">孝は君に事うる所以なり。</skam:reading>
+  </skam:readings>
+</skam:doc>`
+  ),
+  kundokuSample(
+    '欲為聖明除弊事',
+    '一二三点と上下点の入れ子',
+    `<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1">
+  <skam:meta tokenization="char"/>
+  <skam:body>
+    <skam:block xml:id="b0"><skam:kun okuri="ス">欲</skam:kun><skam:kaeri kind="san"/><skam:kun soe="ニ">為</skam:kun><skam:kaeri kind="ge"/>聖<skam:kun soe="ノ">明</skam:kun><skam:kaeri kind="jo"/><skam:kun okuri="カ" soe="ント">除</skam:kun><skam:kaeri kind="ni"/>弊<skam:kun soe="ヲ">事</skam:kun><skam:kaeri kind="ichi"/></skam:block>
+  </skam:body>
+
+  <skam:readings>
+    <skam:reading kind="kakikudashi">聖明の為に弊事を除かんと欲す</skam:reading>
+  </skam:readings>
+</skam:doc>`
+  ),
 ];

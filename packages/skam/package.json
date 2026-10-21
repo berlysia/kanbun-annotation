@@ -12,6 +12,10 @@
     "./rendering": {
       "types": "./dist/rendering/index.d.ts",
       "import": "./dist/rendering/index.js"
+    },
+    "./extensions": {
+      "types": "./dist/extensions/index.d.ts",
+      "import": "./dist/extensions/index.js"
     }
   },
   "files": [

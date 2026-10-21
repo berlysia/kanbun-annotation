@@ -25,8 +25,10 @@ export interface Token {
   id: string;
   /** UTF-8 文字列 */
   text: string;
-  /** 拡張フィールド（round-trip保持推奨） */
+  /** 拡張の値（宣言のある文書では `ext.<拡張の名前>`。宣言の無い文書では旧来の自由なデータ。round-trip保持推奨） */
   ext?: Record<string, unknown>;
+  /** SKAM が解釈しない自由なデータ（round-trip保持推奨） */
+  custom?: Record<string, unknown>;
 }
 
 // ============================================================================
@@ -43,8 +45,10 @@ export interface Block {
   id: string;
   /** この block に属する token ID の配列（順序保持） */
   tokenIds: string[];
-  /** 拡張フィールド（round-trip保持推奨） */
+  /** 拡張の値（宣言のある文書では `ext.<拡張の名前>`。宣言の無い文書では旧来の自由なデータ。round-trip保持推奨） */
   ext?: Record<string, unknown>;
+  /** SKAM が解釈しない自由なデータ（round-trip保持推奨） */
+  custom?: Record<string, unknown>;
 }
 
 // ============================================================================
@@ -149,8 +153,10 @@ export interface MarkBase {
   id?: string;
   /** 表示上の弱いヒント */
   placementHint?: string;
-  /** 拡張フィールド（round-trip保持推奨） */
+  /** 拡張の値（宣言のある文書では `ext.<拡張の名前>`。宣言の無い文書では旧来の自由なデータ。round-trip保持推奨） */
   ext?: Record<string, unknown>;
+  /** SKAM が解釈しない自由なデータ（round-trip保持推奨） */
+  custom?: Record<string, unknown>;
 }
 
 /** anchor ベースの注記（token 範囲に付随） */
@@ -400,6 +406,8 @@ export interface BaseDerivation {
   method: string;
   /** 拡張フィールド */
   ext?: Record<string, unknown>;
+  /** SKAM が解釈しない自由なデータ（round-trip保持推奨） */
+  custom?: Record<string, unknown>;
 }
 
 /** 読み順の導出 */
@@ -431,8 +439,10 @@ export interface Reading {
   kind: ReadingKind;
   /** 読みテキスト */
   text: string;
-  /** 拡張フィールド（round-trip保持推奨） */
+  /** 拡張の値（宣言のある文書では `ext.<拡張の名前>`。宣言の無い文書では旧来の自由なデータ。round-trip保持推奨） */
   ext?: Record<string, unknown>;
+  /** SKAM が解釈しない自由なデータ（round-trip保持推奨） */
+  custom?: Record<string, unknown>;
 }
 
 // ============================================================================
@@ -442,7 +452,7 @@ export interface Reading {
 /**
  * SKAM ドキュメント
  *
- * 未知のフィールドは無視してよい。extは保持して再出力してよい（round-trip推奨）。
+ * 未知のフィールドは無視してよい。ext と custom は保持して再出力してよい（round-trip推奨）。
  */
 export interface SKAMDocument {
   /** フォーマットバージョン */
@@ -457,8 +467,14 @@ export interface SKAMDocument {
   derivations?: Derivation[];
   /** 読み層 */
   readings: Reading[];
-  /** 拡張フィールド（round-trip保持推奨） */
+  /** 使う拡張の名前（小文字の英数字）の配列。持つ文書（空の配列を含む）は宣言のある文書として読む */
+  extensions?: string[];
+  /** 知らなければ読んではいけない拡張の名前の配列（`extensions` の部分集合） */
+  extensionsRequired?: string[];
+  /** 拡張の値（宣言のある文書では `ext.<拡張の名前>`。宣言の無い文書では旧来の自由なデータ。round-trip保持推奨） */
   ext?: Record<string, unknown>;
+  /** SKAM が解釈しない自由なデータ（round-trip保持推奨） */
+  custom?: Record<string, unknown>;
 }
 
 // ============================================================================
@@ -503,6 +519,7 @@ export {
 } from './errors.js';
 
 export {
+  type ValidateOptions,
   validateSKAMDocument,
   isSKAMDocument,
   assertSKAMDocument,

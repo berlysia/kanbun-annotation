@@ -1,5 +1,10 @@
 import type { SKAMDocument } from '@kanbun-skam/skam';
 import { buildAnnotationIR } from '@kanbun-skam/skam/rendering';
+import {
+  defaultExtensions,
+  extensionRegistry,
+  type SKAMExtensionDefinition,
+} from '@kanbun-skam/skam/extensions';
 import { parse } from '@kanbun-skam/skam-xml-parser';
 import { stringify } from '@kanbun-skam/skam-xml-stringify';
 import { render, type RenderOptions } from '@kanbun-skam/skam-html-renderer';
@@ -13,6 +18,9 @@ import * as autoModule from '@kanbun-skam/skam-web-component/auto';
 
 void autoModule;
 void buildAnnotationIR;
+void defaultExtensions;
+void extensionRegistry;
+export type ExtensionDefinition = SKAMExtensionDefinition;
 void SkamRendererElement;
 
 const doc: SKAMDocument = parse('<skam:doc xmlns:skam="urn:skam:1"><skam:body/></skam:doc>');

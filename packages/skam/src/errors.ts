@@ -16,7 +16,8 @@ export type ValidationErrorKind =
   | 'INVALID_VALUE'
   | 'MARK_CONFLICT'
   | 'BLOCK_START_KAERI'
-  | 'INVALID_LINEBREAK';
+  | 'INVALID_LINEBREAK'
+  | 'INVALID_EXTENSION';
 
 /**
  * ブロック先頭の返り点に対する案内文。

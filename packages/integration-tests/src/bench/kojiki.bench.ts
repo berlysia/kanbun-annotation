@@ -1,5 +1,5 @@
 /**
- * 古事記 (約 4.2 万字) の描画時間を測る。`pnpm bench` から実行する (本文は初回に取得する。説明は ../fixtures/kojiki/README.md)。
+ * 古事記 (約 4.2 万字) の描画時間を測る。`pnpm bench` から実行する (本文は初回に取得する。説明は packages/kojiki/README.md)。
  *
  * 対象: AIR (buildAnnotationIR)、html (render)、canvas (render + 偽の canvas)。
  * 文書: 上巻・中巻・下巻・全巻・全巻の原文由来の注記だけ。合成の注記の密度は人工の値で、
@@ -13,7 +13,7 @@ import { buildAnnotationIR, RENDER_PROFILES } from '@kanbun-skam/skam/rendering'
 import type { SKAMDocument } from '@kanbun-skam/skam';
 import { render as renderCanvas } from '@kanbun-skam/skam-canvas-renderer';
 import { render as renderHtml } from '@kanbun-skam/skam-html-renderer';
-import { buildKojikiDocument } from '../fixtures/kojiki/build-document.ts';
+import { buildKojikiDocument } from '@kanbun-skam/kojiki';
 import { checkKojikiDocuments } from './check-kojiki-documents.ts';
 import { createFakeCanvas } from './fake-canvas.ts';
 

@@ -68,6 +68,9 @@ importers:
 
   packages/integration-tests:
     devDependencies:
+      '@kanbun-skam/kojiki':
+        specifier: workspace:*
+        version: link:../kojiki
       '@kanbun-skam/skam':
         specifier: workspace:*
         version: link:../skam
@@ -93,6 +96,12 @@ importers:
         specifier: 1.58.0
         version: 1.58.0
 
+  packages/kojiki:
+    dependencies:
+      '@kanbun-skam/skam':
+        specifier: workspace:*
+        version: link:../skam
+
   packages/playground:
     dependencies:
       '@kanbun-skam/skam':
@@ -117,6 +126,9 @@ importers:
         specifier: 1.30.0
         version: 1.30.0
     devDependencies:
+      '@kanbun-skam/kojiki':
+        specifier: workspace:*
+        version: link:../kojiki
       '@playwright/test':
         specifier: 1.58.0
         version: 1.58.0

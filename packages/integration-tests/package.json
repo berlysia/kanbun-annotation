@@ -7,7 +7,7 @@
   "scripts": {
     "test": "vitest",
     "test:run": "vitest run",
-    "bench": "node src/fixtures/kojiki/update-source.ts && vitest bench --run",
+    "bench": "pnpm --filter @kanbun-skam/kojiki run fetch && vitest bench --run",
     "test:semantic": "vitest run cross-renderer-equivalence",
     "test:visual": "playwright test",
     "test:consumer": "node consumer/run.mjs",
@@ -15,6 +15,7 @@
   },
   "license": "MIT",
   "devDependencies": {
+    "@kanbun-skam/kojiki": "workspace:*",
     "@kanbun-skam/skam": "workspace:*",
     "@kanbun-skam/skam-canvas-renderer": "workspace:*",
     "@kanbun-skam/skam-html-renderer": "workspace:*",

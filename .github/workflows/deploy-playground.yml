@@ -51,7 +51,32 @@ jobs:
         run: pnpm test:run
 
       - name: Build playground
+        id: playground
         run: pnpm playground:build
+
+      # 古事記の本文は版を固定していて不変なので、取得した本文を cache に載せる。key は版と sha256 の
+      # 定数だけを持つファイルの hash (組み立てのコードの編集では変わらない)。cache があれば取得しない。
+      # cache から戻った本文は、build:kojiki が sha256 で照合し、違えば取り直す。
+      - name: Restore Kojiki source cache
+        id: kojiki-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: packages/kojiki/.cache
+          key: kojiki-source-v1-${{ hashFiles('packages/kojiki/src/source-pin.ts') }}
+
+      - name: Build Kojiki page
+        id: kojiki-page
+        timeout-minutes: 5
+        run: pnpm --filter @kanbun-skam/playground build:kojiki
+
+      # 上の段が成功した (sha256 の照合を通った本文がある) ときだけ走る。後ろの段が失敗しても保存される
+      - name: Save Kojiki source cache
+        id: kojiki-cache-save
+        if: steps.kojiki-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: packages/kojiki/.cache
+          key: kojiki-source-v1-${{ hashFiles('packages/kojiki/src/source-pin.ts') }}
 
       - name: Setup Pages
         uses: actions/configure-pages@45bfe0192ca1faeb007ade9deae92b16b8254a0d # v6.0.0

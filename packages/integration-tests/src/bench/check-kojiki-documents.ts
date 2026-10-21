@@ -4,7 +4,7 @@
  */
 
 import { validateSKAMDocument, type Mark, type SKAMDocument } from '@kanbun-skam/skam';
-import { KOJIKI_TOKEN_COUNT } from '../fixtures/kojiki/build-document.ts';
+import { KOJIKI_TOKEN_COUNT } from '@kanbun-skam/kojiki';
 
 export interface KojikiDocuments {
   /** buildKojikiDocument() */

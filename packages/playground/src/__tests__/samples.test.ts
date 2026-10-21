@@ -10,7 +10,7 @@ describe('SAMPLES', () => {
     expect(doc.tokens.length).toBeGreaterThan(0);
   });
 
-  it('keeps the first 18 samples in their order, and appends the KanbunKundoku samples after them', () => {
+  it('keeps the first 18 samples in their order, then the KanbunKundoku samples, then the line-break sample', () => {
     expect(SAMPLES.slice(0, 18).map((sample) => sample.name)).toEqual([
       '學而時習之（基本）',
       '論語（複数ブロック）',
@@ -31,11 +31,14 @@ describe('SAMPLES', () => {
       '傍点＋傍線（配置順確認）',
       '全要素総合（ヲコト点除く）',
     ]);
-    expect(SAMPLES.slice(18).map((sample) => sample.name)).toEqual([
+    expect(SAMPLES.slice(18, 22).map((sample) => sample.name)).toEqual([
       'KanbunKundoku: 拝而受之。',
       'KanbunKundoku: 夜半鐘声到客船',
       'KanbunKundoku: 孝者所以事君也。',
       'KanbunKundoku: 欲為聖明除弊事',
+    ]);
+    expect(SAMPLES.slice(22).map((sample) => sample.name)).toEqual([
+      '改行（句の途中で行を改める）',
     ]);
   });
 
@@ -47,7 +50,7 @@ describe('SAMPLES', () => {
   });
 
   it('cites the source in every KanbunKundoku sample', () => {
-    for (const sample of SAMPLES.slice(18)) {
+    for (const sample of SAMPLES.slice(18, 22)) {
       expect(sample.description).toContain('github.com/shiryusann/KanbunKundoku');
       expect(sample.description).toContain('MIT');
       expect(sample.description).toContain('Web漢文大系');

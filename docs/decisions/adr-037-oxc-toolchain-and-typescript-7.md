@@ -1,11 +1,10 @@
 ---
-status: InProgress
-plan: plan-oxc-toolchain-and-typescript-7.md
+status: Complete
 ---
 
 # ADR-037: oxc の道具への移行と TypeScript 7
 
-この ADR の KD1〜KD10 は、この ADR の中の番号である。実装の進み具合は [Plan](../plans/plan-oxc-toolchain-and-typescript-7.md) で追う。
+この ADR の KD1〜KD10 は、この ADR の中の番号である。4 つの段の計画は `git show 040dfac47a323769705fa096ecad092aa9908037:docs/plans/plan-oxc-toolchain-and-typescript-7.md` にある。
 
 ## コンテキスト
 
@@ -48,7 +47,7 @@ npm の `typescript` の 7 系 (7.0.2) は native の実装で、公開の入口
 - **KD6: tsdown の型定義は oxc の isolatedDeclarations で作り、出力を tsup と同じ形にする** — 7 つのパッケージの tsconfig で `isolatedDeclarations` を有効にし、型の生成器は `dts.generator: 'oxc'` で固定する (tsconfig を変えても tsgo の生成器に切り替わらない)。出力は `format: ['esm']`、`fixedExtension: false`、`target: 'esnext'`、map を出さない (`dts.sourcemap: false` も)、entry はオブジェクト形式。skam-screenshot の外部の依存は `deps.neverBundle`。canvas-renderer の iife は `platform: 'browser'`、`deps.alwaysBundle` に skam とそのサブパス、entry は `index` (tsdown が `.iife` を足して `index.iife.js` になる)。
 - **KD7: tsdown の出力の受け入れの条件** — dist とパックの中身の差、exports の各パスの存在、型の意味の差 (`@arethetypeswrong/cli` の前後の比較と、全 entry の export の列挙の比較)、consumer の検査、VRT と E2E。前に無かった問題が出たら受け入れない。
 - **KD8: knip は 6 に上げ、新しく出る指摘を 1 件ずつ判断する** — 使われていない export は、テスト、scripts、他のパッケージ、README に参照が無いことを確かめて消す。公開 API (package.json の `exports` が指す entry の export と、build した型定義の export の集合) と、テストや script だけが使う export は消さずに設定で外す。迷ったら消さない。knip 6 はテストを entry として扱うので、テストを ignore する設定は要らない。
-- **KD9: 型検査は typescript 7.0.2 の `tsc` で行う** — `types` は node を使うパッケージにだけ `node` を書く。(段 4 で確かめて追記する)
+- **KD9: 型検査は typescript 7.0.2 の `tsc` で行う** — `@typescript/native-preview` (`tsgo`) を外した。TypeScript 7 は `types` の既定が `[]` なので、`tsconfig.base.json` には `types` を書かず、node の型は使う所にだけ置く: テストでないソースが node を使う skam-screenshot と、テストと設定で使う integration-tests の tsconfig に `"types": ["node"]`、ほかのパッケージは node が要るテストのファイルに `/// <reference types="node" />`。consumer の検査は、typescript 7 と 5 の `tsc` を path で指定し、ラベル (`tsc7`、`tsc5`) と版を出力する。
 - **KD10: 道具の構成の決定はこの ADR に書く** — 各段で確かめたことを、その段の PR で追記する。
 
 ## 例外
@@ -100,3 +99,13 @@ npm の `typescript` の 7 系 (7.0.2) は native の実装で、公開の入口
 - 7 パッケージの型定義の export の集合 (353 行) は前後で同じ。未使用の export を一時的に足すと指摘が 1 件増え、戻すと 0 件に戻った。
 - oxc-parser の native の依存に build の script は要らず、`onlyBuiltDependencies` は変えていない。
 - `pnpm why typescript`: knip の経路は無い。残るのは tsdown と rolldown-plugin-dts の任意の peer (5.9.3)、`typescript5`、stylelint の経路。
+
+### 段 4 (TypeScript 7.0.2)
+
+- `typescript` 7.0.2 (2026-07-08 公開) を固定し、`tsgo` を呼ぶ所 (root と 9 つのパッケージの script、consumer の検査、readme の doctest) を `tsc` に替えた。`typescript5` も `tsc` の bin を持つが、root の `.bin/tsc` も各パッケージの `pnpm exec tsc` も 7.0.2 に当たった。
+- consumer の検査は `tsc7: Version 7.0.2` と `tsc5: Version 5.9.3` を出し、両方で公開する型定義が通った。
+- `types` の既定が `[]` になって、`structuredClone`、`console`、`process`、`Buffer`、`node:*` が見つからなくなった所に、node の型を足した: skam-screenshot と integration-tests の tsconfig、skam の 1 つ、xml-parser の 2 つ、xml-stringify の 1 つのテストのファイル。vitest の globals と `vite/client` は使われておらず、何も足していない。
+- 限界: ブラウザ向けのソースに `process.env` を書くと型の誤りになるのは、canvas-renderer と web-component だけ。html-renderer (と playground) は、テストが import する vitest の型を経由して `@types/node` が推移的に入る。skam、xml-parser、xml-stringify は、テストのファイルの `/// <reference types="node" />` が同じ tsconfig のソースにも効く。`tsgo` の開発版ではどのパッケージにも node の型が入っていたので、今より悪くなった所は無い。ソースとテストの型の環境を分ける (テスト用の tsconfig) のは backlog で追う。
+- isolatedDeclarations の誤り (TS9xxx) は、`tsc` 7.0.2 の型検査で 0 件。tsdown は typescript 7.0.2 を peer にしても型定義を作れた。
+- TypeScript 7 の native binary (`@typescript/typescript-linux-x64` など) に build の script は要らず、`onlyBuiltDependencies` は変えていない。
+- `pnpm why typescript`: 直接の依存は `typescript` 7.0.2 と `typescript5`。ほかは tsdown と rolldown-plugin-dts の任意の peer (7.0.2、使わない)、stylelint の cosmiconfig の任意の peer (7.0.2)、`postcss-styled-syntax` の依存 (5.9.3、例外)。

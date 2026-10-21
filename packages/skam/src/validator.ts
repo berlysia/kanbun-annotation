@@ -447,6 +447,7 @@ function validateKaeriMark(
       valid = false;
     } else if (value.length > 1) {
       // 正の書き方は同じ位置の 1 字ずつの注記。複数の字の値は 0.3 では読めるが 0.4.0 で誤りになる
+      // shiori: KAERI:multi-character-validator
       warnings.push({
         kind: KAERI_MULTI_CHARACTER,
         path: `${path}.value`,

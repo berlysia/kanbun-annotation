@@ -8,6 +8,9 @@ importers:
 
   .:
     devDependencies:
+      '@berlysia/shiori':
+        specifier: 0.2.2
+        version: 0.2.2
       '@changesets/cli':
         specifier: 2.29.8
         version: 2.29.8(@types/node@25.0.10)
@@ -233,6 +236,11 @@ packages:
   '@babel/runtime@7.28.6':
     resolution: {integrity: sha512-05WQkdpL9COIMz4LjTxGpPNCdlpyimKppYNoJ5Di5EUObifl8t4tuLuUBBZEpoLYOmfvIWrsp9fCl0HoPRVTdA==}
     engines: {node: '>=6.9.0'}
+
+  '@berlysia/shiori@0.2.2':
+    resolution: {integrity: sha512-t5KI9mPCLrYdcUL/L5VtopGGU1hOCF904q0yetoISfzIxT0pyM0yaAv+fWkYnfus54k+6FRjLYqDT3S1aQ7nWw==}
+    engines: {node: '>=22.0.0'}
+    hasBin: true
 
   '@cacheable/memory@2.0.7':
     resolution: {integrity: sha512-RbxnxAMf89Tp1dLhXMS7ceft/PGsDl1Ip7T20z5nZ+pwIAsQ1p2izPjVG69oCLv/jfQ7HDPHTWK0c9rcAWXN3A==}
@@ -2247,6 +2255,10 @@ packages:
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
 
+  gunshi@0.37.3:
+    resolution: {integrity: sha512-uwm23bguqDcleEetknuQnF5okLcgmQPM3iv4aWVHTPDbiSs9shh02F079NCY0mWkrIRjHqNhgmzW6k0FCXhy1g==}
+    engines: {node: '>= 22'}
+
   happy-dom@20.14.6:
     resolution: {integrity: sha512-5DDsf4QmEIlRL6NkCv/fxSjYHHkZceL/IaYQdJc2h3G7DRTEai++VTjbfL0LB9geW2VrA3+vrjF3Efx+OTtX0Q==}
     engines: {node: '>=20.0.0'}
@@ -3334,6 +3346,12 @@ snapshots:
   '@babel/helper-validator-identifier@7.28.5': {}
 
   '@babel/runtime@7.28.6': {}
+
+  '@berlysia/shiori@0.2.2':
+    dependencies:
+      fast-glob: 3.3.3
+      gunshi: 0.37.3
+      yaml: 2.9.1
 
   '@cacheable/memory@2.0.7':
     dependencies:
@@ -4885,6 +4903,8 @@ snapshots:
   globjoin@0.1.4: {}
 
   graceful-fs@4.2.11: {}
+
+  gunshi@0.37.3: {}
 
   happy-dom@20.14.6:
     dependencies:

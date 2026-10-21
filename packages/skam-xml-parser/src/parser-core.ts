@@ -535,6 +535,7 @@ function parseKaeriKind(kind: string, element: Element): string {
 function processKaeri(element: Element, state: ParserState, precedingTokenId: string | null): void {
   const kind = getRequiredAttr(element, 'kind', 'skam:kaeri');
   const value = parseKaeriKind(kind, element);
+  // shiori: KAERI:multi-character-parser
   if (value.length > 1) warnKaeriMultiCharacter(state, element);
 
   if (!precedingTokenId) {

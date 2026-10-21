@@ -1,1 +1,14 @@
-{}
+{
+  "KAERI:multi-character-validator": {
+    "reason": "deprecated: multi-character kaeri value becomes an error in 0.4.0; remove this warning then",
+    "target": "packages/skam/src/validator.ts",
+    "kind": "intentional",
+    "notes": "docs/decisions/adr-038-kaeri-one-character-per-mark.md"
+  },
+  "KAERI:multi-character-parser": {
+    "reason": "deprecated: hyphen-joined kaeri kind becomes an error in 0.4.0; remove the compat reading then",
+    "target": "packages/skam-xml-parser/src/parser-core.ts",
+    "kind": "intentional",
+    "notes": "docs/decisions/adr-038-kaeri-one-character-per-mark.md"
+  }
+}

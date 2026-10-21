@@ -44,6 +44,7 @@
     "prepare": "husky"
   },
   "devDependencies": {
+    "@berlysia/shiori": "0.2.2",
     "@changesets/cli": "2.29.8",
     "@types/node": "25.0.10",
     "happy-dom": "20.14.6",

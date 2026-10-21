@@ -47,10 +47,31 @@ export interface ValidationError {
   column?: number;
 }
 
+/**
+ * 複数の字の kaeri (`㆒㆑` など) を指す警告・誤りのコード。
+ * 0.3 では警告 (`ValidationWarning`) として、0.4.0 では同じコードの誤りとして使う。
+ * `@kanbun-skam/skam-xml-parser` の `ParseWarning.code` もこの値を使う
+ */
+export const KAERI_MULTI_CHARACTER = 'KAERI_MULTI_CHARACTER';
+
+/** 検証の警告の種別。値を足すのは minor の変更として扱う */
+export type ValidationWarningKind = typeof KAERI_MULTI_CHARACTER;
+
+/** 検証の警告。文書は有効だが、将来の版で誤りになる書き方を指す */
+export interface ValidationWarning {
+  kind: ValidationWarningKind;
+  /** 警告が指す場所 (`marks[i].value` の添字は marks[] の添字) */
+  path: string;
+  /** 固定の文。入力由来の値を含まないので、表示するときの escape は要らない */
+  message: string;
+}
+
 /** 検証結果: 成功 */
 export interface ValidationSuccess<T> {
   valid: true;
   document: T;
+  /** 警告があるときだけ付く。無いときはキーごと無い */
+  warnings?: ValidationWarning[];
 }
 
 /** 検証結果: 失敗 */

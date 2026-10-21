@@ -34,6 +34,7 @@ import {
   createRandomIdGenerator,
   KAERI,
   BLOCK_START_KAERI_HINT,
+  KAERI_MULTI_CHARACTER,
   validateSKAMDocument,
   SKAMValidationError,
   HIGHLIGHT_STYLES,
@@ -338,6 +339,18 @@ function childElements(element: Element): Element[] {
   return result;
 }
 
+/** kaeri の複数の字の書き方を知らせる。validator の `warnings` は流さず、ここで 1 件だけ出す (`validate: false` でも出る) */
+function warnKaeriMultiCharacter(state: ParserState, element: Element): void {
+  if (!state.onWarning) return;
+  state.onWarning({
+    code: KAERI_MULTI_CHARACTER,
+    name: 'skam:kaeri',
+    message:
+      'A kaeri with several characters (e.g. kind="ichi-re") becomes an error in 0.4.0. Write one <skam:kaeri> per character at the same position.',
+    ...nodePosition(element),
+  });
+}
+
 function warn(state: ParserState, element: Element): void {
   if (!state.onWarning) return;
   const name = getLocalName(element);
@@ -522,6 +535,8 @@ function parseKaeriKind(kind: string, element: Element): string {
 function processKaeri(element: Element, state: ParserState, precedingTokenId: string | null): void {
   const kind = getRequiredAttr(element, 'kind', 'skam:kaeri');
   const value = parseKaeriKind(kind, element);
+  // shiori: KAERI:multi-character-parser
+  if (value.length > 1) warnKaeriMultiCharacter(state, element);
 
   if (!precedingTokenId) {
     throw parseErrorAt(
@@ -1284,6 +1299,7 @@ export interface ParseOptions {
 }
 
 export interface ParseWarning {
+  /** `'UNKNOWN_ELEMENT'` または `KAERI_MULTI_CHARACTER` (`@kanbun-skam/skam` の定数と同じ値) */
   code: 'UNKNOWN_ELEMENT' | (string & {});
   /** 入力 XML に由来する要素名。エスケープしていないので、HTML に出すときは利用者側でエスケープすること */
   name: string;

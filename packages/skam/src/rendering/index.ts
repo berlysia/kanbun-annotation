@@ -60,7 +60,7 @@ export {
 export { DEFAULT_ACCESSIBLE_LABELS, type AccessibleLabels } from './accessible-labels.js';
 
 // 返り点
-export { splitKaeriForTateten } from './kaeri.js';
+export { splitKaeriForTateten, joinKaeriValues } from './kaeri.js';
 
 // 傍点
 export { resolveEmphasisCharacter, isEmphasisKeyword } from './emphasis.js';

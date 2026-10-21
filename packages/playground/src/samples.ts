@@ -97,7 +97,7 @@ export const SAMPLES: Sample[] = [
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      不<skam:kaeri kind="ichi-re"/>
+      不<skam:kaeri kind="ichi"/><skam:kaeri kind="re"/>
       <skam:kun okuri="カラ">可</skam:kun>不<skam:kaeri kind="re"/>
       <skam:kun yomi="まな" okuri="バ">學</skam:kun><skam:kutoten value="。" kind="ku"/>
     </skam:block>

@@ -245,6 +245,7 @@ describe('integration: render()', () => {
       blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
       marks: [
         { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+        // 互換: 複数の字の kaeri は 0.3 では読めるが非推奨 (0.4.0 で誤り)。この値を読めることを確かめる
         { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆒㆑' },
       ],
       readings: [],

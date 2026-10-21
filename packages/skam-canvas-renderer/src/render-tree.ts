@@ -28,6 +28,7 @@ import {
   getHighlightGroups,
   groupTokensByBlock,
   splitKaeriForTateten,
+  joinKaeriValues,
 } from '@kanbun-skam/skam/rendering';
 import type { MarkLookup, RangeMarkGroup } from '@kanbun-skam/skam/rendering';
 
@@ -82,8 +83,9 @@ function resolveSlots(
   // kaeri -> kaeri (Unicode 変換済み)
   if (profile.kaeriten) {
     const kaeriMarks = (tokenMarks.get('kaeri') ?? []) as KaeriMark[];
-    if (kaeriMarks.length > 0) {
-      slots.kaeri = kaeriMarks.map((m) => m.value).join('');
+    const joined = joinKaeriValues(kaeriMarks);
+    if (joined) {
+      slots.kaeri = joined;
     }
   }
 
@@ -163,12 +165,13 @@ function buildTatetenGroup(
     for (let i = 0; i < tokenNodes.length; i++) {
       const tokenNode = tokenNodes[i]!;
       const tokenId = tokenNode.token.id;
-      const kaeriMark = kaeriMarks.find(
+      const kaeriAtToken = kaeriMarks.filter(
         (m) => m.position.after === tokenId && m.position.blockId === blockId
       );
+      const kaeriValue = joinKaeriValues(kaeriAtToken);
 
-      if (kaeriMark) {
-        const { re, nonRe } = splitKaeriForTateten(kaeriMark.value);
+      if (kaeriValue) {
+        const { re, nonRe } = splitKaeriForTateten(kaeriValue);
 
         // レ成分 → トークンの kaeri スロット
         if (re) {

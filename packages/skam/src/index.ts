@@ -479,6 +479,9 @@ export {
   type ValidationResult,
   type ValidationSuccess,
   type ValidationFailure,
+  type ValidationWarning,
+  type ValidationWarningKind,
+  KAERI_MULTI_CHARACTER,
   SKAMValidationError,
   createValidationError,
   BLOCK_START_KAERI_HINT,
@@ -490,6 +493,12 @@ export {
   assertSKAMDocument,
   isValidEmphasisStyle,
 } from './validator.js';
+
+// ============================================================================
+// Kaeri Migration
+// ============================================================================
+
+export { splitMultiCharacterKaeri } from './kaeri-migration.js';
 
 // ============================================================================
 // ID Generator

@@ -28,7 +28,25 @@ import type {
 
 ```typescript
 import { validateSKAMDocument, isSKAMDocument, assertSKAMDocument } from '@kanbun-skam/skam';
+import type { ValidationWarning, ValidationWarningKind } from '@kanbun-skam/skam';
+import { KAERI_MULTI_CHARACTER } from '@kanbun-skam/skam';
 ```
+
+`valid: true` の結果は、警告があるときだけ `warnings?: ValidationWarning[]` を持つ（無いときはキーごと無い）。`ValidationWarning` は `kind`、`path`、`message` を持つ。`message` は固定の文で、入力由来の値を含まない。
+
+- `KAERI_MULTI_CHARACTER`: 1 つの kaeri の `value` が複数の字。0.4.0 で同じコードの誤りになる。`path` は `marks[i].value`
+- `ValidationWarningKind` に値を足すのは minor の変更
+
+### 返り点の変換
+
+```typescript
+import { splitMultiCharacterKaeri } from '@kanbun-skam/skam';
+
+// 複数の字の kaeri を、同じ位置の 1 字ずつの注記に分けた新しい文書を返す
+const migrated = splitMultiCharacterKaeri(doc, { idGenerator });
+```
+
+1 つ目の注記は元の `id` と `ext` を引き継ぎ、2 つ目以降は新しい `id` を持ち `ext` を持たない。冪等で、渡した文書は書き換えない。値に Kanbun の字以外を含む kaeri は変えない。0.4.0 の後も残る。
 
 ### 返り点定数（Unicode Kanbun ブロック U+3191〜U+319F）
 
@@ -114,6 +132,7 @@ import {
   CIRCLED_NUMBERS,
   // 返り点
   splitKaeriForTateten,
+  joinKaeriValues, // 同じ位置の kaeri を marks[] の順につないだ値にする
   // 傍点
   resolveEmphasisCharacter,
   isEmphasisKeyword,
@@ -201,6 +220,8 @@ import { parse } from '@kanbun-skam/skam-xml-parser';
 // XML → SKAM JSON
 const doc = parse(xmlString);
 ```
+
+`onWarning` には、未知の要素（`UNKNOWN_ELEMENT`）のほかに、ハイフンで連結した `kind` の `skam:kaeri`（`KAERI_MULTI_CHARACTER`）の警告が届く。後者は `validate` の値に関係なく 1 要素につき 1 回出る。validator の `warnings` は `onWarning` に流れない。
 
 ## @kanbun-skam/skam-xml-stringify
 

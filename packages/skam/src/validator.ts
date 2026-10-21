@@ -23,6 +23,8 @@ import type {
 import { HIGHLIGHT_STYLES, isValidHighlightStyle } from './highlight-styles.js';
 import {
   type ValidationError,
+  type ValidationWarning,
+  KAERI_MULTI_CHARACTER,
   type ValidationResult,
   createValidationError,
   SKAMValidationError,
@@ -426,7 +428,8 @@ function validateValueMark(
 function validateKaeriMark(
   mark: Record<string, unknown>,
   path: string,
-  errors: ValidationError[]
+  errors: ValidationError[],
+  warnings: ValidationWarning[]
 ): boolean {
   let valid = validateValueMark(mark, path, 'kaeri', errors);
   if (valid && isString(mark['value'])) {
@@ -442,6 +445,15 @@ function validateKaeriMark(
         )
       );
       valid = false;
+    } else if (value.length > 1) {
+      // 正の書き方は同じ位置の 1 字ずつの注記。複数の字の値は 0.3 では読めるが 0.4.0 で誤りになる
+      // shiori: KAERI:multi-character-validator
+      warnings.push({
+        kind: KAERI_MULTI_CHARACTER,
+        path: `${path}.value`,
+        message:
+          'A kaeri mark with multiple characters becomes an error in 0.4.0. Place one mark per character at the same position, or convert the document with splitMultiCharacterKaeri.',
+      });
     }
   }
   return valid;
@@ -734,11 +746,12 @@ function validateMarkTypeFields(
   mark: Record<string, unknown>,
   markType: MarkType,
   path: string,
-  errors: ValidationError[]
+  errors: ValidationError[],
+  warnings: ValidationWarning[]
 ): boolean {
   switch (markType) {
     case 'kaeri':
-      return validateKaeriMark(mark, path, errors);
+      return validateKaeriMark(mark, path, errors, warnings);
     case 'okurigana':
     case 'yomigana':
     case 'soegana':
@@ -766,7 +779,12 @@ function validateMarkTypeFields(
 // Main Mark Validator
 // ============================================================================
 
-function validateMark(mark: unknown, index: number, errors: ValidationError[]): mark is Mark {
+function validateMark(
+  mark: unknown,
+  index: number,
+  errors: ValidationError[],
+  warnings: ValidationWarning[]
+): mark is Mark {
   const path = `marks[${index}]`;
 
   if (!isObject(mark)) {
@@ -841,7 +859,7 @@ function validateMark(mark: unknown, index: number, errors: ValidationError[]): 
 
   // Type-specific validation (dispatch to dedicated validators)
   if (isString(markType)) {
-    if (!validateMarkTypeFields(mark, markType as MarkType, path, errors)) {
+    if (!validateMarkTypeFields(mark, markType as MarkType, path, errors, warnings)) {
       valid = false;
     }
   }
@@ -1454,7 +1472,11 @@ function validateRequiredArray(
   }
 }
 
-function validateDocumentFields(input: Record<string, unknown>, errors: ValidationError[]): void {
+function validateDocumentFields(
+  input: Record<string, unknown>,
+  errors: ValidationError[],
+  warnings: ValidationWarning[]
+): void {
   // format (required)
   if (input['format'] !== VALID_FORMAT) {
     errors.push(
@@ -1469,7 +1491,9 @@ function validateDocumentFields(input: Record<string, unknown>, errors: Validati
   }
 
   validateRequiredArray(input, 'tokens', errors, validateToken);
-  validateRequiredArray(input, 'marks', errors, validateMark);
+  validateRequiredArray(input, 'marks', errors, (mark, index, errs) =>
+    validateMark(mark, index, errs, warnings)
+  );
   validateRequiredArray(input, 'readings', errors, validateReading);
 
   // blocks (required array with additional empty-document check)
@@ -1527,7 +1551,8 @@ function validateDocumentFields(input: Record<string, unknown>, errors: Validati
 /**
  * SKAMDocument を検証する
  *
- * 同じ位置に重複した kaeri は検査しない。
+ * 同じ位置の複数の kaeri は正しい書き方として許す (marks[] の順につないだ値と同じ意味)。
+ * 複数の字の kaeri 値 (`㆒㆑`) は `valid: true` のまま `warnings` に警告を返す。
  *
  * 検証は渡された object を複製しない。`@kanbun-skam/skam-xml-parser` は、この同一性に頼って
  * エラーの path が指す要素を作った SKAM-ML の行と列を引く。
@@ -1538,6 +1563,7 @@ function validateDocumentFields(input: Record<string, unknown>, errors: Validati
  */
 export function validateSKAMDocument(input: unknown): ValidationResult<SKAMDocument> {
   const errors: ValidationError[] = [];
+  const warnings: ValidationWarning[] = [];
 
   // Root object check
   if (!isObject(input)) {
@@ -1548,7 +1574,7 @@ export function validateSKAMDocument(input: unknown): ValidationResult<SKAMDocum
   }
 
   // Field-level validation
-  validateDocumentFields(input, errors);
+  validateDocumentFields(input, errors, warnings);
 
   // Cross-reference validation (only if basic validation passed)
   const tokens = input['tokens'];
@@ -1589,13 +1615,13 @@ export function validateSKAMDocument(input: unknown): ValidationResult<SKAMDocum
     document.ext = input['ext'] as Record<string, unknown>;
   }
 
-  return { valid: true, document };
+  return warnings.length > 0 ? { valid: true, document, warnings } : { valid: true, document };
 }
 
 /**
  * 型ガード: SKAMDocument かどうか判定
  *
- * 同じ位置に重複した kaeri は検査しない。
+ * 同じ位置の複数の kaeri は正しい書き方として許す。
  *
  * @param input 判定対象
  * @returns SKAMDocument の場合 true

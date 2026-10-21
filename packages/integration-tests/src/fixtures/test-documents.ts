@@ -33,7 +33,8 @@ export const FIXTURE_TATETEN_KAERI: SKAMDocument = {
   blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3'] }],
   marks: [
     { type: 'tateten', anchor: { from: 't1', to: 't2' } },
-    { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆒㆑' },
+    { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆒' },
+    { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
     { type: 'okurigana', anchor: { from: 't3', to: 't3' }, value: 'シカラ' },
   ],
   readings: [],

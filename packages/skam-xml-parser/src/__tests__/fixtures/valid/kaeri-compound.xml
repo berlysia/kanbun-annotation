@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!-- kaeri-compound.xml - 複合返り点（一レ点、上レ点等） -->
+<!-- 互換: 連結した kind は 0.3 では読めるが非推奨 (0.4.0 で誤り)。この書き方を読めることを確かめる -->
 <!-- 不可不學 (学ばざるべからず) -->
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>

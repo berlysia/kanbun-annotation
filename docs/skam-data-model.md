@@ -68,5 +68,5 @@ anchor ベースと position ベースは共通基底 `MarkBase` から対等に
 
 - saidoku + trailing marks: kaeri/kutoten/ref は `</skam:saidoku>` の外に配置
 - multi-token range: 最終トークンの trailing marks は range 要素外に配置
-- 複合返り点: `一レ` → `ichi-re` 変換（`kaeriValueToKind` 関数）
+- 複数の字の kaeri 値（`㆒㆑`、非推奨）: `ichi-re` に変換して書く（`kaeriValueToKind` 関数）。正の書き方は同じ位置の 1 字ずつの kaeri で、それぞれ `kind="ichi"`、`kind="re"` として書く。同じ位置の kaeri は `marks[]` の順に出力する
 - readings: `doc.readings` を `<skam:readings>` 要素に出力

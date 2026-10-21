@@ -232,7 +232,9 @@ XML の構文の誤り（タグの食い違いなど）では、ブラウザ版�
 
 `SKAM_ML_CONTENT_MODEL` は `@experimental`。仕様の改訂に合わせて変わりうる。同じ fixed group の同じ版どうしでだけ、内容の一致を保証する。
 
-ブロック先頭の返り点（`skam:kaeri`）は誤りとして扱う。同じ位置に重複した kaeri は検査しない。エラーの案内文は `@kanbun-skam/skam` の `BLOCK_START_KAERI_HINT` にある。
+ブロック先頭の返り点（`skam:kaeri`）は誤りとして扱う。同じ位置の複数の kaeri は正しい書き方として許す。
+
+ハイフンで連結した `kind`（`ichi-re`）は 0.3 では読めるが非推奨で、0.4.0 で誤りになる。1 つの注記として読み、`onWarning` に `code: 'KAERI_MULTI_CHARACTER'` の警告を出す（`validate: false` でも出る）。正の書き方は、同じ位置に `<skam:kaeri kind="ichi"/><skam:kaeri kind="re"/>` と並べること。エラーの案内文は `@kanbun-skam/skam` の `BLOCK_START_KAERI_HINT` にある。
 
 ## エラーハンドリング
 

@@ -457,6 +457,8 @@ export interface Reading {
 export interface SKAMDocument {
   /** フォーマットバージョン */
   format: SKAMVersion;
+  /** 本文（白文）の言語。BCP 47 の形の言語タグ（例 `lzh`、`zh-Hant`）。読みや注記の言語ではない */
+  lang?: string;
   /** 本文 token のマスター定義（順序は無意味） */
   tokens: Token[];
   /** ブロック構造（必須、原文順） */
@@ -521,6 +523,8 @@ export {
 } from './errors.js';
 
 export { moveLegacyExtToCustom } from './legacy-ext.js';
+
+export { isLanguageTag } from './language-tag.js';
 
 export {
   type ValidateOptions,

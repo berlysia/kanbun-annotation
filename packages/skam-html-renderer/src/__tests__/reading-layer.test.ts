@@ -417,3 +417,69 @@ describe("readingLayerSource: 'readings' block separator", () => {
     expect(readings.replace(/[^ ]/g, '')).toBe(display.replace(/[^ ]/g, ''));
   });
 });
+
+describe('document lang', () => {
+  const withLang = (lang: unknown, over: Partial<SKAMDocument> = {}) =>
+    ({ ...base(over), lang }) as SKAMDocument;
+  const attr = (html: string, selector: string) => {
+    const el = dom(html).querySelector(selector);
+    return el?.hasAttribute('lang') ? el.getAttribute('lang') : null;
+  };
+
+  it('uses the document lang on the display layer and keeps the container at ja', () => {
+    const { html } = render(withLang('lzh'));
+    expect(attr(html, '.skam-display')).toBe('lzh');
+    expect(attr(html, '.skam-document')).toBe('ja');
+  });
+  it('prefers displayLang over the document lang', () => {
+    expect(attr(render(withLang('lzh'), { displayLang: 'zh-Hant' }).html, '.skam-display')).toBe(
+      'zh-Hant'
+    );
+  });
+  it('renders a document without lang as before', () => {
+    const { html } = render(base());
+    expect(attr(html, '.skam-display')).toBe('ja');
+    expect(attr(html, '.skam-document')).toBe('ja');
+    expect(attr(html, '.skam-reading')).toBeNull();
+  });
+  it('puts the lang on the reading layer when it falls back to the base text', () => {
+    expect(attr(render(withLang('lzh')).html, '.skam-reading')).toBe('lzh');
+  });
+  it('puts the lang on the reading layer for readingLayerSource: readings with no reading', () => {
+    expect(
+      attr(render(withLang('lzh'), { readingLayerSource: 'readings' }).html, '.skam-reading')
+    ).toBe('lzh');
+  });
+  it.each(['kakikudashi', 'yomiage'] as const)('leaves %s reading text without lang', (kind) => {
+    const doc = withLang('lzh', { readings: [{ kind, text: 'よみ' }] });
+    expect(attr(render(doc).html, '.skam-reading')).toBeNull();
+  });
+  it('leaves the reading layer without lang for readingLayerSource: display', () => {
+    expect(
+      attr(render(withLang('lzh'), { readingLayerSource: 'display' }).html, '.skam-reading')
+    ).toBeNull();
+  });
+  it('leaves the reading layer without lang when hideQuiz makes display the default source', () => {
+    expect(attr(render(withLang('lzh'), { hideQuiz: true }).html, '.skam-reading')).toBeNull();
+  });
+  it('emits no reading layer element when the base text is empty', () => {
+    const doc = withLang('lzh', { tokens: [], blocks: [] });
+    expect(dom(render(doc).html).querySelector('.skam-reading')).toBeNull();
+  });
+  it('ignores an invalid document lang (documents that skipped the validator)', () => {
+    const { html } = render(withLang('ja"><b'));
+    expect(html).not.toContain('ja"><b');
+    expect(attr(html, '.skam-display')).toBe('ja');
+    expect(attr(html, '.skam-reading')).toBeNull();
+  });
+  it('ignores a non-string document lang', () => {
+    const { html } = render(withLang({ toString: (): string => 'lzh' }));
+    expect(attr(html, '.skam-display')).toBe('ja');
+    expect(attr(html, '.skam-reading')).toBeNull();
+  });
+  it('rejects an invalid displayLang with a TypeError naming the option', () => {
+    expect(() => render(base(), { displayLang: 'ja"><b' })).toThrow(
+      new TypeError('displayLang must be a language tag such as ja or zh-Hant')
+    );
+  });
+});

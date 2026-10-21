@@ -47,8 +47,10 @@ const normalize = (d: SKAMDocument) => {
     blocks: d.blocks.map((b) => b.tokenIds.map(text).join('')),
     marks: d.marks.map(mark).sort(),
     readings: d.readings,
+    lang: d.lang,
   };
 };
+const rootXmlLang = (xml: string) => /<skam:doc[^>]*?\sxml:lang="([^"]*)"/.exec(xml)?.[1];
 
 describe('strict round-trip over all valid fixtures', () => {
   const files = readdirSync(fixtureDir).filter((f) => f.endsWith('.xml'));
@@ -59,7 +61,33 @@ describe('strict round-trip over all valid fixtures', () => {
       const b = parse(stringify(a), seq());
       expect(normalize(b)).toEqual(normalize(a));
     });
+    it(`${name}: root xml:lang survives XML → JSON → XML`, () => {
+      const source = readFileSync(join(fixtureDir, name), 'utf8');
+      const expected = rootXmlLang(source);
+      // 空の xml:lang は「言語の情報が無い」の意味で、lang を持たない文書になる
+      expect(rootXmlLang(stringify(parse(source, seq())))).toBe(
+        expected === '' ? undefined : expected
+      );
+    });
   }
+  it('finds a fixture whose root has xml:lang', () => {
+    const withLang = files.filter((f) => rootXmlLang(readFileSync(join(fixtureDir, f), 'utf8')));
+    expect(withLang.length).toBeGreaterThan(0);
+  });
+  it('lang survives JSON → XML → JSON, including characters that need escaping', () => {
+    const base: SKAMDocument = {
+      format: 'skam@0.1',
+      readings: [],
+      tokens: [{ id: 't1', text: '甲' }],
+      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+      marks: [],
+    };
+    for (const lang of ['lzh', 'zh-Hant']) {
+      expect(parse(stringify({ ...base, lang }), seq()).lang).toBe(lang);
+    }
+    const hostile = { ...base, lang: 'a"b<c&' } as SKAMDocument;
+    expect(parse(stringify(hostile), { ...seq(), validate: false }).lang).toBe('a"b<c&');
+  });
   it('U+3000 and CDATA survive', () => {
     const src =
       '<skam:doc xmlns:skam="urn:skam:1"><skam:body><skam:block>甲　<![CDATA[乙]]></skam:block></skam:body></skam:doc>';

@@ -1581,6 +1581,15 @@ export function parseFromDocument(
   }
 }
 
+/**
+ * ルートの xml:lang。空の値は XML で「言語の情報が無い」の意味なので、無いものとして扱う。
+ * 値の形はここでは見ない (validate: true なら validator が、false なら描画の側が見る)
+ */
+function readRootLang(root: Element): string | undefined {
+  const lang = root.getAttribute('xml:lang');
+  return lang === null || lang === '' ? undefined : lang;
+}
+
 function parseDocument(
   doc: Document,
   options: ParseOptions,
@@ -1651,6 +1660,8 @@ function parseDocument(
     marks: state.marks,
     readings: state.readings,
   };
+  const lang = readRootLang(root);
+  if (lang !== undefined) skamDoc.lang = lang;
   if (declaration) {
     skamDoc.extensions = declaration.used;
     if (declaration.required.length > 0) skamDoc.extensionsRequired = declaration.required;

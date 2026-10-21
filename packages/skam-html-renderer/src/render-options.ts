@@ -12,6 +12,7 @@
 
 import { assertHideQuizOption, resolveExtensions } from '@kanbun-skam/skam/extensions';
 import type { SpacingPreset } from '@kanbun-skam/skam/rendering';
+import { isLanguageTag } from '@kanbun-skam/skam';
 import type { CopyableElement, RubyMethod } from './render-config.js';
 import { resolveRenderProfile } from './render-config.js';
 import { normalizeAccessibleLabels } from './reading-text.js';
@@ -20,7 +21,6 @@ import type { StyleOptions } from './styles.js';
 
 const CLASS_PREFIX = /^[A-Za-z_][A-Za-z0-9_-]*$/;
 const LAYER_NAME = /^[A-Za-z_][A-Za-z0-9_.-]*$/;
-const DISPLAY_LANG = /^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$/;
 
 // Record にして、型に値が増えたときにコンパイルエラーで気づけるようにする
 const COPYABLE_ELEMENTS: Record<CopyableElement, true> = {
@@ -61,7 +61,10 @@ export function assertLayerName(v: unknown): void {
 }
 
 export function assertDisplayLang(v: unknown): void {
-  assertPattern('displayLang', v, DISPLAY_LANG);
+  // 形の式は @kanbun-skam/skam の isLanguageTag と 1 か所にそろえる (文書の lang と同じ判定)
+  if (!isLanguageTag(v)) {
+    throw new TypeError('displayLang must be a language tag such as ja or zh-Hant');
+  }
 }
 
 export function assertCopyable(v: unknown): void {

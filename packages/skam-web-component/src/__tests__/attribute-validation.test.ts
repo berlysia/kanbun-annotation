@@ -345,3 +345,35 @@ describe('extractXmlFromScriptElement export (K10)', () => {
     expect(typeof extractXmlFromScriptElement).toBe('function');
   });
 });
+
+describe('document lang', () => {
+  const XML_LZH =
+    '<skam:doc xmlns:skam="urn:skam:1" xml:lang="lzh"><skam:body><skam:block>甲</skam:block></skam:body></skam:doc>';
+  const mountLzh = (attrs: Record<string, string>) => {
+    const el = document.createElement('skam-renderer') as SkamRendererElement;
+    for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v);
+    const renders: CustomEvent[] = [];
+    el.addEventListener('skam-render', (e) => renders.push(e as CustomEvent));
+    el.textContent = XML_LZH;
+    document.body.append(el);
+    return { el, renders };
+  };
+  const displayLang = (el: SkamRendererElement) =>
+    el.shadowRoot!.querySelector('.skam-display')?.getAttribute('lang');
+
+  it('uses the document lang on the display layer when display-lang is absent', async () => {
+    const { el, renders } = mountLzh({});
+    await vi.waitFor(() => expect(renders).toHaveLength(1));
+    expect(displayLang(el)).toBe('lzh');
+  });
+  it('prefers display-lang over the document lang', async () => {
+    const { el, renders } = mountLzh({ 'display-lang': 'zh-Hant' });
+    await vi.waitFor(() => expect(renders).toHaveLength(1));
+    expect(displayLang(el)).toBe('zh-Hant');
+  });
+  it('keeps rendering with the document lang when display-lang is invalid', async () => {
+    const { el, renders } = mountLzh({ 'display-lang': 'ja"><b' });
+    await vi.waitFor(() => expect(renders).toHaveLength(1));
+    expect(displayLang(el)).toBe('lzh');
+  });
+});

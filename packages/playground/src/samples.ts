@@ -491,4 +491,23 @@ export const SAMPLES: Sample[] = [
   </skam:readings>
 </skam:doc>`,
   },
+  {
+    name: '出題の印（学習・教育用拡張）',
+    description:
+      '学習・教育用拡張 (edu) の出題の印を付けた例。送り仮名と返り点に問いの名前が付く。描画の hideQuiz で、印の付いた注記を場所を残して隠せる',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1" xmlns:edu="urn:skam:edu:1" xml:lang="ja">
+  <skam:meta tokenization="char">
+    <skam:extension name="edu" uri="urn:skam:edu:1" required="true"/>
+  </skam:meta>
+  <skam:body>
+    <skam:block xml:id="b0">
+      <skam:kun yomi="まな" okuri="ビテ" edu:okuri-quiz="問1">學</skam:kun>而<skam:kun yomi="とき" okuri="ニ" edu:okuri-quiz="問2">時</skam:kun><skam:kun yomi="なら" okuri="フ" soe="ヲ" edu:okuri-quiz="問2" edu:soe-quiz="問3">習</skam:kun><skam:kaeri kind="re" edu:quiz="問3"/>之
+    </skam:block>
+  </skam:body>
+  <skam:readings>
+    <skam:reading kind="kakikudashi">學びて時に之を習ふ</skam:reading>
+  </skam:readings>
+</skam:doc>`,
+  },
 ];

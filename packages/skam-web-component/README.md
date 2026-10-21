@@ -71,6 +71,7 @@ el.xmlContent = xmlString;
 | `inline`                | (boolean)                                           | false      | インラインモード                                  |
 | `include-reading-layer` | `true` \| `false`                                   | `true`     | 読み層の表示                                      |
 | `reading-layer-source`  | `readings` \| `display`                             | `readings` | 読み層の出どころ (`@experimental`)                |
+| `hide-quiz`             | (空) \| JSON の名前の配列                           | (なし)     | 出題の印の付いた注記を隠す (`@experimental`)      |
 | `copyable`              | `all` \| スペース区切りの要素名                     | (なし)     | コピー可能な注記要素                              |
 | `class-prefix`          | 文字列                                              | `skam`     | CSS クラス名の接頭辞                              |
 | `display-lang`          | BCP 47 言語タグ                                     | (なし)     | 表示層 `.skam-display` の `lang`                  |
@@ -86,6 +87,8 @@ el.xmlContent = xmlString;
 未知のキー、真偽値でない値、空文字、JSON の `null` / 配列 / 数値は不正で、**描画しない**（下の `skam-error`、`recoverable: false`）。`include-reading-layer` も `true` / `false` / 空文字以外は描画しない。`profile` 属性を外すと、full で描画する。
 
 `reading-layer-source` (`@experimental`) は、読み層の出どころを選ぶ。`readings`（既定）は作者が書いた読みを、`display` は `profile` で画面に見えている注記だけを言葉にする。`readings` と白文は参照しない。`readings` / `display` 以外は不正で、描画しない。**`reading-layer-source=""` は不正（描画しない）だが、`include-reading-layer=""` は真偽値の属性として true になる。**
+
+`hide-quiz` (`@experimental`) は、学習・教育用拡張（`edu`）の出題の印が付いた注記を隠す。空の値（`hide-quiz`）はすべて、`hide-quiz='["問1"]'` は名前が合う印だけを隠す。不正な値（JSON でない、名前が空、101 個以上、`false` など）は、`profile` と同じく**描画しない**（`attribute` が `hide-quiz` の `recoverable: false` の `skam-error`）。隠した注記の中身は空白に置き換わるので、字数は分かる。属性を外すと、隠さずに描き直す。`reading-layer-source` を書かないときは、読み層も `display` になる。
 
 読み上げの言葉を変える `accessibleLabels` (`@experimental`) は関数を含むので、属性ではなくプロパティで渡す。
 
@@ -107,6 +110,8 @@ el.accessibleLabels = { kaeri: () => '返り点' };
 2. 既定の `readings` は、隠した注記を読み下しとして読み上げる。
 3. `profile` 属性を外すと、full で描かれる。属性を動的に付け外しする画面では、外した瞬間に答えが見える。
 4. 保証するのは画面と読み層だけである。HTML ソースや `<script>` 内の SKAM-ML からは元の注記を取れる。答えを本当に隠したいなら、配る前に SKAM-ML から注記を除く。
+
+出題の印を使う文書（`edu:okuri-quiz` など）では、`hide-quiz` が使える。`hide-quiz` を付けると隠した描画の出力には答えが入らないが、`<script>` 内の SKAM-ML と、`reading-layer-source="readings"` を明示した読み層には答えが残る。答えを渡したくない相手には、隠した描画の出力だけを渡す。
 
 ```html
 <skam-renderer
@@ -130,7 +135,7 @@ el.accessibleLabels = { kaeri: () => '返り点' };
 
 `skam-error` には 2 種類ある。
 
-- `recoverable: false`: 描画に失敗した。内容を消して `role="alert"` を表示する。`profile` / `include-reading-layer` / `reading-layer-source` が不正なときも、この形で発火する（`attribute` に属性名が入り、`detail` に属性の生の値は入らない。値は 64 文字に切り詰めて、メッセージに含まれる）。`profile` の誤りの `error` は 2 つの型に分かれる。プリセット名でも JSON でもない値（`profile="nope"`、`profile="{not json"`）は `TypeError` になる。JSON として読めた値の表示設定の誤り（`profile='{"okurigna":false}'`、`profile='{"base":"nope"}'`）は `SKAMRenderProfileError` で、`kind` と `key` を読める（クラスは `@kanbun-skam/skam-html-renderer` から import する。内容は html-renderer の README の「表示設定の誤り」）。同じ内容で同じエラーが続く間は 1 回だけ発火する。内容かエラーが変わる、描画が成功する、要素を外す、のいずれかで、次の失敗は再び発火する。属性が不正な間は、`<script>` の内容が変わっても空のままで、同じ属性の同じ値では再び発火しない。
+- `recoverable: false`: 描画に失敗した。内容を消して `role="alert"` を表示する。`profile` / `include-reading-layer` / `reading-layer-source` / `hide-quiz` が不正なときも、この形で発火する（`attribute` に属性名が入り、`detail` に属性の生の値は入らない。値は 64 文字に切り詰めて、メッセージに含まれる）。`profile` の誤りの `error` は 2 つの型に分かれる。プリセット名でも JSON でもない値（`profile="nope"`、`profile="{not json"`）は `TypeError` になる。JSON として読めた値の表示設定の誤り（`profile='{"okurigna":false}'`、`profile='{"base":"nope"}'`）は `SKAMRenderProfileError` で、`kind` と `key` を読める（クラスは `@kanbun-skam/skam-html-renderer` から import する。内容は html-renderer の README の「表示設定の誤り」）。同じ内容で同じエラーが続く間は 1 回だけ発火する。内容かエラーが変わる、描画が成功する、要素を外す、のいずれかで、次の失敗は再び発火する。属性が不正な間は、`<script>` の内容が変わっても空のままで、同じ属性の同じ値では再び発火しない。
 - `recoverable: true`: `writing-mode` / `copyable` / `class-prefix` / `display-lang` の値が不正だったため、その属性だけ既定値に戻して描画を続けた（`copyable` は有効な要素名だけを使う）。不正な `accessibleLabels` (プロパティ) は、ラベルなしで描画を続ける。`attribute` に属性名が入る。`skam-render` より前に、`writing-mode` → `copyable` → `class-prefix` → `display-lang` → `accessibleLabels` の順で発火する。`class-prefix` / `display-lang` では、`error.message` に属性の値は含まれない。
 
 回復可能なエラーは、同じ属性に同じ不正値が残っている間は再描画しても再び発火しない。値が変わったときだけ発火する。値が有効になった場合と、要素を DOM から外した場合は、記録が消える。ハンドラが属性を毎回違う不正値に書き換えると、エラー → 再描画 → エラーの連鎖は止まらない。これはハンドラ側の誤りとして扱う。

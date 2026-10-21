@@ -46,6 +46,8 @@ SKAM-ML/XML は、**人間が編集しやすいソース表現**であり、
 xmlns:skam="urn:skam:1"
 ```
 
+拡張（§10）は、それぞれ自分の名前空間を持つ。名前空間の URI は識別子で、取りに行かない（MUST NOT）。接頭辞は拡張の名前にすることを勧めるが、parser は URI で照合するので、接頭辞は自由に決めてよい。
+
 ### 3.2 ルート要素
 
 ```xml
@@ -79,12 +81,12 @@ SKAM-ML を HTML の `<script>` 要素に埋め込むときの `type` は、次�
 
 ### 4.1 トップレベル構成
 
-| 要素            | 必須 | 説明                 |
-| --------------- | ---- | -------------------- |
-| `skam:meta`     | 任意 | トークナイズ等の指示 |
-| `skam:body`     | 必須 | 本文                 |
-| `skam:readings` | 任意 | 読み層               |
-| `skam:notes`    | 任意 | 注釈本文             |
+| 要素            | 必須 | 説明                                   |
+| --------------- | ---- | -------------------------------------- |
+| `skam:meta`     | 任意 | トークナイズ等の指示と、使う拡張の宣言 |
+| `skam:body`     | 必須 | 本文                                   |
+| `skam:readings` | 任意 | 読み層                                 |
+| `skam:notes`    | 任意 | 注釈本文                               |
 
 ```xml
 <skam:doc xmlns:skam="urn:skam:1">
@@ -94,6 +96,29 @@ SKAM-ML を HTML の `<script>` 要素に埋め込むときの `type` は、次�
   <skam:notes>…</skam:notes>
 </skam:doc>
 ```
+
+### 4.1.1 `skam:meta` の内容（規範）
+
+`skam:meta` は、属性 `tokenization` と、子の要素 `skam:extension` を持てる。
+
+```xml
+<skam:meta tokenization="char">
+  <skam:extension name="edu" uri="urn:skam:edu:1" required="true"/>
+</skam:meta>
+```
+
+`skam:extension` は使う拡張ごとに 1 つ置き、SKAM JSON の `extensions` と `extensionsRequired` に対応する。
+
+| 属性       | 必須 | 説明                                                              |
+| ---------- | ---- | ----------------------------------------------------------------- |
+| `name`     | 必須 | 拡張の名前（小文字の英数字で、先頭は英字。`xml` で始まらない）    |
+| `uri`      | 必須 | 拡張の名前空間の URI                                              |
+| `required` | 任意 | 知らなければ読んではいけない拡張のときだけ `true`。ほかの値は誤り |
+
+- `skam:extension` が 1 つも無ければ、宣言の無い文書として読む（SKAM-draft §11.2）
+- `name` と `uri` が登録簿（SKAM-draft 付録 F）や parser に渡された定義と合わない（同じ名前で違う URI、同じ URI で違う名前）、または同じ名前を 2 度宣言したら誤り
+- `required="true"` の拡張を parser が知らなければ誤り（MUST）
+- 名前空間の宣言（`xmlns:edu="urn:skam:edu:1"`）はルートに置く
 
 ### 4.2 Derivations（導出情報）について
 
@@ -796,6 +821,58 @@ skam:note (content を提供)
 - round-trip を行う処理系は **保持して再出力してよい**
 - 将来の拡張は **後方互換**で行う
 
+### 10.1 拡張の名前空間の属性（規範）
+
+拡張は、要素に自分の名前空間の属性を付けて値を書く。SKAM JSON の `ext.<拡張の名前>` に対応する。
+
+- 知っている拡張（登録簿か、parser に渡された定義にある拡張）の名前空間の属性で、宣言（§4.1.1）が無いものは誤り
+- 知っている拡張でも、定義が無く使うだけの拡張の属性は読み飛ばす
+- 登録されていない名前空間の属性は、読み飛ばす（ほかの道具が付けた属性を含む文書を誤りにしない）
+- 属性の読み方は拡張の定義が決める。誤りのメッセージに属性の値は含めない
+- 出力する処理系は、使っている拡張を宣言して書く。宣言の無い文書には、`skam:extension` も拡張の名前空間の宣言も書かない
+
+### 10.2 学習・教育用拡張（edu）の属性（規範）
+
+名前空間 `urn:skam:edu:1`。値は問いの名前で、SKAM-draft §13 の `quiz` に対応する（1 字以上 64 字以下、制御文字を含まない）。空の値は誤り。
+
+1 つの要素が 1 つの注記を作る要素は、属性 `edu:quiz` を使う。
+
+| 要素            | 属性       | 印を付ける注記の種類 |
+| --------------- | ---------- | -------------------- |
+| `skam:kaeri`    | `edu:quiz` | `kaeri`              |
+| `skam:kutoten`  | `edu:quiz` | `kutoten`            |
+| `skam:okototen` | `edu:quiz` | `okototen`           |
+| `skam:okimoji`  | `edu:quiz` | `okimoji`            |
+| `skam:joji`     | `edu:quiz` | `joji`               |
+| `skam:tateten`  | `edu:quiz` | `tateten`            |
+| `skam:saidoku`  | `edu:quiz` | `saidoku`            |
+| `skam:yomigana` | `edu:quiz` | `yomigana`           |
+| `skam:soegana`  | `edu:quiz` | `soegana`            |
+
+`skam:kun` は読み仮名、送り仮名、添え仮名を 1 つの要素で持つので、部分ごとの属性を使う。部分の属性は、その部分が作る注記（範囲の `skam:kun` なら範囲全体の注記 1 つ）の印になる。
+
+| 属性             | 印を付ける注記             |
+| ---------------- | -------------------------- |
+| `edu:yomi-quiz`  | `yomi` が作る `yomigana`   |
+| `edu:okuri-quiz` | `okuri` が作る `okurigana` |
+| `edu:soe-quiz`   | `soe` が作る `soegana`     |
+
+次は誤りとする。
+
+- `skam:kun` の `edu:quiz`
+- 対応する部分の属性が無いのに付いた部分の属性（`okuri` が無い `edu:okuri-quiz`）
+- `skam:kunform`、`skam:span`、`skam:ref`、`skam:br` など、上の表に無い要素への `edu` の属性
+- 宣言（§4.1.1）が無い文書の `edu` の属性
+
+```xml
+<skam:doc xmlns:skam="urn:skam:1" xmlns:edu="urn:skam:edu:1">
+  <skam:meta><skam:extension name="edu" uri="urn:skam:edu:1" required="true"/></skam:meta>
+  <skam:body>
+    <skam:block><skam:kun yomi="まな" okuri="ブ" edu:okuri-quiz="問1">學</skam:kun>而</skam:block>
+  </skam:body>
+</skam:doc>
+```
+
 ---
 
 ## 11. 最小完全例
@@ -933,24 +1010,26 @@ SKAM-ML/XMLはHTMLに依存しない純XML語彙とし、本文構造は`skam:bl
 
 ### SKAM-ML/XML → SKAM JSON の主な変換対応
 
-| SKAM-ML/XML 要素               | SKAM JSON marks.type |
-| ------------------------------ | -------------------- |
-| `skam:kaeri`                   | `kaeri`              |
-| `skam:kun` (yomi属性)          | `yomigana`           |
-| `skam:kun` (okuri属性)         | `okurigana`          |
-| `skam:kun` (soe属性)           | `soegana`            |
-| `skam:yomigana`                | `yomigana`           |
-| `skam:kutoten`                 | `kutoten`            |
-| `skam:okototen`                | `okototen`           |
-| `skam:soegana`                 | `soegana`            |
-| `skam:okimoji`                 | `okimoji`            |
-| `skam:joji`                    | `joji`               |
-| `skam:span` (type="emphasis")  | `emphasis`           |
-| `skam:span` (type="highlight") | `highlight`          |
-| `skam:ref`                     | `ref`                |
-| `skam:br`                      | `linebreak`          |
-| `skam:saidoku`                 | `saidoku`            |
-| `skam:tateten`                 | `tateten`            |
+| SKAM-ML/XML 要素                      | SKAM JSON marks.type                    |
+| ------------------------------------- | --------------------------------------- |
+| `skam:kaeri`                          | `kaeri`                                 |
+| `skam:kun` (yomi属性)                 | `yomigana`                              |
+| `skam:kun` (okuri属性)                | `okurigana`                             |
+| `skam:kun` (soe属性)                  | `soegana`                               |
+| `skam:yomigana`                       | `yomigana`                              |
+| `skam:kutoten`                        | `kutoten`                               |
+| `skam:okototen`                       | `okototen`                              |
+| `skam:soegana`                        | `soegana`                               |
+| `skam:okimoji`                        | `okimoji`                               |
+| `skam:joji`                           | `joji`                                  |
+| `skam:span` (type="emphasis")         | `emphasis`                              |
+| `skam:span` (type="highlight")        | `highlight`                             |
+| `skam:ref`                            | `ref`                                   |
+| `skam:br`                             | `linebreak`                             |
+| `skam:saidoku`                        | `saidoku`                               |
+| `skam:tateten`                        | `tateten`                               |
+| `skam:extension`（`skam:meta` の子）  | `extensions` と `extensionsRequired`    |
+| 拡張の名前空間の属性（例 `edu:quiz`） | `ext.<拡張の名前>`（例 `ext.edu.quiz`） |
 
 ※ `derivations`（読み順等）はコンパイル時に生成される。
 
@@ -970,4 +1049,5 @@ SKAM-ML/XMLはHTMLに依存しない純XML語彙とし、本文構造は`skam:bl
 - §7.0: 内容モデル表（規範）を新設した。字を包む要素（`skam:okimoji` / `skam:joji` / `skam:okototen` / `skam:base`）は `skam:kun` と、入れ子の包む要素を子に持てる。範囲が同じ要素どうしの入れ子順を定めた
 - §7.10: `skam:span` の内容モデルの誤記を訂正した（§7.0 のとおり、子に制約なし）。§7.3 / §7.4 / §7.6 / §7.8 / §7.9 / §7.12 の内容モデルの記述は §7.0 への参照に置き換えた（§7.6 / §7.8 / §7.9 / §7.10 には「内容モデル」の節を新設した）
 - SKAM-draft §6.1: 同じ anchor に同じ種類の注記を 2 つ以上置くことを禁じた（yomigana / okurigana / soegana / okimoji / joji / saidoku）
+- §4.1.1 / §10.1 / §10.2: 拡張の宣言 `skam:extension`、拡張の名前空間の属性、学習・教育用拡張 `edu` の属性と対応表を足した。`skam:meta` に子の要素を許した
 - 互換性の注意: 0.1.x の parser は、字を包む要素の中の `skam:kun` と、入れ子になった包む要素を黙って捨てる。この改訂以降の出力は、改訂以降の parser で読むこと

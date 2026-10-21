@@ -3,6 +3,24 @@ import { parse } from '@kanbun-skam/skam-xml-parser';
 import { SAMPLES } from '../samples';
 
 describe('SAMPLES', () => {
+  it('the quiz sample declares edu and marks annotations with a quiz name', () => {
+    const sample = SAMPLES.find((candidate) => candidate.name === '出題の印（学習・教育用拡張）')!;
+    const doc = parse(sample.xml);
+    expect(doc.extensions).toEqual(['edu']);
+    expect(doc.extensionsRequired).toEqual(['edu']);
+    const quizzes = doc.marks.flatMap((mark) => {
+      const edu = mark.ext?.['edu'] as { quiz?: string } | undefined;
+      return edu?.quiz === undefined ? [] : [`${mark.type}:${edu.quiz}`];
+    });
+    expect(quizzes.sort()).toEqual([
+      'kaeri:問3',
+      'okurigana:問1',
+      'okurigana:問2',
+      'okurigana:問2',
+      'soegana:問3',
+    ]);
+  });
+
   it.each(SAMPLES)('$name をパースできる', ({ xml }) => {
     expect(() => parse(xml)).not.toThrow();
     const doc = parse(xml);
@@ -10,7 +28,7 @@ describe('SAMPLES', () => {
     expect(doc.tokens.length).toBeGreaterThan(0);
   });
 
-  it('keeps the first 18 samples in their order, then the KanbunKundoku samples, then the line-break sample', () => {
+  it('keeps the first 18 samples in their order, then the KanbunKundoku samples, then the line-break sample and the quiz sample', () => {
     expect(SAMPLES.slice(0, 18).map((sample) => sample.name)).toEqual([
       '學而時習之（基本）',
       '論語（複数ブロック）',
@@ -39,6 +57,7 @@ describe('SAMPLES', () => {
     ]);
     expect(SAMPLES.slice(22).map((sample) => sample.name)).toEqual([
       '改行（句の途中で行を改める）',
+      '出題の印（学習・教育用拡張）',
     ]);
   });
 

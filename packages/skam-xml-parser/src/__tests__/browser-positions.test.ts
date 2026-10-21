@@ -65,7 +65,9 @@ describe('parseBrowserErrorLocation', () => {
     const sentence = `XML Parsing Error: not well-formed\nLocation: about:blank\nLine Number 1, Column 7:${'a'.repeat(5_000_000)}\n------^`;
     const start = performance.now();
     const result = parseBrowserErrorLocation(sentence);
-    expect(performance.now() - start).toBeLessThan(100);
+    // 見張るのは入力の長さの 2 乗になる正規表現 (5,000,000 字では桁違いに遅くなる)。単独では数 ms だが、
+    // 全パッケージを並列で流すと 300ms を超えたことがあるので、上限は揺れより十分大きく取る
+    expect(performance.now() - start).toBeLessThan(2000);
     expect(result).toEqual({ line: 1, column: 7 });
   });
 });

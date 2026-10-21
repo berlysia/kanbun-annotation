@@ -35,6 +35,25 @@ SKAM の 6 つの公開パッケージ (`@kanbun-skam/skam`、`skam-xml-parser`�
 - 表示層の `lang` が文書の `lang` になる (渡さず、文書にも無ければ `ja`)。読み上げ層が白文に戻るときは、読み上げ層も文書の `lang` を持つ。
 - やること: 表示層を `ja` に固定したいなら、`displayLang: 'ja'` を渡す。`displayLang` の誤りの文 (`TypeError` の `message`) を比べている所は直す。
 
+### IVS や結合文字を含む XML の token の数が変わる (skam-xml-parser、skam-web-component)
+
+- 対象: XML の本文に、異体字セレクタ (U+E0100〜U+E01EF、U+FE00〜U+FE0F) や結合文字 (Unicode の `\p{M}`) がある。
+- parse は、書記素クラスタ 1 つを 1 token にする。基底の字と選択子や結合文字が 1 token になり、token の数、生成される id、添字が変わる。
+- やること: その文書の token の数、id、添字を保存している所と、parse の結果を丸ごと比べている所を直す。
+
+### 2 つ以上の書記素の token を XML に書かない (skam-xml-stringify)
+
+- 対象: JSON の token の `text` が 2 つ以上の書記素 (例 `'学問'`)。見つけ方: `splitGraphemes(token.text).length > 1` (`@kanbun-skam/skam`) の token がある。
+- stringify はその token を損失 `MULTI_GRAPHEME_TOKEN` にする。`lossy: true` でなければ `SKAMXMLStringifyError` になる。
+- やること: 1 字ずつの token に分ける。分けられないなら `lossy: true` を渡して損失を受け取る。
+- `StringifyLossCode` を網羅の `switch` で扱っている所は型の誤りになる。`MULTI_GRAPHEME_TOKEN` を足すか、`default` の分岐を置く。
+
+### `Intl.Segmenter` のある実行環境で動かす (skam-xml-parser、skam-xml-stringify、skam-html-renderer、skam-canvas-renderer、skam-web-component)
+
+- 対象: `Intl.Segmenter` の無い実行環境 (Firefox 124 以前など) で動かしている。
+- parse、stringify、描画は `TypeError` になる (読み込むだけなら誤りにならない)。
+- やること: `Intl.Segmenter` のある実行環境 (Node 16 以上、Chrome 87 以上、Safari 14.1 以上、Firefox 125 以上) で動かす。
+
 ### 注記の種類と profile のキーを列挙している所に足す (skam、skam-html-renderer、skam-canvas-renderer)
 
 - 対象: `MarkType`、`Mark`、`ValidationErrorKind` を網羅の `switch` で扱っている。`RenderProfile` や `AIRRenderProfile` を、すべてのキーを書いた object で作っている。

@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import type { SKAMDocument } from '@kanbun-skam/skam';
 import { render, renderHTML, generateCSS, getDefaultStyles } from '../index.js';
 import { resolveEmphasisCharacter } from '@kanbun-skam/skam/rendering';
-import { generateEmphasisMarks } from '../html-utils.js';
+import { blankOut, generateEmphasisMarks } from '../html-utils.js';
 import {
   expectCSSContains,
   expectCSSSelector,
@@ -667,5 +667,17 @@ describe('suffix-kana', () => {
   it('does not emit CSS for the .skam-suffix-kana element, which is never rendered', () => {
     const { css } = render(createDoc());
     expectNoCSSSelector(css, /suffix-kana/);
+  });
+});
+
+describe('grapheme clusters in html-utils', () => {
+  it('generateEmphasisMarks gives one mark per grapheme cluster', () => {
+    expect(generateEmphasisMarks('葛\u{E0100}城', '・')).toBe('・・');
+    expect(generateEmphasisMarks('e\u0301', '・')).toBe('・');
+  });
+
+  it('blankOut gives one blank per grapheme cluster, width decided by the first code point', () => {
+    expect(blankOut('葛\u{E0100}')).toBe('\u3000');
+    expect(blankOut('e\u0301')).toBe('\u00A0');
   });
 });

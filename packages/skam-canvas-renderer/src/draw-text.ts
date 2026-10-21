@@ -1,7 +1,8 @@
 /**
  * テキスト描画ヘルパー（縦書き用）
  *
- * CJK 文字は1文字ずつ fillText で描画する。
+ * CJK 文字は書記素 (IVS・結合文字は基底の字と一組) ごとに fillText で描画する。
+ * code point ごとに描くと、異体字セレクタだけが別の位置に描かれる。
  *
  * textBaseline: 'alphabetic' を使用し、em ascent で Y 座標を補正する。
  * Safari は textBaseline: 'top' の解釈が Chrome/Firefox と異なり、
@@ -9,6 +10,7 @@
  * em ascent は ideographic baseline との差分で算出し、Safari では CJK 標準比率にフォールバック。
  */
 
+import { splitGraphemes } from '@kanbun-skam/skam';
 import type { CanvasRenderingContext2DLike } from './canvas-context.js';
 
 /**
@@ -199,7 +201,8 @@ export function drawVerticalText(
 
   const advance = charAdvance ?? fontSize;
   let currentY = y;
-  for (const char of text) {
+  for (const char of splitGraphemes(text)) {
+    // 縦書きの字形への置き換えは、書記素がそのまま表に合うときだけ効く (括弧に結合文字が付けば原形のまま描く)
     const verticalForm = getVerticalForm(char);
     ctx.fillText(verticalForm ?? char, x, currentY + ascent);
     currentY += advance;
@@ -237,7 +240,7 @@ export function drawKutotenText(
 
   const offset = fontSize / 2;
   let currentY = y;
-  for (const char of text) {
+  for (const char of splitGraphemes(text)) {
     ctx.fillText(char, x + offset, currentY - offset + ascent);
     currentY += fontSize;
   }

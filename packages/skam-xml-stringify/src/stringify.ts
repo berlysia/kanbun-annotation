@@ -40,7 +40,7 @@ import type {
   RefMark,
   TatetenMark,
 } from '@kanbun-skam/skam';
-import { isAnchorBasedMark, KAERI } from '@kanbun-skam/skam';
+import { isAnchorBasedMark, KAERI, splitGraphemes } from '@kanbun-skam/skam';
 import {
   extensionRegistry,
   isExtensionName,
@@ -187,6 +187,11 @@ const UNPLACED = Number.MAX_SAFE_INTEGER;
 const IGNORED_WHITESPACE_ONLY = /^[\t\n\r ]+$/;
 function isIgnoredWhitespaceText(text: string): boolean {
   return IGNORED_WHITESPACE_ONLY.test(text);
+}
+
+// UTF-16 の 1 単位は必ず 1 書記素なので、Segmenter を呼ぶのは 2 単位以上のときだけにする
+function hasMultipleGraphemes(text: string): boolean {
+  return text.length > 1 && splitGraphemes(text).length > 1;
 }
 
 // Token に付随する mark 情報（単一トークン用）
@@ -1532,6 +1537,18 @@ function recordFieldLosses(doc: SKAMDocument, ctx: StringifyContext, declared: b
           code: 'ASCII_WHITESPACE_TOKEN',
           path: `/tokens/${i}`,
           message: `Token ${JSON.stringify(token.text)} consists only of whitespace that SKAM-ML ignores`,
+        },
+        key
+      );
+    } else if (hasMultipleGraphemes(token.text)) {
+      // message に token の本文を入れない (他の損失と同じく値を出さない)
+      ctx.collector.add(
+        {
+          category: 'unrepresentable',
+          code: 'MULTI_GRAPHEME_TOKEN',
+          path: `/tokens/${i}`,
+          message:
+            'Token consists of two or more grapheme clusters; reading the XML again would split it into several tokens',
         },
         key
       );

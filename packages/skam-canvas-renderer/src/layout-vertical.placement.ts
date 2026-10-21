@@ -6,6 +6,7 @@
  */
 
 import type { HighlightStyle } from '@kanbun-skam/skam';
+import { splitGraphemes } from '@kanbun-skam/skam';
 import { resolveSpacingEm } from '@kanbun-skam/skam/rendering';
 import type {
   CanvasTokenNode,
@@ -152,7 +153,7 @@ function layoutSingleToken(
     if (slots.rubySpan && slots.rubySpan > 1) {
       // rangeRubySpanHeight: 均等割り付け後の実スパン高さ（overflow 時に設定）
       const spanHeight = lctx.rangeRubySpanHeight ?? slots.rubySpan * cellAdvance;
-      const numChars = [...slots.ruby].length;
+      const numChars = splitGraphemes(slots.ruby).length;
       const rubyTextHeight = numChars * rubyFontSize;
       const yOff = lctx.rangeRubyYOffset ?? 0;
       const align = lctx.rangeRubyAlign ?? 'center';
@@ -195,7 +196,7 @@ function layoutSingleToken(
 
   // okuri/soegana の基準 Y: 通常はベース文字+ルビの下端。
   // range ruby overflow 時は rangeRubyEndY（ルビ下端の絶対座標）で押し下げ。
-  const rubyCharsForSuffix = slots.ruby ? [...slots.ruby].length : 0;
+  const rubyCharsForSuffix = slots.ruby ? splitGraphemes(slots.ruby).length : 0;
   const normalSuffixBaseY = tokenY + Math.max(fontSize, rubyCharsForSuffix * rubyFontSize);
   const suffixBaseY =
     lctx.rangeRubyEndY !== undefined
@@ -212,7 +213,7 @@ function layoutSingleToken(
   }
 
   if (slots.soegana) {
-    const okuriChars = slots.okuri ? [...slots.okuri].length : 0;
+    const okuriChars = slots.okuri ? splitGraphemes(slots.okuri).length : 0;
     slotLayouts.soegana = {
       text: slots.soegana,
       x: grid.suffixX,
@@ -268,7 +269,7 @@ function layoutSingleToken(
   }
 
   if (slots.saidokuOkuri2) {
-    const underChars = slots.saidokuUnder ? [...slots.saidokuUnder].length : 0;
+    const underChars = slots.saidokuUnder ? splitGraphemes(slots.saidokuUnder).length : 0;
     const saidokuOkuri2StartY = tokenY + Math.max(fontSize, underChars * rubyFontSize);
     slotLayouts.saidokuOkuri2 = {
       text: slots.saidokuOkuri2,
@@ -281,7 +282,7 @@ function layoutSingleToken(
   if (slots.ref) {
     const isTCY = shouldApplyTateChuYoko(slots.ref);
     // 縦中横: 1行分の高さ。通常: 文字数分の高さ。
-    const refHeight = isTCY ? rubyFontSize : [...slots.ref].length * rubyFontSize;
+    const refHeight = isTCY ? rubyFontSize : splitGraphemes(slots.ref).length * rubyFontSize;
     slotLayouts.ref = {
       text: slots.ref,
       x: tokenX,
@@ -326,11 +327,11 @@ function computeTokenContentHeight(
   // range ruby がスパンを超える場合の超過分は、レイアウトループ側で
   // 均等割り付け（extraAdvancePerToken）として処理する
   const rubyChars =
-    slots.rubySpan && slots.rubySpan > 1 ? 0 : slots.ruby ? [...slots.ruby].length : 0;
-  const okuriChars = slots.okuri ? [...slots.okuri].length : 0;
-  const soeganaChars = slots.soegana ? [...slots.soegana].length : 0;
-  const saidokuUnderChars = slots.saidokuUnder ? [...slots.saidokuUnder].length : 0;
-  const saidokuOkuri2Chars = slots.saidokuOkuri2 ? [...slots.saidokuOkuri2].length : 0;
+    slots.rubySpan && slots.rubySpan > 1 ? 0 : slots.ruby ? splitGraphemes(slots.ruby).length : 0;
+  const okuriChars = slots.okuri ? splitGraphemes(slots.okuri).length : 0;
+  const soeganaChars = slots.soegana ? splitGraphemes(slots.soegana).length : 0;
+  const saidokuUnderChars = slots.saidokuUnder ? splitGraphemes(slots.saidokuUnder).length : 0;
+  const saidokuOkuri2Chars = slots.saidokuOkuri2 ? splitGraphemes(slots.saidokuOkuri2).length : 0;
 
   // tokenY からの最大延伸量
   let maxExtent = fontSize; // ベース文字高さ
@@ -468,7 +469,7 @@ function detectRangeRubyOverflow(
   if (token.slots.ruby) {
     const alignment = ctx.options.rangeRubyAlignment === 'center' ? 'center' : 'distribute';
     const result = computeRangeRubyOverflow({
-      rubyChars: [...token.slots.ruby].length,
+      rubyChars: splitGraphemes(token.slots.ruby).length,
       rubyFontSize,
       naturalSpan: actualSpan,
       baseSpan,
@@ -695,7 +696,7 @@ function placeTatetenGroup(
     const baseSpanHeight = naturalHeight - trailingExtension;
     const alignment = ctx.options.rangeRubyAlignment === 'center' ? 'center' : 'distribute';
     const result = computeRangeRubyOverflow({
-      rubyChars: [...firstRubyToken.slots.ruby!].length,
+      rubyChars: splitGraphemes(firstRubyToken.slots.ruby!).length,
       rubyFontSize,
       naturalSpan: naturalHeight,
       baseSpan: baseSpanHeight,

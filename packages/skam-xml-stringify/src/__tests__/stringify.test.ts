@@ -911,8 +911,9 @@ describe('stringify - XML escaping', () => {
   it('should escape special characters in text', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
-      tokens: [{ id: 't1', text: '<>&"\'' }],
-      blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+      // 1 token は 1 書記素。複数の字を 1 token にすると MULTI_GRAPHEME_TOKEN の損失になる
+      tokens: [...'<>&"\''].map((text, i) => ({ id: `t${i + 1}`, text })),
+      blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3', 't4', 't5'] }],
       marks: [],
       readings: [],
     };

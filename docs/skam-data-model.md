@@ -55,7 +55,7 @@ anchor ベースと position ベースは共通基底 `MarkBase` から対等に
 
 - 文書、readings、ブロック、token、注記のどれにも `ext`（拡張の値）と `custom`（自由なデータ）を置ける。型は `Record<string, unknown>`
 - 文書が `extensions` を持つ（空の配列も含む）と、宣言のある文書として読む。`ext` のキーは拡張の名前で、`extensions` に無い名前は `INVALID_EXTENSION`。知っている拡張の値はその定義の `validate` が検査し、知らない拡張の値は検査しない
-- `extensions` を持たない文書の `ext` は、旧来の自由なデータとして読む
+- `extensions` を持たない文書の `ext` は、0.3 では自由なデータとして読み、`LEGACY_EXT` の警告（`valid: true` のまま）を返す。0.4.0 で誤りになる。キーが登録済みの拡張の名前と同じなら `LEGACY_EXT_REGISTERED_NAME` も返す。`moveLegacyExtToCustom(doc)` がすべての `ext` を `custom` に移す
 - 拡張の定義（`SKAMExtensionDefinition`）は `@kanbun-skam/skam/extensions` の型。`validate`（値の検査）、`readXmlAttributes` / `writeXmlAttributes`（SKAM-ML の属性）、`hiddenParts` / `isHidden` / `assertOptions`（描画で隠す所）を持てる。定義が `@kanbun-skam/skam` の core から import してよいのは型だけで、個々の拡張を import してよいのは束（`extensions/index.ts`）だけ。`packages/skam/src/__tests__/extensions-import-direction.test.ts` が守る
 - `ext` と `custom` は信頼しない入力。入れ子 32 段、キー 1,000 個、配列 10,000、文書全体の値 100,000 個の上限と、`__proto__` / `constructor` / `prototype` のキーの禁止を `extension-validation.ts` が反復で検査する（再帰しない）
 - 学習・教育用拡張 `edu` は注記の `ext.edu.quiz`（問いの名前）だけを持つ。付けられる注記は 10 種で、`quiz` は 1〜64 字の制御文字を含まない文字列

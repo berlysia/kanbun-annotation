@@ -135,3 +135,5 @@ Plan 検証（logic-validator）により、ADR と対応 Plan の間に乖離�
 ADR ファイル名 `adr-004-kaeri-re-anchor-convention.md` は当初の検討経緯を反映したもの。ADR タイトル「position-based mark に変更」が最終決定を正確に表している。
 
 追記 (2026-10-19): 複合返り点 (`一レ` など) も 1 つの kaeri の mark で、`position.after` は直前の token である。skam-xml-parser の valid の fixture `kaeri-compound.xml` と parser (`parser-core.ts`) はこの規約どおりである。
+
+追記 (2026-10-21): レ点を上の字と下の字のどちらの後ろに置くかは、ADR-045 で決めた (上の字の後ろ)。

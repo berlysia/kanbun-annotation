@@ -233,6 +233,7 @@ describe('buildAnnotationIR', () => {
   it('tateten + kaeri でレ/非レ分割する', () => {
     const doc = createDoc([
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      // 互換: 複数の字の kaeri は 0.3 では読めるが非推奨 (0.4.0 で誤り)。この値を読めることを確かめる
       { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆒㆑' },
     ]);
     const air = buildAnnotationIR(doc, FULL_PROFILE);

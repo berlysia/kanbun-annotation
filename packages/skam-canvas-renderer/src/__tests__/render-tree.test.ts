@@ -108,6 +108,7 @@ describe('buildRenderTree', () => {
 
   it('resolves compound kaeri into Unicode', () => {
     const doc = threeTokenDoc([
+      // 互換: 複数の字の kaeri は 0.3 では読めるが非推奨 (0.4.0 で誤り)。この値を読めることを確かめる
       { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: '㆒㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
@@ -128,6 +129,7 @@ describe('buildRenderTree', () => {
     const doc = threeTokenDoc([
       { type: 'yomigana', anchor: { from: 't3', to: 't3' }, value: 'まな' },
       { type: 'okurigana', anchor: { from: 't3', to: 't3' }, value: 'ぶ' },
+      // 互換: 複数の字の kaeri は 0.3 では読めるが非推奨 (0.4.0 で誤り)。この値を読めることを確かめる
       { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: '㆒㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
@@ -399,6 +401,7 @@ describe('buildRenderTree', () => {
   it('splits kaeri in tateten group: レ→token, non-レ→separator', () => {
     const doc = threeTokenDoc([
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      // 互換: 複数の字の kaeri は 0.3 では読めるが非推奨 (0.4.0 で誤り)。この値を読めることを確かめる
       { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆒㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);

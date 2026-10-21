@@ -586,6 +586,7 @@ describe('Kaeri value rendering variations', () => {
   describe('compound kaeri values', () => {
     it('一レ → 一 + レ Unicode', () => {
       const doc = createSingleTokenDoc('不', [
+        // 互換: 複数の字の kaeri は 0.3 では読めるが非推奨 (0.4.0 で誤り)。この値を読めることを確かめる
         { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆒㆑' },
       ]);
       const { html } = render(doc);
@@ -602,6 +603,7 @@ describe('Kaeri value rendering variations', () => {
 
     it('上レ → 上 + レ Unicode', () => {
       const doc = createSingleTokenDoc('不', [
+        // 互換: 複数の字の kaeri は 0.3 では読めるが非推奨 (0.4.0 で誤り)。この値を読めることを確かめる
         { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆖㆑' },
       ]);
       const { html } = render(doc);

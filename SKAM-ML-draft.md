@@ -251,7 +251,9 @@ position は `{ blockId, after: tokenId }` または `{ blockId }`（ブロッ�
 | `hei`  | 丙              |
 | `tei`  | 丁              |
 
-複合返り点（例: 一レ）は `kind="ichi-re"` のように連結表記する。
+複合返り点（例: 一レ）は、同じ位置に `skam:kaeri` を 1 字ずつ並べて書く（`<skam:kaeri kind="ichi"/><skam:kaeri kind="re"/>`）。同じ位置の複数の `skam:kaeri` は、文書の順につないだ 1 つの注記と同じ意味を持ち、順は意味を持つ。
+
+`kind="ichi-re"` のようにハイフンで連結した `kind` は、0.3 では読めるが非推奨で、0.4.0 で誤りになる。parser は 1 つの注記（値 `㆒㆑`）として読み、警告（`KAERI_MULTI_CHARACTER`）を出す。
 
 #### 内容モデル
 
@@ -260,7 +262,7 @@ position は `{ blockId, after: tokenId }` または `{ blockId }`（ブロッ�
 #### 正規化
 
 - `marks.type = "kaeri"`
-- `marks.value = kind に対応する記号`（上記対応表参照）
+- `marks.value = kind に対応する記号`（上記対応表参照。連結した `kind` は各記号をつないだ値になる）
 - `position = { blockId: 現在のブロック, after: 直前token }`
 
 ---

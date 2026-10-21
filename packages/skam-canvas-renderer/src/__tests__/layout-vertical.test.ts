@@ -171,6 +171,7 @@ describe('layoutVertical', () => {
     const doc = singleTokenDoc([
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
       { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'ぶ' },
+      // 互換: 複数の字の kaeri は 0.3 では読めるが非推奨 (0.4.0 で誤り)。この値を読めることを確かめる
       { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆒㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);
@@ -599,6 +600,7 @@ describe('layoutVertical', () => {
     const ctx = new RecordingContext();
     const doc = threeTokenDoc([
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      // 互換: 複数の字の kaeri は 0.3 では読めるが非推奨 (0.4.0 で誤り)。この値を読めることを確かめる
       { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆒㆑' },
     ]);
     const tree = buildRenderTree(doc, PROFILES.full);

@@ -269,6 +269,7 @@ describe('render', () => {
         blocks: [],
         marks: [
           {
+            // 互換: 複数の字の kaeri は 0.3 では読めるが非推奨 (0.4.0 で誤り)。この値を読めることを確かめる
             type: 'kaeri',
             position: { blockId: '', after: 't1' },
             value: '㆒㆑',

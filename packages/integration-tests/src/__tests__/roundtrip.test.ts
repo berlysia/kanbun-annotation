@@ -84,6 +84,7 @@ describe('round-trip - basic', () => {
       ],
       blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3', 't4'] }],
       marks: [
+        // 互換: 複数の字の kaeri は 0.3 では読めるが非推奨 (0.4.0 で誤り)。この値を読めることを確かめる
         {
           type: 'kaeri',
           id: 'm1',

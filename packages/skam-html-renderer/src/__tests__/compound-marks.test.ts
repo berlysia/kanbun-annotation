@@ -431,6 +431,7 @@ describe('Tateten + kaeri: non-レ kaeri alongside tateten separator', () => {
   it('compound kaeri (一レ) on non-last token: split into sep (一) + suffix (レ)', () => {
     const doc = createThreeTokenDoc('梁', '執', '与', [
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      // 互換: 複数の字の kaeri は 0.3 では読めるが非推奨 (0.4.0 で誤り)。この値を読めることを確かめる
       { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆒㆑' },
     ]);
     const { html } = render(doc);
@@ -444,6 +445,7 @@ describe('Tateten + kaeri: non-レ kaeri alongside tateten separator', () => {
   it('compound kaeri (一レ) on last token: split into sep (一) + suffix (レ)', () => {
     const doc = createThreeTokenDoc('梁', '執', '与', [
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      // 互換: 複数の字の kaeri は 0.3 では読めるが非推奨 (0.4.0 で誤り)。この値を読めることを確かめる
       { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆒㆑' },
     ]);
     const { html } = render(doc);
@@ -508,6 +510,7 @@ describe('Range kana + tateten + kaeri: kaeri must not disappear', () => {
     const doc = createThreeTokenDoc('春', '風', '吹', [
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しゅんぷう' },
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+      // 互換: 複数の字の kaeri は 0.3 では読めるが非推奨 (0.4.0 で誤り)。この値を読めることを確かめる
       { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆒㆑' },
     ]);
     const { html } = render(doc);

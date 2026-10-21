@@ -60,9 +60,13 @@ if (isSKAMDocument(input)) {
 assertSKAMDocument(input);
 ```
 
+## 複数の字の kaeri
+
+1 つの kaeri の `value` に複数の字を書く形（`㆒㆑`）は非推奨で、0.4.0 で誤りになる。0.3 では `valid: true` の結果の `warnings` に `KAERI_MULTI_CHARACTER` の警告が入る。正の書き方は、同じ位置に 1 字ずつの kaeri を並べること。`splitMultiCharacterKaeri(doc)` は、文書の複数の字の kaeri を 1 字ずつの注記に分けた新しい文書を返す。
+
 ## ブロック先頭の返り点
 
-返り点（kaeri）はブロックの先頭に置けない。検証エラーと parser のエラーは、同じ案内文 `BLOCK_START_KAERI_HINT`（本パッケージが export する）を使う。同じ位置に重複した kaeri は検査しない。
+返り点（kaeri）はブロックの先頭に置けない。検証エラーと parser のエラーは、同じ案内文 `BLOCK_START_KAERI_HINT`（本パッケージが export する）を使う。同じ位置の複数の kaeri は正しい書き方として許す（`marks[]` の順につないだ値と同じ意味）。
 
 ## 表示設定
 

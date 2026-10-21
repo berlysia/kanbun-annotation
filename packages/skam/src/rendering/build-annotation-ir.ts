@@ -23,6 +23,8 @@ import type {
   RefMark,
 } from '../index.js';
 
+import { getLinebreakPlacementIssues } from '../line-units.js';
+
 import type {
   AIRRenderProfile,
   AIRDocument,
@@ -546,6 +548,11 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
 
   const refMarks = profile.ref ? marks.filter((m): m is RefMark => m.type === 'ref') : [];
 
+  // 改行は置ける場所のものだけを使う。置けない場所の linebreak は描画では無視する
+  const lineBreakAfterByBlock = profile.linebreak
+    ? collectLineBreakAfter(doc)
+    : new Map<string, Set<string>>();
+
   // oxlint-disable-next-line eslint/complexity
   const airBlocks: AIRBlock[] = blockGroups.map((group) => {
     // Range groups
@@ -633,6 +640,13 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
       }
     }
 
+    const lineBreakAfter = lineBreakAfterByBlock.get(group.blockId);
+    // 読みの範囲を描く字のノードは範囲の最後の字を、そのほかは自分の字を見る
+    const hasLineBreakAfter = (node: AIRTokenNode): boolean =>
+      lineBreakAfter !== undefined &&
+      !node.rangeConsumed &&
+      lineBreakAfter.has(node.rangeInfo?.toTokenId ?? node.token.id);
+
     // Tateten グルーピング
     let children: AIRBlockChild[];
     if (profile.tateten) {
@@ -643,6 +657,7 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
         const tatetenMark = tatetenMap.get(tokenNode.token.id);
 
         if (!tatetenMark) {
+          if (hasLineBreakAfter(tokenNode)) tokenNode.lineBreakAfter = true;
           children.push(tokenNode);
           i++;
         } else {
@@ -674,11 +689,19 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
             tatetenGroup.rangeInfo = rangeInfo;
           }
 
+          // 竪点のグループの中では改行できないので、印はグループの最後の字の後ろだけを見てグループに付ける
+          if (lineBreakAfter?.has(groupTokens[groupTokens.length - 1]!.token.id)) {
+            tatetenGroup.lineBreakAfter = true;
+          }
+
           children.push(tatetenGroup);
           i = j;
         }
       }
     } else {
+      for (const tokenNode of tokenNodes) {
+        if (hasLineBreakAfter(tokenNode)) tokenNode.lineBreakAfter = true;
+      }
       children = tokenNodes;
     }
 
@@ -761,6 +784,24 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
 // ============================================================================
 // ヘルパー
 // ============================================================================
+
+/** 置ける linebreak の、ブロックごとの「この字の後ろで改める」字の id の集合 */
+function collectLineBreakAfter(doc: SKAMDocument): Map<string, Set<string>> {
+  const issues = getLinebreakPlacementIssues(doc);
+  const result = new Map<string, Set<string>>();
+  doc.marks.forEach((mark, index) => {
+    if (mark.type !== 'linebreak' || issues.has(index)) return;
+    const { blockId, after } = mark.position;
+    if (after === undefined) return;
+    let ids = result.get(blockId);
+    if (!ids) {
+      ids = new Set();
+      result.set(blockId, ids);
+    }
+    ids.add(after);
+  });
+  return result;
+}
 
 /** AIRBlockChild から最初のトークン ID を取得 */
 function getFirstTokenId(child: AIRBlockChild): string | undefined {

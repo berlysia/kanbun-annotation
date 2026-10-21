@@ -31,6 +31,7 @@ export interface AIRRenderProfile {
   soegana: boolean;
   highlight: boolean;
   ref: boolean;
+  linebreak: boolean;
 }
 
 // ============================================================================
@@ -106,6 +107,13 @@ export interface AIRTokenNode {
   rangeInfo?: AIRRangeInfo;
   /** range group の非リードトークン（リードトークンの rangeInfo に集約済み） */
   rangeConsumed?: true;
+  /**
+   * この単位の直後で行を改める (linebreak の注記)。付かないときはキーごと無い。
+   * 読みの範囲の後ろの改行は、範囲を描く先頭の字のノードに付く。
+   * 竪点のグループの中の字には付かず、グループの最後の字の後ろはグループのノードに付く。
+   * 知らない印は読み飛ばせばよく、AIR を読む adapter が無視しても今と同じに描ける。
+   */
+  lineBreakAfter?: true;
 }
 
 // ============================================================================
@@ -126,6 +134,8 @@ export interface AIRTatetenGroupNode {
   children: (AIRTokenNode | AIRTatetenSeparator)[];
   /** tateten と読み範囲が重複する場合の集約情報 */
   rangeInfo?: AIRRangeInfo;
+  /** このグループの直後で行を改める (linebreak の注記)。付かないときはキーごと無い */
+  lineBreakAfter?: true;
 }
 
 // ============================================================================

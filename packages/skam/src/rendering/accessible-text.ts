@@ -51,6 +51,11 @@ export type AccessibleNote =
 export interface AccessibleUnit {
   text: string;
   notes: AccessibleNote[];
+  /**
+   * この単位の直後で行を改める (linebreak の注記)。付かないときはキーごと無い。
+   * 文字列にするときは、ブロックの区切りと同じ半角空白を 1 つ入れる。
+   */
+  lineBreakAfter?: true;
 }
 
 /**
@@ -91,6 +96,13 @@ function makeUnit(text: string, notes: AccessibleNote[]): AccessibleUnit {
   // Array.prototype.sort は安定なので、同じ kind の note は元の順序を保つ
   const sorted = [...notes].sort((a, b) => orderOf(a) - orderOf(b));
   return { text, notes: sorted.map((n) => Object.freeze(n)) };
+}
+
+/** 単位の並びの最後の単位に、行を改める印を付ける。単位が無ければ (範囲に畳まれた字など) 何もしない */
+function withLineBreakAfter(units: AccessibleUnit[], lineBreakAfter: boolean): AccessibleUnit[] {
+  const last = units[units.length - 1];
+  if (!lineBreakAfter || !last) return units;
+  return [...units.slice(0, -1), { ...last, lineBreakAfter: true }];
 }
 
 // ============================================================================
@@ -189,6 +201,11 @@ function rangeText(range: AIRRangeInfo, fallback: string): string {
 // ============================================================================
 
 function describeTokenNode(node: AIRTokenNode): AccessibleUnit | undefined {
+  const unit = describeTokenNodeUnit(node);
+  return unit && node.lineBreakAfter ? { ...unit, lineBreakAfter: true } : unit;
+}
+
+function describeTokenNodeUnit(node: AIRTokenNode): AccessibleUnit | undefined {
   if (node.rangeConsumed) return undefined;
   const range = node.rangeInfo;
   const notes = describeSlots(node.slots, true, range);
@@ -210,6 +227,10 @@ function describeSeparator(separator: AIRTatetenSeparator): AccessibleUnit {
  * 範囲全体を 1 単位にする。範囲の中の区切りは、その単位の後に続ける。
  */
 function describeTatetenGroup(group: AIRTatetenGroupNode): AccessibleUnit[] {
+  return withLineBreakAfter(describeTatetenGroupUnits(group), group.lineBreakAfter === true);
+}
+
+function describeTatetenGroupUnits(group: AIRTatetenGroupNode): AccessibleUnit[] {
   const range = group.rangeInfo;
   const out: AccessibleUnit[] = [];
 
@@ -269,7 +290,15 @@ function describeHighlightGroup(group: AIRHighlightGroupNode): AccessibleUnit[] 
       if (unit) out.push(unit);
     }
   }
-  out.push(makeUnit('', [{ kind: 'highlightEnd' }]));
+  // 最後の子の後ろの改行は、傍線の終わりの後ろに置く (html は span を閉じた後に改行する)
+  const last = out[out.length - 1];
+  const breakAtEnd = last !== undefined && out.length > 1 && last.lineBreakAfter === true;
+  if (breakAtEnd) {
+    const { lineBreakAfter: _removed, ...rest } = last;
+    out[out.length - 1] = rest;
+  }
+  const end = makeUnit('', [{ kind: 'highlightEnd' }]);
+  out.push(breakAtEnd ? { ...end, lineBreakAfter: true } : end);
   return out;
 }
 
@@ -365,6 +394,7 @@ function formatUnit(
  * 読み上げ用の構造を、日本語の文章にする。
  *
  * - 単位の中は本文と注記の言葉を「、」でつなぎ、単位の終わりに「。」を置く。ブロックの間は半角空白 1 つ。
+ *   `lineBreakAfter` の単位の後ろにも、同じ半角空白を 1 つ入れる。
  * - `labels` で kind ごとに言葉を上書きできる（own property だけを見る）。
  *   空文字・例外・string 以外を返した注記は出さない。例外は外に出ない。
  * - 本文が空で、出す注記も無い単位は出さない。すべての単位が出ないブロックは、区切りの空白も出さない。
@@ -380,7 +410,18 @@ export function formatAccessibleText(
 ): string {
   const blockTexts: string[] = [];
   for (const block of blocks) {
-    const text = block.units.map((unit) => formatUnit(unit, labels) ?? '').join('');
+    let text = '';
+    // 改行の空白は、次に出す単位の前に入れる。ブロックの末尾には改行を置けないので、末尾の空白にはならない
+    let pendingBreak = false;
+    for (const unit of block.units) {
+      const formatted = formatUnit(unit, labels);
+      if (formatted !== undefined) {
+        if (pendingBreak && text !== '') text += ' ';
+        pendingBreak = false;
+        text += formatted;
+      }
+      if (unit.lineBreakAfter) pendingBreak = true;
+    }
     if (text !== '') blockTexts.push(text);
   }
   return blockTexts.join(' ');

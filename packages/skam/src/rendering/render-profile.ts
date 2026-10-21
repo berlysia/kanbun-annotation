@@ -7,7 +7,7 @@
 
 import type { AIRRenderProfile } from './air-types.js';
 
-/** 表示要素の制御プロファイル（13 個の真偽値） */
+/** 表示要素の制御プロファイル（14 個の真偽値） */
 export type RenderProfile = AIRRenderProfile;
 
 /** プリセット名 */
@@ -16,7 +16,7 @@ export type RenderProfileName = 'full' | 'learningBasic' | 'learningHint';
 /**
  * `resolveRenderProfile` が受け付ける入力。次の 2 つの形がある。
  *
- * - 部分指定: 13 個のキーの一部を書く。**書かなかったキーは full（すべて表示）になる**。
+ * - 部分指定: 14 個のキーの一部を書く。**書かなかったキーは full（すべて表示）になる**。
  *   キーの書き忘れや削除は、隠すつもりの注記を表示する側に倒れる。
  * - `{ base, overrides? }`: プリセットから出発し、`overrides` で一部を変える。
  *   この形は安定した契約で、出題のように注記を隠す用途ではこちらを使う。
@@ -44,6 +44,7 @@ const PROFILE_KEYS = [
   'soegana',
   'highlight',
   'ref',
+  'linebreak',
 ] as const satisfies readonly RenderProfileKey[];
 
 // RenderProfile と PROFILE_KEYS が過不足なく一致することを型だけで確かめる。
@@ -57,7 +58,7 @@ const keysAreExhaustive: KeysAreExhaustive = true;
 void keysAreExhaustive;
 
 /**
- * 表示設定で使える 13 個のキー名 (凍結済み)。
+ * 表示設定で使える 14 個のキー名 (凍結済み)。
  *
  * キー名は公開の語彙で、0.x でも改名・削除しない (ADR-033)。並びは契約外で、集合として扱う。
  * キーを足すときは末尾に足す。
@@ -151,6 +152,7 @@ const FULL_PROFILE: Readonly<RenderProfile> = Object.freeze({
   soegana: true,
   highlight: true,
   ref: true,
+  linebreak: true,
 });
 
 /** 学習用基本プロファイル（返り点のみ） */
@@ -168,6 +170,7 @@ const LEARNING_BASIC_PROFILE: Readonly<RenderProfile> = Object.freeze({
   soegana: false,
   highlight: true,
   ref: true,
+  linebreak: true,
 });
 
 /** 学習用ヒント付きプロファイル（返り点+送り仮名+再読文字） */
@@ -185,6 +188,7 @@ const LEARNING_HINT_PROFILE: Readonly<RenderProfile> = Object.freeze({
   soegana: true,
   highlight: true,
   ref: true,
+  linebreak: true,
 });
 
 /** プリセットプロファイル（凍結済み） */
@@ -321,7 +325,7 @@ function resolveBaseForm(snapshot: Map<string, unknown>): RenderProfile {
 }
 
 /**
- * 表示設定を検証して、13 個の真偽値がそろった凍結済みの profile にする。
+ * 表示設定を検証して、14 個の真偽値がそろった凍結済みの profile にする。
  *
  * - 入力は部分指定か `{ base, overrides }`（{@link RenderProfileInput}）。`{ base, overrides }` の形は安定した契約。
  * - 部分指定は full に重なる。書かなかったキーは表示される側に倒れる。

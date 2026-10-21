@@ -5,7 +5,16 @@
  */
 
 import type { SKAMDocument, Mark, RefMark, Reading } from '@kanbun-skam/skam';
-import type { AccessibleLabels, Spacing } from '@kanbun-skam/skam/rendering';
+import {
+  resolveExtensions,
+  type HideQuizOption,
+  type SKAMExtensionDefinition,
+} from '@kanbun-skam/skam/extensions';
+import type {
+  AccessibleLabels,
+  RenderExtensionOptions,
+  Spacing,
+} from '@kanbun-skam/skam/rendering';
 import { groupTokensByBlock, resolveRefValues } from '@kanbun-skam/skam/rendering';
 import { getDefaultStyles } from './styles.js';
 import type {
@@ -114,6 +123,23 @@ export interface RenderOptions {
    * @experimental
    */
   inlineStyles?: boolean;
+  /**
+   * 出題の印 (学習・教育用拡張の `ext.edu.quiz`) の付いた注記を隠す (experimental)
+   *
+   * - `true`: 印の付いた注記をすべて隠す
+   * - 名前の配列: 問いの名前がその中にある印の注記を隠す
+   *
+   * 隠した注記は占める場所を残し、中身を 1 字ずつ空白に置き換える (字数は空白の数から分かる)。
+   * 文書が `extensions` に `edu` を挙げているときだけ効く。隠すのは表示の制御で、秘匿ではない:
+   * 文書そのものと、`readingLayerSource: 'readings'` を明示した読み上げ層には答えが残る。
+   * 渡して `readingLayerSource` を書かないときは、読み上げ層も `'display'` にする。
+   * 不正な値は TypeError。
+   *
+   * @experimental
+   */
+  hideQuiz?: HideQuizOption;
+  /** 既定の束 (`@kanbun-skam/skam/extensions`) に足す拡張の定義。名前が束と重なれば TypeError @experimental */
+  extensions?: readonly SKAMExtensionDefinition[];
 }
 
 /**
@@ -185,6 +211,23 @@ export interface RenderHTMLOptions {
   displayLang?: string;
   /** style 属性を出すか (default: true)。`RenderOptions.inlineStyles` を参照 @experimental */
   inlineStyles?: boolean;
+  /**
+   * 出題の印 (学習・教育用拡張の `ext.edu.quiz`) の付いた注記を隠す (experimental)
+   *
+   * - `true`: 印の付いた注記をすべて隠す
+   * - 名前の配列: 問いの名前がその中にある印の注記を隠す
+   *
+   * 隠した注記は占める場所を残し、中身を 1 字ずつ空白に置き換える (字数は空白の数から分かる)。
+   * 文書が `extensions` に `edu` を挙げているときだけ効く。隠すのは表示の制御で、秘匿ではない:
+   * 文書そのものと、`readingLayerSource: 'readings'` を明示した読み上げ層には答えが残る。
+   * 渡して `readingLayerSource` を書かないときは、読み上げ層も `'display'` にする。
+   * 不正な値は TypeError。
+   *
+   * @experimental
+   */
+  hideQuiz?: HideQuizOption;
+  /** 既定の束 (`@kanbun-skam/skam/extensions`) に足す拡張の定義。名前が束と重なれば TypeError @experimental */
+  extensions?: readonly SKAMExtensionDefinition[];
 }
 
 /**
@@ -295,6 +338,16 @@ function renderRefNotes(
 // Main API
 // ============================================================================
 
+/** 拡張が決める「隠す所」の判定に渡すもの。hideQuiz は学習・教育用拡張 (edu) の選択肢 */
+function extensionRenderOptions(options: RenderHTMLOptions): RenderExtensionOptions {
+  return {
+    extensions: [...resolveExtensions(options.extensions).values()],
+    ...(options.hideQuiz !== undefined
+      ? { extensionOptions: { edu: { hideQuiz: options.hideQuiz } } }
+      : {}),
+  };
+}
+
 function renderDocumentHtml(
   doc: SKAMDocument,
   options: RenderHTMLOptions
@@ -315,6 +368,8 @@ function renderDocumentHtml(
   const rubyMethod = options.rubyMethod ?? 'grid';
   const displayLang = options.displayLang ?? 'ja';
 
+  const extensionRender = extensionRenderOptions(options);
+
   // Display層
   const displayResult = renderDisplayLayer(
     doc,
@@ -323,15 +378,19 @@ function renderDocumentHtml(
     inline,
     interactive,
     rubyMethod,
-    options.inlineStyles ?? true
+    options.inlineStyles ?? true,
+    extensionRender
   );
   const displayTag = inline ? 'span' : 'div';
   const displayHtml = `<${displayTag} class="${prefix}-display" lang="${displayLang}" aria-hidden="true">${displayResult.tokens}</${displayTag}>`;
 
   // 読み層。'display' は表示層と同じ profile から作り、doc.readings も白文も参照しない
+  // hideQuiz を渡して読み上げ層の出どころを書かないときは、答えを含む readings ではなく表示層から作る
+  const readingSource =
+    options.readingLayerSource ?? (options.hideQuiz !== undefined ? 'display' : 'readings');
   const readingText =
-    options.readingLayerSource === 'display'
-      ? buildReadingText(doc, profile, options.accessibleLabels)
+    readingSource === 'display'
+      ? buildReadingText(doc, profile, options.accessibleLabels, extensionRender)
       : getReadingsText(doc);
   const readingHtml = includeReadingLayer
     ? renderReadingLayerElement(readingText, prefix, inline)

@@ -13,6 +13,7 @@ import {
   formatAccessibleText,
   type AIRDocument,
   type AccessibleLabels,
+  type RenderExtensionOptions,
   type RenderProfile,
 } from '@kanbun-skam/skam/rendering';
 import { escapeHtml } from './html-utils.js';
@@ -67,9 +68,10 @@ export function formatReadingText(
 export function buildReadingText(
   doc: SKAMDocument,
   profile: RenderProfile,
-  labels: Partial<AccessibleLabels> | undefined
+  labels: Partial<AccessibleLabels> | undefined,
+  extensions?: RenderExtensionOptions
 ): string {
-  return formatReadingText(buildAnnotationIR(doc, profile), labels);
+  return formatReadingText(buildAnnotationIR(doc, profile, extensions), labels);
 }
 
 /** 読み上げ層の要素。文字列が空なら要素を出さない。文字列は escapeHtml を 1 回通す */

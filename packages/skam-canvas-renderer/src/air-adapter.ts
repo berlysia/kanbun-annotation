@@ -13,6 +13,7 @@ import type {
   AIRTatetenGroupNode,
   AIRTatetenSeparator,
   AIRHighlightGroupNode,
+  AIRHiddenSlot,
   AIRRangeInfo,
 } from '@kanbun-skam/skam/rendering';
 
@@ -56,29 +57,48 @@ function convertTokenSlots(airNode: AIRTokenNode): TokenSlots {
   return slots;
 }
 
+/** slot を隠す印を、付ける / 外す。範囲の値を動かした先で、隠すかどうかを合わせるために使う */
+function setSlotHidden(node: CanvasTokenNode, slot: AIRHiddenSlot, hidden: boolean): void {
+  const rest = (node.hiddenSlots ?? []).filter((name) => name !== slot);
+  const next = hidden ? [...rest, slot] : rest;
+  if (next.length > 0) node.hiddenSlots = next;
+  else delete node.hiddenSlots;
+}
+
 function convertTokenNode(airNode: AIRTokenNode): CanvasTokenNode {
-  return {
+  const node: CanvasTokenNode = {
     type: 'token',
     token: airNode.token,
     slots: convertTokenSlots(airNode),
   };
+  if (airNode.hiddenSlots) node.hiddenSlots = [...airNode.hiddenSlots];
+  // 範囲の値を置く字は、範囲の注記の印で隠すかを決める
+  if (airNode.rangeInfo?.yomigana) setSlotHidden(node, 'ruby', !!airNode.rangeInfo.yomigana.hidden);
+  return node;
 }
 
 // ============================================================================
 // Tateten 変換
 // ============================================================================
 
-function convertTatetenSeparator(airSep: AIRTatetenSeparator): CanvasTatetenSeparator {
+function convertTatetenSeparator(
+  airSep: AIRTatetenSeparator,
+  groupHidden: boolean
+): CanvasTatetenSeparator {
   const sep: CanvasTatetenSeparator = { type: 'tateten-separator' };
   if (airSep.kaeri) {
     sep.kaeri = airSep.kaeri;
   }
+  if (groupHidden) sep.hidden = true;
+  if (airSep.kaeriHidden) sep.kaeriHidden = true;
   return sep;
 }
 
 function convertTatetenGroup(airGroup: AIRTatetenGroupNode): CanvasTatetenGroupNode {
   const children: (CanvasTokenNode | CanvasTatetenSeparator)[] = airGroup.children.map((child) =>
-    child.type === 'token' ? convertTokenNode(child) : convertTatetenSeparator(child)
+    child.type === 'token'
+      ? convertTokenNode(child)
+      : convertTatetenSeparator(child, airGroup.hidden === true)
   );
 
   // tateten + range 重複時: rangeInfo を先頭トークンに適用
@@ -136,29 +156,35 @@ function applyRangeInfoToTokens(
       ruby: rangeInfo.yomigana.value,
       rubySpan: rangeInfo.yomigana.span,
     };
+    setSlotHidden(firstToken, 'ruby', !!rangeInfo.yomigana.hidden);
     // 後続トークンの ruby をクリア
     for (const t of tokenNodes.slice(1)) {
       const { ruby: _, rubySpan: __, ...rest } = t.slots;
       t.slots = rest;
+      setSlotHidden(t, 'ruby', false);
     }
   }
 
   // okurigana: last concentration
   if (rangeInfo.okurigana) {
     lastToken.slots = { ...lastToken.slots, okuri: rangeInfo.okurigana.value };
+    setSlotHidden(lastToken, 'okuri', !!rangeInfo.okurigana.hidden);
     // 先行トークンの okuri をクリア
     for (const t of tokenNodes.slice(0, -1)) {
       const { okuri: _, ...rest } = t.slots;
       t.slots = rest;
+      setSlotHidden(t, 'okuri', false);
     }
   }
 
   // soegana: last concentration
   if (rangeInfo.soegana) {
     lastToken.slots = { ...lastToken.slots, soegana: rangeInfo.soegana.value };
+    setSlotHidden(lastToken, 'soegana', !!rangeInfo.soegana.hidden);
     for (const t of tokenNodes.slice(0, -1)) {
       const { soegana: _, ...rest } = t.slots;
       t.slots = rest;
+      setSlotHidden(t, 'soegana', false);
     }
   }
 }
@@ -441,27 +467,33 @@ function applyNonTatetenRangeConcentration(
         ruby: rangeInfo.yomigana.value,
         rubySpan: rangeInfo.yomigana.span,
       };
+      setSlotHidden(firstToken, 'ruby', !!rangeInfo.yomigana.hidden);
       for (const t of canvasTokens.slice(1)) {
         const { ruby: _, rubySpan: __, ...rest } = t.slots;
         t.slots = rest;
+        setSlotHidden(t, 'ruby', false);
       }
     }
 
     // okurigana: last concentration
     if (rangeInfo.okurigana) {
       lastToken.slots = { ...lastToken.slots, okuri: rangeInfo.okurigana.value };
+      setSlotHidden(lastToken, 'okuri', !!rangeInfo.okurigana.hidden);
       for (const t of canvasTokens.slice(0, -1)) {
         const { okuri: _, ...rest } = t.slots;
         t.slots = rest;
+        setSlotHidden(t, 'okuri', false);
       }
     }
 
     // soegana: last concentration
     if (rangeInfo.soegana) {
       lastToken.slots = { ...lastToken.slots, soegana: rangeInfo.soegana.value };
+      setSlotHidden(lastToken, 'soegana', !!rangeInfo.soegana.hidden);
       for (const t of canvasTokens.slice(0, -1)) {
         const { soegana: _, ...rest } = t.slots;
         t.slots = rest;
+        setSlotHidden(t, 'soegana', false);
       }
     }
   }

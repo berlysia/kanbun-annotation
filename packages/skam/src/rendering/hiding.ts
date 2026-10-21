@@ -7,6 +7,7 @@
 
 import type { Mark, SKAMDocument } from '../index.js';
 import type { HiddenParts, SKAMExtensionDefinition } from '../extensions/types.js';
+import type { AIRRenderProfile } from './air-types.js';
 import type { TokenMarks } from './mark-lookup.js';
 
 /** 描画の拡張に関する選択肢 */
@@ -23,6 +24,24 @@ export interface Hiding {
   parts(tokenMarks: TokenMarks): HiddenParts | undefined;
   /** 注記 1 つを隠すか */
   isHidden(mark: Mark): boolean;
+}
+
+/** 注記の種類と、profile のキーが違う種類 */
+const PROFILE_KEY_OF_TYPE: Readonly<Record<string, keyof AIRRenderProfile>> = {
+  kaeri: 'kaeriten',
+};
+
+/**
+ * profile で有効な種類の注記だけを残す。画面に出ない注記は、隠す判定に影響しない。
+ * `Hiding.parts` に渡す前に使う (AIR と html の直接の経路で同じ判定にするため)
+ */
+export function visibleTokenMarks(tokenMarks: TokenMarks, profile: AIRRenderProfile): TokenMarks {
+  const visible = new Map<Mark['type'], readonly Mark[]>();
+  for (const [type, marks] of tokenMarks) {
+    const key = PROFILE_KEY_OF_TYPE[type] ?? (type as keyof AIRRenderProfile);
+    if (profile[key]) visible.set(type, marks);
+  }
+  return visible;
 }
 
 const NO_OPTIONS: unknown = undefined;

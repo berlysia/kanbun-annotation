@@ -14,9 +14,9 @@ import type {
 } from './render-tree-types.js';
 import type { RenderProfile, RubyMethod } from './render-config.js';
 import { resolveEmphasisCharacter, canBreakBefore } from '@kanbun-skam/skam/rendering';
-import type { MarkLookup } from '@kanbun-skam/skam/rendering';
+import type { Hiding, MarkLookup } from '@kanbun-skam/skam/rendering';
 import { HIGHLIGHT_STYLES } from '@kanbun-skam/skam';
-import { escapeHtml, generateEmphasisMarks } from './html-utils.js';
+import { blankOut, escapeHtml, generateEmphasisMarks } from './html-utils.js';
 import { safeCssKeyword } from './safe.js';
 import { renderToken } from './token-renderer.js';
 import { emphasisStyleAttributes } from './style-data.js';
@@ -33,6 +33,8 @@ export interface RenderTreeContext {
   inlineStyles: boolean;
   refValueMap: Map<RefMark, string>;
   highlightRefIds: Set<string>;
+  /** 拡張 (出題の印) が隠す所の判定。宣言の無い文書と、拡張を渡さないときは無い */
+  hiding?: Hiding;
 }
 
 // ---------------------------------------------------------------------------
@@ -81,6 +83,7 @@ function callRenderToken(
       interactive: ctx.interactive,
       rubyMethod: ctx.rubyMethod,
       inlineStyles: ctx.inlineStyles,
+      ...(ctx.hiding ? { hiding: ctx.hiding } : {}),
     },
     node.rangeCtx,
     ctx.refValueMap,
@@ -102,14 +105,36 @@ interface TatetenGroupInner {
   innerHtml: string;
   /** Extracted suffix HTML (empty if no suffix) */
   collectedSuffix: string;
-  /** Escaped yomigana text (empty if no yomigana) */
+  /** Escaped yomigana text (empty if no yomigana). A hidden yomigana is blanked out instead */
   yomigana: string;
+  /** 拡張 (出題の印) が隠す yomigana。ruby の要素に quiz-hidden と aria-hidden を付ける */
+  yomiganaHidden: boolean;
   /** Interactive data attributes string */
   dataAttrs: string;
   /** Emphasis row HTML for grid mode (empty if no emphasis) */
   emphasisRowHtml: string;
   /** Emphasis style string for ruby mode (undefined if no emphasis) */
   groupEmphasisStyle?: string;
+}
+
+/**
+ * 読み範囲が竪点のグループと重なるときの、グループ全体の yomigana。
+ * 拡張 (出題の印) が隠すときは、中身を空白に置き換える (escape は要らない)
+ */
+function resolveGroupYomigana(
+  node: TatetenGroupNode,
+  ctx: RenderTreeContext
+): { yomigana: string; yomiganaHidden: boolean } {
+  const rangeCtx = node.rangeCtx;
+  const firstItem = node.items[0];
+  if (!rangeCtx?.yomiganaBaseText || !firstItem) return { yomigana: '', yomiganaHidden: false };
+  // yomiganaBaseText はベーステキストなので、yomigana の値は先頭トークンの mark から取得
+  const raw = ctx.marks
+    .filter((m) => m.type === 'yomigana' && 'anchor' in m && m.anchor.from === firstItem.token.id)
+    .map((m) => ('value' in m ? (m as { value: string }).value : ''))
+    .join('');
+  const yomiganaHidden = rangeCtx.yomiganaHidden === true && raw !== '';
+  return { yomigana: yomiganaHidden ? blankOut(raw) : escapeHtml(raw), yomiganaHidden };
 }
 
 function buildTatetenGroupInner(node: TatetenGroupNode, ctx: RenderTreeContext): TatetenGroupInner {
@@ -165,29 +190,19 @@ function buildTatetenGroupInner(node: TatetenGroupNode, ctx: RenderTreeContext):
     if (i < tokenResults.length - 1) {
       // セパレータ: 常に tateten-sep ラッパーで囲み、vertical-align を suffix-row と統一
       const kaeri = separatorKaeri[i] ?? '';
+      // 隠す竪点は、記号の字を空白にする CSS (quiz-hidden) の付いた同じ要素で場所を残す
+      const markClass = node.hidden
+        ? `${prefix}-tateten-mark ${prefix}-quiz-hidden" aria-hidden="true`
+        : `${prefix}-tateten-mark`;
       parts.push(
-        `<span class="${prefix}-tateten-sep"><span class="${prefix}-tateten-mark"></span>${kaeri}</span>`
+        `<span class="${prefix}-tateten-sep"><span class="${markClass}"></span>${kaeri}</span>`
       );
     }
   }
 
   // 読み範囲が重複する場合の yomigana テキスト取得
   const rangeCtx = node.rangeCtx;
-  const yomigana = rangeCtx?.yomiganaBaseText
-    ? escapeHtml(
-        // yomiganaBaseText はベーステキストなので、yomigana の値は先頭トークンの mark から取得
-        (() => {
-          const firstItem = node.items[0];
-          if (!firstItem) return '';
-          const yomiganaMarks = ctx.marks.filter(
-            (m) => m.type === 'yomigana' && 'anchor' in m && m.anchor.from === firstItem.token.id
-          );
-          return yomiganaMarks
-            .map((m) => ('value' in m ? (m as { value: string }).value : ''))
-            .join('');
-        })()
-      )
-    : '';
+  const { yomigana, yomiganaHidden } = resolveGroupYomigana(node, ctx);
 
   // グループ内トークンの emphasis スタイルを収集（グループレベルで適用するため）
   const groupEmphasisStyle = suppressEmphasis
@@ -215,6 +230,7 @@ function buildTatetenGroupInner(node: TatetenGroupNode, ctx: RenderTreeContext):
     innerHtml: parts.join(''),
     collectedSuffix,
     yomigana,
+    yomiganaHidden,
     dataAttrs,
     emphasisRowHtml,
   };
@@ -246,21 +262,24 @@ function wrapInTatetenRuby(
   useRbClass: boolean
 ): string {
   const { prefix } = ctx;
+  const rubyAttrs = inner.yomiganaHidden
+    ? `class="${prefix}-ruby ${prefix}-quiz-hidden" aria-hidden="true"`
+    : `class="${prefix}-ruby"`;
 
   if (ctx.rubyMethod === 'grid') {
     if (inner.groupEmphasisStyle && inner.emphasisRowHtml) {
-      return `<span class="${prefix}-ruby-grid--emphasis"${inner.dataAttrs}>${inner.emphasisRowHtml}<span class="${prefix}-ruby">${inner.yomigana}</span>${baseHtml}${suffixHtml}</span>`;
+      return `<span class="${prefix}-ruby-grid--emphasis"${inner.dataAttrs}>${inner.emphasisRowHtml}<span ${rubyAttrs}>${inner.yomigana}</span>${baseHtml}${suffixHtml}</span>`;
     }
-    return `<span class="${prefix}-ruby-grid"${inner.dataAttrs}><span class="${prefix}-ruby">${inner.yomigana}</span>${baseHtml}${suffixHtml}</span>`;
+    return `<span class="${prefix}-ruby-grid"${inner.dataAttrs}><span ${rubyAttrs}>${inner.yomigana}</span>${baseHtml}${suffixHtml}</span>`;
   } else {
     // ruby モード
     let result: string;
     if (useRbClass) {
       // standalone: <rb class="tateten-group"> を使用
-      result = `<ruby${inner.dataAttrs}><rb class="${prefix}-tateten-group">${inner.innerHtml}</rb><rt class="${prefix}-ruby">${inner.yomigana}</rt>${suffixHtml}</ruby>`;
+      result = `<ruby${inner.dataAttrs}><rb class="${prefix}-tateten-group">${inner.innerHtml}</rb><rt ${rubyAttrs}>${inner.yomigana}</rt>${suffixHtml}</ruby>`;
     } else {
       // highlight: baseHtml をそのまま <rb> 内に配置
-      result = `<ruby${inner.dataAttrs}><rb>${baseHtml}</rb><rt class="${prefix}-ruby">${inner.yomigana}</rt>${suffixHtml}</ruby>`;
+      result = `<ruby${inner.dataAttrs}><rb>${baseHtml}</rb><rt ${rubyAttrs}>${inner.yomigana}</rt>${suffixHtml}</ruby>`;
     }
     if (inner.groupEmphasisStyle) {
       result = `<span class="${prefix}-emphasis"${emphasisStyleAttributes(inner.groupEmphasisStyle, ctx.inlineStyles)}>${result}</span>`;

@@ -29,19 +29,21 @@ export function draw(
   for (const column of documentLayout.columns) {
     for (const child of column.children) {
       if (child.type === 'tateten-separator') {
-        // Draw tateten separator character (〼 U+3190)
-        drawChar(
-          ctx,
-          '\u3190',
-          child.x,
-          child.y,
-          child.fontSize,
-          options.textColor,
-          options.fontFamily,
-          options.emAscentRatio
-        );
+        // Draw tateten separator character (〼 U+3190)。拡張 (出題の印) が隠す記号と kaeri は描かない
+        if (!child.hidden) {
+          drawChar(
+            ctx,
+            '\u3190',
+            child.x,
+            child.y,
+            child.fontSize,
+            options.textColor,
+            options.fontFamily,
+            options.emAscentRatio
+          );
+        }
         // Draw kaeri on separator if present
-        drawSlotIfPresent(ctx, child.kaeri, options);
+        if (!child.kaeriHidden) drawSlotIfPresent(ctx, child.kaeri, options);
         continue;
       }
 
@@ -57,18 +59,21 @@ export function draw(
         options.emAscentRatio
       );
 
-      // Draw slots
-      drawSlotIfPresent(ctx, child.slots.ruby, options);
-      drawSlotIfPresent(ctx, child.slots.okuri, options);
-      drawSlotIfPresent(ctx, child.slots.soegana, options);
-      drawSlotIfPresent(ctx, child.slots.kaeri, options);
-      drawKutotenSlotIfPresent(ctx, child.slots.kutoten, options);
+      // Draw slots（拡張 (出題の印) が隠す slot は、場所を測った後で描かない）
+      const hidden = child.hiddenSlots;
+      const visible = (slot: NonNullable<typeof hidden>[number], layout?: SlotLayout) =>
+        hidden?.includes(slot) ? undefined : layout;
+      drawSlotIfPresent(ctx, visible('ruby', child.slots.ruby), options);
+      drawSlotIfPresent(ctx, visible('okuri', child.slots.okuri), options);
+      drawSlotIfPresent(ctx, visible('soegana', child.slots.soegana), options);
+      drawSlotIfPresent(ctx, visible('kaeri', child.slots.kaeri), options);
+      drawKutotenSlotIfPresent(ctx, visible('kutoten', child.slots.kutoten), options);
       drawSlotIfPresent(ctx, child.slots.emphasis, options);
-      drawSlotIfPresent(ctx, child.slots.saidokuUnder, options);
-      drawSlotIfPresent(ctx, child.slots.saidokuOkuri2, options);
+      drawSlotIfPresent(ctx, visible('saidokuUnder', child.slots.saidokuUnder), options);
+      drawSlotIfPresent(ctx, visible('saidokuOkuri2', child.slots.saidokuOkuri2), options);
       drawSlotIfPresent(ctx, child.slots.ref, options);
       for (const dot of child.okototen ?? []) {
-        drawOkototen(ctx, dot, options.textColor);
+        if (!dot.hidden) drawOkototen(ctx, dot, options.textColor);
       }
     }
 

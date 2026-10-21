@@ -44,7 +44,7 @@ import type {
 } from './air-types.js';
 import type { RangeMarkGroup } from './types.js';
 
-import { createMarkLookup, type MarkLookup, type TokenMarks } from './mark-lookup.js';
+import { createMarkLookup, type MarkLookup } from './mark-lookup.js';
 import { getRangeMarkGroups, getTatetenGroups, getHighlightGroups } from './mark-groups.js';
 import { groupTokensByBlock } from './block-utils.js';
 import { getBlockStartMarks } from './block-start.js';
@@ -52,7 +52,12 @@ import { splitKaeriForTateten, joinKaeriValues } from './kaeri.js';
 import { resolveEmphasisCharacter } from './emphasis.js';
 import { resolveRefValues } from './ref.js';
 import { resolveOkototenCell } from './okototen.js';
-import { createHiding, type Hiding, type RenderExtensionOptions } from './hiding.js';
+import {
+  createHiding,
+  visibleTokenMarks,
+  type Hiding,
+  type RenderExtensionOptions,
+} from './hiding.js';
 
 // ============================================================================
 // Token slot 解決
@@ -68,7 +73,7 @@ function resolveTokenSlots(
   const tokenMarks = lookupMarks(tokenId);
   const slots: AIRTokenSlots = {};
   // 隠す判定は、画面に出す注記 (profile で有効なもの) だけを見る
-  const hidden: HiddenParts | undefined = hiding?.parts(visibleMarks(tokenMarks, profile));
+  const hidden: HiddenParts | undefined = hiding?.parts(visibleTokenMarks(tokenMarks, profile));
 
   if (profile.yomigana) {
     const yomiganaMarks = (tokenMarks.get('yomigana') ?? []) as YomiganaMark[];
@@ -155,20 +160,6 @@ function resolveTokenSlots(
   }
 
   return { slots, hiddenSlots: hidden?.slots ? [...hidden.slots] : [] };
-}
-
-/** profile で有効な種類の注記だけを残す。画面に出ない注記は、隠す判定に影響しない */
-const PROFILE_KEY_OF_TYPE: Readonly<Record<string, keyof AIRRenderProfile>> = {
-  kaeri: 'kaeriten',
-};
-
-function visibleMarks(tokenMarks: TokenMarks, profile: AIRRenderProfile): TokenMarks {
-  const visible = new Map<Mark['type'], readonly Mark[]>();
-  for (const [type, marks] of tokenMarks) {
-    const key = PROFILE_KEY_OF_TYPE[type] ?? (type as keyof AIRRenderProfile);
-    if (profile[key]) visible.set(type, marks);
-  }
-  return visible;
 }
 
 // ============================================================================

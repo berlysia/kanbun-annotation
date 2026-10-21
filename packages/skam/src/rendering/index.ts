@@ -93,7 +93,12 @@ export { getBlockStartMarks } from './block-start.js';
 export { buildAnnotationIR } from './build-annotation-ir.js';
 
 // 拡張が決める隠す所 (renderer が AIR と同じ判定を使う)
-export { createHiding, type Hiding, type RenderExtensionOptions } from './hiding.js';
+export {
+  createHiding,
+  visibleTokenMarks,
+  type Hiding,
+  type RenderExtensionOptions,
+} from './hiding.js';
 
 // 改行制御
 export { canBreakBefore } from './line-break.js';

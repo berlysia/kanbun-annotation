@@ -4,10 +4,12 @@
 
 import {
   PROFILES,
+  assertHideQuizOption,
   resolveRenderProfile,
   validateRenderOptions,
 } from '@kanbun-skam/skam-html-renderer';
 import type {
+  HideQuizOption,
   RenderOptions,
   RenderProfile,
   CopyableElement,
@@ -83,6 +85,13 @@ export interface AttributeValues {
    * @experimental
    */
   'reading-layer-source'?: string | null;
+  /**
+   * 任意。省略は null と同じ (隠さない)。空の値はすべて隠し、それ以外は JSON (名前の配列) として読む。
+   * 不正な値は描画しない。
+   *
+   * @experimental
+   */
+  'hide-quiz'?: string | null;
 }
 
 export interface InvalidAttribute {
@@ -96,7 +105,7 @@ export interface BuiltRenderOptions {
   invalid: InvalidAttribute[];
   /**
    * 注記を隠すための属性で、不正なもの。既定値に戻すと隠すつもりの注記が見える側に倒れるので、
-   * 描画しない (fail closed)。profile → include-reading-layer → reading-layer-source の固定順。
+   * 描画しない (fail closed)。profile → include-reading-layer → reading-layer-source → hide-quiz の固定順。
    */
   blocked: InvalidAttribute[];
 }
@@ -130,6 +139,26 @@ function parseReadingLayerSource(value: string): 'readings' | 'display' {
   throw new TypeError('reading-layer-source must be "readings" or "display"');
 }
 
+/**
+ * hide-quiz 属性を解決する。属性が無い (null) ときは呼ばない。
+ * 空の値は「すべて隠す」(true)、それ以外は JSON として読み、html-renderer の検査に通す。
+ * エラーのメッセージに属性の値は含めない
+ */
+function parseHideQuiz(value: string): HideQuizOption {
+  if (value === '') return true;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw new TypeError('hide-quiz must be empty or a JSON array of quiz names');
+  }
+  const checked = assertHideQuizOption(parsed);
+  if (checked === undefined) {
+    throw new TypeError('hide-quiz must be empty or a JSON array of quiz names');
+  }
+  return checked;
+}
+
 function applyHiddenAnnotationAttributes(
   attrs: AttributeValues,
   options: RenderOptions,
@@ -160,6 +189,15 @@ function applyHiddenAnnotationAttributes(
       options.readingLayerSource = parseReadingLayerSource(readingLayerSource);
     } catch (error) {
       blocked.push({ attribute: 'reading-layer-source', error: toTypeError(error) });
+    }
+  }
+
+  const hideQuiz = attrs['hide-quiz'] ?? null;
+  if (hideQuiz !== null) {
+    try {
+      options.hideQuiz = parseHideQuiz(hideQuiz);
+    } catch (error) {
+      blocked.push({ attribute: 'hide-quiz', error: toTypeError(error) });
     }
   }
 }

@@ -36,6 +36,23 @@ const legacy = core.moveLegacyExtToCustom({
 assert.deepEqual(legacy.registeredNameKeys, ['marks[0].ext.edu']);
 assert.deepEqual(legacy.document.marks[0].custom, { edu: { quiz: 'q' } });
 
+// lint: 閉じていない返り点 (二だけ) と、それを指す path
+const unclosed = core.lintSKAMDocument({
+  format: 'skam@0.1',
+  tokens: [
+    { id: 't1', text: '學' },
+    { id: 't2', text: '而' },
+  ],
+  blocks: [{ id: 'b1', tokenIds: ['t1', 't2'] }],
+  marks: [{ type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't1' }, value: '\u3193' }],
+  readings: [],
+});
+assert.deepEqual(
+  unclosed.map((d) => [d.code, d.path]),
+  [[core.KAERI_UNCLOSED, 'marks[0]']]
+);
+assert.equal(core.KAERI_UNCLOSED, 'KAERI_UNCLOSED');
+
 // Node での import は、SSR で import するのと同じ条件になる
 await import('@kanbun-skam/skam-web-component');
 await import('@kanbun-skam/skam-web-component/auto');

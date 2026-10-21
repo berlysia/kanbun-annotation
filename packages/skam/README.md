@@ -83,6 +83,10 @@ assertSKAMDocument(input);
 
 文書の最上位の任意の `lang` は、本文（白文）の言語を表す（例 `ja`、`lzh`、`zh-Hant`）。validator は形を `isLanguageTag` で検査する。SKAM-ML ではルートの `xml:lang` と往復する。html の描画は、`displayLang` を渡さなければ表示層の `lang` にこの値を使う。
 
+## 未完成の検査
+
+`lintSKAMDocument(doc)` は、構造として正しい文書のうち、作業が終わっていないように見える内容（読みが 1 つの再読文字、空の仮名、1 字の竪点、閉じていない返り点、参照先の無い傍線の `ref`）を、コード付きの診断（`{ code, path, message }`）の配列で返す。診断は誤りではない。`validateSKAMDocument` か `parse` を通した文書を渡す（中で検証しない。検証を通っていない文書でも例外は出さないが、診断が正しいとは限らない）。コードは今後増えることがある。`validateSKAMDocument` の `warnings` は、後の版で誤りになる書き方の知らせで、これとは別のもの。
+
 ## JSON Schema
 
 文書の JSON Schema（2020-12）を `@kanbun-skam/skam/schema/skam.schema.json` と `@kanbun-skam/skam/schema/ext-edu.schema.json` で配る。`$id`（`urn:kanbun-skam:schema:skam-0.1`、`urn:kanbun-skam:schema:ext-edu-1`）は取りに行かない識別子なので、2 つを検証器に登録してから使い、未解決の `$ref` を取りに行く設定にしない。

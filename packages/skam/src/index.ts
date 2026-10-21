@@ -522,6 +522,18 @@ export {
   BLOCK_START_KAERI_HINT,
 } from './errors.js';
 
+export {
+  type LintCode,
+  type LintDiagnostic,
+  SAIDOKU_SINGLE_READING,
+  SAIDOKU_EMPTY_FORM,
+  EMPTY_KANA,
+  TATETEN_SINGLE_TOKEN,
+  KAERI_UNCLOSED,
+  HIGHLIGHT_REF_MISSING,
+  lintSKAMDocument,
+} from './lint.js';
+
 export { moveLegacyExtToCustom } from './legacy-ext.js';
 
 export { isLanguageTag } from './language-tag.js';

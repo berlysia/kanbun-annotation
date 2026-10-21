@@ -18,7 +18,7 @@
     "lint": "turbo lint",
     "format": "oxfmt .",
     "format:check": "oxfmt --check .",
-    "test": "turbo test",
+    "test": "turbo test --concurrency=16",
     "test:run": "turbo test:run",
     "bench": "pnpm build && pnpm --filter @kanbun-skam/integration-tests bench",
     "test:semantic": "pnpm --filter @kanbun-skam/integration-tests test:semantic",

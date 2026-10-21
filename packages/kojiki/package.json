@@ -1,0 +1,28 @@
+{
+  "name": "@kanbun-skam/kojiki",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Fetch the Kojiki text from a pinned zh.wikisource revision and build SKAM documents from it (bench and Pages)",
+  "type": "module",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsdown",
+    "fetch": "node dist/update-source.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "oxlint src",
+    "test": "vitest",
+    "test:run": "vitest run"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@kanbun-skam/skam": "workspace:*"
+  }
+}

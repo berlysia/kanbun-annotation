@@ -1,7 +1,7 @@
 /**
- * 本文のキャッシュ (.cache/kojiki/kojiki-source.txt) を用意する CLI。`pnpm bench` の前段で走る。
- *
- *   node packages/integration-tests/src/fixtures/kojiki/update-source.ts
+ * 本文のキャッシュ (パッケージ直下の .cache/kojiki-source.txt) を用意する。CLI の入口は cli.ts
+ * (`pnpm --filter @kanbun-skam/kojiki run fetch`、build が先に要る)。`pnpm bench` の前段と、
+ * deploy-playground.yml のページの書き出しで走る。
  *
  * キャッシュが定数の sha256 と一致すれば何もしない (ネットワークを使わない)。無い・空・symlink・
  * 不一致なら、版 (rev) を固定した zh.wikisource の wikitext を取って変換し、変換後の sha256 が
@@ -12,19 +12,13 @@
 import { createHash } from 'node:crypto';
 import { closeSync, constants, mkdirSync, openSync, renameSync, rmSync, writeSync } from 'node:fs';
 import { dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
-import { KOJIKI_CACHE_PATH, KOJIKI_SOURCE_SHA256, readVerifiedSource } from './build-document.ts';
+import { readVerifiedSource } from './build-document.ts';
 import { convertVolumes, KOJIKI_VOLUMES, type KojikiVolume } from './convert-wikitext.ts';
+import { KOJIKI_PAGES } from './source-pin.ts';
 
 const WIKISOURCE_HOST = 'https://zh.wikisource.org';
 const FETCH_TIMEOUT_MS = 30_000;
 const MAX_PAGE_BYTES = 2 * 1024 * 1024;
-
-export const KOJIKI_PAGES = [
-  { volume: '上卷', title: '古事記/上卷', rev: 7906965 },
-  { volume: '中卷', title: '古事記/中卷', rev: 11119047 },
-  { volume: '下卷', title: '古事記/下卷', rev: 3802853 },
-] as const satisfies readonly { volume: KojikiVolume; title: string; rev: number }[];
 
 export function wikitextUrl(rev: number): string {
   return `${WIKISOURCE_HOST}/w/index.php?oldid=${rev}&action=raw`;
@@ -106,7 +100,10 @@ export async function runUpdateSource(options: UpdateSourceOptions): Promise<num
     for (const page of KOJIKI_PAGES) wikitext[page.volume] = await fetchPage(page.rev);
     text = convertVolumes(wikitext);
   } catch (error) {
-    log(`update-source failed: ${errorLabel(error)}`);
+    log(
+      `update-source failed: ${errorLabel(error)}\n` +
+        'Re-run the workflow (workflow_dispatch) once wikisource is reachable.'
+    );
     return 1;
   }
   const actualSha256 = createHash('sha256').update(text).digest('hex');
@@ -115,7 +112,8 @@ export async function runUpdateSource(options: UpdateSourceOptions): Promise<num
       `update-source failed: sha256 of the converted text does not match\n` +
         `  expected ${expectedSha256}\n  actual   ${actualSha256}\n` +
         'The source revision may have been changed or deleted. If you bumped the revision or the ' +
-        'conversion on purpose, update KOJIKI_SOURCE_SHA256 and KOJIKI_TOKEN_COUNT in build-document.ts.'
+        'conversion on purpose, update KOJIKI_SOURCE_SHA256 and KOJIKI_TOKEN_COUNT in source-pin.ts. ' +
+        'Otherwise re-run the workflow (workflow_dispatch) once wikisource is reachable.'
     );
     return 1;
   }
@@ -153,13 +151,4 @@ export async function runUpdateSource(options: UpdateSourceOptions): Promise<num
   log(`sha256 ${actualSha256}`);
   log(`wrote ${cachePath}`);
   return 0;
-}
-
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
-  process.exitCode = await runUpdateSource({
-    cachePath: KOJIKI_CACHE_PATH,
-    expectedSha256: KOJIKI_SOURCE_SHA256,
-    fetchPage: fetchWikitext,
-    log: (line) => console.log(line),
-  });
 }

@@ -42,6 +42,7 @@ interface Step {
   with?: Record<string, unknown>;
   if?: unknown;
   'continue-on-error'?: unknown;
+  'timeout-minutes'?: unknown;
 }
 
 interface Job {
@@ -280,6 +281,69 @@ describe('release.yml', () => {
     const lines = text.split('\n').filter((l) => /^\s*-?\s*uses:/.test(l));
     assert.ok(lines.length > 0);
     for (const line of lines) assert.match(line, /@[0-9a-f]{40} # v\d/, line);
+  });
+});
+
+describe('deploy-playground.yml', () => {
+  const deploy = (): Workflow => loadWorkflow('deploy-playground.yml');
+  const buildSteps = (): Step[] => stepsOf(jobOf(deploy(), 'build'));
+
+  test('(10a) the Kojiki page is built between Build playground and Upload artifact, around its cache', () => {
+    const ids = buildSteps().map((s) => s.id ?? s.name);
+    const at = (id: string): number => {
+      const index = ids.indexOf(id);
+      assert.notEqual(index, -1, `step ${id} is missing`);
+      return index;
+    };
+    const restore = at('kojiki-cache');
+    const page = at('kojiki-page');
+    const save = at('kojiki-cache-save');
+    assert.equal(restore, at('playground') + 1, 'restore comes right after Build playground');
+    assert.equal(page, restore + 1, 'the page build comes right after the restore');
+    assert.equal(save, page + 1, 'the save comes right after the page build');
+    assert.ok(save < at('Upload artifact'), 'the save comes before Upload artifact');
+
+    const pageStep = stepById(jobOf(deploy(), 'build'), 'kojiki-page');
+    assert.equal(pageStep.run, 'pnpm --filter @kanbun-skam/playground build:kojiki');
+    assert.equal(typeof pageStep['timeout-minutes'], 'number');
+    assert.equal(pageStep.if, undefined);
+    assert.equal(pageStep['continue-on-error'], undefined);
+  });
+
+  test('(10b) the cache key comes from source-pin.ts; restore and save use the same path and key', () => {
+    const job = jobOf(deploy(), 'build');
+    const restore = stepById(job, 'kojiki-cache');
+    const save = stepById(job, 'kojiki-cache-save');
+    assert.match(restore.uses ?? '', /^actions\/cache\/restore@/);
+    assert.match(save.uses ?? '', /^actions\/cache\/save@/);
+    assert.equal(restore.with?.['path'], 'packages/kojiki/.cache');
+    assert.equal(save.with?.['path'], restore.with?.['path']);
+    assert.match(
+      String(restore.with?.['key']),
+      /hashFiles\('packages\/kojiki\/src\/source-pin\.ts'\)/
+    );
+    assert.equal(save.with?.['key'], restore.with?.['key']);
+    // 近い key への fallback は、版の違う本文を戻しうる
+    assert.equal(restore.with?.['restore-keys'], undefined);
+    assert.equal(save.if, "steps.kojiki-cache.outputs.cache-hit != 'true'");
+  });
+
+  test('(10c) runs only on a push to master and on workflow_dispatch, never on pull_request', () => {
+    const on = deploy().on as Record<string, unknown>;
+    assert.deepEqual(Object.keys(on).sort(), ['push', 'workflow_dispatch']);
+    assert.deepEqual(on['push'], { branches: ['master'] });
+  });
+
+  test('(10d) every uses is pinned to a full SHA with a version comment', () => {
+    const text = readFileSync(join(WORKFLOWS_DIR, 'deploy-playground.yml'), 'utf8');
+    const lines = text.split('\n').filter((l) => /^\s*-?\s*uses:/.test(l));
+    assert.ok(lines.length > 0);
+    for (const line of lines) assert.match(line, /@[0-9a-f]{40} # v\d/, line);
+  });
+
+  test('(10e) ci.yml does not build the Kojiki page, so CI never needs the network for it', () => {
+    const text = readFileSync(join(WORKFLOWS_DIR, 'ci.yml'), 'utf8');
+    assert.ok(!text.includes('build:kojiki'));
   });
 });
 

@@ -1,8 +1,8 @@
-# 古事記 fixture (描画の性能の計測用)
+# @kanbun-skam/kojiki
 
-古事記の原文を、SKAM の文書にして描画の時間を測る (`pnpm bench`) ための入力。
+古事記の原文を取得し、SKAM の文書に組み立てる。描画の時間を測る bench (`pnpm bench`、`@kanbun-skam/integration-tests`) と、GitHub Pages の古事記のページ (`@kanbun-skam/playground`) が使う。
 
-本文はリポジトリに含めない。`pnpm bench` が計測の前に zh.wikisource の固定した版から取得し、`packages/integration-tests/.cache/kojiki/kojiki-source.txt` にキャッシュする (gitignore)。取得した本文は CC BY-SA 4.0 で、リポジトリのほかの部分の MIT とは別。このディレクトリのコード (変換、取得、組み立て) は MIT。private な `@kanbun-skam/integration-tests` にだけ含まれ、公開パッケージには入らない。
+本文はリポジトリに含めない。`pnpm bench` が計測の前に zh.wikisource の固定した版から取得し、`packages/kojiki/.cache/kojiki-source.txt` にキャッシュする (gitignore)。取得した本文は CC BY-SA 4.0 で、リポジトリのほかの部分の MIT とは別。このパッケージのコード (変換、取得、組み立て) は MIT。private なので公開パッケージには入らない。
 
 ## 帰属表示
 
@@ -47,18 +47,18 @@ wikitext から本文 (`kojiki-source.txt`) への変換 (`convert-wikitext.ts`)
 
 ## 定数と照合
 
-本文 (変換後) の sha256 と token 数は、値をここに書かず `build-document.ts` の `KOJIKI_SOURCE_SHA256` と `KOJIKI_TOKEN_COUNT` に置く (採った日と 3 つの oldid もそこに書いてある)。全文の検査の期待値 (返り点、点線の傍線、上巻の下線と異文の数) は `src/bench/check-kojiki-documents.ts` の `KOJIKI_EXPECTED_COUNTS`。
+本文 (変換後) の sha256 と token 数は、値をここに書かず `src/source-pin.ts` の `KOJIKI_SOURCE_SHA256` と `KOJIKI_TOKEN_COUNT` に置く (採った日と 3 つの oldid もそこに書いてある)。全文の検査の期待値 (返り点、点線の傍線、上巻の下線と異文の数) は `packages/integration-tests/src/bench/check-kojiki-documents.ts` の `KOJIKI_EXPECTED_COUNTS`。
 
-- `update-source.ts` は、キャッシュの sha256 が定数と一致すれば何もしない (「cached」を出す。ネットワークを使わない)。無い・空・symlink・不一致なら 3 ページを取って変換し、変換後の sha256 が定数と一致したときだけ書く。違えば書かずに終了コード 1 で止まり、期待値と実際の値を出す。
+- 取得 CLI (`pnpm --filter @kanbun-skam/kojiki run fetch`。build が先に要る。実体は `src/cli.ts` から出す `dist/update-source.js`) は、キャッシュの sha256 が定数と一致すれば何もしない (「cached」を出す。ネットワークを使わない)。無い・空・symlink・不一致なら 3 ページを取って変換し、変換後の sha256 が定数と一致したときだけ書く。違えば書かずに終了コード 1 で止まり、期待値と実際の値を出す。
 - `buildKojikiDocument` も同じ定数でキャッシュを照合する。照合したバイト列から組み立てる。
 - 全文の検査は `pnpm bench` の準備で走る。CI の `test:run` はネットワークにもキャッシュにも依存せず、変換と組み立ての規則を短い断片で検査する。
 
 ## 運用
 
-- キャッシュは worktree ごとにできる。新しい worktree では初回の `pnpm bench` が取得する。
-- 取得できないとき (wikisource の停止、版の削除など): 定数の sha256 に一致する本文を `packages/integration-tests/.cache/kojiki/kojiki-source.txt` に手で置けば、取得せずに動く。
+- キャッシュは worktree ごとにできる。deploy-playground.yml は `actions/cache` で `packages/kojiki/.cache` を再利用する (key は `src/source-pin.ts` の hash から作る)。新しい worktree では初回の `pnpm bench` が取得する。
+- 取得できないとき (wikisource の停止、版の削除など): 定数の sha256 に一致する本文を `packages/kojiki/.cache/kojiki-source.txt` に手で置けば、取得せずに動く。
 - 版 (rev) を上げるとき:
-  1. `update-source.ts` の `KOJIKI_PAGES` の oldid と、この README の URL を揃える。
-  2. キャッシュを消して `node packages/integration-tests/src/fixtures/kojiki/update-source.ts` を実行する。変換できない記法・字が出れば、行番号つきで止まる (変換の表に足す)。sha256 が違うので 1 度は終了コード 1 で止まり、実際の値が出る。
-  3. 出た sha256 を `KOJIKI_SOURCE_SHA256` に、token 数を `KOJIKI_TOKEN_COUNT` に書き、採った日と oldid のコメントを直す。`KOJIKI_EXPECTED_COUNTS` も直す。
-  4. もう一度 `update-source.ts` を実行して書かれることを確かめ、`pnpm bench` で全文の検査が通ることを確かめる。
+  1. `src/source-pin.ts` の `KOJIKI_PAGES` の oldid と、この README の URL を揃える。
+  2. キャッシュを消して `pnpm --filter @kanbun-skam/kojiki build && pnpm --filter @kanbun-skam/kojiki run fetch` を実行する。変換できない記法・字が出れば、行番号つきで止まる (変換の表に足す)。sha256 が違うので 1 度は終了コード 1 で止まり、実際の値が出る。
+  3. 出た sha256 を `KOJIKI_SOURCE_SHA256` に、token 数を `KOJIKI_TOKEN_COUNT` に書き、採った日と oldid のコメントを直す (どちらも `src/source-pin.ts`)。cache の key が変わり、次のデプロイは取り直す。cache の key が変わり、次のデプロイは取り直す。`KOJIKI_EXPECTED_COUNTS` も直す。
+  4. もう一度 fetch を実行して書かれることを確かめ、`pnpm bench` で全文の検査が通ることを確かめる。

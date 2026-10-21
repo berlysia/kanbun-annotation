@@ -17,8 +17,9 @@ import {
 import { createHash } from 'node:crypto';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { convertVolumes, convertWikitext } from '../fixtures/kojiki/convert-wikitext.ts';
-import { fetchWikitext, KOJIKI_PAGES, runUpdateSource } from '../fixtures/kojiki/update-source.ts';
+import { convertVolumes, convertWikitext } from '../convert-wikitext.ts';
+import { KOJIKI_PAGES } from '../source-pin.ts';
+import { fetchWikitext, runUpdateSource } from '../update-source.ts';
 
 /** エラーの文言が、すべての断片を含むこと */
 function messageOf(run: () => unknown): string {
@@ -261,7 +262,7 @@ describe('runUpdateSource', () => {
     const stale = goodText.replace('甲', '乙');
     writeFileSync(cachePath, stale);
     const { code, log } = await run(cachePath, async (rev) => {
-      if (rev === KOJIKI_PAGES[2].rev) throw new Error(`HTTP 500 for rev ${rev}`);
+      if (rev === KOJIKI_PAGES[2]!.rev) throw new Error(`HTTP 500 for rev ${rev}`);
       return GOOD_WIKITEXT;
     });
     expect(code).toBe(1);

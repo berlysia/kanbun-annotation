@@ -13,6 +13,7 @@ import { closeSync, constants, openSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import type { Block, Mark, SKAMDocument, Token } from '@kanbun-skam/skam';
 import { KOJIKI_VOLUMES, type KojikiVolume } from './convert-wikitext.ts';
+import { KOJIKI_SOURCE_SHA256 } from './source-pin.ts';
 
 export interface BuildOptions {
   /** 省くと全巻 */
@@ -22,21 +23,15 @@ export interface BuildOptions {
 }
 
 /**
- * 本文のキャッシュ。commit しない (packages/integration-tests/.cache/ は gitignore)。
+ * 本文のキャッシュのパス。パッケージの直下の `.cache/kojiki-source.txt` (commit しない)。
+ * `src/` からも `dist/` からも、パッケージの直下から 1 段下のファイルとして同じ場所になる。
  * 取得と書き込みは update-source.ts、worktree ごとにできる。
  */
-export const KOJIKI_CACHE_PATH = fileURLToPath(
-  new URL('../../../.cache/kojiki/kojiki-source.txt', import.meta.url)
-);
+export function getKojikiCachePath(moduleUrl: string): string {
+  return fileURLToPath(new URL('../.cache/kojiki-source.txt', moduleUrl));
+}
 
-/**
- * 本文 (変換後) の sha256 と token 数。2026-10-21 に、zh.wikisource の次の版を update-source.ts で
- * 変換して採った: 古事記/上卷 oldid 7906965、古事記/中卷 oldid 11119047、古事記/下卷 oldid 3802853。
- * 版 (update-source.ts の KOJIKI_PAGES) か変換の規則を変えたら、ここも直す (README.md の手順)。
- */
-export const KOJIKI_SOURCE_SHA256 =
-  'dda1c08a0a5c17100c4a5c147f0a941920e41a44921c6e06efa16c0ad50056cf';
-export const KOJIKI_TOKEN_COUNT = 42387;
+export const KOJIKI_CACHE_PATH: string = getKojikiCachePath(import.meta.url);
 
 /** キャッシュが無い */
 export class KojikiSourceMissingError extends Error {
@@ -51,7 +46,7 @@ export class KojikiSourceMismatchError extends Error {
   constructor(path: string, expected: string, actual: string) {
     super(
       `${path}: sha256 mismatch (expected ${expected}, actual ${actual}). ` +
-        'Run `pnpm bench` (or `node src/fixtures/kojiki/update-source.ts`) to fetch it again.'
+        'Run `pnpm bench` (or `pnpm --filter @kanbun-skam/kojiki run fetch` after a build) to fetch it again.'
     );
     this.expected = expected;
     this.actual = actual;
@@ -70,7 +65,7 @@ export function readVerifiedSource(path: string, expectedSha256: string): string
   } catch (error) {
     if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
       throw new KojikiSourceMissingError(
-        `${path}: not found. Run \`pnpm bench\` (or \`node src/fixtures/kojiki/update-source.ts\`) to fetch it.`,
+        `${path}: not found. Run \`pnpm bench\` (or \`pnpm --filter @kanbun-skam/kojiki run fetch\` after a build) to fetch it.`,
         { cause: error }
       );
     }

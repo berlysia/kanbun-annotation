@@ -20,6 +20,7 @@
     "@kanbun-skam/playground",
     "@kanbun-skam/integration-tests",
     "@kanbun-skam/baseline-check",
-    "@kanbun-skam/skam-screenshot"
+    "@kanbun-skam/skam-screenshot",
+    "@kanbun-skam/kojiki"
   ]
 }

@@ -147,7 +147,7 @@ const result = render(doc);
 
 読み層を画面から隠す宣言は `!important` で出る。既定の `@layer` ありでは、ページの CSS が `.skam-reading` に `position` や `min-width` を書いても、読み層は画面に出ない。`useLayer: false` のときは、ページが `!important` で上書きすると負けうる。読み層は画面から隠すだけで、DOM には残る。答えを隠す用途は「出題に使うとき」の節に従う。
 
-`displayLang` は、表示層の `lang` だけを変える。
+表示層の `lang` は、`displayLang`、文書の `lang`、`ja` の順に選ぶ。コンテナの `lang` は常に `ja` で、`displayLang` も文書の `lang` も変えない。`displayLang` は言語タグの形 (`ja`、`zh-Hant` など) でなければ `TypeError` になる。文書の `lang` は本文 (白文) の言語なので、読み層が白文に戻ったとき (`readingLayerSource` が `'readings'` で、`yomiage` も `kakikudashi` も無いとき) だけ、読み層にも付く。書き下し・`yomiage`・`'display'` の読み上げは日本語の言葉を含むので、`lang` を付けない。形が言語タグに合わない文書の `lang` は、無いものとして扱う。
 
 `readingLayerSource` (`@experimental`) で、読み層の出どころを選べる。
 

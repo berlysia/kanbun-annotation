@@ -17,6 +17,24 @@ SKAM の 6 つの公開パッケージ (`@kanbun-skam/skam`、`skam-xml-parser`�
 - 0.2.x の validator と parser は、`linebreak` と `<skam:br/>` を誤りにする。
 - やること: その文書を読み書きする所を、すべて 0.3.x に上げる。
 
+### 本文の言語 (`lang`) を使う文書は 0.3.x で揃えて扱う (skam、skam-xml-parser、skam-xml-stringify)
+
+- 対象: JSON の文書に `lang` を置く、またはルートに `xml:lang` を持つ XML を読み書きする。
+- 0.2.x の validator と parser は `lang` を誤りにせず落とすので、0.2.x を通して書き戻すと `lang` が消える。0.2.x の stringify は `xml:lang` を書かない。
+- やること: `lang` を扱う所を、すべて 0.3.x に上げる。
+
+### parse の結果を丸ごと比べるテストを直す (skam-xml-parser)
+
+- 対象: `parse` の結果を `toEqual` などで丸ごと比べている。
+- ルートに `xml:lang` を持つ XML の parse の結果に、`lang` が入る (例 `lang: 'ja'`)。
+- やること: 期待値に `lang` を足すか、`toMatchObject` などで必要なキーだけを比べる。
+
+### 表示層の言語を確かめる (skam-html-renderer、skam-web-component)
+
+- 対象: `displayLang` (web component は `display-lang`) を渡さずに、`lang` を持つ文書を描画する。
+- 表示層の `lang` が文書の `lang` になる (渡さず、文書にも無ければ `ja`)。読み上げ層が白文に戻るときは、読み上げ層も文書の `lang` を持つ。
+- やること: 表示層を `ja` に固定したいなら、`displayLang: 'ja'` を渡す。`displayLang` の誤りの文 (`TypeError` の `message`) を比べている所は直す。
+
 ### 注記の種類と profile のキーを列挙している所に足す (skam、skam-html-renderer、skam-canvas-renderer)
 
 - 対象: `MarkType`、`Mark`、`ValidationErrorKind` を網羅の `switch` で扱っている。`RenderProfile` や `AIRRenderProfile` を、すべてのキーを書いた object で作っている。

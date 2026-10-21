@@ -74,9 +74,18 @@ export function buildReadingText(
   return formatReadingText(buildAnnotationIR(doc, profile, extensions), labels);
 }
 
-/** 読み上げ層の要素。文字列が空なら要素を出さない。文字列は escapeHtml を 1 回通す */
-export function renderReadingLayerElement(text: string, prefix: string, inline: boolean): string {
+/**
+ * 読み上げ層の要素。文字列が空なら要素を出さない。文字列は escapeHtml を 1 回通す。
+ * `lang` は呼び出し側が isLanguageTag に通した値だけを渡す (形を縛った値なので escape しない)
+ */
+export function renderReadingLayerElement(
+  text: string,
+  prefix: string,
+  inline: boolean,
+  lang?: string
+): string {
   if (!text) return '';
   const tag = inline ? 'span' : 'div';
-  return `<${tag} class="${prefix}-reading">${escapeHtml(text)}</${tag}>`;
+  const langAttr = lang === undefined ? '' : ` lang="${lang}"`;
+  return `<${tag} class="${prefix}-reading"${langAttr}>${escapeHtml(text)}</${tag}>`;
 }

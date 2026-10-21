@@ -1711,6 +1711,11 @@ function metaLines(declarations: ExtensionDeclaration[], indentSize: number): st
 // Main Stringify Function
 // ============================================================================
 
+/** stringify は validator を通らない JSON も受けるので、文字列だけを escape して書く */
+function langAttribute(doc: SKAMDocument): string {
+  return typeof doc.lang === 'string' ? ` xml:lang="${escapeXml(doc.lang)}"` : '';
+}
+
 /**
  * SKAMDocument を SKAM-ML/XML 文字列に変換
  *
@@ -1763,7 +1768,7 @@ export function stringify(doc: SKAMDocument, options: StringifyOptions = {}): st
   const namespaces = declarations
     .map(({ name, uri }) => ` xmlns:${name}="${escapeXml(uri)}"`)
     .join('');
-  lines.push(`<skam:doc xmlns:skam="${SKAM_NS}"${namespaces}>`);
+  lines.push(`<skam:doc xmlns:skam="${SKAM_NS}"${namespaces}${langAttribute(doc)}>`);
 
   // meta 要素（常に char tokenization）
   lines.push(...metaLines(declarations, indentSize));

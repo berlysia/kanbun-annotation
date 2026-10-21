@@ -4,7 +4,13 @@
  * SKAMドキュメントから静的HTMLを生成する
  */
 
-import type { SKAMDocument, Mark, RefMark, Reading } from '@kanbun-skam/skam';
+import {
+  isLanguageTag,
+  type SKAMDocument,
+  type Mark,
+  type RefMark,
+  type Reading,
+} from '@kanbun-skam/skam';
 import {
   resolveExtensions,
   type HideQuizOption,
@@ -286,20 +292,21 @@ export interface CSSOptions {
  * 作者が書いた読み (yomiage → kakikudashi)。無ければ白文 (原文順の本文)。
  * 白文はブロックごとに連結し、空でないブロックを半角空白で区切る ('display' の区切りと同じ)
  */
-function getReadingsText(doc: SKAMDocument): string {
+function getReadingsText(doc: SKAMDocument): { text: string; isBaseText: boolean } {
   const usable = (kind: Reading['kind']): string | undefined => {
     const text = doc.readings.find((r) => r.kind === kind)?.text;
     return text !== undefined && text.trim() !== '' ? text : undefined;
   };
 
-  return (
-    usable('yomiage') ??
-    usable('kakikudashi') ??
-    groupTokensByBlock(doc.blocks, doc.tokens)
+  const written = usable('yomiage') ?? usable('kakikudashi');
+  if (written !== undefined) return { text: written, isBaseText: false };
+  return {
+    text: groupTokensByBlock(doc.blocks, doc.tokens)
       .map((group) => group.tokens.map((t) => t.text).join(''))
       .filter((blockText) => blockText !== '')
-      .join(' ')
-  );
+      .join(' '),
+    isBaseText: true,
+  };
 }
 
 /**
@@ -338,6 +345,31 @@ function renderRefNotes(
 // Main API
 // ============================================================================
 
+/**
+ * 読み層。'display' は表示層と同じ profile から作り、doc.readings も白文も参照しない。
+ * hideQuiz を渡して読み上げ層の出どころを書かないときは、答えを含む readings ではなく表示層から作る。
+ * 文書の lang は本文 (白文) の言語なので、読み上げ層が白文に戻ったときだけ付ける。
+ * 書き下し・yomiage・'display' の読み上げは日本語のラベルを含むため、付けない
+ */
+function renderReadingLayer(
+  doc: SKAMDocument,
+  options: RenderOptions,
+  profile: RenderProfile,
+  prefix: string,
+  inline: boolean,
+  documentLang: string | undefined,
+  extensionRender: RenderExtensionOptions
+): string {
+  const readingSource =
+    options.readingLayerSource ?? (options.hideQuiz !== undefined ? 'display' : 'readings');
+  if (readingSource === 'display') {
+    const text = buildReadingText(doc, profile, options.accessibleLabels, extensionRender);
+    return renderReadingLayerElement(text, prefix, inline);
+  }
+  const { text, isBaseText } = getReadingsText(doc);
+  return renderReadingLayerElement(text, prefix, inline, isBaseText ? documentLang : undefined);
+}
+
 /** 拡張が決める「隠す所」の判定に渡すもの。hideQuiz は学習・教育用拡張 (edu) の選択肢 */
 function extensionRenderOptions(options: RenderHTMLOptions): RenderExtensionOptions {
   return {
@@ -366,7 +398,9 @@ function renderDocumentHtml(
   const copyable = options.copyable;
   const interactive = options.interactive ?? false;
   const rubyMethod = options.rubyMethod ?? 'grid';
-  const displayLang = options.displayLang ?? 'ja';
+  // validator を通っていない文書からも lang は来るので、形の検査に通った値だけを属性に出す
+  const documentLang = isLanguageTag(doc.lang) ? doc.lang : undefined;
+  const displayLang = options.displayLang ?? documentLang ?? 'ja';
 
   const extensionRender = extensionRenderOptions(options);
 
@@ -384,16 +418,8 @@ function renderDocumentHtml(
   const displayTag = inline ? 'span' : 'div';
   const displayHtml = `<${displayTag} class="${prefix}-display" lang="${displayLang}" aria-hidden="true">${displayResult.tokens}</${displayTag}>`;
 
-  // 読み層。'display' は表示層と同じ profile から作り、doc.readings も白文も参照しない
-  // hideQuiz を渡して読み上げ層の出どころを書かないときは、答えを含む readings ではなく表示層から作る
-  const readingSource =
-    options.readingLayerSource ?? (options.hideQuiz !== undefined ? 'display' : 'readings');
-  const readingText =
-    readingSource === 'display'
-      ? buildReadingText(doc, profile, options.accessibleLabels, extensionRender)
-      : getReadingsText(doc);
   const readingHtml = includeReadingLayer
-    ? renderReadingLayerElement(readingText, prefix, inline)
+    ? renderReadingLayer(doc, options, profile, prefix, inline, documentLang, extensionRender)
     : '';
 
   // refマークの値を事前計算（注釈出力用）

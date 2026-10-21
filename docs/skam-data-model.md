@@ -4,6 +4,7 @@
 
 ```
 SKAMDocument
+├── lang?       本文（白文）の言語（BCP 47 の形。SKAM-ML ではルートの xml:lang）
 ├── tokens[]     本文 token のマスター定義
 ├── blocks[]     ブロック構造（原文順、tokenIds で token を参照）
 ├── marks[]      注記（返り点・送り仮名等）

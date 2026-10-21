@@ -24,6 +24,7 @@ import type { SKAMDocument } from '@kanbun-skam/skam';
 
 const doc: SKAMDocument = {
   format: 'skam@0.1',
+  lang: 'ja',
   tokens: [
     { id: 't1', text: '學' },
     { id: 't2', text: '而' },
@@ -49,6 +50,8 @@ const xml = stringify(doc);
 //   </skam:readings>
 // </skam:doc>
 ```
+
+文書の `lang` が文字列なら、ルートに `xml:lang` として書く（値は XML の属性値として escape する）。`lang` が無い文書は `xml:lang` を書かない。
 
 ### オプション
 

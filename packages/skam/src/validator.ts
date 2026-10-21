@@ -21,6 +21,7 @@ import type {
   RefFormat,
   LinebreakPlacementIssue,
 } from './index.js';
+import { isLanguageTag } from './language-tag.js';
 import { HIGHLIGHT_STYLES, isValidHighlightStyle } from './highlight-styles.js';
 import {
   type ValidationError,
@@ -1528,6 +1529,32 @@ function validateDocumentFields(
     );
   }
 
+  // lang (optional language tag)
+  const lang = input['lang'];
+  if (lang !== undefined) {
+    if (typeof lang !== 'string') {
+      errors.push(
+        createValidationError(
+          'INVALID_TYPE',
+          'lang',
+          'lang must be a string if provided',
+          'string',
+          typeof lang
+        )
+      );
+    } else if (!isLanguageTag(lang)) {
+      errors.push(
+        createValidationError(
+          'INVALID_VALUE',
+          'lang',
+          'lang must be a language tag such as ja or zh-Hant',
+          'language tag',
+          lang
+        )
+      );
+    }
+  }
+
   validateRequiredArray(input, 'tokens', errors, validateToken);
   validateRequiredArray(input, 'marks', errors, (mark, index, errs) =>
     validateMark(mark, index, errs, warnings)
@@ -1658,6 +1685,10 @@ export function validateSKAMDocument(
     marks: input['marks'] as Mark[],
     readings: input['readings'] as Reading[],
   };
+
+  if (input['lang'] !== undefined) {
+    document.lang = input['lang'] as string;
+  }
 
   if (input['derivations'] !== undefined) {
     document.derivations = input['derivations'] as Derivation[];

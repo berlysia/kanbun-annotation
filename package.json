@@ -20,6 +20,7 @@
     "format:check": "oxfmt --check .",
     "test": "turbo test",
     "test:run": "turbo test:run",
+    "bench": "pnpm build && pnpm --filter @kanbun-skam/integration-tests bench",
     "test:semantic": "pnpm --filter @kanbun-skam/integration-tests test:semantic",
     "test:visual": "pnpm --filter @kanbun-skam/integration-tests test:visual",
     "test:visual:docker": "node scripts/vrt-docker.ts",

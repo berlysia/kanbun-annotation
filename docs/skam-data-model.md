@@ -88,6 +88,7 @@ anchor ベースと position ベースは共通基底 `MarkBase` から対等に
 - 複数の字の kaeri 値（`㆒㆑`、非推奨）: `ichi-re` に変換して書く（`kaeriValueToKind` 関数）。正の書き方は同じ位置の 1 字ずつの kaeri で、それぞれ `kind="ichi"`、`kind="re"` として書く。同じ位置の kaeri は `marks[]` の順に出力する
 - linebreak: 直前の字の後ろの位置マークとして、kaeri、kutoten、ref の順の後に `<skam:br/>` を書く（`id` があれば `xml:id` も書く）。竪点のグループの最後の字の後ろの位置マークは、どれも `</skam:tateten>` の後ろに書く。`after` が無い linebreak は書けない（`BLOCK_START_LINEBREAK`）
 - readings: `doc.readings` を `<skam:readings>` 要素に出力
+- token の text: SKAM-ML は token を書記素クラスタ 1 つずつ作るので、2 つ以上の書記素の token は `MULTI_GRAPHEME_TOKEN` の欠落になる（空白だけの token は `ASCII_WHITESPACE_TOKEN` だけ）。空白で始まる token と、結合文字や選択子で始まる token は、欠落にならないが往復で変わりうる（ADR-042）
 - 拡張: 宣言のある文書は `skam:meta` に `skam:extension` を書き、ルートに拡張の名前空間を宣言する。拡張の値は定義の `writeXmlAttributes` が返す属性を、要素に拡張の名前（接頭辞）をつけて書く。書き方を知らない拡張の値は `UNKNOWN_EXTENSION`、`custom` と宣言の無い文書の `ext` は `EXT` の欠落になる。拡張を使わない文書の出力は変わらない。拡張の名前は SKAM-ML の接頭辞になるので、英字で始まり `xml` で始まらない
 
 ## linebreak（改行）

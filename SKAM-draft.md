@@ -133,6 +133,8 @@ SKAM は JSON 形式で表現される。
 - `text` は UTF-8 文字列。空文字列にしてはならない（MUST）
 - token 分割規則（1字/熟語等）は SKAM 仕様外とする
   - **推奨：字単位**（訓点・返り点の指示と一致するため）
+  - この仕様の「字」は、Unicode の拡張書記素クラスタ（extended grapheme cluster）1 つを指す。異体字セレクタ（IVS の U+E0100〜U+E01EF、SVS の U+FE00〜U+FE0F）や結合文字は、基底の字と同じ 1 字になる
+  - SKAM-ML（SKAM-ML-draft §6.1）は token を 1 字ずつ作るので、2 字以上の token は XML に書くと往復で分かれる
 - `ext`（拡張の値、§11.2）と `custom`（自由なデータ、§11.3）は任意
 
 ### 5.3 参照エラー

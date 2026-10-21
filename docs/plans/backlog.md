@@ -36,7 +36,6 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 - **明示的な改行の ADR**: ブロック内の強制改行を決める。ブロック先頭の kaeri が不正であることは、ADR-028 の後も変わらない。出典: plan-practical-readiness.md L90。規模: 中。
 - **重複した kaeri の扱い**: 同じ位置に重複した kaeri の扱いを、仕様が決めていない。出典: plan-practical-readiness.md L91。規模: 中。
 - **範囲の重なりと交差の XML 表現**: 範囲の重なりと部分的な交差は、JSON では表現できるが、XML では `unsupported` になる。出典: plan-practical-readiness.md L93、ADR-028「既知の制約と未実施の確認」。規模: 大。
-- **IVS の tokenize**: IVS と結合文字を 1 token にまとめる。現状は code point 単位で、注記を基底文字の token に付ければ回避できる。出典: plan-practical-readiness.md L93、ADR-028「既知の制約と未実施の確認」。規模: 中。
 - **JSON Schema の配布と未知の mark type の保持**: JSON Schema を配布し、未知の mark type を保持して読み込む。出典: plan-practical-readiness.md L93、ADR-028「既知の制約と未実施の確認」。規模: 中。
 - **parse の既定 id を文書順にする (#15)**: `parse` の既定の id を、文書の順で決まる値にする。破壊的変更で、`xml:id` との衝突回避が要る。出典: plan-consumer-feedback.md L66、#15。規模: 中。
 - **出題対象の印 (#14)**: マーク単位で「設問の答え」を表す仕様を決める。`ext` の約束事にするか、マークの属性にするかを選ぶ。出典: plan-consumer-feedback.md L63、#14。規模: 中。
@@ -46,8 +45,13 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 
 ## パーサー
 
+- **playground の例の `skam:tokenize`**: playground の例の 2 つが `<skam:meta><skam:tokenize strategy="char"/></skam:meta>` と書く。仕様に無い要素で、parser は読まない。`tokenization="char"` に直すか消す。出典: feat/grapheme-tokenize の調査 (2026-10-21)。規模: 小。
+- **playground の選択と書記素**: playground は選択を token の添字で保つ。IVS や結合文字を含む入力で、編集の前後に選択がずれるかを確かめる。出典: ADR-042 (2026-10-21)。規模: 小。
+
 - **誤りの種類を構造で持つ**: parser の誤り (`SKAMXMLParseError`) に種類 (`kind`) を足し、利用者がメッセージの文言に頼らずに誤りを判別できるようにするかを決める。メッセージの文言は互換の対象外 (2026-10-21 に README に書いた)。parser の公開 API の追加になる。出典: fix/backlog-batch-a (2026-10-21)。規模: 中。
 - **WebKit の parsererror の文の確認**: ブラウザ版は、Chromium と Firefox の報告の形から構文の誤りの位置を読む。WebKit (Safari) の形は、手元の WSL で WebKit が起動せず確かめていない (未確認)。Chromium と同じ形でなければ、Safari では構文の誤りに位置が付かない。出典: feat/browser-parser-positions の調査 (2026-10-20)。規模: 小。
+
+- **1 つのブロックの字が多いと parse が落ちる**: 1 つのブロックに 20 万字以上の本文を書くと、parser が `RangeError` (スタックあふれ) で落ちる。10 万字では通った (2026-10-21 に測った)。`maxInputLength` (500 万) の範囲の入力で、ブロックの token の id を配列に入れる所 (`push(...ids)`) が原因とみられる。出典: feat/grapheme-tokenize の計測 (2026-10-21)。規模: 小。
 
 ## レンダラー
 
@@ -58,6 +62,8 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 - **描画のメモリ使用量の追跡**: 描画の時間は CI のテスト (10 s の上限) で見ているが、メモリは見ていない。`createMarkLookup` の索引は範囲の注記が覆う字の数に比例し、5000 字の block 全体を覆う highlight 200 個の文書で、html の描画で増える RSS が 22 MB から 70 MB になった (索引のヒープは 10.4 MB)。普通の文書 (5000 字、10 字ごとに 4 字の highlight) では 20 MB と 22 MB で変わらない。メモリの使用量をどう測って追うかを決める。出典: 束 C の 2。規模: 中。
 
 ## テストと CI
+
+- **baseline の JS の検査が chunk を見ない**: `pnpm baseline` の JS の検査は各パッケージの `dist/index.js` だけを写して検査する。skam の `dist/index.js` は chunk (`dist/src-*.js`) を再 export するだけなので、skam の本体のコードは検査されない。2026-10-21 に `Intl.Segmenter` (Baseline の同梱データでは low) を足したが、検出されなかった。canvas の IIFE には入っているが、検査の対象は ESM の `dist/index.js`。出典: feat/grapheme-tokenize (2026-10-21)。規模: 小。
 
 - **書き下し文を作る機能と、KanbunKundoku との照合のテスト**: SKAM の文書から書き下し文 (返り点で読む順を組み、送り仮名と添え仮名をつないだ文) を作る機能が無い。作ったら、KanbunKundoku の `japanese_translation` と突き合わせ、当てはめの規則と renderer の訓読の正しさを確かめる。出典: feat/kundoku-samples の調査 (2026-10-21)。規模: 大。
 - **古事記の bench で master と索引化の後を比べる**: `pnpm bench` の古事記の文書は、索引化 (`createMarkLookup`) の後の時間しか測っていない。master の html は 5000 字で 70 秒かかり、全巻 (42,387 字) では数時間かかる見込み (外挿、未確認) なので、上巻の先頭 2000 字で両方を比べる。出典: perf/kojiki-bench の plan の T4。規模: 小。

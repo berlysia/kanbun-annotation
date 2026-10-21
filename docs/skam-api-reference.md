@@ -44,6 +44,14 @@ import { getLinebreakPlacementIssues } from '@kanbun-skam/skam';
 - `LEGACY_EXT_REGISTERED_NAME`: `LEGACY_EXT` のうち、`ext` のキーが登録済みの拡張の名前と同じもの。宣言の書き忘れの疑い。`path` は `marks[i].ext.edu` など。0.4.0 では無くなる（`LEGACY_EXT` の誤りが同じ所を指す）
 - `ValidationWarningKind` に値を足すのは minor の変更
 
+### 書記素
+
+```typescript
+import { splitGraphemes } from '@kanbun-skam/skam';
+```
+
+`splitGraphemes(text)` は、文字列を拡張書記素クラスタ（`Intl.Segmenter` の `granularity: 'grapheme'`）の配列に分ける。parser の token、stringify の `MULTI_GRAPHEME_TOKEN`、html と canvas の字数は、この分け方を使う。`Intl.Segmenter` の無い実行環境では、呼ぶと `TypeError`（読み込むだけなら誤りにならない）。
+
 ### 言語タグ
 
 ```typescript
@@ -302,6 +310,8 @@ import { parse } from '@kanbun-skam/skam-xml-parser';
 const doc = parse(xmlString);
 ```
 
+本文は書記素クラスタ 1 つを 1 token にする（IVS、SVS、結合文字は基底の字と 1 token）。`Intl.Segmenter` が要る。
+
 ルートの `xml:lang` は文書の `lang` になる（空の値なら `lang` を持たない）。`validate: true` なら形の誤りは `SKAMValidationError`（`path` は `lang`、位置は付かない）。`validate: false` では値をそのまま入れるので、HTML に使うときは `isLanguageTag` を通す。
 
 `skam:meta` の子の `skam:extension` は `extensions` と `extensionsRequired` になり、拡張の名前空間の属性（例 `edu:quiz`）は `ext.<拡張の名前>` になる。選択肢 `extensions` で、既定の束に利用者の拡張の定義を足せる。知らない必須の拡張を宣言した文書は、`validate` の値にかかわらず誤り。
@@ -319,7 +329,7 @@ const xml = stringify(doc);
 
 文書の `lang` が文字列なら、ルートに `xml:lang` を書く（値は escape する）。
 
-宣言のある文書は、`skam:meta` に `skam:extension` を、ルートに拡張の名前空間を書き、拡張の値を定義の `writeXmlAttributes` で属性にする。選択肢 `extensions` で拡張の定義を足せる。書き方を知らない拡張の値は欠落 `UNKNOWN_EXTENSION` になる。
+宣言のある文書は、`skam:meta` に `skam:extension` を、ルートに拡張の名前空間を書き、拡張の値を定義の `writeXmlAttributes` で属性にする。選択肢 `extensions` で拡張の定義を足せる。書き方を知らない拡張の値は欠落 `UNKNOWN_EXTENSION` になる。2 つ以上の書記素の token は欠落 `MULTI_GRAPHEME_TOKEN` になる。
 
 ## @kanbun-skam/skam-html-renderer
 

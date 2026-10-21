@@ -578,7 +578,7 @@ CSS `text-decoration-style` に準拠。
 ### 6.11 参照識別子・注釈（Ref）
 
 傍線部の識別子、問題番号、注釈等に使用する統合型。
-同じlabel値または同じformat+valueを持つrefは同一の参照として扱われる。
+同じlabel値を持つrefは同一の参照として扱われる。
 
 **position ベース**: ref は anchor ではなく **position** でトークン間の位置を指定する。
 
@@ -620,8 +620,7 @@ CSS `text-decoration-style` に準拠。
   "type": "ref",
   "id": "n1",
   "position": { "blockId": "b1", "after": "t3" },
-  "format": "numeric-bracket",
-  "ext": { "noteRef": "n1" }
+  "format": "numeric-bracket"
 }
 ```
 
@@ -649,7 +648,6 @@ SKAM-ML/XML では `<skam:ref>` 要素が内容を持つ場合があるが、SKA
 #### 同一性判定
 
 - 同じ `label` 値を持つ ref は同一の参照
-- 同じ `format` + 同じ `value`（ext内）を持つ ref は同一の参照
 - 同一の参照は同じ番号/ラベルで表示される
 
 #### format 一覧（RefFormat）
@@ -852,7 +850,7 @@ SKAM の仕様が定める注記の種類とフィールド（core）は閉じ�
 
 #### 置き場
 
-拡張の値は `ext.<拡張の名前>` に置く。`ext` は文書、readings、ブロック、token、注記のどれにも置ける。
+拡張の値は `ext.<拡張の名前>` に置く。`ext` は文書、readings、ブロック、token、注記、derivations のどれにも置ける。
 
 ```json
 {
@@ -904,9 +902,17 @@ SKAM の仕様が定める注記の種類とフィールド（core）は閉じ�
 
 拡張は、自分の名前空間の属性で書く。宣言は `skam:meta` の子の `skam:extension` で書き、JSON の宣言と往復する（SKAM-ML-draft §4.3、§10）。
 
+#### 宣言の無い文書の `ext`
+
+`extensions` を持たない文書の `ext` は、0.3 では自由なデータとして読み、検証は警告を返す。0.4.0 で誤りになる。
+
+- 対象は文書、readings、ブロック、token、注記、derivations の、オブジェクトの `ext`（空のオブジェクトも含む）。`ext` 1 つにつき `LEGACY_EXT` を 1 件返す
+- `ext` のキーが登録簿（Appendix F）の拡張の名前と同じなら、宣言の書き忘れの疑いとして `LEGACY_EXT_REGISTERED_NAME` も返す。0.4.0 では `LEGACY_EXT` の誤りが同じ所を指すので、このコードは無くす
+- 自由なデータは `custom` に置く。`moveLegacyExtToCustom(doc)`（`@kanbun-skam/skam`）が、宣言の無い文書のすべての `ext` を `custom` に移す
+
 ### 11.3 custom（自由なデータ）
 
-SKAM が解釈しない自由なデータは `custom` に置く。文書、readings、ブロック、token、注記のどれにも置ける。
+SKAM が解釈しない自由なデータは `custom` に置く。文書、readings、ブロック、token、注記、derivations のどれにも置ける。
 
 ```json
 {
@@ -1305,33 +1311,6 @@ SKAM-ML の属性は SKAM-ML-draft §10.2 を参照。
   "content": "「之」は目的語として読む。"
 }
 ```
-
-### 同一参照の複数配置
-
-同じ `format` と `value`（ext内）を持つ ref は同一番号で表示される：
-
-```json
-{
-  "marks": [
-    {
-      "type": "ref",
-      "id": "ref-a1",
-      "position": { "blockId": "b1", "after": "t1" },
-      "format": "iroha-katakana",
-      "ext": { "value": "a" }
-    },
-    {
-      "type": "ref",
-      "id": "ref-a2",
-      "position": { "blockId": "b1", "after": "t5" },
-      "format": "iroha-katakana",
-      "ext": { "value": "a" }
-    }
-  ]
-}
-```
-
-※ 両方とも「(イ)」と表示される
 
 ---
 

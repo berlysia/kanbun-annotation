@@ -1,10 +1,10 @@
 ---
-status: InProgress
+status: Complete
 ---
 
 # ADR-040: 拡張の仕組みと、学習・教育用拡張の出題の印
 
-この ADR は 2 つの PR で実装する。3a で拡張の仕組みと学習・教育用拡張を入れ、3b で今の `ext` の自由なデータを `custom` に移す。3b の決定はこの ADR に足し、3b で Complete にする。
+この ADR は 2 つの PR で実装した。1 つ目で拡張の仕組みと学習・教育用拡張を入れ、2 つ目で宣言の無い文書の `ext` の自由なデータを `custom` に移す警告と変換の関数を入れた。
 
 ## コンテキスト
 
@@ -53,7 +53,7 @@ status: InProgress
 - 宣言は `skam:meta` の子の `<skam:extension name="…" uri="…" required="true"/>`。名前空間はルートで宣言する。
 - 定義のある拡張の名前空間の属性を、定義の対応で読み書きする。宣言の無い拡張の名前空間の属性は誤り。登録されていない名前空間の属性は読み飛ばす (ほかの道具が付けた属性を含む文書を誤りにしない)。必須の拡張を知らなければ、`validate` の値にかかわらず parse の誤り。
 - 名前空間の URI は識別子で、取りに行かない。
-- 書けない拡張の値と、名前空間の URI が分からない拡張の宣言は損失 `UNKNOWN_EXTENSION`。`custom` と宣言の無い文書の `ext` は今の `EXT`。
+- 書けない拡張の値と、名前空間の URI が分からない拡張の宣言は損失 `UNKNOWN_EXTENSION`。`custom` と宣言の無い文書の `ext` は損失 `EXT`。
 - 空の宣言 (`extensions: []`) は SKAM-ML に書く要素が無く、往復で宣言の無い文書に戻る。空の宣言のある文書は `ext` を持てないので、読み方は変わらない。
 
 ### 入力の上限
@@ -68,6 +68,15 @@ status: InProgress
 - 描画の選択肢 `hideQuiz` (`true` か名前の配列)。同じ所に描く注記のどれか 1 つでも隠すなら、その所ごと隠す。html は隠す注記の中身を 1 字ずつ空白 (全角の字は U+3000、それ以外は U+00A0) に置き換え、class `${prefix}-quiz-hidden` と `aria-hidden="true"` を付ける。ヲコト点は要素を出さない。置き字と助字は注記が無いものとして描く。canvas は配置を保って描かない。`hideQuiz` を渡して `readingLayerSource` を書かなければ、読み上げ層は `'display'`。web component は `hide-quiz` 属性で、不正な値なら描画しない。
 - 出題の印は表示の制御で、秘匿ではない。宣言の無い文書の `ext.edu` は旧来の自由なデータとして読み、隠さない。
 
+### 宣言の無い文書の `ext`
+
+- 宣言の無い文書は、`extensions` も `extensionsRequired` も持たない文書。`extensionsRequired` だけを持つ文書は `INVALID_EXTENSION`。
+- 対象は、文書、readings、ブロック、token、注記、derivations のうち、`ext` がオブジェクト (配列でない) のもの。空のオブジェクトも対象。オブジェクトでない `ext` は型の誤りで、警告しない。derivations の `ext` と `custom` も、入力の上限と宣言のある文書の `ext` のキーの検査を受ける。
+- 0.3 では読めるが、`ext` 1 つにつき警告 `LEGACY_EXT` を出す。`ext` のキーが登録簿の名前と同じなら、宣言の書き忘れの疑いとして `LEGACY_EXT_REGISTERED_NAME` も出す。0.4.0 では `LEGACY_EXT` を同じ名前の誤りにし、`LEGACY_EXT_REGISTERED_NAME` は無くす (同じ所を `LEGACY_EXT` の誤りが指すため)。
+- 登録済みの名前は `extensionRegistry` の名前の集合で引く。core は個々の拡張の定義を import しない。
+- 変換の関数 `moveLegacyExtToCustom(doc)` は、対象のすべての `ext` を同じオブジェクトの `custom` に移し、`{ document, registeredNameKeys }` を返す。`ext` の値はキーを展開せずにそのまま置き、宣言は足さない。宣言のある文書、オブジェクトでない `ext`、移す先の `custom` が既にあるときは `TypeError` (誤りの文には path だけを入れ、値は入れない)。文書は書き換えず、2 回かけても結果は同じ。`registeredNameKeys` は登録済みの名前と同じキーの path で、呼ぶ側が拡張の値だったかを確かめるためのもの。
+- SKAM-draft の ref の節にあった、`ext` の中の値で ref の同一を決める例と規則は、実装に無かったので消した。
+
 ### `format`
 
 `format` は `skam@0.1` のまま。拡張の必須は core の要素ではなく文書の宣言で表す。
@@ -75,6 +84,7 @@ status: InProgress
 ## 受け入れた限界
 
 - 0.2.x の reader は拡張の宣言を知らず、必須の拡張でも止まらない。公開済みの 0.2.0 (skam、skam-xml-parser、skam-xml-stringify、skam-html-renderer) で 2026-10-21 に確かめた: parser は `skam:meta` の `skam:extension` と `edu:okuri-quiz`、`edu:quiz` の属性を、`validate: true` でも `false` でも誤りにも警告にもせずに捨てる。validator は最上位の `extensions` と `extensionsRequired` を落とし、注記の `ext.edu` を残して `valid: true`。stringify (`lossy: true`) は `ext` を損失 `EXT` にし、宣言の損失は出さない。html の描画は答えをそのまま描く。canvas、web component、`lossy` なしの stringify は確かめていない。
+- `custom` は SKAM-ML に書けず、往復で残らない (損失 `EXT`)。
 - 答えは同じ文書に平文である。文書と、`'readings'` を明示した読み上げ層には答えが残る。答えの字数は空白の数から分かる。空白の幅は元の字に近いだけで、半角の字や結合文字では違いうる。
 
 ## 却下した案

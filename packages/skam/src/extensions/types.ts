@@ -14,6 +14,7 @@ export type ExtensionOwner =
   | { kind: 'reading' }
   | { kind: 'block' }
   | { kind: 'token' }
+  | { kind: 'derivation' }
   | { kind: 'mark'; mark: Mark };
 
 /** SKAM-ML の要素と、その要素が作る注記 (part は skam:kun の yomi / okuri / soe、ほかは self) */

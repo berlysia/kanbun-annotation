@@ -1,4 +1,4 @@
-import type { SKAMDocument } from '@kanbun-skam/skam';
+import { moveLegacyExtToCustom, type SKAMDocument } from '@kanbun-skam/skam';
 import { buildAnnotationIR } from '@kanbun-skam/skam/rendering';
 import {
   defaultExtensions,
@@ -22,6 +22,8 @@ import { SkamRendererElement } from '@kanbun-skam/skam-web-component';
 import * as autoModule from '@kanbun-skam/skam-web-component/auto';
 
 void autoModule;
+export const moved: { document: SKAMDocument; registeredNameKeys: string[] } =
+  moveLegacyExtToCustom({ format: 'skam@0.1', tokens: [], blocks: [], marks: [], readings: [] });
 void buildAnnotationIR;
 void defaultExtensions;
 void extensionRegistry;

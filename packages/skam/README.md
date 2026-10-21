@@ -81,7 +81,7 @@ assertSKAMDocument(input);
 
 ## 拡張（`extensions`、`ext`、`custom`）
 
-文書は、使う拡張を最上位の `extensions` に、知らなければ読んではいけない拡張を `extensionsRequired` に挙げる。拡張の値は `ext.<拡張の名前>` に置き、SKAM が解釈しない自由なデータは `custom` に置く。`extensions` を持つ文書（空の配列も含む）だけが宣言のある文書で、`ext` に `extensions` に無い名前があれば `INVALID_EXTENSION`、`extensionsRequired` に知らない名前があっても `INVALID_EXTENSION`。持たない文書の `ext` は、これまでどおり自由なデータとして読む。
+文書は、使う拡張を最上位の `extensions` に、知らなければ読んではいけない拡張を `extensionsRequired` に挙げる。拡張の値は `ext.<拡張の名前>` に置き、SKAM が解釈しない自由なデータは `custom` に置く。`extensions` を持つ文書（空の配列も含む）だけが宣言のある文書で、`ext` に `extensions` に無い名前があれば `INVALID_EXTENSION`、`extensionsRequired` に知らない名前があっても `INVALID_EXTENSION`。持たない文書の `ext` は、0.3 では自由なデータとして読み、`valid: true` の結果の `warnings` に `LEGACY_EXT` の警告が入る（0.4.0 で誤りになる）。`ext` のキーが登録済みの拡張の名前と同じなら `LEGACY_EXT_REGISTERED_NAME` も入る。`moveLegacyExtToCustom(doc)` は、宣言の無い文書のすべての `ext` を `custom` に移した新しい文書と、登録済みの拡張の名前のキーの path（`registeredNameKeys`）を返す。拡張の値だったなら、移した後に `extensions` を宣言する。
 
 `ext` と `custom` は信頼しない入力で、入れ子 32 段、キー 1,000 個、配列 10,000、文書全体の値 100,000 個を超えるか、`__proto__` / `constructor` / `prototype` のキーがあれば `INVALID_VALUE`。
 

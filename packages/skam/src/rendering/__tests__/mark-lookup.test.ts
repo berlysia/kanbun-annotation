@@ -206,25 +206,30 @@ function createRandomDoc(rng: () => number): RandomDoc {
 // ============================================================================
 
 describe('createMarkLookup', () => {
-  it('固定種の乱数の 200 文書で、列を渡した従来の実装と鍵の順序・同一性・順序まで一致する', () => {
-    const rng = createRng(20261021);
-    for (let d = 0; d < 200; d++) {
-      const doc = createRandomDoc(rng);
-      const groups = groupTokensByBlock(doc.blocks, doc.tokens);
-      const lookup = createMarkLookup(
-        doc.marks,
-        groups.map((g) => g.tokens)
-      );
-      for (const group of groups) {
-        for (const token of group.tokens) {
-          expectSameResult(
-            lookup(token.id),
-            oracleGetMarksForToken(token.id, doc.marks, group.tokens)
-          );
+  // 全パッケージを並列で流した負荷で既定の 5 秒を超えたので、長く待つ
+  it(
+    '固定種の乱数の 200 文書で、列を渡した従来の実装と鍵の順序・同一性・順序まで一致する',
+    { timeout: 30_000 },
+    () => {
+      const rng = createRng(20261021);
+      for (let d = 0; d < 200; d++) {
+        const doc = createRandomDoc(rng);
+        const groups = groupTokensByBlock(doc.blocks, doc.tokens);
+        const lookup = createMarkLookup(
+          doc.marks,
+          groups.map((g) => g.tokens)
+        );
+        for (const group of groups) {
+          for (const token of group.tokens) {
+            expectSameResult(
+              lookup(token.id),
+              oracleGetMarksForToken(token.id, doc.marks, group.tokens)
+            );
+          }
         }
       }
     }
-  });
+  );
 
   it('範囲の注記は from と to とその間の字に付く', () => {
     const emphasis = anchored('emphasis', 't2', 't4');

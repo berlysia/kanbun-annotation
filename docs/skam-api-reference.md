@@ -31,7 +31,7 @@ import type {
 ```typescript
 import { validateSKAMDocument, isSKAMDocument, assertSKAMDocument } from '@kanbun-skam/skam';
 import type { ValidationWarning, ValidationWarningKind } from '@kanbun-skam/skam';
-import { KAERI_MULTI_CHARACTER } from '@kanbun-skam/skam';
+import { KAERI_MULTI_CHARACTER, LEGACY_EXT, LEGACY_EXT_REGISTERED_NAME } from '@kanbun-skam/skam';
 import { getLinebreakPlacementIssues } from '@kanbun-skam/skam';
 ```
 
@@ -40,6 +40,8 @@ import { getLinebreakPlacementIssues } from '@kanbun-skam/skam';
 `valid: true` の結果は、警告があるときだけ `warnings?: ValidationWarning[]` を持つ（無いときはキーごと無い）。`ValidationWarning` は `kind`、`path`、`message` を持つ。`message` は固定の文で、入力由来の値を含まない。
 
 - `KAERI_MULTI_CHARACTER`: 1 つの kaeri の `value` が複数の字。0.4.0 で同じコードの誤りになる。`path` は `marks[i].value`
+- `LEGACY_EXT`: `extensions` を持たない文書の、オブジェクトの `ext`（文書、readings、ブロック、token、注記、derivations。空のオブジェクトも含む）。`ext` 1 つにつき 1 件。0.4.0 で同じコードの誤りになる。`path` は `marks[i].ext` など
+- `LEGACY_EXT_REGISTERED_NAME`: `LEGACY_EXT` のうち、`ext` のキーが登録済みの拡張の名前と同じもの。宣言の書き忘れの疑い。`path` は `marks[i].ext.edu` など。0.4.0 では無くなる（`LEGACY_EXT` の誤りが同じ所を指す）
 - `ValidationWarningKind` に値を足すのは minor の変更
 
 ### 拡張
@@ -93,6 +95,19 @@ const migrated = splitMultiCharacterKaeri(doc, { idGenerator });
 ```
 
 1 つ目の注記は元の `id` と `ext` を引き継ぎ、2 つ目以降は新しい `id` を持ち `ext` を持たない。冪等で、渡した文書は書き換えない。値に Kanbun の字以外を含む kaeri は変えない。0.4.0 の後も残る。
+
+### `ext` の変換
+
+```typescript
+import { moveLegacyExtToCustom } from '@kanbun-skam/skam';
+
+// 宣言の無い文書のすべての ext を custom に移した新しい文書と、登録済みの拡張の名前のキーの path を返す
+const { document, registeredNameKeys } = moveLegacyExtToCustom(doc);
+```
+
+対象は文書、readings、ブロック、token、注記、derivations。`ext` の値は展開せずそのまま `custom` に置き、宣言は足さない。`registeredNameKeys` は、移した `ext` のうち登録済みの拡張の名前と同じキーの path（例 `marks[3].ext.edu`。値は入らない）で、拡張の値だったなら、移した後に `extensions` を宣言する。冪等で、渡した文書は書き換えない。
+
+`TypeError` を投げる場合: 文書が `extensions` か `extensionsRequired` を持つ（空の配列も含む）、`ext` がオブジェクトでない、移す先の `custom` が既にある。メッセージには path が入り、値は入らない。
 
 ### 返り点定数（Unicode Kanbun ブロック U+3191〜U+319F）
 

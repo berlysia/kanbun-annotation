@@ -28,6 +28,22 @@ SKAM の 6 つの公開パッケージ (`@kanbun-skam/skam`、`skam-xml-parser`�
 - 0.2.x の parser は拡張の宣言と名前空間の属性を黙って捨て、validator は宣言を落とし、html の描画は出題の答えをそのまま描く。必須の拡張でも止まらない。
 - やること: 拡張を使う文書を読み書き、描画する所を、すべて 0.3.x に上げる。
 
+### `ext` の自由なデータを `custom` に移す (skam)
+
+- 対象: 拡張の宣言 (`extensions`、`extensionsRequired`) の無い文書で、文書、readings、ブロック、token、注記、derivations の `ext` にアプリケーションのデータを置いている。
+- 0.3.x では読めるが、警告が出る。0.4.0 で誤りになる。
+- やること:
+  1. `moveLegacyExtToCustom(doc)` (`@kanbun-skam/skam`) で、`ext` を同じ所の `custom` に移す。戻り値は `{ document, registeredNameKeys }`。
+  2. `registeredNameKeys` が空でなければ、その path の値が拡張の値 (例: `ext.edu` の出題の印) でないかを確かめる。拡張の値なら、変換の後の文書で、その値を `custom` から同じ所の `ext` に戻し、文書に `extensions` (必須の拡張なら `extensionsRequired` も) を宣言する。
+  3. 同じ所に `ext` と `custom` の両方がある文書は、変換の関数が `TypeError` にする。先に手で 1 つにまとめる。
+- 警告の受け取り方: `validateSKAMDocument` の結果の `warnings` に `kind: 'LEGACY_EXT'` が `ext` 1 つにつき 1 件入る。`ext` のキーが登録済みの拡張の名前と同じなら、`kind: 'LEGACY_EXT_REGISTERED_NAME'` も入る。
+- `custom` は SKAM-ML に書けない。XML に書き出すと損失 `EXT` になる。
+
+### 検証の警告の種類を列挙している所に足す (skam)
+
+- 対象: `ValidationWarningKind` を網羅の `switch` で扱っている。
+- やること: `LEGACY_EXT` と `LEGACY_EXT_REGISTERED_NAME` を足す。
+
 ### 検証の誤りの種類を列挙している所に足す (skam)
 
 - 対象: `ValidationErrorKind` を網羅の `switch` で扱っている。

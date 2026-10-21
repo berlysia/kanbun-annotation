@@ -2040,6 +2040,30 @@ describe('highlight with ref association', () => {
   });
 });
 
+describe('「學而時習之（基本）」のレ点の位置', () => {
+  it('レ点は「習」の後ろ、「之」の前に出る', () => {
+    const xml = `<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:kun yomi="まな" okuri="ビテ">學</skam:kun>而
+      <skam:kun okuri="ニ">時</skam:kun>
+      <skam:kun okuri="フ">習</skam:kun><skam:kaeri kind="re"/>
+      <skam:kun soe="ヲ">之</skam:kun><skam:kutoten value="。" kind="ku"/>
+    </skam:block>
+  </skam:body>
+</skam:doc>`;
+
+    const { html } = render(parse(xml));
+    const baseAt = (text: string) => html.indexOf(`<span class="skam-base">${text}</span>`);
+    const reAt = html.indexOf(KAERI.RE);
+
+    expect(reAt).toBeGreaterThan(baseAt('習'));
+    expect(reAt).toBeLessThan(baseAt('之'));
+    expect(html.split(KAERI.RE)).toHaveLength(2);
+  });
+});
+
 describe('XML to HTML integration - highlight with ref', () => {
   it('should render ref inside highlight - sample 9 case', () => {
     // This is the exact XML from sample 9 (試験問題形式)
@@ -2049,8 +2073,8 @@ describe('XML to HTML integration - highlight with ref', () => {
     <skam:block>
       <skam:span type="highlight" style="solid" ref="ref-a"><skam:kun yomi="まな" okuri="ビテ">學</skam:kun>而<skam:ref xml:id="ref-a" format="alpha-upper"/></skam:span>
       <skam:kun okuri="ニ">時</skam:kun>
-      <skam:kun okuri="フ">習</skam:kun>
-      <skam:span type="highlight" style="solid" ref="ref-b"><skam:kun soe="ヲ">之</skam:kun><skam:kaeri kind="re"/><skam:ref xml:id="ref-b" format="alpha-upper"/></skam:span><skam:kutoten value="。" kind="ku"/>
+      <skam:kun okuri="フ">習</skam:kun><skam:kaeri kind="re"/>
+      <skam:span type="highlight" style="solid" ref="ref-b"><skam:kun soe="ヲ">之</skam:kun><skam:ref xml:id="ref-b" format="alpha-upper"/></skam:span><skam:kutoten value="。" kind="ku"/>
     </skam:block>
   </skam:body>
 </skam:doc>`;

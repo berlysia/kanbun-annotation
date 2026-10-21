@@ -76,7 +76,7 @@ const doc: SKAMDocument = {
     { type: 'okurigana', id: 'm3', anchor: { from: 't3', to: 't3' }, value: 'に' },
     { type: 'soegana', id: 'm4', anchor: { from: 't5', to: 't5' }, value: 'を' },
     { type: 'okurigana', id: 'm5', anchor: { from: 't4', to: 't4' }, value: 'ふ' },
-    { type: 'kaeri', id: 'm6', position: { blockId: 'b1', after: 't5' }, value: 'レ' },
+    { type: 'kaeri', id: 'm6', position: { blockId: 'b1', after: 't4' }, value: 'レ' },
   ],
   readings: [{ kind: 'kakikudashi', text: '学びて時に之を習ふ' }],
 };

@@ -25,24 +25,10 @@ describe('playground の例の lint', () => {
     expect(SAMPLES.length).toBeGreaterThan(0);
   });
 
-  // 例のうち 5 つに KAERI_UNCLOSED が出る。どれも例が実際に未完成で、規則の誤検出ではない:
-  // - 學而時習之、論語、添え仮名、傍線(試験問題形式): 最後の字 (之) の後ろにレがある。レは次の字と入れ替える点
-  //   (SKAM-draft §7.6 のアルゴリズムの説明) で、ブロックの最後の字には入れ替える相手が無い。
-  //   同じ節の例「學而時習之」も之にレを付けていて、説明と食い違っている (例の方を直す候補)。
-  // - 複合返り点(一レ点): 一があるのに、対になる二が無い。
-  // 例を直したら、この一覧を空にする
-  const UNCLOSED_SAMPLES = [
-    '學而時習之（基本）',
-    '論語（複数ブロック）',
-    '複合返り点（一レ点）',
-    '添え仮名（を）',
-    '傍線（試験問題形式）',
-  ];
-
-  it('診断は UNCLOSED_SAMPLES の KAERI_UNCLOSED 1 件ずつだけ', () => {
+  it('どの例にも診断が出ない', () => {
     const found = SAMPLES.flatMap(({ name, xml }) =>
       lintSKAMDocument(parse(xml)).map((d) => `${name}: ${d.code}`)
     );
-    expect(found).toEqual(UNCLOSED_SAMPLES.map((name) => `${name}: KAERI_UNCLOSED`));
+    expect(found).toEqual([]);
   });
 });

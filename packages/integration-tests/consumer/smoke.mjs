@@ -10,7 +10,7 @@ const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      <skam:kun yomi="まな" okuri="びて">學</skam:kun><skam:okimoji>而</skam:okimoji>時<skam:kaeri kind="re"/><skam:kun soe="を">之</skam:kun><skam:kun okuri="ふ">習</skam:kun>
+      <skam:kun yomi="まな" okuri="びて">學</skam:kun><skam:okimoji>而</skam:okimoji>時<skam:kun okuri="ふ">習</skam:kun><skam:kaeri kind="re"/><skam:kun soe="を">之</skam:kun>
     </skam:block>
   </skam:body>
 </skam:doc>`;

@@ -1,4 +1,5 @@
 import { describe, it, expect } from 'vitest';
+import { lintSKAMDocument, validateSKAMDocument } from '../index.js';
 import type { SKAMDocument } from '../index.js';
 
 describe('SKAM Examples', () => {
@@ -20,7 +21,7 @@ describe('SKAM Examples', () => {
           { type: 'okurigana', id: 'm3', anchor: { from: 't3', to: 't3' }, value: 'に' },
           { type: 'soegana', id: 'm4', anchor: { from: 't5', to: 't5' }, value: 'を' },
           { type: 'okurigana', id: 'm5', anchor: { from: 't4', to: 't4' }, value: 'ふ' },
-          { type: 'kaeri', id: 'm6', position: { blockId: 'b1', after: 't5' }, value: '㆑' },
+          { type: 'kaeri', id: 'm6', position: { blockId: 'b1', after: 't4' }, value: '㆑' },
         ],
         readings: [{ kind: 'kakikudashi', text: '学びて時に之を習ふ' }],
       };
@@ -149,31 +150,42 @@ describe('SKAM Examples', () => {
     });
   });
 
-  describe('読み順計算: 不可不學', () => {
+  describe('読み順計算: 孝者所以事君也', () => {
     it('should support complex kaeriten with derivations', () => {
+      // 所以 は竪点でつないだ語で、二点は語の中の字と字の間 (所の後ろ) に置く。事の後ろの 一 と レ は同じ位置に並べる
       const doc: SKAMDocument = {
         format: 'skam@0.1',
         tokens: [
-          { id: 't1', text: '不' },
-          { id: 't2', text: '可' },
-          { id: 't3', text: '不' },
-          { id: 't4', text: '學' },
+          { id: 't1', text: '孝' },
+          { id: 't2', text: '者' },
+          { id: 't3', text: '所' },
+          { id: 't4', text: '以' },
+          { id: 't5', text: '事' },
+          { id: 't6', text: '君' },
+          { id: 't7', text: '也' },
         ],
-        blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3', 't4'] }],
+        blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3', 't4', 't5', 't6', 't7'] }],
         marks: [
-          { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't2' }, value: '㆓' },
-          // 互換: 複数の字の kaeri は 0.3 では読めるが非推奨 (0.4.0 で誤り)。この値を読めることを確かめる
-          { type: 'kaeri', id: 'm2', position: { blockId: 'b1', after: 't4' }, value: '㆒㆑' },
+          { type: 'kaeri', id: 'm1', position: { blockId: 'b1', after: 't3' }, value: '㆓' },
+          { type: 'tateten', id: 'm2', anchor: { from: 't3', to: 't4' } },
+          { type: 'kaeri', id: 'm3', position: { blockId: 'b1', after: 't5' }, value: '㆒' },
+          { type: 'kaeri', id: 'm4', position: { blockId: 'b1', after: 't5' }, value: '㆑' },
         ],
         derivations: [
-          { kind: 'readingOrder', method: 'kaeriten-stack', result: ['t4', 't3', 't2', 't1'] },
+          {
+            kind: 'readingOrder',
+            method: 'kaeriten-stack',
+            result: ['t1', 't2', 't6', 't5', 't3', 't4', 't7'],
+          },
         ],
-        readings: [{ kind: 'kakikudashi', text: '学ばざるべからず' }],
+        readings: [{ kind: 'kakikudashi', text: '孝は君に事うる所以なり' }],
       };
 
       expect(doc.derivations).toBeDefined();
       const firstDerivation = doc.derivations![0]!;
-      expect(firstDerivation.result).toEqual(['t4', 't3', 't2', 't1']);
+      expect(firstDerivation.result).toEqual(['t1', 't2', 't6', 't5', 't3', 't4', 't7']);
+      expect(validateSKAMDocument(doc).valid).toBe(true);
+      expect(lintSKAMDocument(doc)).toEqual([]);
     });
   });
 });

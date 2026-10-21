@@ -9,6 +9,7 @@
  * - yomigana（読み仮名）
  * - soegana（添え仮名）
  * - kutoten（句読点）
+ * - linebreak（改行）
  * - okimoji（置字）
  * - joji（助字）
  * - okototen（ヲコト点）
@@ -29,6 +30,7 @@ import type {
   YomiganaMark,
   SoeganaMark,
   KutotenMark,
+  LinebreakMark,
   OkimojiMark,
   JojiMark,
   OkototenMark,
@@ -179,6 +181,8 @@ interface TokenAnnotation {
   kutotenAfter?: KutotenMark[];
   /** 直後に配置する ref（空要素） */
   refAfter?: RefMark[];
+  /** 直後に配置する改行（空要素） */
+  linebreakAfter?: LinebreakMark[];
   /** 包囲要素（単一トークン用） */
   wrappers?: SingleTokenWrapper[];
 }
@@ -292,14 +296,14 @@ interface BlockStartMarks {
   refAfter?: RefMark[];
 }
 
-/** Position-based mark (kaeri/kutoten/ref) を annotation またはブロック先頭に追加 */
+/** Position-based mark (kaeri/kutoten/ref/linebreak) を annotation またはブロック先頭に追加 */
 function applyPositionBasedMark(
   mark: Mark,
   annotations: Map<string, TokenAnnotation>,
   blockStart: Map<string, BlockStartMarks>,
   ctx: StringifyContext
 ): void {
-  const positionMark = mark as KaeriMark | KutotenMark | RefMark;
+  const positionMark = mark as KaeriMark | KutotenMark | RefMark | LinebreakMark;
   const tokenId = getPositionAfterTokenId(positionMark.position);
 
   if (!tokenId) {
@@ -326,11 +330,14 @@ function applyPositionBasedMark(
   } else if (mark.type === 'ref') {
     if (!annotation.refAfter) annotation.refAfter = [];
     annotation.refAfter.push(mark as RefMark);
+  } else if (mark.type === 'linebreak') {
+    if (!annotation.linebreakAfter) annotation.linebreakAfter = [];
+    annotation.linebreakAfter.push(mark as LinebreakMark);
   }
 }
 
 function applyBlockStartMark(
-  mark: KaeriMark | KutotenMark | RefMark,
+  mark: KaeriMark | KutotenMark | RefMark | LinebreakMark,
   blockStart: Map<string, BlockStartMarks>,
   ctx: StringifyContext
 ): void {
@@ -339,6 +346,14 @@ function applyBlockStartMark(
       category: 'unrepresentable',
       code: 'BLOCK_START_KAERI',
       message: 'A kaeri cannot be placed at the start of a block; it needs a preceding token',
+    });
+    return;
+  }
+  if (mark.type === 'linebreak') {
+    addMarkLoss(ctx, mark, {
+      category: 'unrepresentable',
+      code: 'BLOCK_START_LINEBREAK',
+      message: 'A linebreak cannot be placed at the start of a block; it needs a preceding token',
     });
     return;
   }
@@ -659,13 +674,15 @@ function markSortKey(ctx: StringifyContext, mark: Mark): LossSortKey {
   if (isAnchorBasedMark(mark)) {
     refTokenId = mark.anchor.from;
   } else {
-    refTokenId = getPositionAfterTokenId((mark as KaeriMark | KutotenMark | RefMark).position);
+    refTokenId = getPositionAfterTokenId(
+      (mark as KaeriMark | KutotenMark | RefMark | LinebreakMark).position
+    );
   }
   if (refTokenId === undefined) {
     // after のない position mark はブロック先頭 (t = -1)。blockId が解決できなければ末尾へ回す
     const blockId = isAnchorBasedMark(mark)
       ? undefined
-      : (mark as KaeriMark | KutotenMark | RefMark).position.blockId;
+      : (mark as KaeriMark | KutotenMark | RefMark | LinebreakMark).position.blockId;
     const blockIndex =
       (blockId === undefined ? undefined : ctx.blockIndexById.get(blockId)) ?? UNPLACED;
     return { blockIndex, tokenIndex: -1, markIndex, fieldOrder: 0 };
@@ -780,7 +797,11 @@ function childNamesOfAnnotation(annotation: TokenAnnotation, isFinalToken: boole
   const names: string[] = [];
   if (annotation.yomi || annotation.okuri || annotation.soe) names.push('kun');
   for (const wrapper of annotation.wrappers ?? []) names.push(wrapper.type);
-  const hasPosition = annotation.kaeriAfter || annotation.kutotenAfter || annotation.refAfter;
+  const hasPosition =
+    annotation.kaeriAfter ||
+    annotation.kutotenAfter ||
+    annotation.refAfter ||
+    annotation.linebreakAfter;
   if (hasPosition && !isFinalToken) names.push('position');
   return names;
 }
@@ -981,10 +1002,10 @@ function tokenBaseToXml(text: string, annotation: TokenAnnotation): string {
 }
 
 /**
- * trailing marks（kaeri/kutoten/ref）の XML を生成
+ * trailing marks（kaeri/kutoten/ref/linebreak）の XML を生成
  */
 function tokenTrailingToXml(annotation: TokenAnnotation): string {
-  const { kaeriAfter, kutotenAfter, refAfter } = annotation;
+  const { kaeriAfter, kutotenAfter, refAfter, linebreakAfter } = annotation;
   let xml = '';
 
   if (kaeriAfter) {
@@ -1008,6 +1029,13 @@ function tokenTrailingToXml(annotation: TokenAnnotation): string {
     for (const ref of refAfter) {
       // id のない ref の content は notes に出せないので、インラインに出力する
       xml += refMarkToXml(ref, !(ref.content && !ref.id));
+    }
+  }
+
+  // linebreak は未知のフィールドを書かない。位置の正しさは検査しない (validator の役目)
+  if (linebreakAfter) {
+    for (const linebreak of linebreakAfter) {
+      xml += linebreak.id ? `<skam:br xml:id="${escapeXml(linebreak.id)}"/>` : '<skam:br/>';
     }
   }
 
@@ -1156,9 +1184,11 @@ function takeTrailing(annotation: TokenAnnotation): TokenAnnotation {
   if (annotation.kaeriAfter) taken.kaeriAfter = annotation.kaeriAfter;
   if (annotation.kutotenAfter) taken.kutotenAfter = annotation.kutotenAfter;
   if (annotation.refAfter) taken.refAfter = annotation.refAfter;
+  if (annotation.linebreakAfter) taken.linebreakAfter = annotation.linebreakAfter;
   delete annotation.kaeriAfter;
   delete annotation.kutotenAfter;
   delete annotation.refAfter;
+  delete annotation.linebreakAfter;
   return taken;
 }
 

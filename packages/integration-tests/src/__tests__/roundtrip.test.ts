@@ -23,6 +23,7 @@ import type {
   TatetenMark,
   HighlightMark,
   RefMark,
+  Mark,
 } from '@kanbun-skam/skam';
 
 // ============================================================================
@@ -997,5 +998,129 @@ describe('round-trip - kaeri', () => {
     const second = parse(stringify(first));
     expect(kaeriValues(first)).toEqual(['㆑', '㆒']);
     expect(kaeriValues(second)).toEqual(['㆑', '㆒']);
+  });
+});
+
+// ============================================================================
+// linebreak: <skam:br/> の書き順と往復
+// ============================================================================
+
+describe('round-trip - linebreak', () => {
+  const tokens = [
+    { id: 't1', text: '學' },
+    { id: 't2', text: '而' },
+    { id: 't3', text: '時' },
+    { id: 't4', text: '習' },
+  ];
+  const makeDoc = (marks: Mark[]): SKAMDocument => ({
+    format: 'skam@0.1',
+    tokens,
+    blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3', 't4'] }],
+    marks,
+    readings: [],
+  });
+  const br = (after?: string): Mark => ({
+    type: 'linebreak',
+    position: after === undefined ? { blockId: 'b1' } : { blockId: 'b1', after },
+  });
+  const tateten = (from: string, to: string): Mark => ({ type: 'tateten', anchor: { from, to } });
+
+  /** id を除き、字の id を文書内の字の添字に置き換えた注記の一覧 (往復で id が変わるため) */
+  function comparable(doc: SKAMDocument): string[] {
+    const index = (id: string) => doc.tokens.findIndex((t) => t.id === id);
+    return doc.marks
+      .map((m) => {
+        const { id: _id, ...rest } = m as Mark & { id?: string };
+        const copy = JSON.parse(JSON.stringify(rest)) as Record<string, any>;
+        if (copy['position']?.['after'])
+          copy['position']['after'] = index(copy['position']['after']);
+        if (copy['anchor']) {
+          copy['anchor'] = { from: index(copy['anchor'].from), to: index(copy['anchor'].to) };
+        }
+        return JSON.stringify(copy);
+      })
+      .sort();
+  }
+
+  /** inside-unit など validator が拒否する配置も、位置の往復は壊れない */
+  const reparse = (xml: string) => parse(xml, { validate: false });
+
+  it('kaeri、kutoten、ref、linebreak の順に書き、往復で同じ注記に戻る', () => {
+    const doc = makeDoc([
+      br('t1'),
+      { type: 'ref', position: { blockId: 'b1', after: 't1' }, label: 'A' },
+      { type: 'kutoten', position: { blockId: 'b1', after: 't1' }, value: '。' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
+    ]);
+    const xml = stringify(doc);
+    expect(xml).toContain(
+      '學<skam:kaeri kind="re"/><skam:kutoten value="。"/><skam:ref label="A"/><skam:br/>而'
+    );
+    expect(comparable(parse(xml))).toEqual(comparable(doc));
+  });
+
+  it('id があれば xml:id を付け、往復で id が戻る', () => {
+    const doc = makeDoc([{ ...br('t1'), id: 'lb1' }]);
+    const xml = stringify(doc);
+    expect(xml).toContain('學<skam:br xml:id="lb1"/>而');
+    expect(parse(xml).marks.find((m) => m.type === 'linebreak')!.id).toBe('lb1');
+  });
+
+  it('竪点の途中の字の後ろの linebreak は tateten の中に書き、往復で戻る', () => {
+    const doc = makeDoc([tateten('t1', 't2'), br('t1')]);
+    const xml = stringify(doc);
+    expect(xml).toContain('<skam:tateten>學<skam:br/>而</skam:tateten>');
+    expect(comparable(reparse(xml))).toEqual(comparable(doc));
+  });
+
+  it('竪点の最後の字の後ろの linebreak は </skam:tateten> の後ろに書き、往復で戻る', () => {
+    const doc = makeDoc([tateten('t1', 't2'), br('t2')]);
+    const xml = stringify(doc);
+    expect(xml).toContain('<skam:tateten>學而</skam:tateten><skam:br/>時習');
+    expect(comparable(parse(xml))).toEqual(comparable(doc));
+  });
+
+  it('竪点の最後の字の後ろの kaeri と kutoten と linebreak は、この順に </skam:tateten> の後ろに並ぶ', () => {
+    const doc = makeDoc([
+      tateten('t1', 't2'),
+      br('t2'),
+      { type: 'kutoten', position: { blockId: 'b1', after: 't2' }, value: '。' },
+      { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆑' },
+    ]);
+    const xml = stringify(doc);
+    expect(xml).toContain(
+      '<skam:tateten>學而</skam:tateten><skam:kaeri kind="re"/><skam:kutoten value="。"/><skam:br/>時習'
+    );
+    expect(comparable(parse(xml))).toEqual(comparable(doc));
+  });
+
+  it('隣り合う 2 つの竪点の間の linebreak は </skam:tateten><skam:br/><skam:tateten>', () => {
+    const doc = makeDoc([tateten('t1', 't2'), tateten('t3', 't4'), br('t2')]);
+    const xml = stringify(doc);
+    expect(xml).toContain('</skam:tateten><skam:br/><skam:tateten>');
+    expect(comparable(parse(xml))).toEqual(comparable(doc));
+  });
+
+  it('JSON -> XML -> JSON で注記の集合が変わらない', () => {
+    const doc = makeDoc([
+      br('t1'),
+      br('t3'),
+      { type: 'highlight', anchor: { from: 't1', to: 't3' } },
+    ]);
+    expect(comparable(parse(stringify(doc)))).toEqual(comparable(doc));
+  });
+
+  it('after の無い linebreak は表現できない (例外 / lossy なら onLoss)', () => {
+    const doc = makeDoc([br()]);
+    expect(() => stringify(doc)).toThrow(/BLOCK_START_LINEBREAK/);
+    const losses: { code: string }[] = [];
+    const xml = stringify(doc, { lossy: true, onLoss: (l) => losses.push(l) });
+    expect(losses.map((l) => l.code)).toEqual(['BLOCK_START_LINEBREAK']);
+    expect(xml).not.toContain('skam:br');
+  });
+
+  it('linebreak の未知のフィールドは書かない', () => {
+    const doc = makeDoc([{ ...br('t1'), value: 'x' } as Mark]);
+    expect(stringify(doc)).toContain('學<skam:br/>而');
   });
 });

@@ -11,7 +11,7 @@ const RAW_SIGNS = ['<img', '<script', '</style'];
 /** 文字列・数値以外の型で注入する値 (fail closed の確認) */
 const typedPayloads = (payload: string): unknown[] => [[payload], { toString: () => payload }];
 
-/** 13 種の mark、範囲 anchor、ref.label、ext を含む文書。satisfies で型と照合する */
+/** 14 種の mark、範囲 anchor、ref.label、ext を含む文書。satisfies で型と照合する */
 const full = {
   format: 'skam@0.1',
   tokens: [
@@ -47,6 +47,8 @@ const full = {
       position: { system: 'glyph-grid', grid: '5x5', x: 1, y: 2 },
     },
     { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+    // 竪点・読みの範囲の最後の字の後ろは改行を置ける。出力に <br> が出る経路を通す
+    { id: 'l1', type: 'linebreak', position: { blockId: 'b1', after: 't2' } },
   ],
   ext: { note: 'e' },
 } satisfies SKAMDocument;

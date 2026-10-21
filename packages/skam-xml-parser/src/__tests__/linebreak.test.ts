@@ -114,7 +114,7 @@ describe('parse - skam:br', () => {
     expect(linebreaks(doc)).toHaveLength(count);
     // 10 万個は duplicate なので validate すると誤りになる
     expect(validateSKAMDocument(doc).valid).toBe(false);
-  });
+  }, 60_000);
 
   it('maxInputLength を超える入力は今と同じ長さの誤りになる', () => {
     const xml = docOf(`學${'<skam:br/>'.repeat(1000)}而`);

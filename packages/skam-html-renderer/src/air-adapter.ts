@@ -167,6 +167,7 @@ function convertTokenNode(airToken: AIRTokenNode, tokens: Token[]): TokenItem {
   if (airToken.rangeInfo) {
     item.rangeCtx = convertRangeInfo(airToken.rangeInfo, tokens);
   }
+  if (airToken.lineBreakAfter) item.lineBreakAfter = true;
   return item;
 }
 
@@ -193,6 +194,7 @@ function convertTatetenGroup(airGroup: AIRTatetenGroupNode, tokens: Token[]): Ta
   if (airGroup.rangeInfo) {
     node.rangeCtx = convertRangeInfo(airGroup.rangeInfo, tokens);
   }
+  if (airGroup.lineBreakAfter) node.lineBreakAfter = true;
 
   return node;
 }

@@ -83,6 +83,8 @@ export interface TokenItem {
   type: 'token';
   token: Token;
   rangeCtx?: RangeMarkContext;
+  /** この単位の直後で行を改める (AIR の lineBreakAfter)。竪点のグループの中の字には付かない */
+  lineBreakAfter?: true;
 }
 
 /** A tateten group wrapping consecutive tokens that share a tateten mark. */
@@ -92,6 +94,8 @@ export interface TatetenGroupNode {
   items: TokenItem[];
   /** tateten と読み範囲が重複する場合の読み情報（グループ全体に適用） */
   rangeCtx?: RangeMarkContext;
+  /** このグループの直後で行を改める (AIR の lineBreakAfter) */
+  lineBreakAfter?: true;
 }
 
 /** A highlight group wrapping nodes (tokens or tateten groups) that share a highlight mark. */

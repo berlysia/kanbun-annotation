@@ -36,6 +36,31 @@ export interface RenderTreeContext {
 }
 
 // ---------------------------------------------------------------------------
+// Line break
+// ---------------------------------------------------------------------------
+
+/**
+ * 強制の改行。class の prefix は render-options.ts で形を検査済みなので、ほかの class と同じく escape しない。
+ * 自動の折り返しの位置 (canBreakBefore の `<wbr>`) は変えず、改行の注記がある所だけ `<wbr>` の代わりにこれを置く。
+ */
+function lineBreakHtml(prefix: string): string {
+  return `<br class="${prefix}-linebreak">`;
+}
+
+/** 単位の前に置く区切り。直前の単位が改行を持つなら `<br>`、そうでなければ折り返し可能位置の `<wbr>` */
+function separatorBefore(previous: { lineBreakAfter?: true }, prefix: string): string {
+  return previous.lineBreakAfter ? lineBreakHtml(prefix) : '<wbr>';
+}
+
+/** highlight の最後の子に付いた改行は、highlight の span を閉じた後に出す */
+function endsWithLineBreak(node: RenderNode): boolean {
+  if (node.type === 'highlight-group') {
+    return node.items[node.items.length - 1]?.lineBreakAfter === true;
+  }
+  return node.lineBreakAfter === true;
+}
+
+// ---------------------------------------------------------------------------
 // Token rendering wrapper
 // ---------------------------------------------------------------------------
 
@@ -292,7 +317,7 @@ function renderHighlightGroupNode(node: HighlightGroupNode, ctx: RenderTreeConte
     const contentParts: string[] = [];
     for (let i = 0; i < node.items.length; i++) {
       const child = node.items[i]!;
-      if (i > 0) contentParts.push('<wbr>');
+      if (i > 0) contentParts.push(separatorBefore(node.items[i - 1]!, prefix));
 
       if (i === node.items.length - 1) {
         // 末尾の tateten group: ruby-grid ラッパーなしの tateten-group のみ
@@ -329,7 +354,7 @@ function renderHighlightGroupNode(node: HighlightGroupNode, ctx: RenderTreeConte
     const child = node.items[i]!;
     // highlight グループ内: 先頭以外では改行可能
     if (i > 0) {
-      contentParts.push('<wbr>');
+      contentParts.push(separatorBefore(node.items[i - 1]!, prefix));
     }
     if (child.type === 'token') {
       const result = callRenderToken(child, ctx);
@@ -376,7 +401,11 @@ export function renderBlockTree(tree: BlockRenderTree, ctx: RenderTreeContext): 
 
   for (let i = 0; i < tree.items.length; i++) {
     const node = tree.items[i]!;
-    if (canBreakBefore(i, hasBlockStartContent)) {
+    const previous = tree.items[i - 1];
+    if (previous && endsWithLineBreak(previous)) {
+      // 強制の改行が <wbr> の代わりになる
+      parts.push(lineBreakHtml(ctx.prefix));
+    } else if (canBreakBefore(i, hasBlockStartContent)) {
       parts.push('<wbr>');
     }
     parts.push(renderNode(node, ctx));

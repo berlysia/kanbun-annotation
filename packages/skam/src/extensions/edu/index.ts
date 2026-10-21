@@ -8,9 +8,14 @@
  * core の値は import しない (`import type` だけ)。誤りの値は core の `createValidationError` を使わずに組み立てる。
  */
 
-import type { Mark } from '../../index.js';
+import type { Mark, MarkType } from '../../index.js';
 import type { ValidationError } from '../../errors.js';
-import type { ExtensionOwner, SKAMExtensionDefinition, XmlElementMarks } from '../types.js';
+import type {
+  ExtensionOwner,
+  HiddenParts,
+  SKAMExtensionDefinition,
+  XmlElementMarks,
+} from '../types.js';
 
 /** 注記の `ext.edu` の形 */
 export interface EduExtension {
@@ -211,6 +216,48 @@ function writeEduAttributes(target: XmlElementMarks): ReadonlyMap<string, string
   return written;
 }
 
+// ============================================================================
+// 描画: 隠す所
+// ============================================================================
+
+/** 描画の選択肢 `extensionOptions.edu` から `hideQuiz` を読む。形は assertOptions が入口で検査済み */
+function readHideQuiz(options: unknown): HideQuizOption | undefined {
+  if (!isPlainObject(options) || !Object.hasOwn(options, 'hideQuiz')) return undefined;
+  return options['hideQuiz'] as HideQuizOption | undefined;
+}
+
+function isQuizTarget(mark: Mark, hideQuiz: HideQuizOption | undefined): boolean {
+  return QUIZ_MARK_TYPES.has(mark.type) && isQuizHidden(mark, hideQuiz);
+}
+
+/**
+ * 同じ種類の注記のどれか 1 つでも隠すなら、その種類の slot を隠す。
+ * 再読文字を描く字 (1 つ目の saidoku) は ruby と okuri を上書きするので、yomigana と okurigana の印は効かず、
+ * 描く saidoku が隠すものなら読みの slot をすべて隠す
+ */
+function hiddenParts(
+  tokenMarks: ReadonlyMap<MarkType, readonly Mark[]>,
+  options: unknown
+): HiddenParts {
+  const hideQuiz = readHideQuiz(options);
+  const slots: HiddenParts['slots'][number][] = [];
+  const anyHidden = (type: MarkType): boolean =>
+    (tokenMarks.get(type) ?? []).some((mark) => isQuizTarget(mark, hideQuiz));
+  const saidoku = tokenMarks.get('saidoku')?.[0];
+  if (saidoku !== undefined) {
+    if (isQuizTarget(saidoku, hideQuiz)) {
+      slots.push('ruby', 'okuri', 'saidokuUnder', 'saidokuOkuri2');
+    }
+  } else {
+    if (anyHidden('yomigana')) slots.push('ruby');
+    if (anyHidden('okurigana')) slots.push('okuri');
+  }
+  if (anyHidden('soegana')) slots.push('soegana');
+  if (anyHidden('kaeri')) slots.push('kaeri');
+  if (anyHidden('kutoten')) slots.push('kutoten');
+  return { slots, omitOkimoji: anyHidden('okimoji'), omitJoji: anyHidden('joji') };
+}
+
 /** 学習・教育用拡張の定義 */
 export const eduExtension: SKAMExtensionDefinition = {
   name: 'edu',
@@ -219,6 +266,8 @@ export const eduExtension: SKAMExtensionDefinition = {
   validate: validateEdu,
   readXmlAttributes: readEduAttributes,
   writeXmlAttributes: writeEduAttributes,
+  hiddenParts,
+  isHidden: (mark, options) => isQuizTarget(mark, readHideQuiz(options)),
   assertOptions(options) {
     if (options === undefined) return;
     if (!isPlainObject(options)) {

@@ -24,6 +24,7 @@ import type {
 } from '../index.js';
 
 import { getLinebreakPlacementIssues } from '../line-units.js';
+import type { HiddenParts } from '../extensions/types.js';
 
 import type {
   AIRRenderProfile,
@@ -39,10 +40,11 @@ import type {
   AIRTrailingMark,
   AIRBlockStartRef,
   AIRBlockStartKutoten,
+  AIRHiddenSlot,
 } from './air-types.js';
 import type { RangeMarkGroup } from './types.js';
 
-import { createMarkLookup, type MarkLookup } from './mark-lookup.js';
+import { createMarkLookup, type MarkLookup, type TokenMarks } from './mark-lookup.js';
 import { getRangeMarkGroups, getTatetenGroups, getHighlightGroups } from './mark-groups.js';
 import { groupTokensByBlock } from './block-utils.js';
 import { getBlockStartMarks } from './block-start.js';
@@ -50,6 +52,7 @@ import { splitKaeriForTateten, joinKaeriValues } from './kaeri.js';
 import { resolveEmphasisCharacter } from './emphasis.js';
 import { resolveRefValues } from './ref.js';
 import { resolveOkototenCell } from './okototen.js';
+import { createHiding, type Hiding, type RenderExtensionOptions } from './hiding.js';
 
 // ============================================================================
 // Token slot 解決
@@ -59,10 +62,13 @@ import { resolveOkototenCell } from './okototen.js';
 function resolveTokenSlots(
   tokenId: string,
   profile: AIRRenderProfile,
-  lookupMarks: MarkLookup
-): AIRTokenSlots {
+  lookupMarks: MarkLookup,
+  hiding: Hiding | undefined
+): { slots: AIRTokenSlots; hiddenSlots: AIRHiddenSlot[] } {
   const tokenMarks = lookupMarks(tokenId);
   const slots: AIRTokenSlots = {};
+  // 隠す判定は、画面に出す注記 (profile で有効なもの) だけを見る
+  const hidden: HiddenParts | undefined = hiding?.parts(visibleMarks(tokenMarks, profile));
 
   if (profile.yomigana) {
     const yomiganaMarks = (tokenMarks.get('yomigana') ?? []) as YomiganaMark[];
@@ -100,11 +106,11 @@ function resolveTokenSlots(
     }
   }
 
-  if (profile.okimoji && tokenMarks.has('okimoji')) {
+  if (profile.okimoji && tokenMarks.has('okimoji') && !hidden?.omitOkimoji) {
     slots.isOkimoji = true;
   }
 
-  if (profile.joji && tokenMarks.has('joji')) {
+  if (profile.joji && tokenMarks.has('joji') && !hidden?.omitJoji) {
     slots.isJoji = true;
   }
 
@@ -119,7 +125,8 @@ function resolveTokenSlots(
     const okototenMarks = (tokenMarks.get('okototen') ?? []) as OkototenMark[];
     const cells = okototenMarks.flatMap((m) => {
       const cell = resolveOkototenCell(m);
-      return cell ? [cell] : [];
+      if (!cell) return [];
+      return [hiding?.isHidden(m) ? { ...cell, hidden: true as const } : cell];
     });
     if (cells.length > 0) {
       slots.okototen = cells;
@@ -147,7 +154,21 @@ function resolveTokenSlots(
     }
   }
 
-  return slots;
+  return { slots, hiddenSlots: hidden?.slots ? [...hidden.slots] : [] };
+}
+
+/** profile で有効な種類の注記だけを残す。画面に出ない注記は、隠す判定に影響しない */
+const PROFILE_KEY_OF_TYPE: Readonly<Record<string, keyof AIRRenderProfile>> = {
+  kaeri: 'kaeriten',
+};
+
+function visibleMarks(tokenMarks: TokenMarks, profile: AIRRenderProfile): TokenMarks {
+  const visible = new Map<Mark['type'], readonly Mark[]>();
+  for (const [type, marks] of tokenMarks) {
+    const key = PROFILE_KEY_OF_TYPE[type] ?? (type as keyof AIRRenderProfile);
+    if (profile[key]) visible.set(type, marks);
+  }
+  return visible;
 }
 
 // ============================================================================
@@ -155,6 +176,18 @@ function resolveTokenSlots(
 // ============================================================================
 
 function resolveTrailingMark(
+  mark: Mark,
+  sourceTokenId: string,
+  refValueMap: Map<RefMark, string>,
+  highlightRefIds: Set<string>,
+  hiding?: Hiding
+): AIRTrailingMark | undefined {
+  const resolved = resolveTrailingMarkBase(mark, sourceTokenId, refValueMap, highlightRefIds);
+  if (resolved && hiding?.isHidden(mark)) resolved.hidden = true;
+  return resolved;
+}
+
+function resolveTrailingMarkBase(
   mark: Mark,
   sourceTokenId: string,
   refValueMap: Map<RefMark, string>,
@@ -228,7 +261,8 @@ function buildRangeInfo(
   profile: AIRRenderProfile,
   rangeGroups: RangeGroupSet,
   refValueMap: Map<RefMark, string>,
-  highlightRefIds: Set<string>
+  highlightRefIds: Set<string>,
+  hiding: Hiding | undefined
 ): AIRRangeInfo | undefined {
   const yomiganaGroup = rangeGroups.yomigana.get(leadTokenId);
   const okuriganaGroup = rangeGroups.okurigana.get(leadTokenId);
@@ -261,6 +295,7 @@ function buildRangeInfo(
       baseText,
       value: (yomiganaGroup.mark as YomiganaMark).value,
       span: yomiganaGroup.tokenIds.length,
+      ...(hiding?.isHidden(yomiganaGroup.mark) ? { hidden: true as const } : {}),
     };
   }
 
@@ -275,6 +310,7 @@ function buildRangeInfo(
     info.okurigana = {
       baseText,
       value: (okuriganaGroup.mark as OkuriganaMark).value,
+      ...(hiding?.isHidden(okuriganaGroup.mark) ? { hidden: true as const } : {}),
     };
   }
 
@@ -289,6 +325,7 @@ function buildRangeInfo(
     info.soegana = {
       baseText,
       value: (soeganaGroup.mark as SoeganaMark).value,
+      ...(hiding?.isHidden(soeganaGroup.mark) ? { hidden: true as const } : {}),
     };
   }
 
@@ -299,22 +336,22 @@ function buildRangeInfo(
     for (const [type, markList] of tokenMarks) {
       for (const m of markList) {
         if (type === 'kaeri' && profile.kaeriten) {
-          const t = resolveTrailingMark(m, tid, refValueMap, highlightRefIds);
+          const t = resolveTrailingMark(m, tid, refValueMap, highlightRefIds, hiding);
           if (t) info.trailingMarks.push(t);
         } else if (type === 'kutoten' && profile.kutoten) {
-          const t = resolveTrailingMark(m, tid, refValueMap, highlightRefIds);
+          const t = resolveTrailingMark(m, tid, refValueMap, highlightRefIds, hiding);
           if (t) info.trailingMarks.push(t);
         } else if (type === 'ref' && profile.ref) {
-          const t = resolveTrailingMark(m, tid, refValueMap, highlightRefIds);
+          const t = resolveTrailingMark(m, tid, refValueMap, highlightRefIds, hiding);
           if (t) info.trailingMarks.push(t);
         } else if (type === 'okimoji' && profile.okimoji) {
-          const t = resolveTrailingMark(m, tid, refValueMap, highlightRefIds);
+          const t = resolveTrailingMark(m, tid, refValueMap, highlightRefIds, hiding);
           if (t) info.trailingMarks.push(t);
         } else if (type === 'joji' && profile.joji) {
-          const t = resolveTrailingMark(m, tid, refValueMap, highlightRefIds);
+          const t = resolveTrailingMark(m, tid, refValueMap, highlightRefIds, hiding);
           if (t) info.trailingMarks.push(t);
         } else if (type === 'emphasis' && profile.emphasis) {
-          const t = resolveTrailingMark(m, tid, refValueMap, highlightRefIds);
+          const t = resolveTrailingMark(m, tid, refValueMap, highlightRefIds, hiding);
           if (t) info.trailingMarks.push(t);
         }
       }
@@ -333,7 +370,8 @@ function buildAIRTatetenGroup(
   tatetenMark: import('../index.js').TatetenMark,
   blockId: string,
   marks: Mark[],
-  profile: AIRRenderProfile
+  profile: AIRRenderProfile,
+  hiding: Hiding | undefined
 ): AIRTatetenGroupNode {
   const separators: AIRTatetenSeparator[] = [];
   for (let i = 0; i < tokenNodes.length - 1; i++) {
@@ -363,11 +401,11 @@ function buildAIRTatetenGroup(
         }
 
         if (nonRe && separators.length > 0) {
-          if (i < tokenNodes.length - 1) {
-            separators[i]!.kaeri = nonRe;
-          } else {
-            separators[separators.length - 1]!.kaeri = nonRe;
-          }
+          const separator =
+            i < tokenNodes.length - 1 ? separators[i]! : separators[separators.length - 1]!;
+          separator.kaeri = nonRe;
+          // 同じ位置の kaeri のどれかを隠すなら、区切りの kaeri も隠す
+          if (kaeriAtToken.some((m) => hiding?.isHidden(m))) separator.kaeriHidden = true;
         }
       }
     }
@@ -386,6 +424,7 @@ function buildAIRTatetenGroup(
     type: 'tateten-group' as const,
     tatetenMark,
     children,
+    ...(hiding?.isHidden(tatetenMark) ? { hidden: true as const } : {}),
   };
 }
 
@@ -400,7 +439,8 @@ function buildTatetenRangeInfo(
   profile: AIRRenderProfile,
   rangeGroups: RangeGroupSet,
   refValueMap: Map<RefMark, string>,
-  highlightRefIds: Set<string>
+  highlightRefIds: Set<string>,
+  hiding: Hiding | undefined
 ): AIRRangeInfo | undefined {
   if (tokenNodes.length === 0) return undefined;
   const firstTokenId = tokenNodes[0]!.token.id;
@@ -423,7 +463,8 @@ function buildTatetenRangeInfo(
     profile,
     rangeGroups,
     refValueMap,
-    highlightRefIds
+    highlightRefIds,
+    hiding
   );
 }
 
@@ -436,7 +477,8 @@ function resolveBlockStartMarks(
   marks: Mark[],
   profile: AIRRenderProfile,
   refValueMap: Map<RefMark, string>,
-  highlightRefIds: Set<string>
+  highlightRefIds: Set<string>,
+  hiding: Hiding | undefined
 ): { blockStartRefs: AIRBlockStartRef[]; blockStartKutoten: AIRBlockStartKutoten[] } {
   const blockStartMarks = getBlockStartMarks(blockId, marks);
   const blockStartRefs: AIRBlockStartRef[] = [];
@@ -457,7 +499,10 @@ function resolveBlockStartMarks(
 
   if (blockStartMarks.kutotenMarks.length > 0 && profile.kutoten) {
     for (const kutotenMark of blockStartMarks.kutotenMarks) {
-      blockStartKutoten.push({ value: kutotenMark.value });
+      blockStartKutoten.push({
+        value: kutotenMark.value,
+        ...(hiding?.isHidden(kutotenMark) ? { hidden: true as const } : {}),
+      });
     }
   }
 
@@ -512,8 +557,13 @@ function checkHasEmphasis(node: AIRTokenNode | AIRTatetenGroupNode): boolean {
  *
  * 全マーク解決を一箇所に集約する Resolver 層のエントリーポイント。
  */
-export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile): AIRDocument {
+export function buildAnnotationIR(
+  doc: SKAMDocument,
+  profile: AIRRenderProfile,
+  options?: RenderExtensionOptions
+): AIRDocument {
   const { tokens, marks, blocks } = doc;
+  const hiding = createHiding(doc, options);
 
   const blockGroups = groupTokensByBlock(blocks ?? [], tokens);
 
@@ -570,8 +620,9 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
 
     // Build token nodes
     const tokenNodes: AIRTokenNode[] = group.tokens.map((token) => {
-      const slots = resolveTokenSlots(token.id, profile, lookupMarks);
+      const { slots, hiddenSlots } = resolveTokenSlots(token.id, profile, lookupMarks, hiding);
       const node: AIRTokenNode = { type: 'token' as const, token, slots };
+      if (hiddenSlots.length > 0) node.hiddenSlots = hiddenSlots;
 
       // Range info（tateten 重複チェック付き）
       const activeRangeGroup =
@@ -592,7 +643,8 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
           profile,
           rangeGroups,
           refValueMap,
-          highlightRefIds
+          highlightRefIds,
+          hiding
         );
         if (rangeInfo) {
           node.rangeInfo = rangeInfo;
@@ -621,6 +673,13 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
         // range 関連スロットをクリア（リードトークンの rangeInfo に集約済み）
         const { ruby: _ruby, okuri: _okuri, soegana: _soegana, ...rest } = node.slots;
         node.slots = rest;
+        if (node.hiddenSlots) {
+          const kept = node.hiddenSlots.filter(
+            (slot) => slot !== 'ruby' && slot !== 'okuri' && slot !== 'soegana'
+          );
+          if (kept.length > 0) node.hiddenSlots = kept;
+          else delete node.hiddenSlots;
+        }
       }
     }
 
@@ -672,7 +731,8 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
             tatetenMark,
             group.blockId,
             marks,
-            profile
+            profile,
+            hiding
           );
 
           // tateten + range 重複時の rangeInfo
@@ -683,7 +743,8 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
             profile,
             rangeGroups,
             refValueMap,
-            highlightRefIds
+            highlightRefIds,
+            hiding
           );
           if (rangeInfo) {
             tatetenGroup.rangeInfo = rangeInfo;
@@ -767,7 +828,8 @@ export function buildAnnotationIR(doc: SKAMDocument, profile: AIRRenderProfile):
       marks,
       profile,
       refValueMap,
-      highlightRefIds
+      highlightRefIds,
+      hiding
     );
 
     return {

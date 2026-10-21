@@ -151,11 +151,6 @@ describe('edu extension: definition and registry', () => {
     });
     expect(resolveExtensions().get('edu')).toBe(eduExtension);
   });
-
-  it('T2 の時点で描画の hook は持たない', () => {
-    expect(eduExtension.hiddenParts).toBeUndefined();
-    expect(eduExtension.isHidden).toBeUndefined();
-  });
 });
 
 describe('edu extension: XML attributes', () => {

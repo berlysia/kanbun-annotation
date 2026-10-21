@@ -24,6 +24,7 @@ export type {
   AIRTrailingMark,
   AIRRangeInfo,
   AIRTokenSlots,
+  AIRHiddenSlot,
   AIRTokenNode,
   AIRTatetenSeparator,
   AIRTatetenGroupNode,
@@ -90,6 +91,9 @@ export { getBlockStartMarks } from './block-start.js';
 
 // AIR Resolver
 export { buildAnnotationIR } from './build-annotation-ir.js';
+
+// 拡張が決める隠す所 (renderer が AIR と同じ判定を使う)
+export { createHiding, type Hiding, type RenderExtensionOptions } from './hiding.js';
 
 // 改行制御
 export { canBreakBefore } from './line-break.js';

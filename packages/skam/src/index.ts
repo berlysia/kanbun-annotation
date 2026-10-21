@@ -132,7 +132,8 @@ export type MarkType =
   | 'okototen'
   | 'tateten'
   | 'highlight'
-  | 'ref';
+  | 'ref'
+  | 'linebreak';
 
 /**
  * 注記の基底構造
@@ -174,6 +175,19 @@ export interface KaeriMark extends PositionedMark {
   /** 返り点記号（レ、一、二、上、下、甲、乙 等） */
   value: string;
 }
+
+/**
+ * 改行（position ベース: トークン間の位置に配置）
+ *
+ * `position.after` の字の後ろで行を改める。ブロックの先頭と末尾、不可分単位の中、
+ * 同じ位置の 2 つ目には置けない (`getLinebreakPlacementIssues`)。
+ */
+export interface LinebreakMark extends PositionedMark {
+  type: 'linebreak';
+}
+
+/** linebreak を置けない理由。validator と描画が同じ判定を使う */
+export type LinebreakPlacementIssue = 'block-start' | 'block-end' | 'inside-unit' | 'duplicate';
 
 /** 送り仮名 */
 export interface OkuriganaMark extends AnchoredMark {
@@ -346,6 +360,7 @@ export interface MarkTypeMap {
   emphasis: EmphasisMark;
   highlight: HighlightMark;
   ref: RefMark;
+  linebreak: LinebreakMark;
 }
 
 /** すべての注記型 */
@@ -499,6 +514,12 @@ export {
 // ============================================================================
 
 export { splitMultiCharacterKaeri } from './kaeri-migration.js';
+
+// ============================================================================
+// Line Units
+// ============================================================================
+
+export { getLinebreakPlacementIssues } from './line-units.js';
 
 // ============================================================================
 // ID Generator

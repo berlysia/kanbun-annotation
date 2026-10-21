@@ -23,13 +23,18 @@ import type {
 // ============================================================================
 
 /**
- * position ベースのマーク（kaeri, kutoten, ref）かどうかを判定
+ * position ベースのマーク（kaeri, kutoten, ref, linebreak）かどうかを判定
  *
  * 注意: `'position' in mark` による判定は使用しないこと。
  * OkototenMark も position プロパティを持つが anchor ベース。
  */
 export function isPositionBasedMark(mark: Mark): mark is Extract<Mark, PositionedMark> {
-  return mark.type === 'kaeri' || mark.type === 'kutoten' || mark.type === 'ref';
+  return (
+    mark.type === 'kaeri' ||
+    mark.type === 'kutoten' ||
+    mark.type === 'ref' ||
+    mark.type === 'linebreak'
+  );
 }
 
 /**
@@ -367,7 +372,7 @@ export function removeHighlightWithRef(doc: SKAMDocument, highlightMarkId: strin
  * tokenIdに関連するマークを取得
  *
  * anchor ベースのマーク: anchorがtokenIdを含む（from <= tokenId <= to）場合に関連とみなす。
- * position ベースのマーク（kaeri, kutoten, ref）: position.after が tokenId と一致する場合に関連とみなす。
+ * position ベースのマーク（kaeri, kutoten, ref, linebreak）: position.after が tokenId と一致する場合に関連とみなす。
  * token ID の順序は blocks.tokenIds の連結順で判定する。
  */
 export function getMarksForToken(doc: SKAMDocument, tokenId: string): Mark[] {
@@ -379,7 +384,7 @@ export function getMarksForToken(doc: SKAMDocument, tokenId: string): Mark[] {
   }
 
   return doc.marks.filter((mark) => {
-    // position ベースのマーク（kaeri, kutoten, ref）
+    // position ベースのマーク（kaeri, kutoten, ref, linebreak）
     if (isPositionBasedMark(mark)) {
       const afterTokenId = getPositionAfterTokenId(mark.position);
       return afterTokenId === tokenId;
@@ -401,7 +406,7 @@ export function getMarksForToken(doc: SKAMDocument, tokenId: string): Mark[] {
  * 指定されたtoken範囲に重なるマークを全て取得
  *
  * anchor ベースのマーク: マークの [from, to] と指定範囲 [fromId, toId] が重なる場合にマッチ。
- * position ベースのマーク（kaeri, kutoten, ref）: position.after が指定範囲内にある場合にマッチ。
+ * position ベースのマーク（kaeri, kutoten, ref, linebreak）: position.after が指定範囲内にある場合にマッチ。
  */
 export function getMarksForRange(doc: SKAMDocument, fromId: string, toId: string): Mark[] {
   const tokenIndexMap = buildTokenIndexMap(doc);
@@ -674,7 +679,7 @@ export function sortMarksByPosition(doc: SKAMDocument): Mark[] {
 /**
  * anchor ベースのマークかどうかを判定
  *
- * KaeriMark, KutotenMark, RefMark 以外の全 Mark が anchor ベース。
+ * KaeriMark, KutotenMark, RefMark, LinebreakMark 以外の全 Mark が anchor ベース。
  *
  * 注意: `'anchor' in mark` による判定は使用しないこと。
  * 型ガードの一貫性を保つため、この関数を使うこと。

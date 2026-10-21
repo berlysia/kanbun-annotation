@@ -15,7 +15,8 @@ export type ValidationErrorKind =
   | 'UNKNOWN_TOKEN_REF'
   | 'INVALID_VALUE'
   | 'MARK_CONFLICT'
-  | 'BLOCK_START_KAERI';
+  | 'BLOCK_START_KAERI'
+  | 'INVALID_LINEBREAK';
 
 /**
  * ブロック先頭の返り点に対する案内文。
@@ -23,7 +24,7 @@ export type ValidationErrorKind =
  * parser と validator が同じ文言で利用者を誘導する。
  */
 export const BLOCK_START_KAERI_HINT =
-  'ブロックは段落・文の単位です。表示上の改行のためにブロックを分けた場合は、ブロックを分けずに自動折り返しに任せてください。分けたままにする場合は、返り点を前のブロックの最後の字の後に置いてください。明示的な改行の手段は今後追加する予定です。';
+  'ブロックは段落・文の単位です。表示上の改行のためにブロックを分けた場合は、ブロックを分けずに自動折り返しに任せてください。分けたままにする場合は、返り点を前のブロックの最後の字の後に置いてください。行を改めたいときは、改行の注記 (linebreak、SKAM-ML では <skam:br/>) を使ってください。';
 
 /** 検証エラー */
 export interface ValidationError {

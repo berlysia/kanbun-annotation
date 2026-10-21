@@ -22,7 +22,7 @@
   ],
   "scripts": {
     "build": "tsdown",
-    "typecheck": "tsgo --noEmit",
+    "typecheck": "tsc --noEmit",
     "lint": "oxlint src",
     "test": "vitest",
     "test:run": "vitest run"

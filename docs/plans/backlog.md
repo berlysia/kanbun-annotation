@@ -17,7 +17,6 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 - **reject 後の再 stage の確認 (R1)**: reject した版を同じ版で stage し直せるかは、npm の docs に書かれておらず、0.2.0 でも試していない (未確認)。F2 は「再 stage できなければ F3」の分岐を持つ。再 stage できないと分かったら、ADR-029 と ADR-031 を Accepted に戻して F2 の手順を見直す。出典: ADR-029「未確認の事項」と「結果」、ADR-031「未確認の事項」。規模: 中。
 - **approve の窓の上限の確認**: 0.2.0 では stage から公開まで約 10 分かかり、その間は失効しなかった。窓の上限は調べていない (未確認)。出典: ADR-029「結果」。規模: 小。
 - **release の進み方の行の見え方の確認**: `pnpm run release` の `entry:` の行、`stage N/11:` / `ok:` / `waiting for` の行と、子の stderr (`inherit-keep-stderr` で流れるもの) の並びが、実際の端末で読めるかを確かめる。2026-10-19 の確認は入口で止まる経路だけで、これらの行は出なかった (未確認)。次のリリースで見る。出典: ADR-032「確かめた事実」と R9。規模: 小。
-- **approve が実行のたびに 2FA を求めるかの確認**: `npm stage approve` が実行のたびに 2FA を求めるか (6 パッケージなら 6 回か) を確かめる。0.2.0 では、approve の認証の画面に「次の 5 分間は 2FA を省略する」の選択肢が出なかった (未確認)。確かめたら、releasing.md の段 10 の記述を直す。出典: releasing.md 段 10、PR #16。規模: 小。
 - **判定 (K11 / K12 / K15) と待機の定数の見直し**: 次のリリースの証拠の `waits.json` (待ちごとの回数、経過秒、段 11 の周ごとに残った観察) を読んで、`scripts/release-after-push.ts` の `WAIT` の定数と、K11 / K12 / K15 の判定を見直す。出典: ADR-031「Followup」の 1。規模: 小。
 - **attestation の bundle の署名の検証**: 段 11 は SLSA provenance の subject の sha512 を log の integrity と照合するが、bundle の署名 (sigstore の証明書の連鎖と透明性ログ) と、署名した workflow の identity は検証しない。registry か通信の途中が同じ digest の偽の bundle を返すと区別できない。検証には `sigstore` などの依存と、identity の期待値 (workflow のパス、ref) の設計が要る。出典: 束 C の 3。規模: 中。
 - **npm stage view の出力の確認**: 手作業の手順は、integrity の照合に `npm stage view <stage-id>` を使う。0.2.0 では使っておらず、出力の書式は未確認である。`npm stage list` の書式は確かめた。releasing.md の冒頭の注記も、確かめた範囲に合わせて直す。出典: ADR-029「未確認の事項」と「結果」。規模: 小。
@@ -33,11 +32,8 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 
 ## データモデルと仕様
 
-- **明示的な改行の ADR**: ブロック内の強制改行を決める。ブロック先頭の kaeri が不正であることは、ADR-028 の後も変わらない。出典: plan-practical-readiness.md L90。規模: 中。
-- **重複した kaeri の扱い**: 同じ位置に重複した kaeri の扱いを、仕様が決めていない。出典: plan-practical-readiness.md L91。規模: 中。
 - **範囲の重なりと交差の XML 表現**: 範囲の重なりと部分的な交差は、JSON では表現できるが、XML では `unsupported` になる。出典: plan-practical-readiness.md L93、ADR-028「既知の制約と未実施の確認」。規模: 大。
-- **出題対象の印 (#14)**: マーク単位で「設問の答え」を表す仕様を決める。`ext` の約束事にするか、マークの属性にするかを選ぶ。出典: plan-consumer-feedback.md L63、#14。規模: 中。
-- **竪点のグループからはみ出す読みの範囲 (#16)**: はみ出す読みの範囲は、先頭の字の読みとして出る。2 回目の読みが無い再読文字は、読み仮名として読まれる (`lintSKAMDocument` の `SAIDOKU_SINGLE_READING` で見つけられる)。扱いを決める。出典: plan-consumer-feedback.md L64、ADR-030「既知の制約」、#16。規模: 小。
+- **竪点のグループからはみ出す読みの範囲 (#16)**: はみ出す読みの範囲は、先頭の字の読みとして出る。2 回目の読みが無い再読文字は、読み仮名として読まれる (`lintSKAMDocument` の `SAIDOKU_SINGLE_READING` で見つけられる)。実際の訓点資料にこの形があるかを、一次資料で確かめてから扱いを決める。調べる資料: 訓点資料の研究 (訓点語学会の『訓点語と訓点資料』など)、国立国語研究所の訓点資料のデータ、高校の漢文の教科書と指導書。それまでの扱いは ADR-030 の「既知の制約」のまま。出典: plan-consumer-feedback.md L64、ADR-030「既知の制約」、#16、spec K14 (2026-10-21)。規模: 小。
 - **readingLayerSource の既定の見直し**: 次の破壊的リリースで、profile を指定して `readingLayerSource` を省いたときの既定 (`'readings'`) を見直す。2 回目のフィードバックは `'display'` を既定にするよう求めた。既定のまま出題に使うと、答えがスクリーンリーダーの利用者にだけ渡るためである。同じフィードバックが求めた README の注意は、html-renderer の README の「出題に使うとき」の節に書いてある。出典: plan-consumer-feedback.md L62、ADR-030「リスク R1〜R8 の結果」の R6、利用者のフィードバック 2 回目 (2026-10-20) の 9。規模: 小。
 - **'display' の読み上げ層の実機確認**: NVDA (Windows、日本語) と VoiceOver (macOS) で確かめる (未確認)。合格の条件は 2 つある。`習、送り仮名 フ、レ点。` の各語が言葉として発話されること。表示層のルビや返り点が、読み上げ層と重ねて読まれないこと。確かめたら、experimental を外すかを決める。あわせて、注記の無い字が `學。而。時。` のように 1 字ごとに区切られる読み上げが聞きにくくないかを聞き、続く字をつなげる形にするかを決める (利用者の提案、未検証)。出典: plan-consumer-feedback.md L61、ADR-030「リスク R1〜R8 の結果」の R1、利用者のフィードバック 2 回目 (2026-10-20) の 8。規模: 中。
 

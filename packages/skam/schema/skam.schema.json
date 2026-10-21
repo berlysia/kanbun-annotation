@@ -1,0 +1,390 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:kanbun-skam:schema:skam-0.1",
+  "title": "SKAM document (skam@0.1)",
+  "description": "Structural rules of a SKAM document, mirrored from the validator in @kanbun-skam/skam. The validator is the source of truth; this schema is looser than it and is not a trust boundary: pass untrusted input through the validator. Not written here (only the validator checks them): id uniqueness and references, block and token consistency, anchor positions, mark conflicts, linebreak placement, a kaeri at the start of a block, the relation between extensions and the keys of ext (declared names, extensionsRequired being a subset of extensions of known names, a required extension missing from extensionsRequired), how deep ext and custom nest, how many values ext and custom hold in a document, the okototen coordinates being inside the grid, and the character class of a single-character emphasis.style (this schema only checks that it is one code point and not one of the characters that break CSS). Unknown fields on tokens, blocks, marks, readings, derivations, anchors, positions and the document are allowed; the validator drops unknown top-level keys from the document it returns. Register ext-edu.schema.json (urn:kanbun-skam:schema:ext-edu-1) with the validator before compiling this schema.",
+  "type": "object",
+  "required": ["format", "tokens", "blocks", "marks", "readings"],
+  "properties": {
+    "format": { "const": "skam@0.1" },
+    "lang": {
+      "description": "A language tag of the BCP 47 shape; registered subtags are not checked.",
+      "type": "string",
+      "pattern": "^[A-Za-z]{2,8}(-[A-Za-z0-9]{1,8})*$"
+    },
+    "tokens": { "type": "array", "items": { "$ref": "#/$defs/token" } },
+    "blocks": { "type": "array", "items": { "$ref": "#/$defs/block" } },
+    "marks": { "type": "array", "items": { "$ref": "#/$defs/mark" } },
+    "readings": { "type": "array", "items": { "$ref": "#/$defs/reading" } },
+    "derivations": { "type": "array", "items": { "$ref": "#/$defs/derivation" } },
+    "extensions": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/extensionName" }
+    },
+    "extensionsRequired": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/extensionName" }
+    },
+    "ext": { "$ref": "#/$defs/freeObject" },
+    "custom": { "$ref": "#/$defs/freeObject" }
+  },
+  "dependentRequired": { "extensionsRequired": ["extensions"] },
+  "allOf": [
+    {
+      "description": "tokens must all belong to a block, so tokens without blocks is an error.",
+      "if": {
+        "type": "object",
+        "required": ["tokens"],
+        "properties": { "tokens": { "type": "array", "minItems": 1 } }
+      },
+      "then": { "properties": { "blocks": { "type": "array", "minItems": 1 } } }
+    },
+    {
+      "description": "Only when the document declares edu: the ten mark types that can carry a quiz mark take ext.edu (checked by ext-edu), and no other owner may have an edu key. A document that does not declare edu reads ext.edu as free data.",
+      "if": {
+        "type": "object",
+        "required": ["extensions"],
+        "properties": {
+          "extensions": { "type": "array", "contains": { "const": "edu" } }
+        }
+      },
+      "then": {
+        "type": "object",
+        "properties": {
+          "ext": { "$ref": "#/$defs/noEduKey" },
+          "tokens": {
+            "type": "array",
+            "items": { "type": "object", "properties": { "ext": { "$ref": "#/$defs/noEduKey" } } }
+          },
+          "blocks": {
+            "type": "array",
+            "items": { "type": "object", "properties": { "ext": { "$ref": "#/$defs/noEduKey" } } }
+          },
+          "readings": {
+            "type": "array",
+            "items": { "type": "object", "properties": { "ext": { "$ref": "#/$defs/noEduKey" } } }
+          },
+          "derivations": {
+            "type": "array",
+            "items": { "type": "object", "properties": { "ext": { "$ref": "#/$defs/noEduKey" } } }
+          },
+          "marks": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "if": {
+                "required": ["type"],
+                "properties": {
+                  "type": {
+                    "enum": [
+                      "kaeri",
+                      "okurigana",
+                      "soegana",
+                      "yomigana",
+                      "saidoku",
+                      "kutoten",
+                      "tateten",
+                      "okototen",
+                      "okimoji",
+                      "joji"
+                    ]
+                  }
+                }
+              },
+              "then": {
+                "properties": {
+                  "ext": {
+                    "type": "object",
+                    "properties": { "edu": { "$ref": "urn:kanbun-skam:schema:ext-edu-1" } }
+                  }
+                }
+              },
+              "else": { "properties": { "ext": { "$ref": "#/$defs/noEduKey" } } }
+            }
+          }
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "extensionName": {
+      "description": "Lowercase letters and digits, starting with a letter, not starting with xml.",
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*$",
+      "not": { "type": "string", "pattern": "^xml" }
+    },
+    "noEduKey": {
+      "type": "object",
+      "propertyNames": { "not": { "const": "edu" } }
+    },
+    "freeObject": {
+      "description": "The value of ext or custom: an object whose every level obeys the limits of freeValue.",
+      "type": "object",
+      "$ref": "#/$defs/freeValue"
+    },
+    "freeValue": {
+      "description": "Free data. Every level: at most 1000 keys per object, at most 10000 items per array, and none of the keys __proto__, constructor, prototype. The nesting depth and the number of values in a whole document are not limited here.",
+      "allOf": [
+        {
+          "if": { "type": "array" },
+          "then": {
+            "type": "array",
+            "maxItems": 10000,
+            "items": { "$ref": "#/$defs/freeValue" }
+          }
+        },
+        {
+          "if": { "type": "object" },
+          "then": {
+            "type": "object",
+            "maxProperties": 1000,
+            "propertyNames": { "not": { "enum": ["__proto__", "constructor", "prototype"] } },
+            "additionalProperties": { "$ref": "#/$defs/freeValue" }
+          }
+        }
+      ]
+    },
+    "token": {
+      "type": "object",
+      "required": ["id", "text"],
+      "properties": {
+        "id": { "type": "string" },
+        "text": { "type": "string", "minLength": 1 },
+        "ext": { "$ref": "#/$defs/freeObject" },
+        "custom": { "$ref": "#/$defs/freeObject" }
+      }
+    },
+    "block": {
+      "type": "object",
+      "required": ["id", "tokenIds"],
+      "properties": {
+        "id": { "type": "string" },
+        "tokenIds": { "type": "array", "items": { "type": "string" } },
+        "ext": { "$ref": "#/$defs/freeObject" },
+        "custom": { "$ref": "#/$defs/freeObject" }
+      }
+    },
+    "reading": {
+      "type": "object",
+      "required": ["kind", "text"],
+      "properties": {
+        "kind": { "enum": ["kundoku", "kakikudashi", "yomiage"] },
+        "text": { "type": "string" },
+        "ext": { "$ref": "#/$defs/freeObject" },
+        "custom": { "$ref": "#/$defs/freeObject" }
+      }
+    },
+    "derivation": {
+      "type": "object",
+      "required": ["kind", "method"],
+      "properties": {
+        "kind": { "type": "string" },
+        "method": { "type": "string" },
+        "result": { "type": "array", "items": { "type": "string" } },
+        "ext": { "$ref": "#/$defs/freeObject" },
+        "custom": { "$ref": "#/$defs/freeObject" }
+      },
+      "if": { "required": ["kind"], "properties": { "kind": { "const": "readingOrder" } } },
+      "then": { "required": ["result"], "properties": { "result": true } }
+    },
+    "anchor": {
+      "type": "object",
+      "required": ["from", "to"],
+      "properties": { "from": { "type": "string" }, "to": { "type": "string" } }
+    },
+    "position": {
+      "description": "A position in a block: after is a token id, and left out means the start of the block.",
+      "type": "object",
+      "required": ["blockId"],
+      "properties": { "blockId": { "type": "string" }, "after": { "type": "string" } }
+    },
+    "glyphGridCoord": {
+      "type": "object",
+      "required": ["system", "grid", "x", "y"],
+      "properties": {
+        "system": { "const": "glyph-grid" },
+        "grid": { "type": "string", "pattern": "^[0-9]+x[0-9]+$" },
+        "x": { "type": "integer", "minimum": 0 },
+        "y": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "emphasisStyle": {
+      "description": "A CSS emphasis keyword, or one code point that is none of the characters that break a CSS value.",
+      "type": "string",
+      "anyOf": [
+        {
+          "enum": [
+            "dot",
+            "filled dot",
+            "open dot",
+            "circle",
+            "filled circle",
+            "open circle",
+            "double-circle",
+            "filled double-circle",
+            "open double-circle",
+            "triangle",
+            "filled triangle",
+            "open triangle",
+            "sesame",
+            "filled sesame",
+            "open sesame"
+          ]
+        },
+        {
+          "minLength": 1,
+          "maxLength": 1,
+          "not": { "enum": ["\\", "\"", "'", ";", "{", "}", "<", ">", "&"] }
+        }
+      ]
+    },
+    "mark": {
+      "type": "object",
+      "required": ["type"],
+      "properties": {
+        "type": {
+          "enum": [
+            "kaeri",
+            "okurigana",
+            "yomigana",
+            "okimoji",
+            "joji",
+            "soegana",
+            "kutoten",
+            "emphasis",
+            "saidoku",
+            "okototen",
+            "tateten",
+            "highlight",
+            "ref",
+            "linebreak"
+          ]
+        },
+        "id": { "type": "string" },
+        "placementHint": { "type": "string" },
+        "anchor": { "$ref": "#/$defs/anchor" },
+        "position": true,
+        "ext": { "$ref": "#/$defs/freeObject" },
+        "custom": { "$ref": "#/$defs/freeObject" }
+      },
+      "allOf": [
+        {
+          "description": "kaeri, kutoten, ref and linebreak sit at a position and have no anchor; the others sit on an anchor.",
+          "if": {
+            "required": ["type"],
+            "properties": { "type": { "enum": ["kaeri", "kutoten", "ref", "linebreak"] } }
+          },
+          "then": {
+            "required": ["position"],
+            "properties": { "position": { "$ref": "#/$defs/position" } },
+            "not": { "required": ["anchor"], "properties": { "anchor": true } }
+          },
+          "else": { "required": ["anchor"] }
+        },
+        {
+          "if": { "required": ["type"], "properties": { "type": { "const": "kaeri" } } },
+          "then": {
+            "required": ["value"],
+            "properties": {
+              "value": { "type": "string", "pattern": "^[㆑-㆟]+$" }
+            }
+          }
+        },
+        {
+          "if": {
+            "required": ["type"],
+            "properties": { "type": { "enum": ["okurigana", "yomigana", "soegana"] } }
+          },
+          "then": { "required": ["value"], "properties": { "value": { "type": "string" } } }
+        },
+        {
+          "if": { "required": ["type"], "properties": { "type": { "const": "kutoten" } } },
+          "then": {
+            "required": ["value"],
+            "properties": {
+              "value": { "type": "string" },
+              "kind": { "enum": ["ku", "ten", "other"] }
+            }
+          }
+        },
+        {
+          "if": { "required": ["type"], "properties": { "type": { "const": "emphasis" } } },
+          "then": { "properties": { "style": { "$ref": "#/$defs/emphasisStyle" } } }
+        },
+        {
+          "if": { "required": ["type"], "properties": { "type": { "const": "saidoku" } } },
+          "then": {
+            "required": ["forms"],
+            "properties": {
+              "forms": {
+                "type": "array",
+                "minItems": 1,
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "n": { "type": "number" },
+                    "yomi": { "type": "string" },
+                    "okuri": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": { "required": ["type"], "properties": { "type": { "const": "okototen" } } },
+          "then": {
+            "required": ["position", "shape"],
+            "properties": {
+              "position": { "$ref": "#/$defs/glyphGridCoord" },
+              "shape": { "type": "string" }
+            }
+          }
+        },
+        {
+          "if": { "required": ["type"], "properties": { "type": { "const": "highlight" } } },
+          "then": {
+            "properties": {
+              "style": { "enum": ["solid", "dotted", "dashed", "wavy", "double"] },
+              "ref": { "type": "string" }
+            }
+          }
+        },
+        {
+          "if": { "required": ["type"], "properties": { "type": { "const": "ref" } } },
+          "then": {
+            "anyOf": [
+              { "required": ["label"], "properties": { "label": true } },
+              { "required": ["format"], "properties": { "format": true } },
+              { "required": ["content"], "properties": { "content": true } }
+            ],
+            "not": {
+              "required": ["label", "format"],
+              "properties": { "label": true, "format": true }
+            },
+            "properties": {
+              "label": { "type": "string" },
+              "format": {
+                "enum": [
+                  "alpha-upper",
+                  "alpha-lower",
+                  "numeric-paren",
+                  "numeric-bracket",
+                  "numeric-circled",
+                  "iroha-katakana",
+                  "iroha-hiragana",
+                  "gojuon-katakana",
+                  "gojuon-hiragana",
+                  "kanji-numeric"
+                ]
+              },
+              "content": { "type": "string" }
+            }
+          }
+        }
+      ]
+    }
+  }
+}

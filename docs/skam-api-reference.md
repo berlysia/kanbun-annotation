@@ -44,6 +44,17 @@ import { getLinebreakPlacementIssues } from '@kanbun-skam/skam';
 - `LEGACY_EXT_REGISTERED_NAME`: `LEGACY_EXT` のうち、`ext` のキーが登録済みの拡張の名前と同じもの。宣言の書き忘れの疑い。`path` は `marks[i].ext.edu` など。0.4.0 では無くなる（`LEGACY_EXT` の誤りが同じ所を指す）
 - `ValidationWarningKind` に値を足すのは minor の変更
 
+### JSON Schema
+
+```typescript
+import { createRequire } from 'node:module';
+const require = createRequire(import.meta.url);
+const skamSchema = require('@kanbun-skam/skam/schema/skam.schema.json');
+const eduSchema = require('@kanbun-skam/skam/schema/ext-edu.schema.json');
+```
+
+文書の JSON Schema（2020-12）。`$id` は `urn:kanbun-skam:schema:skam-0.1` と `urn:kanbun-skam:schema:ext-edu-1` で、取りに行かない。検証器に 2 つを登録してから `skam.schema.json` で検証する（例: Ajv の `Ajv2020` に `addSchema(eduSchema)` してから `compile(skamSchema)`）。正は `validateSKAMDocument` で、schema は構造の規則だけを写し、それより緩い（SKAM-draft §11.4）。信頼できない入力は `validateSKAMDocument` に通す。
+
 ### 書記素
 
 ```typescript

@@ -13,8 +13,12 @@ const PUBLIC = [
   'skam-canvas-renderer',
   'skam-web-component',
 ];
-/** IIFE を直接指す、型を持たない export (文字列) */
-const UNTYPED = new Set(['skam-canvas-renderer:./browser-bundle']);
+/** ファイルを直接指す、型を持たない export (文字列): IIFE と JSON Schema */
+const UNTYPED = new Set([
+  'skam-canvas-renderer:./browser-bundle',
+  'skam:./schema/skam.schema.json',
+  'skam:./schema/ext-edu.schema.json',
+]);
 
 type Cond = string | { [k: string]: Cond };
 /** 条件オブジェクトをすべて訪問する。types を持つオブジェクトでは、types が最初のキーで、import の .js と対になる .d.ts を指すこと */

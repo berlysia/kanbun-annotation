@@ -838,8 +838,9 @@ SKAM データは常に完全な情報を保持し、用途に応じた情報の
 
 ### 11.1 未知フィールドの扱い
 
-- 未知の `type` は無視してもよい
-- 未知のフィールドは無視してもよい
+- 未知の注記の `type` は誤りとする。注記の種類は描画と意味を決める core の語彙で、知らない種類を読み飛ばすと、描画から注記が黙って欠けるため。代わりに、新しい種類を使う文書は古い reader で読めない（§12.1）
+- 注記、token、ブロック、readings、derivations、anchor、position の未知のフィールドは誤りにしない。参照実装の validator はそのまま残す。知らないフィールドがあっても、既知のフィールドの意味は変わらない
+- 未知の最上位のキーは誤りにしない。参照実装の validator は、返す文書から落とす
 - `placementHint` は解釈不能でも問題としない
 
 ### 11.2 core と拡張
@@ -948,7 +949,21 @@ SKAM が解釈しない自由なデータは `custom` に置く。文書、readi
 
 文字列の長さと SKAM-ML の大きさは、実装の入力の上限に任せる。
 
-### 11.4 将来の互換性
+### 11.4 JSON Schema
+
+`@kanbun-skam/skam` は、文書の JSON Schema（2020-12）を配る。
+
+| ファイル                                       | `$id`                              |
+| ---------------------------------------------- | ---------------------------------- |
+| `@kanbun-skam/skam/schema/skam.schema.json`    | `urn:kanbun-skam:schema:skam-0.1`  |
+| `@kanbun-skam/skam/schema/ext-edu.schema.json` | `urn:kanbun-skam:schema:ext-edu-1` |
+
+- `$id` は識別子で、取りに行かない（MUST NOT）。2 つを検証器に登録してから使う。`skam.schema.json` は、`extensions` に `edu` を挙げた文書の `ext.edu` を `ext-edu.schema.json` で検査する
+- 正は参照実装の validator。schema は構造の規則だけを写し、validator より緩い。次は schema に書かず、validator だけが検査する: id の一意と参照先、ブロックと token の整合、anchor の位置、注記の衝突、改行の置き場、ブロック先頭の返り点、拡張の宣言と `ext` のキーの関係、`ext` と `custom` の入れ子の段数と文書全体の値の数、`emphasis` の 1 字の文字の種類、ヲコト点の座標が grid の中にあること
+- schema を通ったことは、信頼できない入力として安全であることを意味しない。信頼できない入力は validator に通す
+- `$id` の版は `format`（§12.1）と拡張の名前空間の URI の版に合わせる。同じ `$id` の schema は、通す文書が増える向きにだけ変わる。狭める変更は破壊的な変更として扱う
+
+### 11.5 将来の互換性
 
 - 将来、TEI への変換が可能な構造を維持する
 

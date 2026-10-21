@@ -16,6 +16,8 @@ SKAMDocument
 └── custom?      SKAM が解釈しない自由なデータ
 ```
 
+JSON Schema（`@kanbun-skam/skam/schema/skam.schema.json`）は、この構造と値の規則を写す。id の参照や注記の衝突など、他の要素を見る規則は validator だけが検査する（SKAM-draft §11.4）。
+
 **Stand-off 方式**: 注記は本文テキストを直接分断しない。配置方式は 2 種:
 
 - **anchor ベース** (10 種): `anchor: { from, to }` で token 範囲を参照

@@ -1,5 +1,7 @@
 // 利用者の環境 (tarball からの npm install) で、Node が 6 パッケージを読み込めることを確かめる。
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 import { parse } from '@kanbun-skam/skam-xml-parser';
 import { stringify } from '@kanbun-skam/skam-xml-stringify';
 import { render } from '@kanbun-skam/skam-html-renderer';
@@ -45,5 +47,17 @@ assert.equal(typeof extensions.resolveExtensions, 'function');
 const edu = await import('@kanbun-skam/skam/extensions/edu');
 assert.equal(edu.eduExtension.name, 'edu');
 assert.equal(edu.assertHideQuizOption(true), true);
+
+// JSON Schema は package の exports から解決でき、$id が公開の契約の値
+const require = createRequire(import.meta.url);
+for (const [file, id] of [
+  ['skam.schema.json', 'urn:kanbun-skam:schema:skam-0.1'],
+  ['ext-edu.schema.json', 'urn:kanbun-skam:schema:ext-edu-1'],
+]) {
+  const schema = JSON.parse(
+    readFileSync(require.resolve(`@kanbun-skam/skam/schema/${file}`), 'utf8')
+  );
+  assert.equal(schema.$id, id, `${file}: unexpected $id`);
+}
 
 console.log('smoke.mjs: OK');

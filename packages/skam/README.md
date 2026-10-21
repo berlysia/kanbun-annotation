@@ -83,6 +83,16 @@ assertSKAMDocument(input);
 
 文書の最上位の任意の `lang` は、本文（白文）の言語を表す（例 `ja`、`lzh`、`zh-Hant`）。validator は形を `isLanguageTag` で検査する。SKAM-ML ではルートの `xml:lang` と往復する。html の描画は、`displayLang` を渡さなければ表示層の `lang` にこの値を使う。
 
+## JSON Schema
+
+文書の JSON Schema（2020-12）を `@kanbun-skam/skam/schema/skam.schema.json` と `@kanbun-skam/skam/schema/ext-edu.schema.json` で配る。`$id`（`urn:kanbun-skam:schema:skam-0.1`、`urn:kanbun-skam:schema:ext-edu-1`）は取りに行かない識別子なので、2 つを検証器に登録してから使い、未解決の `$ref` を取りに行く設定にしない。
+
+- 正は `validateSKAMDocument`。schema は構造の規則だけを写し、それより緩い。id の参照、注記の衝突、改行の置き場、拡張の宣言と `ext` のキーの関係、`ext` と `custom` の入れ子の段数と値の総数は、validator だけが検査する
+- schema だけの検証は、信頼できない入力の検査にならない（入れ子の段数の上限が効かず、深い入れ子は検証器のスタックと CPU を使いうる）。信頼できない入力は `validateSKAMDocument` に通す
+- 未知の mark type は誤り。注記などの未知のフィールドと未知の最上位のキーは通る。validator は前者を残し、後者を返す文書から落とす
+- `pattern` は Ajv（JavaScript の正規表現）で確かめている。ほかの言語の実装では判定が違いうる
+- 同じ `$id` の schema は、パッケージの版が上がっても通す文書が増える向きにだけ変わる。新しい注記の種類を使う文書は、古い schema と古い validator の両方で誤りになる
+
 ## 拡張（`extensions`、`ext`、`custom`）
 
 文書は、使う拡張を最上位の `extensions` に、知らなければ読んではいけない拡張を `extensionsRequired` に挙げる。拡張の値は `ext.<拡張の名前>` に置き、SKAM が解釈しない自由なデータは `custom` に置く。`extensions` を持つ文書（空の配列も含む）だけが宣言のある文書で、`ext` に `extensions` に無い名前があれば `INVALID_EXTENSION`、`extensionsRequired` に知らない名前があっても `INVALID_EXTENSION`。持たない文書の `ext` は、0.3 では自由なデータとして読み、`valid: true` の結果の `warnings` に `LEGACY_EXT` の警告が入る（0.4.0 で誤りになる）。`ext` のキーが登録済みの拡張の名前と同じなら `LEGACY_EXT_REGISTERED_NAME` も入る。`moveLegacyExtToCustom(doc)` は、宣言の無い文書のすべての `ext` を `custom` に移した新しい文書と、登録済みの拡張の名前のキーの path（`registeredNameKeys`）を返す。拡張の値だったなら、その値を `custom` から `ext` に戻し、`extensions` を宣言する。

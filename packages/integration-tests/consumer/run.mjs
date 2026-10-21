@@ -23,7 +23,14 @@ import { checkLicense, loadTarballSet, readPublicNames } from './tarballs.mjs';
 const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '../../..');
 const FORBIDDEN_SCRIPTS = ['prepare', 'prepack', 'prepublish', 'prepublishOnly', 'postpack'];
-const ALLOWED_TOP_LEVEL = new Set(['dist', 'package.json', 'README.md', 'CHANGELOG.md', 'LICENSE']);
+const ALLOWED_TOP_LEVEL = new Set([
+  'dist',
+  'schema',
+  'package.json',
+  'README.md',
+  'CHANGELOG.md',
+  'LICENSE',
+]);
 // 親にあれば引き継ぐ環境変数 (token を含む変数は渡さない)
 const PASS_THROUGH = [
   'HTTPS_PROXY',

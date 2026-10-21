@@ -20,10 +20,13 @@
     "./extensions/edu": {
       "types": "./dist/extensions/edu/index.d.ts",
       "import": "./dist/extensions/edu/index.js"
-    }
+    },
+    "./schema/skam.schema.json": "./schema/skam.schema.json",
+    "./schema/ext-edu.schema.json": "./schema/ext-edu.schema.json"
   },
   "files": [
-    "dist"
+    "dist",
+    "schema"
   ],
   "scripts": {
     "build": "tsdown",

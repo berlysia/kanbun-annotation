@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:kanbun-skam:schema:ext-edu-1",
+  "title": "SKAM edu extension value (urn:skam:edu:1)",
+  "description": "The value of ext.edu on a mark. skam.schema.json applies it only to the ten mark types that can carry a quiz mark, and only in a document whose extensions lists \"edu\". Mirrors the validator in @kanbun-skam/skam; the validator is the source of truth. quiz is 1 to 64 code points, without the control characters U+0000 to U+001F and U+007F to U+009F.",
+  "type": "object",
+  "required": ["quiz"],
+  "properties": {
+    "quiz": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64,
+      "pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F]+$"
+    }
+  },
+  "additionalProperties": false
+}

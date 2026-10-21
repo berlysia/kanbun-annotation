@@ -972,3 +972,29 @@ describe('round-trip - readings', () => {
     expect(reparsedDoc.readings[1]!.text).toBe('まなびて');
   });
 });
+
+// ============================================================================
+// kaeri: 複数の字の書き方 (0.3 の互換) と同じ位置の 1 字ずつの注記の往復
+// ============================================================================
+
+describe('round-trip - kaeri', () => {
+  const wrap = (inner: string) =>
+    `<skam:doc xmlns:skam="urn:skam:1"><skam:body><skam:block>甲${inner}乙</skam:block></skam:body></skam:doc>`;
+  const kaeriValues = (doc: SKAMDocument) =>
+    doc.marks.filter((m) => m.type === 'kaeri').map((m) => (m as KaeriMark).value);
+
+  // 互換: 複数の字の kind は 0.4.0 で誤りになる。0.3 の間は往復で変わらないことを確かめる
+  it('keeps a hyphen-joined kind (deprecated) through parse -> stringify -> parse', () => {
+    const first = parse(wrap('<skam:kaeri kind="ichi-re"/>'));
+    const second = parse(stringify(first));
+    expect(kaeriValues(first)).toEqual(['㆒㆑']);
+    expect(kaeriValues(second)).toEqual(['㆒㆑']);
+  });
+
+  it('keeps the order of kaeri marks at the same position', () => {
+    const first = parse(wrap('<skam:kaeri kind="re"/><skam:kaeri kind="ichi"/>'));
+    const second = parse(stringify(first));
+    expect(kaeriValues(first)).toEqual(['㆑', '㆒']);
+    expect(kaeriValues(second)).toEqual(['㆑', '㆒']);
+  });
+});

@@ -5,6 +5,11 @@ import {
   extensionRegistry,
   type SKAMExtensionDefinition,
 } from '@kanbun-skam/skam/extensions';
+import {
+  assertHideQuizOption,
+  eduExtension,
+  type HideQuizOption,
+} from '@kanbun-skam/skam/extensions/edu';
 import { parse } from '@kanbun-skam/skam-xml-parser';
 import { stringify } from '@kanbun-skam/skam-xml-stringify';
 import { render, type RenderOptions } from '@kanbun-skam/skam-html-renderer';
@@ -20,6 +25,8 @@ void autoModule;
 void buildAnnotationIR;
 void defaultExtensions;
 void extensionRegistry;
+void eduExtension;
+export const hideQuiz: HideQuizOption | undefined = assertHideQuizOption(true);
 export type ExtensionDefinition = SKAMExtensionDefinition;
 void SkamRendererElement;
 

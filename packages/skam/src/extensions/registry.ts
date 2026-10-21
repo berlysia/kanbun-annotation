@@ -9,4 +9,6 @@ export interface ExtensionRegistryEntry {
   readonly required: boolean;
 }
 
-export const extensionRegistry: readonly ExtensionRegistryEntry[] = [];
+export const extensionRegistry: readonly ExtensionRegistryEntry[] = [
+  { name: 'edu', uri: 'urn:skam:edu:1', required: true },
+];

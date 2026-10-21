@@ -5,6 +5,7 @@
  * 個々の拡張を import するのはこのファイルだけ。
  */
 
+import { eduExtension } from './edu/index.js';
 import type { SKAMExtensionDefinition } from './types.js';
 
 export type {
@@ -16,7 +17,15 @@ export type {
 export { extensionRegistry, type ExtensionRegistryEntry } from './registry.js';
 
 /** SKAM の仕様が定める拡張の定義 */
-export const defaultExtensions: readonly SKAMExtensionDefinition[] = [];
+export const defaultExtensions: readonly SKAMExtensionDefinition[] = [eduExtension];
+
+export {
+  assertHideQuizOption,
+  isQuizHidden,
+  type EduExtension,
+  type HideQuizOption,
+  type QuizMarkType,
+} from './edu/index.js';
 
 const EXTENSION_NAME = /^[a-z0-9]+$/;
 

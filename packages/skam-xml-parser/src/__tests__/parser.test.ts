@@ -982,7 +982,8 @@ describe('parse - generated ids avoid explicit ids', () => {
     expect(doc.blocks.map((b) => b.id)).toEqual(['b1']);
   });
 
-  it('calls the generator in proportion to the number of explicit ids', () => {
+  // 単独では 150ms ほどだが、全パッケージを並列で流すと 7 秒かかって既定の 5 秒を超えたことがあるので、時間を明示する
+  it('calls the generator in proportion to the number of explicit ids', { timeout: 30_000 }, () => {
     const explicit = Array.from(
       { length: 10000 },
       (_, i) => `<skam:block xml:id="b${i + 1}"/>`

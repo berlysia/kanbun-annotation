@@ -6,6 +6,7 @@
  */
 
 import { type ValidationError, createValidationError } from './errors.js';
+import { isExtensionName } from './extensions/index.js';
 import type { ExtensionOwner, SKAMExtensionDefinition } from './extensions/types.js';
 
 /** 入れ子の段数の上限 (`ext` / `custom` の値自身を 1 段とする) */
@@ -18,7 +19,6 @@ const MAX_ARRAY_LENGTH = 10000;
 const MAX_TOTAL_VALUES = 100000;
 
 const FORBIDDEN_KEYS: ReadonlySet<string> = new Set(['__proto__', 'constructor', 'prototype']);
-const EXTENSION_NAME = /^[a-z0-9]+$/;
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -118,10 +118,10 @@ export function validateDeclaration(
     }
     value.forEach((name: unknown, index) => {
       const path = `${field}[${index}]`;
-      if (typeof name !== 'string' || !EXTENSION_NAME.test(name)) {
+      if (!isExtensionName(name)) {
         fail(
           path,
-          'Extension name must consist of lowercase letters and digits',
+          'Extension name must be lowercase letters and digits, starting with a letter',
           'a-z0-9',
           typeof name
         );

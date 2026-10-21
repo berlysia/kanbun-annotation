@@ -42,6 +42,13 @@ import type {
 } from '@kanbun-skam/skam';
 import { isAnchorBasedMark, KAERI } from '@kanbun-skam/skam';
 import {
+  extensionRegistry,
+  isExtensionName,
+  resolveExtensions,
+  type SKAMExtensionDefinition,
+  type XmlElementMarks,
+} from '@kanbun-skam/skam/extensions';
+import {
   LossCollector,
   SKAMXMLStringifyError,
   type LossSortKey,
@@ -146,6 +153,20 @@ export interface StringifyOptions {
   lossy?: boolean;
   /** Called synchronously, once per loss in document order, only when `lossy` is true. Exceptions propagate. */
   onLoss?: (loss: StringifyLoss) => void;
+  /**
+   * 既定の束 (`@kanbun-skam/skam/extensions`) に足す拡張の定義。名前が束と重なれば TypeError。
+   * 宣言のある文書の拡張の値は、定義の `writeXmlAttributes` で拡張の名前空間の属性に書く。
+   * 書き方を知らない拡張の値は書けないので、`UNKNOWN_EXTENSION` の損失になる
+   */
+  extensions?: readonly SKAMExtensionDefinition[];
+}
+
+/** 宣言のある文書の拡張の出力 (宣言が無い文書では空) */
+interface ExtensionOutput {
+  /** 宣言した拡張のうち、書き方 (`writeXmlAttributes`) と名前空間の URI を持つもの。宣言の順 */
+  writers: ReadonlyMap<string, SKAMExtensionDefinition>;
+  /** 属性として書いた (注記, 拡張の名前)。書けなかった ext の値を損失にするために控える */
+  consumed: Map<Mark, Set<string>>;
 }
 
 /** Per-call state threaded through the conversion so losses are recorded where output is dropped */
@@ -157,6 +178,7 @@ interface StringifyContext {
   tokenPosition: Map<string, { blockIndex: number; tokenIndex: number }>;
   /** Block ID → block index (for position marks at a block start) */
   blockIndexById: Map<string, number>;
+  extension: ExtensionOutput;
 }
 
 const UNPLACED = Number.MAX_SAFE_INTEGER;
@@ -175,6 +197,10 @@ interface TokenAnnotation {
   okuri?: string;
   /** 添え仮名 */
   soe?: string;
+  /** yomi / okuri / soe の元の注記 (拡張の属性を書くため) */
+  yomiMark?: YomiganaMark;
+  okuriMark?: OkuriganaMark;
+  soeMark?: SoeganaMark;
   /** 直後に配置する返り点 */
   kaeriAfter?: KaeriMark[];
   /** 直後に配置する句読点 */
@@ -248,6 +274,42 @@ function escapeXml(text: string): string {
 
 function indentStr(level: number, size: number): string {
   return ' '.repeat(level * size);
+}
+
+/** 拡張が返す属性名 (local name) として許す形。名前空間の接頭辞は拡張の名前 */
+const EXTENSION_ATTRIBUTE_NAME = /^[A-Za-z_][A-Za-z0-9._-]*$/;
+
+/**
+ * 要素に付ける拡張の名前空間の属性を書く。宣言した拡張のうち、この要素の注記に値を持つものだけを呼ぶ。
+ * 値は escape する。属性名は拡張の定義が返すので、XML の名前として安全な形かを確かめる
+ */
+function extensionAttributes(
+  ctx: StringifyContext,
+  element: string,
+  marks: XmlElementMarks['marks']
+): string {
+  let xml = '';
+  for (const [name, definition] of ctx.extension.writers) {
+    const carriers = marks.filter(({ mark }) => hasOwnExtension(mark, name));
+    if (carriers.length === 0) continue;
+    const written = definition.writeXmlAttributes!({ element, marks });
+    for (const [key, value] of written) {
+      if (!EXTENSION_ATTRIBUTE_NAME.test(key)) {
+        throw new TypeError(`Extension "${name}" returned an invalid attribute name`);
+      }
+      xml += ` ${name}:${key}="${escapeXml(value)}"`;
+    }
+    for (const { mark } of carriers) {
+      const names = ctx.extension.consumed.get(mark) ?? new Set<string>();
+      names.add(name);
+      ctx.extension.consumed.set(mark, names);
+    }
+  }
+  return xml;
+}
+
+function hasOwnExtension(mark: Mark, name: string): boolean {
+  return mark.ext !== undefined && Object.hasOwn(mark.ext, name) && mark.ext[name] !== undefined;
 }
 
 /**
@@ -407,15 +469,24 @@ function applySingleTokenAnchorMark(
   switch (mark.type) {
     case 'yomigana':
       if (annotation.yomi !== undefined) reportConflictingMark(ctx, mark);
-      else annotation.yomi = (mark as YomiganaMark).value;
+      else {
+        annotation.yomi = (mark as YomiganaMark).value;
+        annotation.yomiMark = mark as YomiganaMark;
+      }
       break;
     case 'okurigana':
       if (annotation.okuri !== undefined) reportConflictingMark(ctx, mark);
-      else annotation.okuri = (mark as OkuriganaMark).value;
+      else {
+        annotation.okuri = (mark as OkuriganaMark).value;
+        annotation.okuriMark = mark as OkuriganaMark;
+      }
       break;
     case 'soegana':
       if (annotation.soe !== undefined) reportConflictingMark(ctx, mark);
-      else annotation.soe = (mark as SoeganaMark).value;
+      else {
+        annotation.soe = (mark as SoeganaMark).value;
+        annotation.soeMark = mark as SoeganaMark;
+      }
       break;
     case 'okimoji':
     case 'joji':
@@ -974,10 +1045,25 @@ function buildContentTree(
 // XML Generation
 // ============================================================================
 
+const KUN_PART_OF_TYPE: ReadonlyMap<string, 'yomi' | 'okuri' | 'soe'> = new Map([
+  ['yomigana', 'yomi'],
+  ['okurigana', 'okuri'],
+  ['soegana', 'soe'],
+]);
+
+/** 単字の `skam:kun` が作る注記と、その部分 */
+function kunParts(annotation: TokenAnnotation): XmlElementMarks['marks'] {
+  const parts: { part: 'yomi' | 'okuri' | 'soe'; mark: Mark }[] = [];
+  if (annotation.yomiMark) parts.push({ part: 'yomi', mark: annotation.yomiMark });
+  if (annotation.okuriMark) parts.push({ part: 'okuri', mark: annotation.okuriMark });
+  if (annotation.soeMark) parts.push({ part: 'soe', mark: annotation.soeMark });
+  return parts;
+}
+
 /**
  * 単一トークンのベース XML を生成（テキスト + kun 属性のみ、trailing marks なし）
  */
-function tokenBaseToXml(text: string, annotation: TokenAnnotation): string {
+function tokenBaseToXml(text: string, annotation: TokenAnnotation, ctx: StringifyContext): string {
   // パーサーが無視する空白だけの token は出力しても読み戻せない (損失は recordFieldLosses で記録済み)
   if (isIgnoredWhitespaceText(text)) return '';
   const { yomi, okuri, soe } = annotation;
@@ -995,7 +1081,8 @@ function tokenBaseToXml(text: string, annotation: TokenAnnotation): string {
       attrs.push(`soe="${escapeXml(soe)}"`);
     }
 
-    return `<skam:kun ${attrs.join(' ')}>${escapeXml(text)}</skam:kun>`;
+    const extension = extensionAttributes(ctx, 'skam:kun', kunParts(annotation));
+    return `<skam:kun ${attrs.join(' ')}${extension}>${escapeXml(text)}</skam:kun>`;
   }
 
   return escapeXml(text);
@@ -1004,14 +1091,15 @@ function tokenBaseToXml(text: string, annotation: TokenAnnotation): string {
 /**
  * trailing marks（kaeri/kutoten/ref/linebreak）の XML を生成
  */
-function tokenTrailingToXml(annotation: TokenAnnotation): string {
+function tokenTrailingToXml(annotation: TokenAnnotation, ctx: StringifyContext): string {
   const { kaeriAfter, kutotenAfter, refAfter, linebreakAfter } = annotation;
   let xml = '';
 
   if (kaeriAfter) {
     for (const kaeri of kaeriAfter) {
       const kind = kaeriValueToKind(kaeri.value);
-      xml += `<skam:kaeri kind="${escapeXml(kind)}"/>`;
+      const extension = extensionAttributes(ctx, 'skam:kaeri', [{ part: 'self', mark: kaeri }]);
+      xml += `<skam:kaeri kind="${escapeXml(kind)}"${extension}/>`;
     }
   }
 
@@ -1021,6 +1109,7 @@ function tokenTrailingToXml(annotation: TokenAnnotation): string {
       if (kutoten.kind) {
         attrs += ` kind="${kutoten.kind}"`;
       }
+      attrs += extensionAttributes(ctx, 'skam:kutoten', [{ part: 'self', mark: kutoten }]);
       xml += `<skam:kutoten ${attrs}/>`;
     }
   }
@@ -1045,25 +1134,33 @@ function tokenTrailingToXml(annotation: TokenAnnotation): string {
 /**
  * 単一トークンの XML を生成（wrapper なし、annotation のみ）
  */
-function tokenContentToXml(text: string, annotation: TokenAnnotation): string {
-  return tokenBaseToXml(text, annotation) + tokenTrailingToXml(annotation);
+function tokenContentToXml(
+  text: string,
+  annotation: TokenAnnotation,
+  ctx: StringifyContext
+): string {
+  return tokenBaseToXml(text, annotation, ctx) + tokenTrailingToXml(annotation, ctx);
 }
 
 /** 字を包む要素の開始タグと終了タグ。単字 (applyWrappers) と範囲 (renderRangeElement) で共有する */
-function wrapperTags(mark: OkimojiMark | JojiMark | OkototenMark | SaidokuMark): {
+function wrapperTags(
+  mark: OkimojiMark | JojiMark | OkototenMark | SaidokuMark,
+  ctx: StringifyContext
+): {
   open: string;
   close: string;
 } {
+  const extension = extensionAttributes(ctx, `skam:${mark.type}`, [{ part: 'self', mark }]);
   switch (mark.type) {
     case 'okimoji':
-      return { open: '<skam:okimoji>', close: '</skam:okimoji>' };
+      return { open: `<skam:okimoji${extension}>`, close: '</skam:okimoji>' };
     case 'joji':
-      return { open: '<skam:joji>', close: '</skam:joji>' };
+      return { open: `<skam:joji${extension}>`, close: '</skam:joji>' };
     case 'okototen': {
       let attrs = `grid="${escapeXml(mark.position.grid)}" x="${mark.position.x}" y="${mark.position.y}" shape="${escapeXml(mark.shape)}"`;
       if (mark.sound) attrs += ` sound="${escapeXml(mark.sound)}"`;
       if (mark.color) attrs += ` color="${escapeXml(mark.color)}"`;
-      return { open: `<skam:okototen ${attrs}>`, close: '</skam:okototen>' };
+      return { open: `<skam:okototen ${attrs}${extension}>`, close: '</skam:okototen>' };
     }
     case 'saidoku': {
       let formsXml = '';
@@ -1075,7 +1172,7 @@ function wrapperTags(mark: OkimojiMark | JojiMark | OkototenMark | SaidokuMark):
         formsXml += `<skam:kunform${formAttrs}/>`;
       }
       return {
-        open: '<skam:saidoku><skam:base>',
+        open: `<skam:saidoku${extension}><skam:base>`,
         close: `</skam:base>${formsXml}</skam:saidoku>`,
       };
     }
@@ -1083,12 +1180,16 @@ function wrapperTags(mark: OkimojiMark | JojiMark | OkototenMark | SaidokuMark):
 }
 
 /** 単字の包む要素を適用してトークン XML を生成。wrappers は入れ子順 (外側から) に並んでいる */
-function applyWrappers(innerXml: string, wrappers: SingleTokenWrapper[] | undefined): string {
+function applyWrappers(
+  innerXml: string,
+  wrappers: SingleTokenWrapper[] | undefined,
+  ctx: StringifyContext
+): string {
   let xml = innerXml;
   for (let i = (wrappers?.length ?? 0) - 1; i >= 0; i--) {
     const wrapper = wrappers?.[i];
     if (!wrapper) continue;
-    const { open, close } = wrapperTags(wrapper.mark);
+    const { open, close } = wrapperTags(wrapper.mark, ctx);
     xml = open + xml + close;
   }
   return xml;
@@ -1120,7 +1221,11 @@ function refMarkToXml(ref: RefMark, isEmpty: boolean): string {
 /**
  * 範囲マークの型に応じた XML 要素を生成
  */
-function renderRangeElement(mark: Mark | KunRangeSyntheticMark, childrenXml: string): string {
+function renderRangeElement(
+  mark: Mark | KunRangeSyntheticMark,
+  childrenXml: string,
+  ctx: StringifyContext
+): string {
   switch (mark.type) {
     case '__kun_range': {
       const kun = mark as KunRangeSyntheticMark;
@@ -1128,11 +1233,20 @@ function renderRangeElement(mark: Mark | KunRangeSyntheticMark, childrenXml: str
       if (kun.yomi) attrs.push(`yomi="${escapeXml(kun.yomi)}"`);
       if (kun.okuri) attrs.push(`okuri="${escapeXml(kun.okuri)}"`);
       if (kun.soe) attrs.push(`soe="${escapeXml(kun.soe)}"`);
-      return `<skam:kun ${attrs.join(' ')}>${childrenXml}</skam:kun>`;
+      const parts = kun.sources.flatMap((source) => {
+        const part = KUN_PART_OF_TYPE.get(source.type);
+        return part === undefined ? [] : [{ part, mark: source }];
+      });
+      const extension = extensionAttributes(ctx, 'skam:kun', parts);
+      return `<skam:kun ${attrs.join(' ')}${extension}>${childrenXml}</skam:kun>`;
     }
     case '__yomigana_range': {
       const yomigana = mark as KunRangeSyntheticMark;
-      return `<skam:yomigana value="${escapeXml(yomigana.yomi ?? '')}">${childrenXml}</skam:yomigana>`;
+      const source = yomigana.sources.find((candidate) => candidate.type === 'yomigana');
+      const extension = source
+        ? extensionAttributes(ctx, 'skam:yomigana', [{ part: 'self', mark: source }])
+        : '';
+      return `<skam:yomigana value="${escapeXml(yomigana.yomi ?? '')}"${extension}>${childrenXml}</skam:yomigana>`;
     }
     case 'emphasis': {
       const emp = mark as EmphasisMark;
@@ -1142,8 +1256,12 @@ function renderRangeElement(mark: Mark | KunRangeSyntheticMark, childrenXml: str
       }
       return `<skam:span ${attrs}>${childrenXml}</skam:span>`;
     }
-    case 'tateten':
-      return `<skam:tateten>${childrenXml}</skam:tateten>`;
+    case 'tateten': {
+      const extension = extensionAttributes(ctx, 'skam:tateten', [
+        { part: 'self', mark: mark as TatetenMark },
+      ]);
+      return `<skam:tateten${extension}>${childrenXml}</skam:tateten>`;
+    }
     case 'highlight': {
       const hl = mark as HighlightMark;
       let attrs = 'type="highlight"';
@@ -1160,7 +1278,8 @@ function renderRangeElement(mark: Mark | KunRangeSyntheticMark, childrenXml: str
     case 'okototen':
     case 'saidoku': {
       const { open, close } = wrapperTags(
-        mark as OkimojiMark | JojiMark | OkototenMark | SaidokuMark
+        mark as OkimojiMark | JojiMark | OkototenMark | SaidokuMark,
+        ctx
       );
       return open + childrenXml + close;
     }
@@ -1195,24 +1314,28 @@ function takeTrailing(annotation: TokenAnnotation): TokenAnnotation {
 /**
  * コンテンツノードを XML に変換
  */
-function contentNodeToXml(node: ContentNode): string {
+function contentNodeToXml(node: ContentNode, ctx: StringifyContext): string {
   if (node.type === 'text') {
     // wrapper がある場合、trailing marks を wrapper の外に配置
     if (node.annotation.wrappers?.length) {
-      const baseXml = tokenBaseToXml(node.text, node.annotation);
-      const trailingXml = tokenTrailingToXml(node.annotation);
-      return applyWrappers(baseXml, node.annotation.wrappers) + trailingXml;
+      const baseXml = tokenBaseToXml(node.text, node.annotation, ctx);
+      const trailingXml = tokenTrailingToXml(node.annotation, ctx);
+      return applyWrappers(baseXml, node.annotation.wrappers, ctx) + trailingXml;
     }
-    const innerXml = tokenContentToXml(node.text, node.annotation);
-    return applyWrappers(innerXml, node.annotation.wrappers);
+    const innerXml = tokenContentToXml(node.text, node.annotation, ctx);
+    return applyWrappers(innerXml, node.annotation.wrappers, ctx);
   }
 
   // 要素ノード：最後の字の位置マークを、同じ字で終わる範囲の連鎖のうち最も外側の後ろへ出す (§7.0)
   const leaf = findTrailingLeaf(node);
   const trailing = leaf ? takeTrailing(leaf.annotation) : {};
-  const elementXml = renderRangeElement(node.mark, node.children.map(contentNodeToXml).join(''));
+  const elementXml = renderRangeElement(
+    node.mark,
+    node.children.map((child) => contentNodeToXml(child, ctx)).join(''),
+    ctx
+  );
   if (leaf) Object.assign(leaf.annotation, trailing);
-  return elementXml + tokenTrailingToXml(trailing);
+  return elementXml + tokenTrailingToXml(trailing, ctx);
 }
 
 /**
@@ -1244,7 +1367,8 @@ function blockToXml(
   // XML に変換
   // ブロック先頭の句読点・ref (§7.1: position に blockId だけを指定したもの) を本文の前に置く
   const content =
-    (startMarks ? tokenTrailingToXml(startMarks) : '') + contentTree.map(contentNodeToXml).join('');
+    (startMarks ? tokenTrailingToXml(startMarks, ctx) : '') +
+    contentTree.map((node) => contentNodeToXml(node, ctx)).join('');
 
   if (content === '') {
     return `${ind}<skam:block xml:id="${escapeXml(blockId)}"/>`;
@@ -1284,7 +1408,23 @@ function stringifyNotes(marks: Mark[], indentSize: number): string[] {
 // Loss Recording
 // ============================================================================
 
-function createContext(doc: SKAMDocument): StringifyContext {
+/** 宣言した拡張の名前 (文字列だけ、宣言の順) */
+function declaredExtensionNames(doc: SKAMDocument): string[] {
+  return Array.isArray(doc.extensions) ? doc.extensions.filter(isExtensionName) : [];
+}
+
+/** 宣言した拡張の名前空間の URI。定義か登録簿に無ければ undefined (書き方も名前空間も分からない) */
+function extensionUri(
+  name: string,
+  definitions: ReadonlyMap<string, SKAMExtensionDefinition>
+): string | undefined {
+  return definitions.get(name)?.uri ?? extensionRegistry.find((entry) => entry.name === name)?.uri;
+}
+
+function createContext(
+  doc: SKAMDocument,
+  definitions: ReadonlyMap<string, SKAMExtensionDefinition>
+): StringifyContext {
   const markIndexMap = new Map<Mark, number>();
   doc.marks.forEach((mark, i) => markIndexMap.set(mark, i));
 
@@ -1295,7 +1435,19 @@ function createContext(doc: SKAMDocument): StringifyContext {
 
   const blockIndexById = new Map(doc.blocks.map((block, i) => [block.id, i] as const));
 
-  return { collector: new LossCollector(), markIndexMap, tokenPosition, blockIndexById };
+  const writers = new Map<string, SKAMExtensionDefinition>();
+  for (const name of declaredExtensionNames(doc)) {
+    const definition = definitions.get(name);
+    if (definition?.writeXmlAttributes) writers.set(name, definition);
+  }
+
+  return {
+    collector: new LossCollector(),
+    markIndexMap,
+    tokenPosition,
+    blockIndexById,
+    extension: { writers, consumed: new Map() },
+  };
 }
 
 function hasKeys(value: Record<string, unknown> | undefined): value is Record<string, unknown> {
@@ -1306,7 +1458,7 @@ function hasKeys(value: Record<string, unknown> | undefined): value is Record<st
  * XML に書き場所のないフィールド (ext / derivations / placementHint) の欠落を記録する。
  * これらは変換経路のどこにも出力されないので、ここで一括して積む
  */
-function recordFieldLosses(doc: SKAMDocument, ctx: StringifyContext): void {
+function recordFieldLosses(doc: SKAMDocument, ctx: StringifyContext, declared: boolean): void {
   const extLoss = (path: string): StringifyLoss => ({
     category: 'unsupported',
     code: 'EXT',
@@ -1314,8 +1466,24 @@ function recordFieldLosses(doc: SKAMDocument, ctx: StringifyContext): void {
     message: `SKAM-ML has no notation for ext (${path})`,
   });
 
-  if (hasKeys(doc.ext)) {
+  const customLoss = (path: string): StringifyLoss => ({
+    category: 'unsupported',
+    code: 'EXT',
+    path,
+    message: `SKAM-ML has no notation for custom (${path})`,
+  });
+
+  // 宣言のある文書の ext は、書けたかどうかが描いた後に分かるので recordExtensionLosses が記録する
+  if (!declared && hasKeys(doc.ext)) {
     ctx.collector.add(extLoss('/ext'), {
+      blockIndex: -1,
+      tokenIndex: -1,
+      markIndex: -1,
+      fieldOrder: 0,
+    });
+  }
+  if (hasKeys(doc.custom)) {
+    ctx.collector.add(customLoss('/custom'), {
       blockIndex: -1,
       tokenIndex: -1,
       markIndex: -1,
@@ -1334,24 +1502,20 @@ function recordFieldLosses(doc: SKAMDocument, ctx: StringifyContext): void {
     );
   }
   doc.readings.forEach((reading, i) => {
-    if (hasKeys(reading.ext)) {
-      ctx.collector.add(extLoss(`/readings/${i}/ext`), {
-        blockIndex: UNPLACED,
-        tokenIndex: UNPLACED,
-        markIndex: i,
-        fieldOrder: 0,
-      });
-    }
+    const key: LossSortKey = {
+      blockIndex: UNPLACED,
+      tokenIndex: UNPLACED,
+      markIndex: i,
+      fieldOrder: 0,
+    };
+    if (!declared && hasKeys(reading.ext)) ctx.collector.add(extLoss(`/readings/${i}/ext`), key);
+    if (hasKeys(reading.custom)) ctx.collector.add(customLoss(`/readings/${i}/custom`), key);
   });
   doc.blocks.forEach((block, blockIndex) => {
-    if (hasKeys(block.ext)) {
-      ctx.collector.add(extLoss(`/blocks/${blockIndex}/ext`), {
-        blockIndex,
-        tokenIndex: -1,
-        markIndex: -1,
-        fieldOrder: 0,
-      });
-    }
+    const key: LossSortKey = { blockIndex, tokenIndex: -1, markIndex: -1, fieldOrder: 0 };
+    if (!declared && hasKeys(block.ext))
+      ctx.collector.add(extLoss(`/blocks/${blockIndex}/ext`), key);
+    if (hasKeys(block.custom)) ctx.collector.add(customLoss(`/blocks/${blockIndex}/custom`), key);
   });
   doc.tokens.forEach((token, i) => {
     const pos = ctx.tokenPosition.get(token.id);
@@ -1372,10 +1536,19 @@ function recordFieldLosses(doc: SKAMDocument, ctx: StringifyContext): void {
         key
       );
     }
-    if (hasKeys(token.ext)) ctx.collector.add(extLoss(`/tokens/${i}/ext`), key);
+    if (!declared && hasKeys(token.ext)) ctx.collector.add(extLoss(`/tokens/${i}/ext`), key);
+    if (hasKeys(token.custom)) ctx.collector.add(customLoss(`/tokens/${i}/custom`), key);
   });
   for (const mark of doc.marks) {
-    if (hasKeys(mark.ext)) {
+    if (hasKeys(mark.custom)) {
+      addMarkLoss(
+        ctx,
+        mark,
+        { category: 'unsupported', code: 'EXT', message: 'SKAM-ML has no notation for custom' },
+        'custom'
+      );
+    }
+    if (!declared && hasKeys(mark.ext)) {
       addMarkLoss(
         ctx,
         mark,
@@ -1398,6 +1571,142 @@ function recordFieldLosses(doc: SKAMDocument, ctx: StringifyContext): void {
   }
 }
 
+/** JSON Pointer (RFC 6901) の参照トークンにする */
+function pointerToken(key: string): string {
+  return key.replace(/~/g, '~0').replace(/\//g, '~1');
+}
+
+/**
+ * 宣言のある文書の拡張の値のうち、SKAM-ML に書けなかったものを損失にする。
+ * 描いた後に呼ぶ (属性として書いた注記を `consumed` から知るため)。
+ * 書き方 (`writeXmlAttributes`) を知らない宣言済みの拡張は `UNKNOWN_EXTENSION`、
+ * 書き方を知っていても書く場所の無い値と、宣言に無い名前は `EXT` にする
+ */
+function recordExtensionLosses(
+  doc: SKAMDocument,
+  ctx: StringifyContext,
+  definitions: ReadonlyMap<string, SKAMExtensionDefinition>
+): void {
+  const declared = new Set(declaredExtensionNames(doc));
+  const lossFor = (key: string, path: string): StringifyLoss => {
+    if (declared.has(key) && !ctx.extension.writers.has(key)) {
+      return {
+        category: 'unsupported',
+        code: 'UNKNOWN_EXTENSION',
+        path,
+        message: definitions.has(key)
+          ? `Extension "${key}" does not define how to write SKAM-ML (${path})`
+          : `Extension "${key}" is not known, so its value cannot be written (${path})`,
+      };
+    }
+    return {
+      category: 'unsupported',
+      code: 'EXT',
+      path,
+      message: `SKAM-ML has no notation for this ext value (${path})`,
+    };
+  };
+
+  const document: LossSortKey = { blockIndex: -1, tokenIndex: -1, markIndex: -1, fieldOrder: 0 };
+  for (const key of Object.keys(doc.ext ?? {})) {
+    ctx.collector.add(lossFor(key, `/ext/${pointerToken(key)}`), document);
+  }
+  doc.readings.forEach((reading, i) => {
+    for (const key of Object.keys(reading.ext ?? {})) {
+      ctx.collector.add(lossFor(key, `/readings/${i}/ext/${pointerToken(key)}`), {
+        blockIndex: UNPLACED,
+        tokenIndex: UNPLACED,
+        markIndex: i,
+        fieldOrder: 0,
+      });
+    }
+  });
+  doc.blocks.forEach((block, blockIndex) => {
+    for (const key of Object.keys(block.ext ?? {})) {
+      ctx.collector.add(lossFor(key, `/blocks/${blockIndex}/ext/${pointerToken(key)}`), {
+        blockIndex,
+        tokenIndex: -1,
+        markIndex: -1,
+        fieldOrder: 0,
+      });
+    }
+  });
+  doc.tokens.forEach((token, i) => {
+    const pos = ctx.tokenPosition.get(token.id);
+    for (const key of Object.keys(token.ext ?? {})) {
+      ctx.collector.add(lossFor(key, `/tokens/${i}/ext/${pointerToken(key)}`), {
+        blockIndex: pos?.blockIndex ?? UNPLACED,
+        tokenIndex: pos?.tokenIndex ?? UNPLACED,
+        markIndex: -1,
+        fieldOrder: 0,
+      });
+    }
+  });
+  for (const mark of doc.marks) {
+    for (const key of Object.keys(mark.ext ?? {})) {
+      if (ctx.extension.consumed.get(mark)?.has(key)) continue;
+      const loss = lossFor(key, '');
+      addMarkLoss(
+        ctx,
+        mark,
+        { category: loss.category, code: loss.code, message: loss.message },
+        `ext/${pointerToken(key)}`
+      );
+    }
+  }
+}
+
+interface ExtensionDeclaration {
+  name: string;
+  uri: string;
+  required: boolean;
+}
+
+/**
+ * 宣言のある文書は、名前空間の URI が分かる拡張だけを宣言する。
+ * URI の無い拡張 (定義も登録簿も無い) と名前が不正な拡張は、宣言も値も書けないので損失にする
+ */
+function collectDeclarations(
+  doc: SKAMDocument,
+  definitions: ReadonlyMap<string, SKAMExtensionDefinition>,
+  ctx: StringifyContext
+): ExtensionDeclaration[] {
+  const declarations: ExtensionDeclaration[] = [];
+  const names: unknown[] = Array.isArray(doc.extensions) ? doc.extensions : [];
+  names.forEach((name, index) => {
+    const uri = isExtensionName(name) ? extensionUri(name, definitions) : undefined;
+    if (!isExtensionName(name) || uri === undefined) {
+      ctx.collector.add(
+        {
+          category: 'unsupported',
+          code: 'UNKNOWN_EXTENSION',
+          path: `/extensions/${index}`,
+          message:
+            'An extension that is not known, or whose name is invalid, cannot be declared in SKAM-ML (its namespace uri is needed)',
+        },
+        { blockIndex: -1, tokenIndex: -1, markIndex: -1, fieldOrder: 2 }
+      );
+      return;
+    }
+    const required = Array.isArray(doc.extensionsRequired) && doc.extensionsRequired.includes(name);
+    declarations.push({ name, uri, required });
+  });
+  return declarations;
+}
+
+function metaLines(declarations: ExtensionDeclaration[], indentSize: number): string[] {
+  if (declarations.length === 0)
+    return [`${indentStr(1, indentSize)}<skam:meta tokenization="char"/>`];
+  return [
+    `${indentStr(1, indentSize)}<skam:meta tokenization="char">`,
+    ...declarations.map(
+      ({ name, uri, required }) =>
+        `${indentStr(2, indentSize)}<skam:extension name="${escapeXml(name)}" uri="${escapeXml(uri)}"${required ? ' required="true"' : ''}/>`
+    ),
+    `${indentStr(1, indentSize)}</skam:meta>`,
+  ];
+}
+
 // ============================================================================
 // Main Stringify Function
 // ============================================================================
@@ -1412,8 +1721,10 @@ function recordFieldLosses(doc: SKAMDocument, ctx: StringifyContext): void {
 export function stringify(doc: SKAMDocument, options: StringifyOptions = {}): string {
   const { indent: indentSize = 2, xmlDeclaration = true, lossy = false, onLoss } = options;
 
-  const ctx = createContext(doc);
-  recordFieldLosses(doc, ctx);
+  const definitions = resolveExtensions(options.extensions);
+  const ctx = createContext(doc, definitions);
+  const declared = Array.isArray(doc.extensions);
+  recordFieldLosses(doc, ctx, declared);
 
   // トークンID → Token のマップを構築
   const tokenMap = new Map<string, Token>();
@@ -1446,11 +1757,16 @@ export function stringify(doc: SKAMDocument, options: StringifyOptions = {}): st
     lines.push('<?xml version="1.0" encoding="UTF-8"?>');
   }
 
+  const declarations = collectDeclarations(doc, definitions, ctx);
+
   // ルート要素開始
-  lines.push(`<skam:doc xmlns:skam="${SKAM_NS}">`);
+  const namespaces = declarations
+    .map(({ name, uri }) => ` xmlns:${name}="${escapeXml(uri)}"`)
+    .join('');
+  lines.push(`<skam:doc xmlns:skam="${SKAM_NS}"${namespaces}>`);
 
   // meta 要素（常に char tokenization）
-  lines.push(`${indentStr(1, indentSize)}<skam:meta tokenization="char"/>`);
+  lines.push(...metaLines(declarations, indentSize));
 
   // body 要素
   lines.push(`${indentStr(1, indentSize)}<skam:body>`);
@@ -1483,6 +1799,8 @@ export function stringify(doc: SKAMDocument, options: StringifyOptions = {}): st
   }
 
   lines.push(`${indentStr(1, indentSize)}</skam:body>`);
+
+  if (declared) recordExtensionLosses(doc, ctx, definitions);
 
   // notes 要素（分離定義の注釈がある場合）
   const notesLines = stringifyNotes(doc.marks, indentSize);

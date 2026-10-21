@@ -27,7 +27,15 @@ export {
   type QuizMarkType,
 } from './edu/index.js';
 
-const EXTENSION_NAME = /^[a-z0-9]+$/;
+const EXTENSION_NAME = /^(?!xml)[a-z][a-z0-9]*$/;
+
+/**
+ * 拡張の名前として使える形か。小文字の英数字で、先頭は英字。
+ * SKAM-ML では名前空間の接頭辞に使うので、XML の名前として使えない形 (数字で始まる、`xml` で始まる) は認めない
+ */
+export function isExtensionName(name: unknown): name is string {
+  return typeof name === 'string' && EXTENSION_NAME.test(name);
+}
 
 /**
  * 既定の束に、利用者が足した定義を加えた定義を、名前で引ける形で返す。
@@ -38,8 +46,10 @@ export function resolveExtensions(
 ): ReadonlyMap<string, SKAMExtensionDefinition> {
   const byName = new Map<string, SKAMExtensionDefinition>();
   for (const definition of [...defaultExtensions, ...(extra ?? [])]) {
-    if (typeof definition.name !== 'string' || !EXTENSION_NAME.test(definition.name)) {
-      throw new TypeError('Extension name must consist of lowercase letters and digits');
+    if (!isExtensionName(definition.name)) {
+      throw new TypeError(
+        'Extension name must be lowercase letters and digits, starting with a letter'
+      );
     }
     if (byName.has(definition.name)) {
       throw new TypeError(`Extension "${definition.name}" is defined more than once`);

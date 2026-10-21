@@ -98,6 +98,8 @@ describe('extensions: declaration', () => {
       { extensions: ['zzz'], extensionsRequired: ['yyy'] },
       { extensions: ['test1', 'test1'] },
       { extensions: ['Test1'] },
+      { extensions: ['1abc'] },
+      { extensions: ['xmlfoo'] },
       { extensions: 'test1' },
       { extensions: [1] },
       { extensionsRequired: ['test1'] },

@@ -5,9 +5,12 @@
  * by using both @kanbun-skam/skam-xml-parser and @kanbun-skam/skam-xml-stringify.
  */
 
+import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
+import { createSequentialIdGenerator } from '@kanbun-skam/skam';
+import type { SKAMExtensionDefinition } from '@kanbun-skam/skam/extensions';
 import { parse } from '@kanbun-skam/skam-xml-parser';
-import { stringify } from '@kanbun-skam/skam-xml-stringify';
+import { stringify, type StringifyLoss } from '@kanbun-skam/skam-xml-stringify';
 import type {
   SKAMDocument,
   KaeriMark,
@@ -1122,5 +1125,235 @@ describe('round-trip - linebreak', () => {
   it('linebreak の未知のフィールドは書かない', () => {
     const doc = makeDoc([{ ...br('t1'), value: 'x' } as Mark]);
     expect(stringify(doc)).toContain('學<skam:br/>而');
+  });
+});
+
+// ============================================================================
+// Extensions: declaration and edu quiz marks
+// ============================================================================
+
+describe('round-trip - extensions', () => {
+  const EDU = { extensions: ['edu'], extensionsRequired: ['edu'] };
+  const quizExt = (quiz: string) => ({ edu: { quiz } });
+
+  function declared(
+    tokens: string[],
+    marks: Mark[],
+    extra: Partial<SKAMDocument> = {}
+  ): SKAMDocument {
+    const ids = tokens.map((_, i) => `t${i + 1}`);
+    return {
+      format: 'skam@0.1',
+      ...EDU,
+      tokens: tokens.map((text, i) => ({ id: ids[i]!, text })),
+      blocks: [{ id: 'b1', tokenIds: ids }],
+      marks,
+      readings: [],
+      ...extra,
+    };
+  }
+
+  /** XML → JSON の往復。id は stringify が書かないので、連番の生成器で読み直し、mark の id を外して比べる */
+  function roundTrip(doc: SKAMDocument): SKAMDocument {
+    return parse(stringify(doc), { idGenerator: createSequentialIdGenerator() });
+  }
+  function withoutIds(doc: SKAMDocument) {
+    return {
+      ...doc,
+      marks: doc.marks.map((m) => {
+        const { id: _id, ...rest } = m;
+        return rest;
+      }),
+    };
+  }
+
+  const anchor = { from: 't1', to: 't1' };
+  const after = { blockId: 'b1', after: 't1' };
+  const TEN_TYPES: [string, Mark][] = [
+    ['kaeri', { type: 'kaeri', position: after, value: '㆒', ext: quizExt('問1') } as KaeriMark],
+    [
+      'kutoten',
+      { type: 'kutoten', position: after, value: '。', ext: quizExt('問1') } as KutotenMark,
+    ],
+    ['okurigana', { type: 'okurigana', anchor, value: 'ブ', ext: quizExt('問1') } as OkuriganaMark],
+    ['yomigana', { type: 'yomigana', anchor, value: 'まな', ext: quizExt('問1') } as YomiganaMark],
+    ['soegana', { type: 'soegana', anchor, value: 'を', ext: quizExt('問1') } as SoeganaMark],
+    ['okimoji', { type: 'okimoji', anchor, ext: quizExt('問1') } as OkimojiMark],
+    ['joji', { type: 'joji', anchor, ext: quizExt('問1') } as JojiMark],
+    [
+      'okototen',
+      {
+        type: 'okototen',
+        anchor,
+        position: { system: 'glyph-grid', grid: '5x5', x: 1, y: 1 },
+        shape: 'dot',
+        ext: quizExt('問1'),
+      } as OkototenMark,
+    ],
+    ['tateten', { type: 'tateten', anchor, ext: quizExt('問1') } as TatetenMark],
+    [
+      'saidoku',
+      {
+        type: 'saidoku',
+        anchor,
+        forms: [{ yomi: 'いま' }, { okuri: 'ず' }],
+        ext: quizExt('問1'),
+      } as SaidokuMark,
+    ],
+  ];
+
+  it.each(TEN_TYPES)('%s の ext.edu.quiz が JSON → XML → JSON で保たれる', (_type, mark) => {
+    const original = declared(['學', '而'], [mark]);
+    expect(withoutIds(roundTrip(original))).toEqual(withoutIds(original));
+  });
+
+  it('範囲の yomigana と範囲の okurigana が同じ範囲で quiz が違っても保たれる', () => {
+    const range = { from: 't1', to: 't2' };
+    const original = declared(
+      ['學', '而'],
+      [
+        { type: 'yomigana', anchor: range, value: 'まなび', ext: quizExt('甲') } as YomiganaMark,
+        { type: 'okurigana', anchor: range, value: 'ブ', ext: quizExt('乙') } as OkuriganaMark,
+      ]
+    );
+    expect(withoutIds(roundTrip(original))).toEqual(withoutIds(original));
+  });
+
+  it('読みだけの範囲を skam:yomigana で書いても quiz が保たれる', () => {
+    const original = declared(
+      ['學', '而', '時'],
+      [
+        {
+          type: 'yomigana',
+          anchor: { from: 't1', to: 't3' },
+          value: 'がくじ',
+          ext: quizExt('甲'),
+        } as YomiganaMark,
+        { type: 'okurigana', anchor: { from: 't2', to: 't2' }, value: 'ず' } as OkuriganaMark,
+      ]
+    );
+    // 入れ子の内側の注記が先に読まれるので、注記の並びは種類で揃えて比べる
+    const sorted = (doc: SKAMDocument) => ({
+      ...withoutIds(doc),
+      marks: withoutIds(doc).marks.sort((a, b) => a.type.localeCompare(b.type)),
+    });
+    expect(roundTrip(original).marks.map((m) => m.type)).toEqual(['okurigana', 'yomigana']);
+    expect(sorted(roundTrip(original))).toEqual(sorted(original));
+  });
+
+  it('属性の escape を要する quiz の値が同じ値に戻る', () => {
+    const quiz = 'a"<&>改行\'';
+    const original = declared(
+      ['學'],
+      [{ type: 'kaeri', position: after, value: '㆒', ext: quizExt(quiz) } as KaeriMark]
+    );
+    const xml = stringify(original);
+    expect(xml).not.toContain('a"<');
+    expect(withoutIds(parse(xml, { idGenerator: createSequentialIdGenerator() }))).toEqual(
+      withoutIds(original)
+    );
+  });
+
+  it('宣言のある文書は skam:extension とルートの名前空間を書く', () => {
+    const xml = stringify(declared(['學'], []));
+    expect(xml).toContain('xmlns:edu="urn:skam:edu:1"');
+    expect(xml).toContain('<skam:extension name="edu" uri="urn:skam:edu:1" required="true"/>');
+  });
+
+  it('拡張を使わない文書の出力に skam:extension と xmlns:edu は無い', () => {
+    const plain: SKAMDocument = { ...declared(['學'], []) };
+    delete plain.extensions;
+    delete plain.extensionsRequired;
+    const xml = stringify(plain);
+    expect(xml).not.toContain('skam:extension');
+    expect(xml).not.toContain('xmlns:edu');
+    expect(xml).toContain('<skam:meta tokenization="char"/>');
+  });
+
+  it('知らない拡張の値は書けない: 例外、lossy なら UNKNOWN_EXTENSION、custom と宣言の無い ext は EXT', () => {
+    const unknown = declared(
+      ['學'],
+      [{ type: 'okimoji', anchor, ext: { zzz: { a: 1 } } } as OkimojiMark],
+      { extensions: ['edu', 'zzz'] }
+    );
+    expect(() => stringify(unknown)).toThrow();
+    const losses: StringifyLoss[] = [];
+    stringify(unknown, { lossy: true, onLoss: (l) => losses.push(l) });
+    expect(losses.map((l) => l.code)).toContain('UNKNOWN_EXTENSION');
+    expect(losses.find((l) => l.path === '/marks/0/ext/zzz')?.code).toBe('UNKNOWN_EXTENSION');
+
+    const withCustom = declared(
+      ['學'],
+      [{ type: 'okimoji', anchor, custom: { a: 1 } } as OkimojiMark]
+    );
+    const customLosses: StringifyLoss[] = [];
+    stringify(withCustom, { lossy: true, onLoss: (l) => customLosses.push(l) });
+    expect(customLosses).toMatchObject([{ code: 'EXT', path: '/marks/0/custom' }]);
+
+    const undeclared: SKAMDocument = declared(
+      ['學'],
+      [{ type: 'okimoji', anchor, ext: { foo: 1 } } as OkimojiMark]
+    );
+    delete undeclared.extensions;
+    delete undeclared.extensionsRequired;
+    const extLosses: StringifyLoss[] = [];
+    stringify(undeclared, { lossy: true, onLoss: (l) => extLosses.push(l) });
+    expect(extLosses).toMatchObject([{ code: 'EXT', path: '/marks/0/ext' }]);
+  });
+
+  it('宣言した拡張の値でも書く場所が無ければ損失になる', () => {
+    const doc = declared(
+      ['學'],
+      [{ type: 'emphasis', anchor, ext: quizExt('問1') } as EmphasisMark]
+    );
+    const losses: StringifyLoss[] = [];
+    stringify(doc, { lossy: true, onLoss: (l) => losses.push(l) });
+    expect(losses).toMatchObject([{ code: 'EXT', path: '/marks/0/ext/edu' }]);
+  });
+
+  it('渡した定義の属性が往復で同じ値に戻る', () => {
+    const test1: SKAMExtensionDefinition = {
+      name: 'test1',
+      uri: 'urn:test1:1',
+      required: false,
+      readXmlAttributes(attributes, target) {
+        const n = attributes.get('n');
+        const mark = target.marks[0]?.mark;
+        if (n === undefined || !mark) return { values: [] };
+        return { values: [{ mark, value: { n: Number(n) } }] };
+      },
+      writeXmlAttributes(target) {
+        const value = (target.marks[0]?.mark.ext?.['test1'] ?? {}) as { n?: number };
+        return new Map(value.n === undefined ? [] : [['n', String(value.n)]]);
+      },
+    };
+    const original = declared(
+      ['學'],
+      [{ type: 'kaeri', position: after, value: '㆒', ext: { test1: { n: 3 } } } as KaeriMark],
+      { extensions: ['test1'], extensionsRequired: [] }
+    );
+    delete original.extensionsRequired;
+    const xml = stringify(original, { extensions: [test1] });
+    expect(xml).toContain('test1:n="3"');
+    const back = parse(xml, {
+      extensions: [test1],
+      idGenerator: createSequentialIdGenerator(),
+    });
+    expect(withoutIds(back)).toEqual(withoutIds(original));
+  });
+
+  it('既存の fixture の出力に拡張の記述は出ない', () => {
+    for (const fixture of ['kaeri-basic', 'comprehensive', 'kun-reading-okuri', 'kutoten']) {
+      const xml = readFileSync(
+        new URL(
+          `../../../skam-xml-parser/src/__tests__/fixtures/valid/${fixture}.xml`,
+          import.meta.url
+        ),
+        'utf8'
+      );
+      const out = stringify(parse(xml));
+      expect(out).not.toContain('skam:extension');
+      expect(out).not.toContain('xmlns:edu');
+    }
   });
 });

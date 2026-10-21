@@ -34,6 +34,7 @@ function clearSelection(container: HTMLElement): void {
 import type {
   SKAMDocument,
   RefFormat,
+  Mark,
   EmphasisMark,
   HighlightMark,
   SaidokuMark,
@@ -662,8 +663,12 @@ function findTatetenForSelection(
 
   // Find kaeri mark attached to the same range
   const kaeriMarks = getMarksExactRange(doc, fromId, toId, 'kaeri');
-  const firstKaeri = kaeriMarks[0];
-  const kaeriValue = firstKaeri && hasMarkValue(firstKaeri) ? String(firstKaeri.value) : null;
+  // 同じ位置の 1 字ずつの kaeri を marks[] の順につないだ値として扱う
+  const kaeriValue =
+    kaeriMarks
+      .filter(hasMarkValue)
+      .map((m) => String(m.value))
+      .join('') || null;
 
   return { markId: tateten.id, kaeriValue };
 }
@@ -831,22 +836,12 @@ function updateSelectionPanel(fromId: string, toId: string): void {
     currentKaeriValue = tatetenInfo?.kaeriValue ?? null;
   } else if (currentSelectionMode === 'single') {
     // For single selection, get kaeri from that token
-    const firstTokenMarks = getMarksForToken(currentDocument, fromId);
-    for (const mark of firstTokenMarks) {
-      if (mark.type === 'kaeri' && hasMarkValue(mark)) {
-        currentKaeriValue = String(mark.value);
-        break;
-      }
-    }
+    currentKaeriValue = joinKaeriMarkValues(getMarksForToken(currentDocument, fromId));
   } else if (currentSelectionMode === 'multi') {
     // For multi selection, check for kaeri at the end of the range
-    const lastTokenMarks = getMarksForToken(currentDocument, currentSelectionToId!);
-    for (const mark of lastTokenMarks) {
-      if (mark.type === 'kaeri' && hasMarkValue(mark)) {
-        currentKaeriValue = String(mark.value);
-        break;
-      }
-    }
+    currentKaeriValue = joinKaeriMarkValues(
+      getMarksForToken(currentDocument, currentSelectionToId!)
+    );
   }
 
   // Get kana marks for the entire selection range
@@ -985,8 +980,20 @@ function parseKaeriValue(value: string | null): { re: boolean; other: string | n
 }
 
 /**
- * Combine Re and Other into a kaeri value string
- * Convention: other comes first, then レ (e.g., "一レ", "上レ")
+ * 同じ位置の 1 字ずつの kaeri の値を、marks[] の順につないだ値にする (無ければ null)
+ */
+function joinKaeriMarkValues(marks: readonly Mark[]): string | null {
+  let joined = '';
+  for (const mark of marks) {
+    if (mark.type === 'kaeri' && hasMarkValue(mark)) joined += String(mark.value);
+  }
+  return joined || null;
+}
+
+/**
+ * Combine Re and Other into the kaeri characters to place at one position
+ * Convention: other comes first, then レ (e.g., "一レ", "上レ").
+ * 文書には 1 字ずつの kaeri として書く (applyKaeriValue が分ける)。複数の字の値は書かない
  */
 function combineKaeriValue(re: boolean, other: string | null): string | null {
   if (!re && !other) return null;
@@ -1399,22 +1406,22 @@ function applyKaeriValue(value: string | null): void {
   const afterTokenId = currentSelectionMode === 'single' ? normalizedFromId : normalizedToId;
   const searchTo = currentSelectionMode === 'single' ? normalizedFromId : normalizedToId;
 
-  // Find and remove existing kaeri mark for this range
-  const existingKaeri = getMarksExactRange(newDoc, afterTokenId, searchTo, 'kaeri');
-  const kaeriToRemove = existingKaeri[0];
-  if (kaeriToRemove?.id) {
-    newDoc = removeMark(newDoc, kaeriToRemove.id);
+  // Remove every existing kaeri mark at this position
+  for (const existing of getMarksExactRange(newDoc, afterTokenId, searchTo, 'kaeri')) {
+    if (existing.id) newDoc = removeMark(newDoc, existing.id);
   }
 
-  // Add new mark if value is provided
+  // Add one mark per character, in the given order (正の書き方: 同じ位置の 1 字ずつの注記)
   if (value) {
     const block = getBlockForToken(newDoc, afterTokenId);
     if (!block) return;
-    newDoc = addMark(newDoc, {
-      type: 'kaeri',
-      value: value,
-      position: { blockId: block.id, after: afterTokenId },
-    });
+    for (const character of value) {
+      newDoc = addMark(newDoc, {
+        type: 'kaeri',
+        value: character,
+        position: { blockId: block.id, after: afterTokenId },
+      });
+    }
   }
 
   updateXmlFromDocument(newDoc);

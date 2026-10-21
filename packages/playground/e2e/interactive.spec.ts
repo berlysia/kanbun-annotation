@@ -105,7 +105,7 @@ test.describe('Kaeri Mark Operations', () => {
     await expect(xmlInput).toHaveValue(/<skam:kaeri kind="re"\/>/);
   });
 
-  test('re and ichi toggled in turn are merged into one compound kaeri', async ({ page }) => {
+  test('re and ichi toggled in turn are written as two one-character kaeri', async ({ page }) => {
     await page.goto('/');
     await page.fill('#xml-input', SIMPLE_XML);
     await page.waitForTimeout(400);
@@ -119,10 +119,12 @@ test.describe('Kaeri Mark Operations', () => {
     await kaeriButton(page, 'レ').click();
     await expect(xmlInput).toHaveValue(/kind="re"/);
 
-    // The two toggles merge into one compound kind that holds both components
+    // Each component is its own mark at the same position (ichi first, then re)
     await kaeriButton(page, '一').click();
-    await expect(xmlInput).toHaveValue(/<skam:kaeri kind="ichi-re"\/>/);
-    expect(countKaeriTags(await xmlInput.inputValue())).toBe(1);
+    await expect(xmlInput).toHaveValue(/<skam:kaeri kind="ichi"\/>\s*<skam:kaeri kind="re"\/>/);
+    const xml = await xmlInput.inputValue();
+    expect(xml).not.toContain('ichi-re');
+    expect(countKaeriTags(xml)).toBe(2);
   });
 });
 

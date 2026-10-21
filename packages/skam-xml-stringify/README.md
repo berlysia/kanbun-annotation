@@ -67,6 +67,10 @@ const withoutDeclaration = stringify(doc, { xmlDeclaration: false });
 const indented = stringify(doc, { indent: 4 });
 ```
 
+### 拡張
+
+宣言のある文書（`extensions` を持つ文書）は、`skam:meta` に `skam:extension` を、ルートに拡張の名前空間を書き、拡張の値を定義の `writeXmlAttributes` が返す属性にする（学習・教育用拡張 `edu` の出題の印は `edu:quiz` など）。選択肢 `extensions` で、既定の束に利用者の拡張の定義を足せる。拡張を使わない文書の出力は変わらない。
+
 ## 欠落契約
 
 SKAM-ML で表現できない内容は、黙って捨てない。`stringify` は既定で `SKAMXMLStringifyError` を投げる。表現できなかった項目の一覧は、エラーの `losses` にある（文書の順に並ぶ）。
@@ -113,19 +117,20 @@ console.log(xml, losses[0].path); // path: "/ext"
 
 型 `StringifyLossCode` が正本。コードは今後増えうるので、`switch` には `default` を置く。
 
-| code                     | 分類              | 内容                                                                  |
-| ------------------------ | ----------------- | --------------------------------------------------------------------- |
-| `DERIVATIONS`            | `unrepresentable` | `derivations` は SKAM-ML に書けない（コンパイル時に生成される）       |
-| `ASCII_WHITESPACE_TOKEN` | `unrepresentable` | SKAM-ML が無視する空白だけの token                                    |
-| `BLOCK_START_KAERI`      | `unrepresentable` | ブロック先頭の返り点（直前の token がない）                           |
-| `BLOCK_START_LINEBREAK`  | `unrepresentable` | ブロック先頭の改行（直前の token がない）                             |
-| `DANGLING_REFERENCE`     | `unrepresentable` | 存在しない token / block、またはどのブロックにも属さない token を指す |
-| `CROSS_BLOCK_ANCHOR`     | `unrepresentable` | 複数のブロックにまたがる anchor                                       |
-| `PARTIAL_OVERLAP`        | `unsupported`     | 範囲が部分的に重なり、入れ子にできない                                |
-| `UNNESTABLE_OVERLAP`     | `unsupported`     | 内容モデル（SKAM-ML §7.0）上、入れ子にできない範囲                    |
-| `CONFLICTING_MARKS`      | `unrepresentable` | 同じ anchor に同じ種類の注記が 2 つ以上ある                           |
-| `EXT`                    | `unsupported`     | `ext` を書く場所がない                                                |
-| `PLACEMENT_HINT`         | `unsupported`     | `placementHint` を書く場所がない                                      |
+| code                     | 分類              | 内容                                                                               |
+| ------------------------ | ----------------- | ---------------------------------------------------------------------------------- |
+| `DERIVATIONS`            | `unrepresentable` | `derivations` は SKAM-ML に書けない（コンパイル時に生成される）                    |
+| `ASCII_WHITESPACE_TOKEN` | `unrepresentable` | SKAM-ML が無視する空白だけの token                                                 |
+| `BLOCK_START_KAERI`      | `unrepresentable` | ブロック先頭の返り点（直前の token がない）                                        |
+| `BLOCK_START_LINEBREAK`  | `unrepresentable` | ブロック先頭の改行（直前の token がない）                                          |
+| `DANGLING_REFERENCE`     | `unrepresentable` | 存在しない token / block、またはどのブロックにも属さない token を指す              |
+| `CROSS_BLOCK_ANCHOR`     | `unrepresentable` | 複数のブロックにまたがる anchor                                                    |
+| `PARTIAL_OVERLAP`        | `unsupported`     | 範囲が部分的に重なり、入れ子にできない                                             |
+| `UNNESTABLE_OVERLAP`     | `unsupported`     | 内容モデル（SKAM-ML §7.0）上、入れ子にできない範囲                                 |
+| `CONFLICTING_MARKS`      | `unrepresentable` | 同じ anchor に同じ種類の注記が 2 つ以上ある                                        |
+| `EXT`                    | `unsupported`     | `ext` と `custom` を書く場所がない（宣言のある文書で書く場所の無い拡張の値を含む） |
+| `UNKNOWN_EXTENSION`      | `unsupported`     | 書き方を知らない拡張の値、または名前空間の URI が分からない拡張の宣言              |
+| `PLACEMENT_HINT`         | `unsupported`     | `placementHint` を書く場所がない                                                   |
 
 ### 内容モデル表
 

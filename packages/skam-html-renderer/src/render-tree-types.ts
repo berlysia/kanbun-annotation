@@ -61,6 +61,10 @@ export interface RangeMarkContext {
   trailingJojiMarks?: JojiMark[];
   /** 範囲グループ内の後続トークンに付いている傍点マーク */
   trailingEmphasisMarks?: EmphasisMark[];
+  /** 範囲 yomigana / okurigana / soegana を拡張 (出題の印) が隠す。付かないときはキーごと無い */
+  yomiganaHidden?: true;
+  okuriganaHidden?: true;
+  soeganaHidden?: true;
   /** 範囲のトークンID情報（熟語ルビ等でdata-token-from/to出力用） */
   rangeTokenInfo?: RangeTokenInfo;
   /** highlight グループ内のトークンであることを示すフラグ（ADR-015: bare+emphasis の grid 化用） */
@@ -96,6 +100,8 @@ export interface TatetenGroupNode {
   rangeCtx?: RangeMarkContext;
   /** このグループの直後で行を改める (AIR の lineBreakAfter) */
   lineBreakAfter?: true;
+  /** 竪点の注記を拡張 (出題の印) が隠す (AIR の hidden) */
+  hidden?: true;
 }
 
 /** A highlight group wrapping nodes (tokens or tateten groups) that share a highlight mark. */

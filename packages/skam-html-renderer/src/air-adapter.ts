@@ -37,7 +37,7 @@ import type {
   RangeMarkContext,
   RangeTokenInfo,
 } from './render-tree-types.js';
-import { escapeHtml, shouldApplyTateChuYoko } from './html-utils.js';
+import { blankOut, escapeHtml, shouldApplyTateChuYoko } from './html-utils.js';
 import type { MarkLookup } from '@kanbun-skam/skam/rendering';
 
 // ============================================================================
@@ -53,7 +53,11 @@ function buildBlockStartHtml(airBlock: AIRBlock, prefix: string): string {
   }
 
   for (const kutoten of airBlock.blockStartKutoten) {
-    parts.push(`<span class="${prefix}-suffix-kutoten">${escapeHtml(kutoten.value)}</span>`);
+    parts.push(
+      kutoten.hidden
+        ? `<span class="${prefix}-suffix-kutoten ${prefix}-quiz-hidden" aria-hidden="true">${blankOut(kutoten.value)}</span>`
+        : `<span class="${prefix}-suffix-kutoten">${escapeHtml(kutoten.value)}</span>`
+    );
   }
 
   return parts.join('');
@@ -134,13 +138,18 @@ function convertRangeInfo(rangeInfo: AIRRangeInfo, tokens: Token[]): RangeMarkCo
   }
 
   if (rangeInfo.yomigana) {
-    ctx = { ...ctx, yomiganaBaseText: rangeInfo.yomigana.baseText };
+    ctx = {
+      ...ctx,
+      yomiganaBaseText: rangeInfo.yomigana.baseText,
+      ...(rangeInfo.yomigana.hidden ? { yomiganaHidden: true as const } : {}),
+    };
   }
   if (rangeInfo.okurigana) {
     ctx = {
       ...ctx,
       okuriganaBaseText: rangeInfo.okurigana.baseText,
       okuriganaValue: rangeInfo.okurigana.value,
+      ...(rangeInfo.okurigana.hidden ? { okuriganaHidden: true as const } : {}),
     };
   }
   if (rangeInfo.soegana) {
@@ -148,6 +157,7 @@ function convertRangeInfo(rangeInfo: AIRRangeInfo, tokens: Token[]): RangeMarkCo
       ...ctx,
       soeganaBaseText: rangeInfo.soegana.baseText,
       soeganaValue: rangeInfo.soegana.value,
+      ...(rangeInfo.soegana.hidden ? { soeganaHidden: true as const } : {}),
     };
   }
 
@@ -195,6 +205,7 @@ function convertTatetenGroup(airGroup: AIRTatetenGroupNode, tokens: Token[]): Ta
     node.rangeCtx = convertRangeInfo(airGroup.rangeInfo, tokens);
   }
   if (airGroup.lineBreakAfter) node.lineBreakAfter = true;
+  if (airGroup.hidden) node.hidden = true;
 
   return node;
 }

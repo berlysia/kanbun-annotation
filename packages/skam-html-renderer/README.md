@@ -197,6 +197,28 @@ const quiz = render(doc, {
 });
 ```
 
+#### 出題の印で隠す (`hideQuiz`、`@experimental`)
+
+学習・教育用拡張（`edu`）の出題の印（注記の `ext.edu.quiz`）が付いた注記は、`hideQuiz` で隠せる。`true` は印の付いた注記をすべて、名前の配列は名前がその中にある印の注記を隠す。文書が `extensions` に `edu` を挙げているときだけ効く。
+
+<!-- doctest:typecheck -->
+
+```typescript
+import { render } from '@kanbun-skam/skam-html-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
+
+// 印の付いた注記をすべて隠す / 問い「問1」の注記だけ隠す
+const all = render(doc, { hideQuiz: true });
+const one = render(doc, { hideQuiz: ['問1'] });
+```
+
+- 隠した注記は場所を残し、中身を 1 字ずつ空白に置き換える（全角の字は U+3000、半角は U+00A0）。要素には class `{prefix}-quiz-hidden` と `aria-hidden="true"` が付く。ヲコト点は要素を出さず、置字と助字は注記が無いものとして描く。**字数は空白の数から分かる**
+- `hideQuiz` を渡して `readingLayerSource` を書かないときは、読み上げ層を `'display'` にする
+- **文書そのものには答えが残る。** `readingLayerSource: 'readings'` を明示した読み上げ層（`doc.readings`）にも残る。答えを渡したくない相手には、隠した描画の出力だけを渡し、文書は渡さない
+- 不正な値は `TypeError`。`assertHideQuizOption` と型 `HideQuizOption` を再公開する
+
 既知の制約: 読みの範囲が竪点のグループからはみ出す文書では、範囲の読みが先頭の字の読み仮名として読み上げられる。2 回目の読みが無い再読文字は、1 回目の読みが読み仮名・送り仮名として読み上げられる。
 
 ### 書字方向の指定

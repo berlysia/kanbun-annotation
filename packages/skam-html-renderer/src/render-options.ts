@@ -10,6 +10,7 @@
  * 綴りを間違えたキー名を作者が直せるようにするためで、他のオプションとは別に決めている。
  */
 
+import { assertHideQuizOption, resolveExtensions } from '@kanbun-skam/skam/extensions';
 import type { SpacingPreset } from '@kanbun-skam/skam/rendering';
 import type { CopyableElement, RubyMethod } from './render-config.js';
 import { resolveRenderProfile } from './render-config.js';
@@ -104,6 +105,17 @@ function assertInlineStyles(v: unknown): void {
   }
 }
 
+function assertHideQuiz(v: unknown): void {
+  assertHideQuizOption(v);
+}
+
+/** 追加の拡張の定義の形と、名前の重なりを検査する (resolveExtensions が TypeError にする) */
+function assertExtensions(v: unknown): void {
+  if (!Array.isArray(v))
+    throw new TypeError('extensions must be an array of extension definitions');
+  resolveExtensions(v);
+}
+
 function assertReadingLayerSource(v: unknown): void {
   if (v !== 'readings' && v !== 'display') {
     throw new TypeError('readingLayerSource must be a known reading layer source');
@@ -127,6 +139,8 @@ const RENDER_OPTION_KEYS = [
   'readingLayerSource',
   'accessibleLabels',
   'inlineStyles',
+  'hideQuiz',
+  'extensions',
 ] as const satisfies readonly (keyof RenderOptions)[];
 
 /**
@@ -163,6 +177,8 @@ export function normalizeRenderOptions(options: RenderOptions): RenderOptions {
   check(o.displayLang, assertDisplayLang);
   check(o.readingLayerSource, assertReadingLayerSource);
   check(o.inlineStyles, assertInlineStyles);
+  check(o.hideQuiz, assertHideQuiz);
+  check(o.extensions, assertExtensions);
   const labels = normalizeAccessibleLabels(o.accessibleLabels);
   if (labels !== undefined) o.accessibleLabels = labels;
   return o;

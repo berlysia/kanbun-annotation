@@ -79,6 +79,16 @@ assertSKAMDocument(input);
 
 `getLinebreakPlacementIssues(doc)` は、置けない場所にある `linebreak` を `marks[]` の添字ごとに返す（理由は `'block-start' | 'block-end' | 'inside-unit' | 'duplicate'`）。描画は同じ判定を使い、置けない `linebreak` を無視する。`@kanbun-skam/skam/rendering` の AIR では、行を改める単位のノード（`AIRTokenNode` / `AIRTatetenGroupNode`）に `lineBreakAfter: true` が付く。表示設定のキー `linebreak` を `false` にすると、改行を描かない。
 
+## 拡張（`extensions`、`ext`、`custom`）
+
+文書は、使う拡張を最上位の `extensions` に、知らなければ読んではいけない拡張を `extensionsRequired` に挙げる。拡張の値は `ext.<拡張の名前>` に置き、SKAM が解釈しない自由なデータは `custom` に置く。`extensions` を持つ文書（空の配列も含む）だけが宣言のある文書で、`ext` に `extensions` に無い名前があれば `INVALID_EXTENSION`、`extensionsRequired` に知らない名前があっても `INVALID_EXTENSION`。持たない文書の `ext` は、これまでどおり自由なデータとして読む。
+
+`ext` と `custom` は信頼しない入力で、入れ子 32 段、キー 1,000 個、配列 10,000、文書全体の値 100,000 個を超えるか、`__proto__` / `constructor` / `prototype` のキーがあれば `INVALID_VALUE`。
+
+拡張の束と型は `@kanbun-skam/skam/extensions`、学習・教育用拡張（`edu`、出題の印 `ext.edu.quiz`）の定義は `@kanbun-skam/skam/extensions/edu` から import する。`validateSKAMDocument(doc, { extensions: [...] })` で、利用者の拡張の定義を足せる。
+
+出題の印は表示の制御で、秘匿ではない。答えは同じ文書に平文で残る。
+
 ## 表示設定
 
 `@kanbun-skam/skam/rendering` は、表示設定（どの注記を出すか）の `RENDER_PROFILES`、`resolveRenderProfile`、キー名の一覧 `RENDER_PROFILE_KEYS`、誤りのクラス `SKAMRenderProfileError` を export する。html-renderer と canvas-renderer も同じものを再 export する。14 個のキー名は 0.x の間も改名・削除しない（[ADR-033](https://github.com/berlysia/kanbun-annotation/blob/master/docs/decisions/adr-033-render-profile-keys-and-errors.md)）。キー名の表と、誤りの `kind` / `key` の読み方は、`@kanbun-skam/skam-html-renderer` の README の「表示プロファイル」にある。

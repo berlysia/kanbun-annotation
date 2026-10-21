@@ -127,6 +127,7 @@ function layoutOkototen(
     cy: tokenY + (cell.y / cell.rows) * fontSize,
     r: fontSize * OKOTOTEN_RADIUS_RATIO,
     shape: cell.shape,
+    ...(cell.hidden ? { hidden: true as const } : {}),
   }));
 }
 
@@ -299,6 +300,9 @@ function layoutSingleToken(
     y: tokenY,
     baseChar: tokenNode.token.text,
     slots: slotLayouts,
+    ...(tokenNode.hiddenSlots && tokenNode.hiddenSlots.length > 0
+      ? { hiddenSlots: tokenNode.hiddenSlots }
+      : {}),
     ...(okototen ? { okototen } : {}),
   };
 }
@@ -744,6 +748,8 @@ function placeTatetenGroup(
         x: sepX,
         y: sepY,
         fontSize: rubyFontSize,
+        ...(groupChild.hidden ? { hidden: true as const } : {}),
+        ...(groupChild.kaeriHidden ? { kaeriHidden: true as const } : {}),
       };
       if (groupChild.kaeri) {
         const kaeriLayout: SlotLayout = {

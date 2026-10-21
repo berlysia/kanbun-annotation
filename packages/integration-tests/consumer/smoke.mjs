@@ -26,5 +26,11 @@ await import('@kanbun-skam/skam-web-component');
 await import('@kanbun-skam/skam-web-component/auto');
 await import('@kanbun-skam/skam-canvas-renderer');
 await import('@kanbun-skam/skam/rendering');
+const extensions = await import('@kanbun-skam/skam/extensions');
+assert.ok(Array.isArray(extensions.extensionRegistry), 'extensionRegistry is not exported');
+assert.equal(typeof extensions.resolveExtensions, 'function');
+const edu = await import('@kanbun-skam/skam/extensions/edu');
+assert.equal(edu.eduExtension.name, 'edu');
+assert.equal(edu.assertHideQuizOption(true), true);
 
 console.log('smoke.mjs: OK');

@@ -11,6 +11,7 @@
  */
 
 import type { Token, Mark, TatetenMark, HighlightMark, HighlightStyle } from '../index.js';
+import type { HiddenParts } from '../extensions/types.js';
 
 // ============================================================================
 // Render Profile（共通）
@@ -50,6 +51,8 @@ export interface AIRTrailingMark {
   sourceTokenId: string;
   raw: Mark;
   resolved: string;
+  /** 拡張 (出題の印) が隠す注記。付かないときはキーごと無い。値は消さず、描画で隠す */
+  hidden?: true;
 }
 
 // ============================================================================
@@ -65,11 +68,11 @@ export interface AIRRangeInfo {
   /** 集約対象の全トークン ID（順序保持） */
   tokenIds: string[];
   /** yomigana: 全トークンのテキストを結合したベーステキスト + 読み値 */
-  yomigana?: { baseText: string; value: string; span: number };
+  yomigana?: { baseText: string; value: string; span: number; hidden?: true };
   /** okurigana: 全トークンのテキストを結合したベーステキスト + 値 */
-  okurigana?: { baseText: string; value: string };
+  okurigana?: { baseText: string; value: string; hidden?: true };
   /** soegana: 全トークンのテキストを結合したベーステキスト + 値 */
-  soegana?: { baseText: string; value: string };
+  soegana?: { baseText: string; value: string; hidden?: true };
   /** 後続トークンから収集された trailing marks */
   trailingMarks: AIRTrailingMark[];
 }
@@ -95,14 +98,30 @@ export interface AIRTokenSlots {
   saidokuOkuri2?: string;
   ref?: string;
   /** ヲコト点。格子座標は `resolveOkototenCell` で検証済みのもののみ入る */
-  okototen?: { x: number; y: number; cols: number; rows: number; shape: string }[];
+  okototen?: {
+    x: number;
+    y: number;
+    cols: number;
+    rows: number;
+    shape: string;
+    /** 拡張 (出題の印) が隠すセル。付かないときはキーごと無い */
+    hidden?: true;
+  }[];
 }
+
+/** 拡張が隠す slot の名前 */
+export type AIRHiddenSlot = HiddenParts['slots'][number];
 
 /** AIR のトークンノード */
 export interface AIRTokenNode {
   type: 'token';
   token: Token;
   slots: AIRTokenSlots;
+  /**
+   * 拡張 (出題の印) が隠す slot。slot の値は消さない (canvas が場所を測るため)。
+   * 隠す slot が無いときはキーごと無い。知らない印は読み飛ばせば今と同じに描ける
+   */
+  hiddenSlots?: AIRHiddenSlot[];
   /** range mark に属する場合の集約情報（先頭トークンのみに設定） */
   rangeInfo?: AIRRangeInfo;
   /** range group の非リードトークン（リードトークンの rangeInfo に集約済み） */
@@ -125,6 +144,8 @@ export interface AIRTatetenSeparator {
   type: 'tateten-separator';
   /** 非レ返り点（Unicode 変換済み） */
   kaeri?: string;
+  /** 区切りの kaeri を拡張 (出題の印) が隠す。付かないときはキーごと無い */
+  kaeriHidden?: true;
 }
 
 /** tateten グループ: 連続する同一 tateten mark のトークン群 */
@@ -136,6 +157,8 @@ export interface AIRTatetenGroupNode {
   rangeInfo?: AIRRangeInfo;
   /** このグループの直後で行を改める (linebreak の注記)。付かないときはキーごと無い */
   lineBreakAfter?: true;
+  /** 竪点の注記を拡張 (出題の印) が隠す。付かないときはキーごと無い */
+  hidden?: true;
 }
 
 // ============================================================================
@@ -168,6 +191,8 @@ export interface AIRBlockStartRef {
 
 export interface AIRBlockStartKutoten {
   value: string;
+  /** 拡張 (出題の印) が隠す句読点。付かないときはキーごと無い */
+  hidden?: true;
 }
 
 /** AIR のブロックノード */

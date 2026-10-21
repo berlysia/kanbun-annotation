@@ -11,9 +11,11 @@
 import type { SKAMDocument, HighlightMark } from '@kanbun-skam/skam';
 import {
   buildAnnotationIR,
+  createHiding,
   createMarkLookup,
   groupTokensByBlock,
   resolveRefValues,
+  type RenderExtensionOptions,
 } from '@kanbun-skam/skam/rendering';
 import type { RenderProfile, RubyMethod } from './render-config.js';
 import { escapeHtml, getSourceOrderedTokens } from './html-utils.js';
@@ -32,12 +34,15 @@ export function renderDisplayLayer(
   inline: boolean,
   interactive: boolean,
   rubyMethod: RubyMethod = 'grid',
-  inlineStyles = true
+  inlineStyles = true,
+  extensions?: RenderExtensionOptions
 ): { tokens: string; prefix: string } {
   const { tokens, marks } = doc;
 
   // Pass 1: AIR 経由で BlockRenderTree を構築
-  const air = buildAnnotationIR(doc, profile);
+  const air = buildAnnotationIR(doc, profile, extensions);
+  // 隠す判定は AIR と同じ定義から作る。字ごとの描画 (renderToken) が使う
+  const hiding = createHiding(doc, extensions);
   // 字ごとの注記の引き当ては、AIR と同じく描画する字の列から作った索引 1 つで済ませる
   // (tokens[] の順序は原文の順序と限らないので、範囲の間の字の判定に使わない)
   const lookupMarks = createMarkLookup(
@@ -70,6 +75,7 @@ export function renderDisplayLayer(
     inlineStyles,
     refValueMap,
     highlightRefIds,
+    ...(hiding ? { hiding } : {}),
   };
 
   const blockTag = inline ? 'span' : 'div';

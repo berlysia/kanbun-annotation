@@ -14,6 +14,8 @@ const typedPayloads = (payload: string): unknown[] => [[payload], { toString: ()
 /** 14 種の mark、範囲 anchor、ref.label、ext を含む文書。satisfies で型と照合する */
 const full = {
   format: 'skam@0.1',
+  extensions: ['edu'],
+  extensionsRequired: ['edu'],
   tokens: [
     { id: 't1', text: '甲' },
     { id: 't2', text: '乙' },
@@ -23,9 +25,19 @@ const full = {
   readings: [{ kind: 'kakikudashi', text: '甲乙丙' }],
   marks: [
     { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'よみ' },
-    { type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'お' },
+    {
+      type: 'okurigana',
+      anchor: { from: 't1', to: 't2' },
+      value: 'お',
+      ext: { edu: { quiz: 'q' } },
+    },
     { type: 'soegana', anchor: { from: 't3', to: 't3' }, value: 'そ' },
-    { type: 'kaeri', value: '㆑', position: { blockId: 'b1', after: 't1' } },
+    {
+      type: 'kaeri',
+      value: '㆑',
+      position: { blockId: 'b1', after: 't1' },
+      ext: { edu: { quiz: 'q' } },
+    },
     { type: 'kutoten', kind: 'ku', value: '。', position: { blockId: 'b1', after: 't3' } },
     { type: 'okimoji', anchor: { from: 't2', to: 't2' } },
     { type: 'joji', anchor: { from: 't3', to: 't3' } },
@@ -46,7 +58,7 @@ const full = {
       shape: 'dot',
       position: { system: 'glyph-grid', grid: '5x5', x: 1, y: 2 },
     },
-    { type: 'tateten', anchor: { from: 't1', to: 't2' } },
+    { type: 'tateten', anchor: { from: 't1', to: 't2' }, ext: { edu: { quiz: 'q' } } },
     // 竪点・読みの範囲の最後の字の後ろは改行を置ける。出力に <br> が出る経路を通す
     { id: 'l1', type: 'linebreak', position: { blockId: 'b1', after: 't2' } },
   ],
@@ -54,7 +66,10 @@ const full = {
 } satisfies SKAMDocument;
 
 /** 分岐にだけ使われる葉 (棚卸しで「出力に出ない」としたもの)。置き換えると描画の分岐が消えるだけなので対象外にする */
-const BRANCH_ONLY = new Set(['type', 'kind', 'format', 'system']);
+const BRANCH_ONLY = new Set(['type', 'kind', 'format', 'system', 'quiz']);
+/** 拡張の宣言も分岐にだけ使われる (宣言が変わると、隠す判定が働くかどうかが変わる) */
+const isDeclaration = (path: (string | number)[]) =>
+  path.includes('extensions') || path.includes('extensionsRequired');
 /** 参照の整合を保つため、id は一貫して置き換える (定義と参照を同じ値にする) */
 const ID_KEYS = new Set(['id', 'from', 'to', 'blockId', 'after', 'ref']);
 
@@ -120,7 +135,13 @@ function variants(payload: unknown): { name: string; doc: unknown }[] {
     typeof payload === 'string' ? [{ name: 'ids', doc: renameIds(full, payload) }] : [];
   for (const path of leaves(full)) {
     const key = String(path[path.length - 1]);
-    if (BRANCH_ONLY.has(key) || ID_KEYS.has(key) || path.includes('tokenIds')) continue;
+    if (
+      BRANCH_ONLY.has(key) ||
+      ID_KEYS.has(key) ||
+      path.includes('tokenIds') ||
+      isDeclaration(path)
+    )
+      continue;
     const copy = structuredClone(full);
     setAt(copy, path, payload);
     out.push({ name: path.join('.'), doc: copy });
@@ -189,6 +210,9 @@ const MATRIX: RenderOptions[] = [
   { inline: true },
   { interactive: true },
   { rubyMethod: 'ruby', interactive: true },
+  // 出題の印を隠す経路 (隠した注記の中身は空白に置き換わるので、敵対的な値は出力に出ない)
+  { hideQuiz: true },
+  { hideQuiz: ['q'], rubyMethod: 'ruby', interactive: true },
 ];
 
 describe('injection oracle controls', () => {

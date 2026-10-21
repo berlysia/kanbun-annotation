@@ -87,6 +87,7 @@ export class SkamRendererElement extends BaseElement {
     'inline',
     'include-reading-layer',
     'reading-layer-source',
+    'hide-quiz',
     'copyable',
     'class-prefix',
     'display-lang',
@@ -507,6 +508,7 @@ export class SkamRendererElement extends BaseElement {
       'class-prefix': this.getAttribute('class-prefix'),
       'display-lang': this.getAttribute('display-lang'),
       'reading-layer-source': this.getAttribute('reading-layer-source'),
+      'hide-quiz': this.getAttribute('hide-quiz'),
     };
   }
 }

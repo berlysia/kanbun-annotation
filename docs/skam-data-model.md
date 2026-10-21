@@ -8,7 +8,11 @@ SKAMDocument
 ├── blocks[]     ブロック構造（原文順、tokenIds で token を参照）
 ├── marks[]      注記（返り点・送り仮名等）
 ├── derivations[]  導出情報（読み順等、計算結果キャッシュ）
-└── readings[]   読み層（書き下し文・読み上げ文）
+├── readings[]   読み層（書き下し文・読み上げ文）
+├── extensions?  使う拡張の名前の配列（持てば宣言のある文書）
+├── extensionsRequired?  知らなければ読んではいけない拡張の名前の配列
+├── ext?         拡張の値（宣言のある文書では ext.<拡張の名前>）
+└── custom?      SKAM が解釈しない自由なデータ
 ```
 
 **Stand-off 方式**: 注記は本文テキストを直接分断しない。配置方式は 2 種:
@@ -41,11 +45,22 @@ SKAMDocument
 
 anchor ベースと position ベースは共通基底 `MarkBase` から対等に分岐。
 
-- `MarkBase`: 共通フィールド（type, id?, placementHint?, ext?）
+- `MarkBase`: 共通フィールド（type, id?, placementHint?, ext?, custom?）
 - anchor ベース (10 種): `AnchoredMark extends MarkBase`。`anchor: { from, to }` で token 範囲に付随
 - position ベース (kaeri, kutoten, ref, linebreak): `PositionedMark extends MarkBase`。`position: { blockId, after? }` で token 間に配置
 
 型ガード: `isAnchorBasedMark(mark)` / `isPositionBasedMark(mark)` で判定可能
+
+## 拡張（`ext`、`custom`、`extensions`）
+
+- 文書、readings、ブロック、token、注記のどれにも `ext`（拡張の値）と `custom`（自由なデータ）を置ける。型は `Record<string, unknown>`
+- 文書が `extensions` を持つ（空の配列も含む）と、宣言のある文書として読む。`ext` のキーは拡張の名前で、`extensions` に無い名前は `INVALID_EXTENSION`。知っている拡張の値はその定義の `validate` が検査し、知らない拡張の値は検査しない
+- `extensions` を持たない文書の `ext` は、旧来の自由なデータとして読む
+- 拡張の定義（`SKAMExtensionDefinition`）は `@kanbun-skam/skam/extensions` の型。`validate`（値の検査）、`readXmlAttributes` / `writeXmlAttributes`（SKAM-ML の属性）、`hiddenParts` / `isHidden` / `assertOptions`（描画で隠す所）を持てる。定義が `@kanbun-skam/skam` の core から import してよいのは型だけで、個々の拡張を import してよいのは束（`extensions/index.ts`）だけ。`packages/skam/src/__tests__/extensions-import-direction.test.ts` が守る
+- `ext` と `custom` は信頼しない入力。入れ子 32 段、キー 1,000 個、配列 10,000、文書全体の値 100,000 個の上限と、`__proto__` / `constructor` / `prototype` のキーの禁止を `extension-validation.ts` が反復で検査する（再帰しない）
+- 学習・教育用拡張 `edu` は注記の `ext.edu.quiz`（問いの名前）だけを持つ。付けられる注記は 10 種で、`quiz` は 1〜64 字の制御文字を含まない文字列
+- 出題の印を隠す判定は `edu` の定義の `hiddenParts` / `isHidden` に 1 か所だけある。`buildAnnotationIR` の第 3 引数（`extensions`、`extensionOptions`）で定義を受け取り、AIR に `hiddenSlots`（隠す slot の名前。slot の値は消さない）、`hidden`（竪点のグループ、範囲の読み、範囲の後ろの注記、ブロック先頭の句読点、ヲコト点のセル）、`kaeriHidden`（竪点の区切りの返り点）を付ける。置字と助字は `isOkimoji` / `isJoji` を立てない。印が無いとき、宣言の無い文書のとき、定義を渡さないときは、キーごと付かない
+- html の直接の経路（`renderToken`）は、`createHiding`（`@kanbun-skam/skam/rendering`）から同じ判定を受け取る。canvas はレイアウトを変えず、`draw.ts` が隠す slot を描かない
 
 ## トークン順序
 
@@ -72,6 +87,7 @@ anchor ベースと position ベースは共通基底 `MarkBase` から対等に
 - 複数の字の kaeri 値（`㆒㆑`、非推奨）: `ichi-re` に変換して書く（`kaeriValueToKind` 関数）。正の書き方は同じ位置の 1 字ずつの kaeri で、それぞれ `kind="ichi"`、`kind="re"` として書く。同じ位置の kaeri は `marks[]` の順に出力する
 - linebreak: 直前の字の後ろの位置マークとして、kaeri、kutoten、ref の順の後に `<skam:br/>` を書く（`id` があれば `xml:id` も書く）。竪点のグループの最後の字の後ろの位置マークは、どれも `</skam:tateten>` の後ろに書く。`after` が無い linebreak は書けない（`BLOCK_START_LINEBREAK`）
 - readings: `doc.readings` を `<skam:readings>` 要素に出力
+- 拡張: 宣言のある文書は `skam:meta` に `skam:extension` を書き、ルートに拡張の名前空間を宣言する。拡張の値は定義の `writeXmlAttributes` が返す属性を、要素に拡張の名前（接頭辞）をつけて書く。書き方を知らない拡張の値は `UNKNOWN_EXTENSION`、`custom` と宣言の無い文書の `ext` は `EXT` の欠落になる。拡張を使わない文書の出力は変わらない。拡張の名前は SKAM-ML の接頭辞になるので、英字で始まり `xml` で始まらない
 
 ## linebreak（改行）
 

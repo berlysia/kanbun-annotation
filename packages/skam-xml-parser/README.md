@@ -93,6 +93,25 @@ const doc = parse(xml, { trustedTypesPolicy: policy });
 </skam:doc>
 ```
 
+### 拡張の宣言 (`<skam:meta>`)
+
+使う拡張は `skam:meta` の子の `skam:extension` で宣言する。`required="true"` は、知らなければ読んではいけない拡張。拡張の値は、拡張の名前空間の属性で書く（学習・教育用拡張 `edu` の出題の印は `edu:quiz`、`skam:kun` の部分ごとには `edu:yomi-quiz` / `edu:okuri-quiz` / `edu:soe-quiz`）。
+
+<!-- doctest:xml -->
+
+```xml
+<skam:doc xmlns:skam="urn:skam:1" xmlns:edu="urn:skam:edu:1">
+  <skam:meta>
+    <skam:extension name="edu" uri="urn:skam:edu:1" required="true"/>
+  </skam:meta>
+  <skam:body>
+    <skam:block><skam:kun yomi="まな" okuri="ブ" edu:okuri-quiz="問1">學</skam:kun>而</skam:block>
+  </skam:body>
+</skam:doc>
+```
+
+JSON の `extensions` と `extensionsRequired`、注記の `ext.edu.quiz` になる。宣言の無い文書の `edu` の属性、`name` と `uri` が合わない宣言、知らない必須の拡張は誤り（`validate: false` でも）。登録されていない名前空間の属性は読み飛ばす。名前空間の URI は取りに行かない。選択肢 `extensions` で、既定の束に利用者の拡張の定義を足せる。
+
 ### 本文 (`<skam:body>`)
 
 <!-- doctest:xml body -->

@@ -99,6 +99,25 @@ render(doc, canvas, { profile: { base: 'learningHint', overrides: { saidoku: fal
 
 `PROFILES` は凍結されている。書き換えず、`{ base, overrides }` を使う。
 
+### 出題の印で隠す (`hideQuiz`、`@experimental`)
+
+学習・教育用拡張（`edu`）の出題の印（注記の `ext.edu.quiz`）が付いた注記を、`hideQuiz`（`true` か問いの名前の配列）で描かないようにする。隠した注記の場所は残り、レイアウトと他の字の座標は変わらない。文書が `extensions` に `edu` を挙げているときだけ効く。不正な値は `TypeError`。
+
+隠すのは描画だけで、文書には答えが残る。答えを渡したくない相手には、文書ではなく描画した画像を渡す。
+
+<!-- doctest:typecheck -->
+
+```typescript
+import { render } from '@kanbun-skam/skam-canvas-renderer';
+import type { CanvasLike } from '@kanbun-skam/skam-canvas-renderer';
+import type { SKAMDocument } from '@kanbun-skam/skam';
+
+declare const doc: SKAMDocument;
+declare const canvas: CanvasLike;
+
+render(doc, canvas, { hideQuiz: ['問1'] });
+```
+
 ### フォントの読み込み
 
 <!-- doctest:typecheck -->

@@ -26,9 +26,15 @@ import {
   resolveOkototenCell,
   joinKaeriValues,
 } from '@kanbun-skam/skam/rendering';
-import type { MarkLookup, TokenMarks } from '@kanbun-skam/skam/rendering';
+import { visibleTokenMarks } from '@kanbun-skam/skam/rendering';
+import type { Hiding, MarkLookup, TokenMarks } from '@kanbun-skam/skam/rendering';
 import type { RenderProfile, RubyMethod } from './render-config.js';
-import { escapeHtml, generateEmphasisMarks, shouldApplyTateChuYoko } from './html-utils.js';
+import {
+  blankOut,
+  escapeHtml,
+  generateEmphasisMarks,
+  shouldApplyTateChuYoko,
+} from './html-utils.js';
 import { safeCssInteger, toSafeHtml, type SafeCssValue } from './safe.js';
 import { emphasisStyleAttributes, okototenStyleAttributes } from './style-data.js';
 import type { RangeMarkContext, RangeTokenInfo, TokenRenderResult } from './render-tree-types.js';
@@ -44,15 +50,64 @@ export interface TokenRenderContext {
   /** 描画ごとに 1 回作った注記の索引 (字ごとの引き当てに使う) */
   lookupMarks: MarkLookup;
   tokenMarks: TokenMarks;
+  /** 拡張が隠す slot。renderToken が字ごとに決める */
+  hiddenSlots?: HiddenSlotSet;
   interactive: boolean;
   rubyMethod: RubyMethod;
   /** false なら style 属性の代わりに data 属性を出す (既定 true)。style-data.ts を参照 */
   inlineStyles?: boolean;
+  /** 拡張 (出題の印) が隠す所の判定。宣言の無い文書と、拡張を渡さないときは無い */
+  hiding?: Hiding;
+}
+
+/** 拡張が隠す slot の名前 (AIR の hiddenSlots と同じ判定から導く)。字ごとに renderToken が決める */
+type HiddenSlotSet = ReadonlySet<string>;
+const NO_HIDDEN_SLOTS: HiddenSlotSet = new Set();
+
+/**
+ * 注記の要素。隠すときは中身を 1 字ずつ空白に置き換え、`quiz-hidden` と `aria-hidden` を付ける
+ * (値は出力に残さない)。隠さないときは今までと同じ出力。
+ */
+function annotationSpan(
+  prefix: string,
+  className: string,
+  text: string,
+  hidden: boolean,
+  extraAttributes = ''
+): string {
+  return hidden
+    ? `<span class="${className} ${prefix}-quiz-hidden"${extraAttributes} aria-hidden="true">${blankOut(text)}</span>`
+    : `<span class="${className}"${extraAttributes}>${escapeHtml(text)}</span>`;
+}
+
+/** 注記の中身。隠すときは空白に置き換え、隠さないときは escape する */
+function annotationText(text: string, hidden: boolean): string {
+  return hidden ? blankOut(text) : escapeHtml(text);
+}
+
+/** ルビの要素の開始タグ (`rt` か `span`)。隠すときは class と aria-hidden を足す */
+function rubyOpenTag(
+  tag: 'span' | 'rt',
+  classNames: string,
+  prefix: string,
+  hidden: boolean,
+  extra = ''
+): string {
+  return hidden
+    ? `<${tag} class="${classNames} ${prefix}-quiz-hidden"${extra} aria-hidden="true">`
+    : `<${tag} class="${classNames}"${extra}>`;
 }
 
 // ============================================================================
 // Internal Helpers
 // ============================================================================
+
+/** 返り点の要素。隠すときは中身を空白に置き換える */
+function kaeritenSpan(prefix: string, value: string, hidden: boolean): string {
+  return hidden
+    ? `<span class="${prefix}-kaeriten ${prefix}-quiz-hidden" aria-hidden="true">${blankOut(value)}</span>`
+    : `<span class="${prefix}-kaeriten" aria-hidden="true">${value === KAERI.RE ? value : toSafeHtml(value)}</span>`;
+}
 
 /**
  * ルビ付きのToken HTMLを生成（読み仮名のみ、送り仮名・添え仮名は含まない）
@@ -61,6 +116,7 @@ export interface TokenRenderContext {
  * - 送り仮名・添え仮名はrenderTokenで返り点と一緒にsuffix-lineコンテナにまとめる
  * - 熟語ルビ（範囲yomigana）の場合はbaseTextを使用
  */
+// oxlint-disable-next-line eslint/complexity
 function renderTokenWithRuby(
   token: Token,
   ctx: TokenRenderContext,
@@ -76,10 +132,12 @@ function renderTokenWithRuby(
   // 読み仮名（ruby要素のrt内に配置、中央揃え）
   // suppressYomigana: tateten グループレベルで yomigana が処理される場合、個別トークンの ruby を抑制
   const yomiganaMarks = (tokenMarks.get('yomigana') ?? []) as YomiganaMark[];
+  const hiddenRuby = (ctx.hiddenSlots ?? NO_HIDDEN_SLOTS).has('ruby');
   const yomigana =
     !suppressYomigana && profile.yomigana && yomiganaMarks.length > 0
-      ? yomiganaMarks.map((m) => escapeHtml(m.value)).join('')
+      ? annotationText(yomiganaMarks.map((m) => m.value).join(''), hiddenRuby)
       : '';
+  const rubyClass = `${prefix}-ruby`;
 
   // data属性の構築（interactiveモードの場合のみ）
   // 熟語ルビ（範囲マーク）の場合はdata-token-from/toを使用、単一トークンの場合はdata-token-idを使用
@@ -115,9 +173,9 @@ function renderTokenWithRuby(
               .map((t) => `<span class="${prefix}-base-seg">${escapeHtml(t)}</span>`)
               .join('')
           : baseContent;
-      return `<span class="${gridClass}"${gridDataAttrs}>${emphasisRowHtml}<span class="${prefix}-ruby">${yomigana}</span><span class="${prefix}-base"${baseDataAttrs}>${segmentedBaseContent}</span></span>`;
+      return `<span class="${gridClass}"${gridDataAttrs}>${emphasisRowHtml}${rubyOpenTag('span', rubyClass, prefix, hiddenRuby && yomigana !== '')}${yomigana}</span><span class="${prefix}-base"${baseDataAttrs}>${segmentedBaseContent}</span></span>`;
     }
-    return `<ruby><rb class="${prefix}-base"${dataAttrs}>${baseContent}</rb><rt class="${prefix}-ruby">${yomigana}</rt></ruby>`;
+    return `<ruby><rb class="${prefix}-base"${dataAttrs}>${baseContent}</rb>${rubyOpenTag('rt', rubyClass, prefix, hiddenRuby && yomigana !== '')}${yomigana}</rt></ruby>`;
   } else if (gridEmphasisStyle) {
     // emphasis grid: bare token でも grid 構造で傍点を配置
     // blockHasRuby: ブロック内にルビ付きトークンがある場合は ruby 行付き 4行グリッドで
@@ -158,6 +216,11 @@ function renderSaidokuToken(
   gridEmphasisStyle?: string
 ): string {
   const { prefix, profile, interactive, rubyMethod } = ctx;
+  const hiddenSlots = ctx.hiddenSlots ?? NO_HIDDEN_SLOTS;
+  const hiddenFirst = hiddenSlots.has('ruby');
+  const hiddenSecond = hiddenSlots.has('saidokuUnder');
+  const yomiText = (yomi: string, hidden: boolean): string =>
+    hidden ? blankOut(yomi) : escapeHtml(yomi);
 
   // data-token-id属性（interactiveモードの場合のみ）
   const tokenIdAttr = interactive ? ` data-token-id="${escapeHtml(token.id)}"` : '';
@@ -173,8 +236,9 @@ function renderSaidokuToken(
   if (rubyMethod === 'grid') {
     // grid モード: フラットな3行グリッド（ネスト不要）
     const firstN = resolveSaidokuN(firstForm?.n, 1);
-    const firstYomi = profile.yomigana && firstForm?.yomi ? escapeHtml(firstForm.yomi) : '';
-    const firstRubyHtml = `<span class="${prefix}-ruby" data-saidoku-n="${firstN}">${firstYomi}</span>`;
+    const firstYomi =
+      profile.yomigana && firstForm?.yomi ? yomiText(firstForm.yomi, hiddenFirst) : '';
+    const firstRubyHtml = `${rubyOpenTag('span', `${prefix}-ruby`, prefix, hiddenFirst && firstYomi !== '', ` data-saidoku-n="${firstN}"`)}${firstYomi}</span>`;
     const baseHtml = `<span class="${prefix}-base"${tokenIdAttr}>${escapeHtml(token.text)}</span>`;
     const emphasisRowHtml = gridEmphasisStyle
       ? `<span class="${prefix}-emphasis-row" aria-hidden="true">${generateEmphasisMarks(token.text, resolveEmphasisCharacter(gridEmphasisStyle))}</span>`
@@ -187,8 +251,9 @@ function renderSaidokuToken(
     }
 
     const n2 = resolveSaidokuN(secondForm.n, 2);
-    const yomi2 = profile.yomigana && secondForm.yomi ? escapeHtml(secondForm.yomi) : '';
-    const secondRubyHtml = `<span class="${prefix}-ruby ${prefix}-saidoku-under" data-saidoku-n="${n2}">${yomi2}</span>`;
+    const yomi2 =
+      profile.yomigana && secondForm.yomi ? yomiText(secondForm.yomi, hiddenSecond) : '';
+    const secondRubyHtml = `${rubyOpenTag('span', `${prefix}-ruby ${prefix}-saidoku-under`, prefix, hiddenSecond && yomi2 !== '', ` data-saidoku-n="${n2}"`)}${yomi2}</span>`;
     const saidokuGridClass = gridEmphasisStyle
       ? `${prefix}-saidoku-grid--emphasis`
       : `${prefix}-saidoku-grid`;
@@ -202,8 +267,8 @@ function renderSaidokuToken(
   let firstRt = '';
   if (firstForm) {
     const n = resolveSaidokuN(firstForm.n, 1);
-    const yomi = profile.yomigana && firstForm.yomi ? escapeHtml(firstForm.yomi) : '';
-    firstRt = `<rt class="${prefix}-ruby" data-saidoku-n="${n}">${yomi}</rt>`;
+    const yomi = profile.yomigana && firstForm.yomi ? yomiText(firstForm.yomi, hiddenFirst) : '';
+    firstRt = `${rubyOpenTag('rt', `${prefix}-ruby`, prefix, hiddenFirst && yomi !== '', ` data-saidoku-n="${n}"`)}${yomi}</rt>`;
   }
 
   // 内側ruby（第1読み）- rb要素にdata-token-idを付与
@@ -217,8 +282,8 @@ function renderSaidokuToken(
   // 第2読み用のrt（読み仮名のみ、送り仮名は含めない）
   // 読み仮名の表示はprofile.yomiganaに従う
   const n2 = resolveSaidokuN(secondForm.n, 2);
-  const yomi2 = profile.yomigana && secondForm.yomi ? escapeHtml(secondForm.yomi) : '';
-  const secondRt = `<rt class="${prefix}-ruby ${prefix}-saidoku-under" data-saidoku-n="${n2}">${yomi2}</rt>`;
+  const yomi2 = profile.yomigana && secondForm.yomi ? yomiText(secondForm.yomi, hiddenSecond) : '';
+  const secondRt = `${rubyOpenTag('rt', `${prefix}-ruby ${prefix}-saidoku-under`, prefix, hiddenSecond && yomi2 !== '', ` data-saidoku-n="${n2}"`)}${yomi2}</rt>`;
 
   // 外側ruby（第2読み）で内側rubyを包む
   return `<ruby class="${prefix}-saidoku-outer">${innerRuby}${secondRt}</ruby>`;
@@ -253,7 +318,7 @@ function renderOkototen(okototenMark: OkototenMark, prefix: string, inlineStyles
 // oxlint-disable-next-line eslint/complexity
 export function renderToken(
   token: Token,
-  ctx: Omit<TokenRenderContext, 'tokenMarks'>,
+  ctx: Omit<TokenRenderContext, 'tokenMarks' | 'hiddenSlots'>,
   rangeCtx?: RangeMarkContext,
   refValueMap?: Map<RefMark, string>,
   highlightRefIds?: Set<string>,
@@ -265,7 +330,13 @@ export function renderToken(
   const { prefix, profile } = ctx;
   const tokenMarks = ctx.lookupMarks(token.id);
 
-  const fullCtx: TokenRenderContext = { ...ctx, tokenMarks };
+  // 拡張 (出題の印) が隠す所。AIR と同じ定義から、画面に出す注記だけを見て決める
+  const hiddenParts = ctx.hiding?.parts(visibleTokenMarks(tokenMarks, profile));
+  const hiddenSlots: HiddenSlotSet = new Set(hiddenParts?.slots);
+  const isHiddenMark = (mark: KaeriMark | KutotenMark | OkimojiMark | JojiMark | OkototenMark) =>
+    ctx.hiding?.isHidden(mark) === true;
+
+  const fullCtx: TokenRenderContext = { ...ctx, tokenMarks, hiddenSlots };
 
   // 再読文字チェック
   const saidokuMarks = (tokenMarks.get('saidoku') ?? []) as SaidokuMark[];
@@ -310,7 +381,13 @@ export function renderToken(
       for (const form of saidokuMark.forms) {
         if (form.okuri) {
           const n = resolveSaidokuN(form.n, saidokuMark.forms.indexOf(form) + 1);
-          const okuriHtml = `<span class="${prefix}-okuri" data-saidoku-n="${n}">${escapeHtml(form.okuri)}</span>`;
+          const okuriHtml = annotationSpan(
+            prefix,
+            `${prefix}-okuri`,
+            form.okuri,
+            hiddenSlots.has(n === '1' ? 'okuri' : 'saidokuOkuri2'),
+            ` data-saidoku-n="${n}"`
+          );
           if (n === '1') {
             saidokuOkuri1 = okuriHtml;
           } else {
@@ -322,10 +399,20 @@ export function renderToken(
       // 通常のToken: okuriganaMarksから取得、または範囲グループの値を使用
       const okuriganaMarks = (tokenMarks.get('okurigana') ?? []) as OkuriganaMark[];
       if (okuriganaMarks.length > 0) {
-        okurigana = `<span class="${prefix}-okuri">${okuriganaMarks.map((m) => escapeHtml(m.value)).join('')}</span>`;
+        okurigana = annotationSpan(
+          prefix,
+          `${prefix}-okuri`,
+          okuriganaMarks.map((m) => m.value).join(''),
+          hiddenSlots.has('okuri')
+        );
       } else if (rangeCtx?.okuriganaValue) {
         // 範囲okuriganaグループの値を使用
-        okurigana = `<span class="${prefix}-okuri">${escapeHtml(rangeCtx.okuriganaValue)}</span>`;
+        okurigana = annotationSpan(
+          prefix,
+          `${prefix}-okuri`,
+          rangeCtx.okuriganaValue,
+          rangeCtx.okuriganaHidden === true
+        );
       }
     }
   }
@@ -335,10 +422,20 @@ export function renderToken(
   let soegana = '';
   if (profile.soegana) {
     if (soeganaMarks.length > 0) {
-      soegana = `<span class="${prefix}-soegana">${soeganaMarks.map((m) => escapeHtml(m.value)).join('')}</span>`;
+      soegana = annotationSpan(
+        prefix,
+        `${prefix}-soegana`,
+        soeganaMarks.map((m) => m.value).join(''),
+        hiddenSlots.has('soegana')
+      );
     } else if (rangeCtx?.soeganaValue) {
       // 範囲soeganaグループの値を使用
-      soegana = `<span class="${prefix}-soegana">${escapeHtml(rangeCtx.soeganaValue)}</span>`;
+      soegana = annotationSpan(
+        prefix,
+        `${prefix}-soegana`,
+        rangeCtx.soeganaValue,
+        rangeCtx.soeganaHidden === true
+      );
     }
   }
 
@@ -354,9 +451,10 @@ export function renderToken(
     if (group) group.push(m);
     else kaeriByPosition.set(key, [m]);
   }
-  const allKaeriValues = [...kaeriByPosition.values()]
-    .map((group) => joinKaeriValues(group))
-    .filter((value) => value !== '');
+  // 同じ位置の kaeri のどれか 1 つでも隠すなら、その位置の kaeri ごと隠す
+  const allKaeri = [...kaeriByPosition.values()]
+    .map((group) => ({ value: joinKaeriValues(group), hidden: group.some(isHiddenMark) }))
+    .filter(({ value }) => value !== '');
 
   // extractTatetenKaeri=true の場合、返り点を suffix（レ部分）と separator（非レ部分）に分離
   // 複合返り点（一レ等）は分割: レ→suffix、非レ→separator
@@ -365,35 +463,34 @@ export function renderToken(
   if (extractTatetenKaeri && profile.kaeriten) {
     const suffixParts: string[] = [];
     const separatorParts: string[] = [];
-    for (const value of allKaeriValues) {
+    for (const { value, hidden } of allKaeri) {
       const hasRe = value.includes(KAERI.RE);
       const nonRePart = value.replace(new RegExp(KAERI.RE, 'g'), '');
-      if (hasRe) {
-        suffixParts.push(`<span class="${prefix}-kaeriten" aria-hidden="true">${KAERI.RE}</span>`);
-      }
-      if (nonRePart) {
-        separatorParts.push(
-          `<span class="${prefix}-kaeriten" aria-hidden="true">${toSafeHtml(nonRePart)}</span>`
-        );
-      }
+      if (hasRe) suffixParts.push(kaeritenSpan(prefix, KAERI.RE, hidden));
+      if (nonRePart) separatorParts.push(kaeritenSpan(prefix, nonRePart, hidden));
     }
     kaeriten = suffixParts.join('');
     tatetenKaeriHtml = separatorParts.join('');
-  } else if (profile.kaeriten && allKaeriValues.length > 0) {
-    kaeriten = allKaeriValues
-      .map(
-        (value) => `<span class="${prefix}-kaeriten" aria-hidden="true">${toSafeHtml(value)}</span>`
-      )
-      .join('');
+  } else if (profile.kaeriten && allKaeri.length > 0) {
+    kaeriten = allKaeri.map(({ value, hidden }) => kaeritenSpan(prefix, value, hidden)).join('');
   }
 
   // 句読点（現在のトークン + 範囲グループ後続トークンの句読点）
   const kutotenMarks = (tokenMarks.get('kutoten') ?? []) as KutotenMark[];
   const allKutotenMarks = [...kutotenMarks, ...(rangeCtx?.trailingKutotenMarks ?? [])];
+  const ownKutotenCount = kutotenMarks.length;
   const kutoten =
     profile.kutoten && allKutotenMarks.length > 0
       ? allKutotenMarks
-          .map((m) => `<span class="${prefix}-suffix-kutoten">${escapeHtml(m.value)}</span>`)
+          .map((m, index) =>
+            annotationSpan(
+              prefix,
+              `${prefix}-suffix-kutoten`,
+              m.value,
+              // この字の句読点は字ごとの判定で、範囲の後ろの字の句読点は 1 つずつ見る
+              index < ownKutotenCount ? hiddenSlots.has('kutoten') : isHiddenMark(m)
+            )
+          )
           .join('')
       : '';
 
@@ -428,12 +525,15 @@ export function renderToken(
   const okimojiMarks = (tokenMarks.get('okimoji') ?? []) as OkimojiMark[];
   const isOkimoji =
     profile.okimoji &&
-    (okimojiMarks.length > 0 || (rangeCtx?.trailingOkimojiMarks ?? []).length > 0);
+    ((okimojiMarks.length > 0 && !hiddenParts?.omitOkimoji) ||
+      (rangeCtx?.trailingOkimojiMarks ?? []).some((m) => !isHiddenMark(m)));
 
   // 助字チェック（trailing marks を合算）
   const jojiMarks = (tokenMarks.get('joji') ?? []) as JojiMark[];
   const isJoji =
-    profile.joji && (jojiMarks.length > 0 || (rangeCtx?.trailingJojiMarks ?? []).length > 0);
+    profile.joji &&
+    ((jojiMarks.length > 0 && !hiddenParts?.omitJoji) ||
+      (rangeCtx?.trailingJojiMarks ?? []).some((m) => !isHiddenMark(m)));
 
   // Token本体のHTML
   let baseHtml: string;
@@ -461,7 +561,9 @@ export function renderToken(
   // ヲコト点追加
   let okototenHtml = '';
   if (hasOkototen) {
+    // 隠すヲコト点は要素を出さない (点は字の上に重なるので、場所を残す必要が無い)
     okototenHtml = okototenMarks
+      .filter((m) => !isHiddenMark(m))
       .map((m) => renderOkototen(m, prefix, ctx.inlineStyles !== false))
       .join('');
   }

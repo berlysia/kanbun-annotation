@@ -3,7 +3,8 @@
  */
 
 import type { Token, HighlightStyle } from '@kanbun-skam/skam';
-import type { Spacing } from '@kanbun-skam/skam/rendering';
+import type { HideQuizOption, SKAMExtensionDefinition } from '@kanbun-skam/skam/extensions';
+import type { AIRHiddenSlot, Spacing } from '@kanbun-skam/skam/rendering';
 import type { RenderProfile, RenderProfileInput } from './profiles.js';
 
 // ============================================================================
@@ -59,6 +60,21 @@ export interface CanvasRenderOptions {
    * フォントの sTypoAscender / unitsPerEm を指定する。
    */
   emAscentRatio?: number;
+  /**
+   * 出題の印 (学習・教育用拡張の `ext.edu.quiz`) の付いた注記を隠す (experimental)
+   *
+   * - `true`: 印の付いた注記をすべて隠す
+   * - 名前の配列: 問いの名前がその中にある印の注記を隠す
+   *
+   * 隠した注記は描かないだけで、レイアウト (占める場所と他の字の座標) は変わらない。
+   * 文書が `extensions` に `edu` を挙げているときだけ効く。隠すのは表示の制御で、秘匿ではない:
+   * 文書そのものには答えが残る。不正な値は TypeError。
+   *
+   * @experimental
+   */
+  hideQuiz?: HideQuizOption;
+  /** 既定の束 (`@kanbun-skam/skam/extensions`) に足す拡張の定義。名前が束と重なれば TypeError @experimental */
+  extensions?: readonly SKAMExtensionDefinition[];
 }
 
 export interface MeasureOptions {
@@ -106,18 +122,32 @@ export interface TokenSlots {
   saidokuOkuri2?: string;
   ref?: string;
   /** ヲコト点。AIR の `AIRTokenSlots.okototen` をそのまま写す */
-  okototen?: { x: number; y: number; cols: number; rows: number; shape: string }[];
+  okototen?: {
+    x: number;
+    y: number;
+    cols: number;
+    rows: number;
+    shape: string;
+    /** 拡張 (出題の印) が隠すセル。描かない */
+    hidden?: true;
+  }[];
 }
 
 export interface CanvasTokenNode {
   type: 'token';
   token: Token;
   slots: TokenSlots;
+  /** 拡張 (出題の印) が隠す slot。値は消さず、場所は測るが描かない */
+  hiddenSlots?: AIRHiddenSlot[];
 }
 
 export interface CanvasTatetenSeparator {
   type: 'tateten-separator';
   kaeri?: string;
+  /** 竪点の記号を拡張 (出題の印) が隠す。描かない */
+  hidden?: true;
+  /** 区切りの kaeri を拡張 (出題の印) が隠す。描かない */
+  kaeriHidden?: true;
 }
 
 export interface CanvasTatetenGroupNode {
@@ -204,6 +234,8 @@ export interface TokenLayout {
   y: number;
   baseChar: string;
   slots: ResolvedSlotLayouts;
+  /** 拡張 (出題の印) が隠す slot。draw が描かない */
+  hiddenSlots?: AIRHiddenSlot[];
   /** ヲコト点の中心 (cx, cy) と半径 r。論理ピクセル座標 */
   okototen?: OkototenLayout[];
 }
@@ -213,6 +245,8 @@ export interface OkototenLayout {
   cy: number;
   r: number;
   shape: string;
+  /** 拡張 (出題の印) が隠す点。draw が描かない */
+  hidden?: true;
 }
 
 export interface TatetenSeparatorLayout {
@@ -221,6 +255,10 @@ export interface TatetenSeparatorLayout {
   y: number;
   fontSize: number;
   kaeri?: SlotLayout;
+  /** 竪点の記号を拡張 (出題の印) が隠す。draw が描かない */
+  hidden?: true;
+  /** 区切りの kaeri を拡張 (出題の印) が隠す。draw が描かない */
+  kaeriHidden?: true;
 }
 
 export interface HighlightLineLayout {

@@ -33,6 +33,9 @@ import {
 } from './errors.js';
 import { isPositionBasedMark } from './operations/index.js';
 import { getLinebreakPlacementIssues } from './line-units.js';
+import { resolveExtensions } from './extensions/index.js';
+import type { SKAMExtensionDefinition } from './extensions/types.js';
+import { validateExtensionData } from './extension-validation.js';
 
 const VALID_FORMAT: SKAMVersion = 'skam@0.1';
 
@@ -1583,6 +1586,12 @@ function validateDocumentFields(
   }
 }
 
+/** 検証の選択肢 */
+export interface ValidateOptions {
+  /** 既定の束に足す拡張の定義。名前が束と重なれば TypeError */
+  extensions?: readonly SKAMExtensionDefinition[];
+}
+
 /**
  * SKAMDocument を検証する
  *
@@ -1594,9 +1603,15 @@ function validateDocumentFields(
  * ここで返すエラーには `line` / `column` は付かない (parser 経由で検証したときだけ付く)。
  *
  * @param input 検証対象のオブジェクト
+ * @param options 検証の選択肢
  * @returns 検証結果
+ * @throws {TypeError} `options.extensions` の定義の名前が、重なる、または小文字の英数字でないとき
  */
-export function validateSKAMDocument(input: unknown): ValidationResult<SKAMDocument> {
+export function validateSKAMDocument(
+  input: unknown,
+  options?: ValidateOptions
+): ValidationResult<SKAMDocument> {
+  const definitions = resolveExtensions(options?.extensions);
   const errors: ValidationError[] = [];
   const warnings: ValidationWarning[] = [];
 
@@ -1610,6 +1625,7 @@ export function validateSKAMDocument(input: unknown): ValidationResult<SKAMDocum
 
   // Field-level validation
   validateDocumentFields(input, errors, warnings);
+  validateExtensionData(input, definitions, errors);
 
   // Cross-reference validation (only if basic validation passed)
   const tokens = input['tokens'];
@@ -1647,8 +1663,20 @@ export function validateSKAMDocument(input: unknown): ValidationResult<SKAMDocum
     document.derivations = input['derivations'] as Derivation[];
   }
 
+  if (input['extensions'] !== undefined) {
+    document.extensions = input['extensions'] as string[];
+  }
+
+  if (input['extensionsRequired'] !== undefined) {
+    document.extensionsRequired = input['extensionsRequired'] as string[];
+  }
+
   if (input['ext'] !== undefined) {
     document.ext = input['ext'] as Record<string, unknown>;
+  }
+
+  if (input['custom'] !== undefined) {
+    document.custom = input['custom'] as Record<string, unknown>;
   }
 
   return warnings.length > 0 ? { valid: true, document, warnings } : { valid: true, document };
@@ -1662,8 +1690,8 @@ export function validateSKAMDocument(input: unknown): ValidationResult<SKAMDocum
  * @param input 判定対象
  * @returns SKAMDocument の場合 true
  */
-export function isSKAMDocument(input: unknown): input is SKAMDocument {
-  return validateSKAMDocument(input).valid;
+export function isSKAMDocument(input: unknown, options?: ValidateOptions): input is SKAMDocument {
+  return validateSKAMDocument(input, options).valid;
 }
 
 /**
@@ -1672,8 +1700,11 @@ export function isSKAMDocument(input: unknown): input is SKAMDocument {
  * @param input 検証対象
  * @throws {SKAMValidationError} 検証失敗時
  */
-export function assertSKAMDocument(input: unknown): asserts input is SKAMDocument {
-  const result = validateSKAMDocument(input);
+export function assertSKAMDocument(
+  input: unknown,
+  options?: ValidateOptions
+): asserts input is SKAMDocument {
+  const result = validateSKAMDocument(input, options);
   if (!result.valid) {
     throw new SKAMValidationError(result.errors);
   }

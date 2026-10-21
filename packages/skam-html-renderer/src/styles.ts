@@ -696,6 +696,11 @@ ${
   content: '\\3190';
 }
 
+/* 出題の印で隠す竪点: 記号の字を同じ幅の全角空白にして、場所を残す */
+:where(.${prefix}-tateten-mark):where(.${prefix}-quiz-hidden)::after {
+  content: '\\3000';
+}
+
 /*
  * Tateten Separator (竪点セパレータ)
  *

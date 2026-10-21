@@ -30,6 +30,12 @@ export {
 
 export type { AccessibleLabels, Spacing, SpacingPreset } from '@kanbun-skam/skam/rendering';
 
+/**
+ * 出題の印を隠す選択肢 (`hideQuiz`) の検査と型。web component など、html-renderer の上に作る側が
+ * `@kanbun-skam/skam` に依存せずに使えるよう、ここから再公開する
+ */
+export { assertHideQuizOption, type HideQuizOption } from '@kanbun-skam/skam/extensions';
+
 export { getDefaultStyles, type StyleOptions } from './styles.js';
 
 /**

@@ -12,6 +12,14 @@
     "./rendering": {
       "types": "./dist/rendering/index.d.ts",
       "import": "./dist/rendering/index.js"
+    },
+    "./extensions": {
+      "types": "./dist/extensions/index.d.ts",
+      "import": "./dist/extensions/index.js"
+    },
+    "./extensions/edu": {
+      "types": "./dist/extensions/edu/index.d.ts",
+      "import": "./dist/extensions/edu/index.js"
     }
   },
   "files": [

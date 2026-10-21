@@ -5,7 +5,8 @@
  */
 
 import type { SKAMDocument } from '@kanbun-skam/skam';
-import { buildAnnotationIR } from '@kanbun-skam/skam/rendering';
+import { assertHideQuizOption, resolveExtensions } from '@kanbun-skam/skam/extensions';
+import { buildAnnotationIR, type RenderExtensionOptions } from '@kanbun-skam/skam/rendering';
 import type { CanvasLike } from './canvas-context.js';
 import type { CanvasRenderingContext2DLike } from './canvas-context.js';
 import type { CanvasRenderOptions, MeasureOptions, DocumentDimensions } from './types.js';
@@ -14,6 +15,18 @@ import { resolveRenderProfile } from './profiles.js';
 import { convertAIRToCanvasRenderTree } from './air-adapter.js';
 import { layout, resolveOptions } from './layout.js';
 import { draw } from './draw.js';
+
+/**
+ * 拡張が決める「隠す所」の判定に渡すもの。hideQuiz は学習・教育用拡張 (edu) の選択肢。
+ * 描画の入口で検査する (不正な値は TypeError)
+ */
+function resolveExtensionOptions(options: CanvasRenderOptions | undefined): RenderExtensionOptions {
+  const hideQuiz = assertHideQuizOption(options?.hideQuiz);
+  return {
+    extensions: [...resolveExtensions(options?.extensions).values()],
+    ...(hideQuiz !== undefined ? { extensionOptions: { edu: { hideQuiz } } } : {}),
+  };
+}
 
 /**
  * SKAMDocument を Canvas に描画する。
@@ -33,7 +46,7 @@ export function render(doc: SKAMDocument, canvas: CanvasLike, options?: CanvasRe
   const resolved = resolveOptions(options);
 
   // Pass 1: AIR 経由
-  const air = buildAnnotationIR(doc, profile);
+  const air = buildAnnotationIR(doc, profile, resolveExtensionOptions(options));
   const tree = convertAIRToCanvasRenderTree(air);
 
   // Pass 2 (論理ピクセル座標で計算)

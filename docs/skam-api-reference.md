@@ -42,6 +42,47 @@ import { getLinebreakPlacementIssues } from '@kanbun-skam/skam';
 - `KAERI_MULTI_CHARACTER`: 1 つの kaeri の `value` が複数の字。0.4.0 で同じコードの誤りになる。`path` は `marks[i].value`
 - `ValidationWarningKind` に値を足すのは minor の変更
 
+### 拡張
+
+```typescript
+import type { SKAMDocument, ValidateOptions } from '@kanbun-skam/skam';
+import { validateSKAMDocument } from '@kanbun-skam/skam';
+
+// 利用者の拡張の定義を足して検証する（名前が束と重なれば TypeError）
+const result = validateSKAMDocument(input, { extensions: [myExtension] });
+```
+
+`SKAMDocument` は任意の `extensions`、`extensionsRequired`、`ext`、`custom` を持つ。`Token`、`Block`、`Reading`、`MarkBase` は `ext` と `custom` を持つ。宣言の誤りは `ValidationErrorKind` の `INVALID_EXTENSION`、`ext` と `custom` の上限の違反は `INVALID_VALUE`。`isSKAMDocument` と `assertSKAMDocument` も同じ第 2 引数を受け取る。
+
+### @kanbun-skam/skam/extensions
+
+拡張の束と型。
+
+```typescript
+import {
+  defaultExtensions, // 仕様が定める拡張の定義（edu）
+  extensionRegistry, // 登録簿の機械で読める表（名前、URI、必須かどうか）
+  resolveExtensions, // 束に定義を足す。名前が重なれば TypeError
+  isExtensionName, // 小文字の英数字で先頭が英字、xml で始まらない名前か
+  assertHideQuizOption, // hideQuiz の形を検査して返す（不正は TypeError）
+  isQuizHidden, // 注記が hideQuiz の隠す対象か
+} from '@kanbun-skam/skam/extensions';
+import type {
+  SKAMExtensionDefinition,
+  ExtensionOwner,
+  XmlElementMarks,
+  HiddenParts,
+  ExtensionRegistryEntry,
+  HideQuizOption,
+  EduExtension,
+  QuizMarkType,
+} from '@kanbun-skam/skam/extensions';
+```
+
+`SKAMExtensionDefinition` は `name`、`uri`、`required` と、任意の hook（`validate`、`readXmlAttributes`、`writeXmlAttributes`、`hiddenParts`、`isHidden`、`assertOptions`）を持つ。`@kanbun-skam/skam/extensions/edu` は学習・教育用拡張の定義 `eduExtension` を単独で export する。
+
+`HideQuizOption` は `true`（印の付いた注記をすべて隠す）か、問いの名前の配列（1〜64 字、100 個まで）。
+
 ### 返り点の変換
 
 ```typescript
@@ -158,8 +199,11 @@ import {
   // 表示設定（検証つき）
   RENDER_PROFILES,
   resolveRenderProfile,
-  // AIR Resolver
+  // AIR Resolver（第 3 引数に拡張の定義と選択肢を渡すと、隠す所を AIR に印として付ける）
   buildAnnotationIR,
+  // 拡張が決める隠す所の判定
+  createHiding,
+  visibleTokenMarks,
   // 読み上げ用テキスト（@experimental）
   describeAnnotationIR,
   formatAccessibleText,
@@ -178,9 +222,12 @@ import type {
   AIRTrailingMark,
   AIRRangeInfo,
   AIRTokenSlots,
-  AIRTokenNode, // lineBreakAfter?: true
-  AIRTatetenSeparator,
-  AIRTatetenGroupNode, // lineBreakAfter?: true
+  AIRHiddenSlot,
+  AIRTokenNode, // lineBreakAfter?: true, hiddenSlots?
+  AIRTatetenSeparator, // kaeriHidden?: true
+  AIRTatetenGroupNode, // lineBreakAfter?: true, hidden?: true
+  Hiding,
+  RenderExtensionOptions,
   AIRHighlightGroupNode,
   AIRBlockStartRef,
   AIRBlockStartKutoten,
@@ -193,6 +240,8 @@ import type {
   AccessibleLabels, // @experimental
 } from '@kanbun-skam/skam/rendering';
 ```
+
+`buildAnnotationIR(doc, profile, { extensions, extensionOptions })` の `extensions` は判定に使う拡張の定義（束を含めて渡す。rendering は拡張を import しない）、`extensionOptions` は拡張の名前ごとの選択肢（例 `{ edu: { hideQuiz: true } }`）。選択肢は定義の `assertOptions` が入口で検査し、不正なら TypeError。文書が `extensions` に挙げた拡張の定義だけが判定に使われる。
 
 `createMarkLookup(marks, tokenGroups)` は注記の索引を作り、字の id からその字に付く注記を種別ごとに引く関数を返す。`tokenGroups` は描く字の配列の列で、`groupTokensByBlock(blocks, tokens).map((g) => g.tokens)` を渡す。範囲の注記の間の字は、`tokens[]` の順序ではなくこの列の中の位置で決まる。`getMarksForToken(tokenId, marks, allTokens)` は呼ぶたびに索引を作るので、字ごとに引くときは `createMarkLookup` を使う。`@kanbun-skam/skam` の `getMarksForToken(doc, tokenId)` は、編集の操作のための別の関数である。
 
@@ -207,6 +256,10 @@ import { render, measure, PROFILES } from '@kanbun-skam/skam-canvas-renderer';
 
 // Canvas に描画
 render(doc, canvas, { writingMode: 'vertical', fontSize: 24 });
+
+// 出題の印（学習・教育用拡張の ext.edu.quiz）の付いた注記を隠す（@experimental）。
+// 隠した注記の場所は残り、他の字の座標は変わらない。不正な値は TypeError
+render(doc, canvas, { hideQuiz: true }); // または名前の配列 { hideQuiz: ['問1'] }
 
 // サイズ計測のみ
 const { width, height } = measure(doc, ctx);
@@ -226,6 +279,8 @@ import { parse } from '@kanbun-skam/skam-xml-parser';
 const doc = parse(xmlString);
 ```
 
+`skam:meta` の子の `skam:extension` は `extensions` と `extensionsRequired` になり、拡張の名前空間の属性（例 `edu:quiz`）は `ext.<拡張の名前>` になる。選択肢 `extensions` で、既定の束に利用者の拡張の定義を足せる。知らない必須の拡張を宣言した文書は、`validate` の値にかかわらず誤り。
+
 `onWarning` には、未知の要素（`UNKNOWN_ELEMENT`）のほかに、ハイフンで連結した `kind` の `skam:kaeri`（`KAERI_MULTI_CHARACTER`）の警告が届く。後者は `validate` の値に関係なく 1 要素につき 1 回出る。validator の `warnings` は `onWarning` に流れない。
 
 ## @kanbun-skam/skam-xml-stringify
@@ -236,6 +291,8 @@ import { stringify } from '@kanbun-skam/skam-xml-stringify';
 // SKAM JSON → XML
 const xml = stringify(doc);
 ```
+
+宣言のある文書は、`skam:meta` に `skam:extension` を、ルートに拡張の名前空間を書き、拡張の値を定義の `writeXmlAttributes` で属性にする。選択肢 `extensions` で拡張の定義を足せる。書き方を知らない拡張の値は欠落 `UNKNOWN_EXTENSION` になる。
 
 ## @kanbun-skam/skam-html-renderer
 
@@ -255,6 +312,9 @@ const { html, css } = render(doc);
 // 部分指定は full に重なる（書かなかったキーは表示される）。注記を隠す用途では
 // { profile: { base: 'learningHint', overrides: { saidoku: false } } } の形を使う。
 // 不正な値は TypeError（Web Component の profile 属性では描画しない）
+// 出題の印を隠す（@experimental）: { hideQuiz: true | ['問1'] }
+//   印の付いた注記の中身を 1 字ずつ空白に置き換え、class と aria-hidden を付ける。
+//   hideQuiz を渡して readingLayerSource を書かないときは、読み層も 'display' になる
 // 読み層の出どころ（@experimental）: { readingLayerSource: 'readings' | 'display' }
 //   'display' は profile で見えている注記だけを言葉にする（readings も白文も参照しない）。
 //   言葉の上書き: { accessibleLabels: { kaeri: (note) => '...' } }

@@ -11,6 +11,7 @@ import type {
   AIRRangeInfo,
   AIRTatetenGroupNode,
   AIRTatetenSeparator,
+  AIRHiddenSlot,
   AIRTokenNode,
   AIRTokenSlots,
   AIRTrailingMark,
@@ -120,23 +121,40 @@ function isSaidoku(slots: AIRTokenSlots): boolean {
  * yomigana / okurigana の note にしない。
  */
 function readingNotes(
-  slots: AIRTokenSlots,
+  node: AIRTokenNode,
   withSlotReadings: boolean,
   range: AIRRangeInfo | undefined
 ): AccessibleNote[] {
+  const { slots } = node;
   const saidoku = isSaidoku(slots);
   const slotReadings = withSlotReadings && !saidoku;
-  const yomigana = preferRange(range?.yomigana?.value, slotReadings, slots.ruby);
-  const okurigana = preferRange(range?.okurigana?.value, slotReadings, slots.okuri);
-  const soegana = preferRange(range?.soegana?.value, withSlotReadings, slots.soegana);
+  // 拡張 (出題の印) が隠す読みは、画面と同じく note にしない
+  const pick = (
+    rangePart: { value: string; hidden?: true } | undefined,
+    useSlot: boolean,
+    hiddenName: AIRHiddenSlot,
+    slotValue: string | undefined
+  ): string | undefined =>
+    preferRange(
+      rangePart?.value,
+      useSlot && node.hiddenSlots?.includes(hiddenName) !== true,
+      slotValue,
+      rangePart?.hidden === true
+    );
+  const yomigana = pick(range?.yomigana, slotReadings, 'ruby', slots.ruby);
+  const okurigana = pick(range?.okurigana, slotReadings, 'okuri', slots.okuri);
+  const soegana = pick(range?.soegana, withSlotReadings, 'soegana', slots.soegana);
 
   const notes: AccessibleNote[] = [];
   if (yomigana) notes.push({ kind: 'yomigana', value: yomigana });
   if (okurigana) notes.push({ kind: 'okurigana', value: okurigana });
   if (soegana) notes.push({ kind: 'soegana', value: soegana });
   if (saidoku) {
-    const first = (slots.ruby ?? '') + (slots.okuri ?? '');
-    const second = (slots.saidokuUnder ?? '') + (slots.saidokuOkuri2 ?? '');
+    const shown = (slot: AIRHiddenSlot, value: string | undefined): string =>
+      node.hiddenSlots?.includes(slot) ? '' : (value ?? '');
+    const first = shown('ruby', slots.ruby) + shown('okuri', slots.okuri);
+    const second =
+      shown('saidokuUnder', slots.saidokuUnder) + shown('saidokuOkuri2', slots.saidokuOkuri2);
     if (first || second) notes.push({ kind: 'saidoku', first, second });
   }
   return notes;
@@ -146,30 +164,37 @@ function readingNotes(
 function preferRange(
   rangeValue: string | undefined,
   useSlot: boolean,
-  slotValue: string | undefined
+  slotValue: string | undefined,
+  rangeHidden: boolean
 ): string | undefined {
-  return rangeValue ?? (useSlot ? slotValue : undefined);
+  if (rangeValue !== undefined) return rangeHidden ? undefined : rangeValue;
+  return useSlot ? slotValue : undefined;
 }
 
 /** 読み以外の slot から作る note */
-function markNotes(slots: AIRTokenSlots): AccessibleNote[] {
+function markNotes(node: AIRTokenNode): AccessibleNote[] {
+  const { slots } = node;
   const notes: AccessibleNote[] = [];
-  if (slots.kaeri) notes.push({ kind: 'kaeri', value: slots.kaeri });
-  if (slots.kutoten) notes.push({ kind: 'kutoten', value: slots.kutoten });
+  if (slots.kaeri && !node.hiddenSlots?.includes('kaeri')) {
+    notes.push({ kind: 'kaeri', value: slots.kaeri });
+  }
+  if (slots.kutoten && !node.hiddenSlots?.includes('kutoten')) {
+    notes.push({ kind: 'kutoten', value: slots.kutoten });
+  }
   if (slots.isOkimoji) notes.push({ kind: 'okimoji' });
   if (slots.isJoji) notes.push({ kind: 'joji' });
   if (slots.emphasis) notes.push({ kind: 'emphasis' });
-  if (slots.okototen && slots.okototen.length > 0) notes.push({ kind: 'okototen' });
+  if (slots.okototen?.some((cell) => cell.hidden !== true)) notes.push({ kind: 'okototen' });
   if (slots.ref) notes.push({ kind: 'ref', label: slots.ref });
   return notes;
 }
 
 function describeSlots(
-  slots: AIRTokenSlots,
+  node: AIRTokenNode,
   withSlotReadings: boolean,
   range?: AIRRangeInfo
 ): AccessibleNote[] {
-  return [...readingNotes(slots, withSlotReadings, range), ...markNotes(slots)];
+  return [...readingNotes(node, withSlotReadings, range), ...markNotes(node)];
 }
 
 function trailingNote(mark: AIRTrailingMark): AccessibleNote {
@@ -208,15 +233,22 @@ function describeTokenNode(node: AIRTokenNode): AccessibleUnit | undefined {
 function describeTokenNodeUnit(node: AIRTokenNode): AccessibleUnit | undefined {
   if (node.rangeConsumed) return undefined;
   const range = node.rangeInfo;
-  const notes = describeSlots(node.slots, true, range);
+  const notes = describeSlots(node, true, range);
   if (!range) return makeUnit(node.token.text, notes);
-  for (const mark of range.trailingMarks) notes.push(trailingNote(mark));
+  for (const mark of range.trailingMarks) {
+    if (mark.hidden !== true) notes.push(trailingNote(mark));
+  }
   return makeUnit(rangeText(range, node.token.text), notes);
 }
 
-function describeSeparator(separator: AIRTatetenSeparator): AccessibleUnit {
+/** 竪点の区切り。竪点を拡張 (出題の印) が隠すときは単位を出さない */
+function describeSeparator(
+  separator: AIRTatetenSeparator,
+  hidden: boolean
+): AccessibleUnit | undefined {
+  if (hidden) return undefined;
   const note: AccessibleNote =
-    separator.kaeri !== undefined
+    separator.kaeri !== undefined && separator.kaeriHidden !== true
       ? { kind: 'tateten', kaeri: separator.kaeri }
       : { kind: 'tateten' };
   return makeUnit('', [note]);
@@ -233,11 +265,13 @@ function describeTatetenGroup(group: AIRTatetenGroupNode): AccessibleUnit[] {
 function describeTatetenGroupUnits(group: AIRTatetenGroupNode): AccessibleUnit[] {
   const range = group.rangeInfo;
   const out: AccessibleUnit[] = [];
+  const hidden = group.hidden === true;
 
   if (!range) {
     for (const child of group.children) {
       if (child.type === 'tateten-separator') {
-        out.push(describeSeparator(child));
+        const separator = describeSeparator(child, hidden);
+        if (separator) out.push(separator);
         continue;
       }
       const unit = describeTokenNode(child);
@@ -253,7 +287,8 @@ function describeTatetenGroupUnits(group: AIRTatetenGroupNode): AccessibleUnit[]
 
   for (const child of group.children) {
     if (child.type === 'tateten-separator') {
-      (merging ? deferred : out).push(describeSeparator(child));
+      const separator = describeSeparator(child, hidden);
+      if (separator) (merging ? deferred : out).push(separator);
       continue;
     }
     const id = child.token.id;
@@ -264,9 +299,9 @@ function describeTatetenGroupUnits(group: AIRTatetenGroupNode): AccessibleUnit[]
     }
     if (id === range.fromTokenId) {
       merging = true;
-      mergedNotes.push(...describeSlots(child.slots, true, range));
+      mergedNotes.push(...describeSlots(child, true, range));
     } else {
-      mergedNotes.push(...describeSlots(child.slots, false));
+      mergedNotes.push(...describeSlots(child, false));
     }
     if (id === range.toTokenId) {
       out.push(makeUnit(rangeText(range, ''), mergedNotes), ...deferred);
@@ -305,6 +340,7 @@ function describeHighlightGroup(group: AIRHighlightGroupNode): AccessibleUnit[] 
 function describeBlock(block: AIRBlock): AccessibleBlock {
   const units: AccessibleUnit[] = [];
   for (const kutoten of block.blockStartKutoten) {
+    if (kutoten.hidden === true) continue;
     units.push(makeUnit('', [{ kind: 'kutoten', value: kutoten.value }]));
   }
   for (const ref of block.blockStartRefs) {

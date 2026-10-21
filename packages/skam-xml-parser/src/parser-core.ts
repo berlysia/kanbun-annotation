@@ -41,6 +41,12 @@ import {
   HIGHLIGHT_STYLES,
   isValidHighlightStyle,
 } from '@kanbun-skam/skam';
+import {
+  extensionRegistry,
+  isExtensionName,
+  resolveExtensions,
+  type SKAMExtensionDefinition,
+} from '@kanbun-skam/skam/extensions';
 import { SKAMXMLParseError, type PositionInfo } from './parse-error.js';
 import {
   computeLfLineStarts,
@@ -275,7 +281,178 @@ const KNOWN_SKAM_ELEMENTS: ReadonlySet<string> = new Set([
   'base',
   'kunform',
   'ref',
+  'extension',
 ]);
+
+// ============================================================================
+// Extensions
+// ============================================================================
+
+/** 名前空間の URI から引く、知っている拡張 (登録簿か、渡された定義にある拡張) */
+interface KnownExtension {
+  name: string;
+  /** 定義が無い (登録簿にだけある) 拡張は属性を読み飛ばす */
+  definition: SKAMExtensionDefinition | undefined;
+}
+
+interface ExtensionTable {
+  definitions: ReadonlyMap<string, SKAMExtensionDefinition>;
+  byUri: ReadonlyMap<string, KnownExtension>;
+  /** 名前から、登録簿か定義が持つ URI を引く */
+  uriByName: ReadonlyMap<string, string>;
+}
+
+function buildExtensionTable(
+  extra: readonly SKAMExtensionDefinition[] | undefined
+): ExtensionTable {
+  const definitions = resolveExtensions(extra);
+  const byUri = new Map<string, KnownExtension>();
+  const uriByName = new Map<string, string>();
+  for (const entry of extensionRegistry) {
+    byUri.set(entry.uri, { name: entry.name, definition: definitions.get(entry.name) });
+    uriByName.set(entry.name, entry.uri);
+  }
+  for (const definition of definitions.values()) {
+    byUri.set(definition.uri, { name: definition.name, definition });
+    uriByName.set(definition.name, definition.uri);
+  }
+  return { definitions, byUri, uriByName };
+}
+
+interface ExtensionDeclaration {
+  used: string[];
+  required: string[];
+}
+
+/** `skam:meta` の子の `skam:extension` を読む。1 つも無ければ宣言の無い文書 (undefined) */
+function readExtensionDeclarations(
+  metas: Element[],
+  table: ExtensionTable
+): ExtensionDeclaration | undefined {
+  const declaration: ExtensionDeclaration = { used: [], required: [] };
+  let found = false;
+  for (const meta of metas) {
+    for (const child of childElements(meta)) {
+      if (getLocalName(child) !== 'extension') continue;
+      found = true;
+      const name = child.getAttribute('name');
+      const uri = child.getAttribute('uri');
+      const required = child.getAttribute('required');
+      if (!name || !isExtensionName(name)) {
+        throw parseErrorAt(
+          child,
+          '<skam:extension> requires a name of lowercase letters and digits, starting with a letter'
+        );
+      }
+      if (!uri) throw parseErrorAt(child, '<skam:extension> requires a uri');
+      if (required !== null && required !== '' && required !== 'true') {
+        throw parseErrorAt(child, '<skam:extension> required must be "true" when present');
+      }
+      if (declaration.used.includes(name)) {
+        throw parseErrorAt(child, `Extension "${name}" is declared more than once`);
+      }
+      const known = table.uriByName.get(name);
+      if (known !== undefined && known !== uri) {
+        throw parseErrorAt(child, `Extension "${name}" is declared with a uri that does not match`);
+      }
+      const owner = table.byUri.get(uri);
+      if (owner !== undefined && owner.name !== name) {
+        throw parseErrorAt(
+          child,
+          `The uri of extension "${owner.name}" is declared under another name`
+        );
+      }
+      declaration.used.push(name);
+      if (required === 'true') {
+        // 必須の拡張は、知らなければ読まない (validate の有無にかかわらず)
+        if (!table.definitions.has(name)) {
+          throw parseErrorAt(child, `Required extension "${name}" is not known`);
+        }
+        declaration.required.push(name);
+      }
+    }
+  }
+  return found ? declaration : undefined;
+}
+
+const XMLNS_NAMESPACE = 'http://www.w3.org/2000/xmlns/';
+
+/** `skam:kun` が 1 つの要素で作る 3 つの注記の部分 */
+const KUN_PART_BY_TYPE: Readonly<Record<string, 'yomi' | 'okuri' | 'soe'>> = {
+  yomigana: 'yomi',
+  okurigana: 'okuri',
+  soegana: 'soe',
+};
+
+/**
+ * 拡張の名前空間の属性を、要素が作った注記の `ext.<拡張の名前>` にする。
+ * 注記ができた後に文書全体を一度走査するので、要素ごとの処理には手を入れない。
+ * 知っている拡張 (登録簿か渡された定義) の名前空間で宣言の無い属性は誤り。
+ * 定義の無い拡張の属性と、登録されていない名前空間の属性は読み飛ばす。
+ */
+function applyExtensionAttributes(
+  root: Element,
+  state: ParserState,
+  table: ExtensionTable,
+  declared: ReadonlySet<string>
+): void {
+  const marksByElement = new Map<Element, Mark[]>();
+  for (const mark of state.marks) {
+    const element = state.sourceElements.get(mark);
+    if (!element) continue;
+    const list = marksByElement.get(element);
+    if (list) list.push(mark);
+    else marksByElement.set(element, [mark]);
+  }
+
+  const visit = (element: Element): void => {
+    const attributesByExtension = new Map<string, Map<string, string>>();
+    for (const attr of Array.from(element.attributes)) {
+      const uri = attr.namespaceURI;
+      if (!uri || uri === XMLNS_NAMESPACE) continue;
+      const known = table.byUri.get(uri);
+      if (!known) continue;
+      if (!declared.has(known.name)) {
+        throw parseErrorAt(
+          element,
+          `An attribute of extension "${known.name}" requires <skam:extension name="${known.name}"> in <skam:meta>`
+        );
+      }
+      if (!known.definition?.readXmlAttributes) continue;
+      let attributes = attributesByExtension.get(known.name);
+      if (!attributes) {
+        attributes = new Map();
+        attributesByExtension.set(known.name, attributes);
+      }
+      attributes.set(attr.localName ?? attr.name, attr.value);
+    }
+
+    for (const [name, attributes] of attributesByExtension) {
+      const definition = table.definitions.get(name)!;
+      const localName = getLocalName(element);
+      const marks = (marksByElement.get(element) ?? []).flatMap((mark) => {
+        const part: 'self' | 'yomi' | 'okuri' | 'soe' | undefined =
+          localName === 'kun' ? KUN_PART_BY_TYPE[mark.type] : 'self';
+        return part === undefined ? [] : [{ part, mark }];
+      });
+      const result = definition.readXmlAttributes!(attributes, {
+        element: `skam:${localName}`,
+        marks,
+      });
+      if ('error' in result) throw parseErrorAt(element, result.error);
+      for (const { mark, value } of result.values) {
+        mark.ext = { ...mark.ext, [name]: value };
+      }
+    }
+
+    for (const child of Array.from(element.childNodes)) {
+      if (!isElement(child) || child.namespaceURI !== SKAM_NS) continue;
+      // 未知の skam:* は部分木ごと読み飛ばす (要素の処理と同じ)
+      if (KNOWN_SKAM_ELEMENTS.has(getLocalName(child))) visit(child);
+    }
+  };
+  visit(root);
+}
 
 interface SourcePosition {
   line?: number;
@@ -1319,6 +1496,11 @@ export interface ParseOptions {
   /** Receives non-fatal diagnostics (e.g. unknown skam:* elements). Omit to drop them */
   onWarning?: (warning: ParseWarning) => void;
   /**
+   * 既定の束 (`@kanbun-skam/skam/extensions`) に足す拡張の定義。名前が束と重なれば TypeError。
+   * 定義の無い拡張の属性は読み飛ばし、知らない必須の拡張を宣言した文書は誤りにする
+   */
+  extensions?: readonly SKAMExtensionDefinition[];
+  /**
    * Trusted Types が必須のページで、ブラウザ版が `DOMParser.parseFromString` に渡す XML を
    * 包むための policy。`createHTML` は事前走査の後に、parse 1 回につき 1 回、元の XML で呼ばれる。
    * Node 版 (xmldom) は Trusted Types と関係が無いので、受け取っても使わない (呼ばない)。
@@ -1405,6 +1587,7 @@ function parseDocument(
   source: string | undefined
 ): SKAMDocument {
   const { validate = true, trackPositions = false, idGenerator, onWarning } = options;
+  const table = buildExtensionTable(options.extensions);
 
   // Get root element
   const root = doc.documentElement;
@@ -1427,14 +1610,15 @@ function parseDocument(
 
   // Find and process main sections
   let hasBody = false;
+  const metas: Element[] = [];
 
   for (const child of childElements(root)) {
     const localName = getLocalName(child);
 
     switch (localName) {
       case 'meta':
-        // Currently we just ignore meta, tokenization is always 'char'. 子要素の名前空間だけは検査する
-        childElements(child);
+        // tokenization は常に 'char' なので読まない。skam:extension は本文を読んだ後に宣言として読む
+        metas.push(child);
         break;
       case 'body':
         hasBody = true;
@@ -1456,6 +1640,9 @@ function parseDocument(
   // Resolve content references for ref marks
   resolveContentReferences(state);
 
+  const declaration = readExtensionDeclarations(metas, table);
+  applyExtensionAttributes(root, state, table, new Set(declaration?.used));
+
   // Build document
   const skamDoc: SKAMDocument = {
     format: 'skam@0.1',
@@ -1464,9 +1651,16 @@ function parseDocument(
     marks: state.marks,
     readings: state.readings,
   };
+  if (declaration) {
+    skamDoc.extensions = declaration.used;
+    if (declaration.required.length > 0) skamDoc.extensionsRequired = declaration.required;
+  }
 
   if (validate) {
-    const result = validateSKAMDocument(skamDoc);
+    const result = validateSKAMDocument(
+      skamDoc,
+      options.extensions ? { extensions: options.extensions } : {}
+    );
     if (!result.valid) {
       throw new SKAMValidationError(attachPositions(result.errors, skamDoc, state.sourceElements));
     }

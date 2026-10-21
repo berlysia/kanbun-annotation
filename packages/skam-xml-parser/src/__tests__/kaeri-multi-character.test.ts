@@ -52,10 +52,9 @@ describe('kaeri with a hyphen-joined kind (deprecated compatibility)', () => {
 describe('kaeri written one character per mark', () => {
   it('reads two marks at the same position without warning', () => {
     const { doc, warnings } = collect(wrap('甲<skam:kaeri kind="ichi"/><skam:kaeri kind="re"/>乙'));
-    expect(doc.marks.filter((m) => m.type === 'kaeri').map((m) => (m as { value: string }).value)).toEqual([
-      '㆒',
-      '㆑',
-    ]);
+    expect(
+      doc.marks.filter((m) => m.type === 'kaeri').map((m) => (m as { value: string }).value)
+    ).toEqual(['㆒', '㆑']);
     expect(warnings).toEqual([]);
   });
 });

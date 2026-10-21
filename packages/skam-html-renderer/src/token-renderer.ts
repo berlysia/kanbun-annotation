@@ -21,7 +21,11 @@ import type {
   RefMark,
 } from '@kanbun-skam/skam';
 import { KAERI, isValidEmphasisStyle } from '@kanbun-skam/skam';
-import { resolveEmphasisCharacter, resolveOkototenCell } from '@kanbun-skam/skam/rendering';
+import {
+  resolveEmphasisCharacter,
+  resolveOkototenCell,
+  joinKaeriValues,
+} from '@kanbun-skam/skam/rendering';
 import type { MarkLookup, TokenMarks } from '@kanbun-skam/skam/rendering';
 import type { RenderProfile, RubyMethod } from './render-config.js';
 import { escapeHtml, generateEmphasisMarks, shouldApplyTateChuYoko } from './html-utils.js';
@@ -341,10 +345,18 @@ export function renderToken(
   // 返り点（現在のトークン + 範囲グループ後続トークンの返り点）
   // extractTatetenKaeri=true の場合、非レ返り点を tatetenKaeriHtml に分離
   const kaeriMarks = (tokenMarks.get('kaeri') ?? []) as KaeriMark[];
-  // value が文字列でない kaeri は出力しない
-  const allKaeriMarks = [...kaeriMarks, ...(rangeCtx?.trailingKaeriMarks ?? [])].filter(
-    (m) => typeof m.value === 'string'
-  );
+  // 同じ位置の kaeri は marks[] の順につないだ 1 つの値として描く。
+  // value が文字列でない kaeri は joinKaeriValues が飛ばす (出力しない)
+  const kaeriByPosition = new Map<string, KaeriMark[]>();
+  for (const m of [...kaeriMarks, ...(rangeCtx?.trailingKaeriMarks ?? [])]) {
+    const key = `${m.position.blockId}\u0000${m.position.after ?? ''}`;
+    const group = kaeriByPosition.get(key);
+    if (group) group.push(m);
+    else kaeriByPosition.set(key, [m]);
+  }
+  const allKaeriValues = [...kaeriByPosition.values()]
+    .map((group) => joinKaeriValues(group))
+    .filter((value) => value !== '');
 
   // extractTatetenKaeri=true の場合、返り点を suffix（レ部分）と separator（非レ部分）に分離
   // 複合返り点（一レ等）は分割: レ→suffix、非レ→separator
@@ -353,9 +365,9 @@ export function renderToken(
   if (extractTatetenKaeri && profile.kaeriten) {
     const suffixParts: string[] = [];
     const separatorParts: string[] = [];
-    for (const m of allKaeriMarks) {
-      const hasRe = m.value.includes(KAERI.RE);
-      const nonRePart = m.value.replace(new RegExp(KAERI.RE, 'g'), '');
+    for (const value of allKaeriValues) {
+      const hasRe = value.includes(KAERI.RE);
+      const nonRePart = value.replace(new RegExp(KAERI.RE, 'g'), '');
       if (hasRe) {
         suffixParts.push(`<span class="${prefix}-kaeriten" aria-hidden="true">${KAERI.RE}</span>`);
       }
@@ -367,10 +379,10 @@ export function renderToken(
     }
     kaeriten = suffixParts.join('');
     tatetenKaeriHtml = separatorParts.join('');
-  } else if (profile.kaeriten && allKaeriMarks.length > 0) {
-    kaeriten = allKaeriMarks
+  } else if (profile.kaeriten && allKaeriValues.length > 0) {
+    kaeriten = allKaeriValues
       .map(
-        (m) => `<span class="${prefix}-kaeriten" aria-hidden="true">${toSafeHtml(m.value)}</span>`
+        (value) => `<span class="${prefix}-kaeriten" aria-hidden="true">${toSafeHtml(value)}</span>`
       )
       .join('');
   }

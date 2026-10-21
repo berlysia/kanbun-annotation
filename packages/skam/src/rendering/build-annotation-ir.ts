@@ -44,7 +44,7 @@ import { createMarkLookup, type MarkLookup } from './mark-lookup.js';
 import { getRangeMarkGroups, getTatetenGroups, getHighlightGroups } from './mark-groups.js';
 import { groupTokensByBlock } from './block-utils.js';
 import { getBlockStartMarks } from './block-start.js';
-import { splitKaeriForTateten } from './kaeri.js';
+import { splitKaeriForTateten, joinKaeriValues } from './kaeri.js';
 import { resolveEmphasisCharacter } from './emphasis.js';
 import { resolveRefValues } from './ref.js';
 import { resolveOkototenCell } from './okototen.js';
@@ -85,8 +85,9 @@ function resolveTokenSlots(
 
   if (profile.kaeriten) {
     const kaeriMarks = (tokenMarks.get('kaeri') ?? []) as KaeriMark[];
-    if (kaeriMarks.length > 0) {
-      slots.kaeri = kaeriMarks.map((m) => m.value).join('');
+    const joined = joinKaeriValues(kaeriMarks);
+    if (joined) {
+      slots.kaeri = joined;
     }
   }
 
@@ -344,12 +345,13 @@ function buildAIRTatetenGroup(
     for (let i = 0; i < tokenNodes.length; i++) {
       const tokenNode = tokenNodes[i]!;
       const tokenId = tokenNode.token.id;
-      const kaeriMark = kaeriMarks.find(
+      const kaeriAtToken = kaeriMarks.filter(
         (m) => m.position.after === tokenId && m.position.blockId === blockId
       );
+      const kaeriValue = joinKaeriValues(kaeriAtToken);
 
-      if (kaeriMark) {
-        const { re, nonRe } = splitKaeriForTateten(kaeriMark.value);
+      if (kaeriValue) {
+        const { re, nonRe } = splitKaeriForTateten(kaeriValue);
 
         if (re) {
           tokenNode.slots = { ...tokenNode.slots, kaeri: re };

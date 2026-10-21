@@ -10,66 +10,30 @@
  */
 
 import { createHash } from 'node:crypto';
-import { closeSync, constants, mkdirSync, openSync, renameSync, rmSync, writeSync } from 'node:fs';
-import { dirname } from 'node:path';
 import { readVerifiedSource } from './build-document.ts';
 import { convertVolumes, KOJIKI_VOLUMES, type KojikiVolume } from './convert-wikitext.ts';
+import { fetchPinned, writeFileAtomically } from './pinned-fetch.ts';
 import { KOJIKI_PAGES } from './source-pin.ts';
 
-const WIKISOURCE_HOST = 'https://zh.wikisource.org';
+const WIKISOURCE_HOST = 'zh.wikisource.org';
 const FETCH_TIMEOUT_MS = 30_000;
 const MAX_PAGE_BYTES = 2 * 1024 * 1024;
 
 export function wikitextUrl(rev: number): string {
-  return `${WIKISOURCE_HOST}/w/index.php?oldid=${rev}&action=raw`;
-}
-
-/** 失敗の理由 (応答の本文は含めない) */
-export class FetchPageError extends Error {
-  override readonly name = 'FetchPageError';
+  return `https://${WIKISOURCE_HOST}/w/index.php?oldid=${rev}&action=raw`;
 }
 
 /**
- * 1 ページの wikitext を取る。リダイレクトは辿らない。
- * 読み込んだ実際のバイト数で上限を見る (Content-Length は信用しない)。
+ * 1 ページの wikitext を取る。安全の契約 (https、host、redirect の拒否、上限、時間) は
+ * fetchPinned が強制する。
  */
 export async function fetchWikitext(rev: number): Promise<string> {
-  const url = wikitextUrl(rev);
-  let response: Response;
-  try {
-    response = await globalThis.fetch(url, {
-      redirect: 'error',
-      signal: AbortSignal.timeout(FETCH_TIMEOUT_MS),
-    });
-  } catch (error) {
-    const kind = error instanceof Error ? error.name : 'unknown error';
-    throw new FetchPageError(`${url}: request failed (${kind})`, { cause: error });
-  }
-  if (!response.ok) {
-    await response.body?.cancel();
-    throw new FetchPageError(`${url}: HTTP ${response.status}`);
-  }
-  const reader = response.body?.getReader();
-  if (!reader) throw new FetchPageError(`${url}: empty response`);
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  try {
-    for (;;) {
-      const { done, value } = await reader.read();
-      if (done) break;
-      total += value.byteLength;
-      if (total > MAX_PAGE_BYTES) {
-        await reader.cancel();
-        throw new FetchPageError(`${url}: response exceeds the 2 MB size limit`);
-      }
-      chunks.push(value);
-    }
-  } catch (error) {
-    if (error instanceof FetchPageError) throw error;
-    const kind = error instanceof Error ? error.name : 'unknown error';
-    throw new FetchPageError(`${url}: reading the body failed (${kind})`, { cause: error });
-  }
-  return new TextDecoder('utf-8', { fatal: true }).decode(Buffer.concat(chunks));
+  const bytes = await fetchPinned(wikitextUrl(rev), {
+    allowedHosts: [WIKISOURCE_HOST],
+    maxBytes: MAX_PAGE_BYTES,
+    timeoutMs: FETCH_TIMEOUT_MS,
+  });
+  return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
 }
 
 export interface UpdateSourceOptions {
@@ -117,22 +81,9 @@ export async function runUpdateSource(options: UpdateSourceOptions): Promise<num
     );
     return 1;
   }
-  const tmpPath = `${cachePath}.${process.pid}.tmp`;
-  let created = false;
   try {
-    mkdirSync(dirname(cachePath), { recursive: true });
-    // wx (排他作成): 先にある一時ファイルや symlink を開かず、書き換えない
-    const fd = openSync(tmpPath, constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL, 0o644);
-    created = true;
-    try {
-      writeSync(fd, text);
-    } finally {
-      closeSync(fd);
-    }
-    renameSync(tmpPath, cachePath);
+    writeFileAtomically(cachePath, text);
   } catch (error) {
-    // 自分が作った一時ファイルだけを消す (先にあったものは触らない)
-    if (created) rmSync(tmpPath, { force: true });
     log(
       `update-source failed: could not write ${cachePath} (${error instanceof Error ? error.name : 'unknown error'})`
     );

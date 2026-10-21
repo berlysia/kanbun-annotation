@@ -31,8 +31,13 @@ const config: KnipConfig = {
       project: ['src/**/*.ts', 'scripts/**/*.ts'],
     },
     'packages/integration-tests': {
-      // bench は package.json の script から直接実行される
-      entry: ['src/**/*.test.ts', 'src/**/*.bench.ts'],
+      // bench と取得 CLI は package.json の script から、見本の生成は手で直接実行される
+      entry: [
+        'src/**/*.test.ts',
+        'src/**/*.bench.ts',
+        'src/kundoku/cli.ts',
+        'src/kundoku/make-samples.ts',
+      ],
       project: ['src/**/*.ts'],
       // used only by the generated .doctest/ and the tarball consumer test, both outside `project`
       ignoreDependencies: ['@kanbun-skam/skam-web-component'],

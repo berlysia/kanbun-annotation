@@ -2,6 +2,8 @@
 
 古事記の原文を取得し、SKAM の文書に組み立てる。描画の時間を測る bench (`pnpm bench`、`@kanbun-skam/integration-tests`) と、GitHub Pages の古事記のページ (`@kanbun-skam/playground`) が使う。
 
+取得の共通部品 (`fetchPinned`、`ensurePinnedFiles`。https、host の完全一致、redirect の拒否、上限、時間の制限、sha256 の照合、一時ファイル経由の書き込み) もこのパッケージが持ち、`@kanbun-skam/integration-tests` の KanbunKundoku の取得 (`packages/integration-tests/src/kundoku/README.md`) も使う。
+
 本文はリポジトリに含めない。`pnpm bench` が計測の前に zh.wikisource の固定した版から取得し、`packages/kojiki/.cache/kojiki-source.txt` にキャッシュする (gitignore)。取得した本文は CC BY-SA 4.0 で、リポジトリのほかの部分の MIT とは別。このパッケージのコード (変換、取得、組み立て) は MIT。private なので公開パッケージには入らない。
 
 ## 帰属表示

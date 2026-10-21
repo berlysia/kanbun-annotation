@@ -50,7 +50,8 @@ status: Complete
 ### deprecate の管理
 
 - 互換のためのコード (validator の警告、parser のハイフンの扱い) に `shiori:` の注記を付け、`.config/shiori/registry.json` に登録する。削除は日付でなく版で決まるので、期限 (`expires`) は付けない。
-- CI の `shiori verify` が、注記と台帳の食い違いで落ちる。
+- 台帳の `kind` は `intentional` にする (`temporary` は期限を求めるため)。
+- CI の `shiori` の job が `shiori check` (走査と照合) を実行し、注記と台帳の食い違いで落ちる。`shiori verify` だけでは走査の結果を標準入力から待つので、CI では使わない。
 
 ### 0.4.0 で行うこと
 

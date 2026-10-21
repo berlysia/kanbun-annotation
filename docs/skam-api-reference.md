@@ -44,6 +44,26 @@ import { getLinebreakPlacementIssues } from '@kanbun-skam/skam';
 - `LEGACY_EXT_REGISTERED_NAME`: `LEGACY_EXT` のうち、`ext` のキーが登録済みの拡張の名前と同じもの。宣言の書き忘れの疑い。`path` は `marks[i].ext.edu` など。0.4.0 では無くなる（`LEGACY_EXT` の誤りが同じ所を指す）
 - `ValidationWarningKind` に値を足すのは minor の変更
 
+### 未完成の検査
+
+```typescript
+import { lintSKAMDocument } from '@kanbun-skam/skam';
+import type { LintDiagnostic, LintCode } from '@kanbun-skam/skam';
+```
+
+`lintSKAMDocument(doc)` は、構造として正しい文書のうち、作業が終わっていないように見える内容を `LintDiagnostic[]`（`{ code, path, message }`）で返す。診断はどれも誤りではない。中で検証しないので、`validateSKAMDocument` か `parse` を通した文書を渡す。検証を通っていない文書でも例外は出さないが、診断が正しいとは限らない。結果は `marks[]` の添字の順で、`message` は固定の文、`path` は添字だけを含む（入力の値を含まない）。
+
+| コード                   | 指摘する内容                                    | `path`              |
+| ------------------------ | ----------------------------------------------- | ------------------- |
+| `SAIDOKU_SINGLE_READING` | 再読文字の `forms` が 1 つ                      | `marks[i].forms`    |
+| `SAIDOKU_EMPTY_FORM`     | 再読文字の `forms` の要素に読みも送り仮名も無い | `marks[i].forms[j]` |
+| `EMPTY_KANA`             | 読み仮名、送り仮名、添え仮名が空か空白だけ      | `marks[i].value`    |
+| `TATETEN_SINGLE_TOKEN`   | 竪点が 1 字                                     | `marks[i].anchor`   |
+| `KAERI_UNCLOSED`         | 閉じていない返り点（SKAM-draft §14.1）          | `marks[i]`          |
+| `HIGHLIGHT_REF_MISSING`  | 傍線の `ref` が ref 注記の `id` に当たらない    | `marks[i].ref`      |
+
+コードは同じ名前の定数でも export する。`LintCode` に値を足すのは minor の変更。`validateSKAMDocument` の `warnings`（後の版で誤りになる書き方の知らせ）とは別のもので、診断はどの版でも誤りにならない。
+
 ### JSON Schema
 
 ```typescript

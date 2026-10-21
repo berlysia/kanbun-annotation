@@ -21,6 +21,19 @@ assert.equal(second.tokens.length, first.tokens.length, 'token count changed acr
 const { html } = render(first);
 assert.ok(html.includes('skam-document'), 'render output lacks skam-document');
 
+const core = await import('@kanbun-skam/skam');
+const legacy = core.moveLegacyExtToCustom({
+  format: 'skam@0.1',
+  tokens: [{ id: 't1', text: '學' }],
+  blocks: [{ id: 'b1', tokenIds: ['t1'] }],
+  marks: [
+    { type: 'okimoji', id: 'm1', anchor: { from: 't1', to: 't1' }, ext: { edu: { quiz: 'q' } } },
+  ],
+  readings: [],
+});
+assert.deepEqual(legacy.registeredNameKeys, ['marks[0].ext.edu']);
+assert.deepEqual(legacy.document.marks[0].custom, { edu: { quiz: 'q' } });
+
 // Node での import は、SSR で import するのと同じ条件になる
 await import('@kanbun-skam/skam-web-component');
 await import('@kanbun-skam/skam-web-component/auto');

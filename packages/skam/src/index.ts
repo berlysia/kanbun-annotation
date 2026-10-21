@@ -513,10 +513,14 @@ export {
   type ValidationWarning,
   type ValidationWarningKind,
   KAERI_MULTI_CHARACTER,
+  LEGACY_EXT,
+  LEGACY_EXT_REGISTERED_NAME,
   SKAMValidationError,
   createValidationError,
   BLOCK_START_KAERI_HINT,
 } from './errors.js';
+
+export { moveLegacyExtToCustom } from './legacy-ext.js';
 
 export {
   type ValidateOptions,

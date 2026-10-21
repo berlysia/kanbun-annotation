@@ -56,8 +56,24 @@ export interface ValidationError {
  */
 export const KAERI_MULTI_CHARACTER = 'KAERI_MULTI_CHARACTER';
 
+/**
+ * 宣言 (`extensions`) の無い文書に `ext` がある、という警告のコード。
+ * 0.3 では `ext` を自由なデータとして読んで警告し、0.4.0 では同じコードの誤りにする。
+ * 移すには `moveLegacyExtToCustom` を使う
+ */
+export const LEGACY_EXT = 'LEGACY_EXT';
+
+/**
+ * `LEGACY_EXT` のうち、`ext` のキーが登録済みの拡張の名前と同じものを指す警告のコード。
+ * 宣言の書き忘れの疑いを知らせる。0.4.0 では `LEGACY_EXT` の誤りが同じ所を指すので、このコードは無くす
+ */
+export const LEGACY_EXT_REGISTERED_NAME = 'LEGACY_EXT_REGISTERED_NAME';
+
 /** 検証の警告の種別。値を足すのは minor の変更として扱う */
-export type ValidationWarningKind = typeof KAERI_MULTI_CHARACTER;
+export type ValidationWarningKind =
+  | typeof KAERI_MULTI_CHARACTER
+  | typeof LEGACY_EXT
+  | typeof LEGACY_EXT_REGISTERED_NAME;
 
 /** 検証の警告。文書は有効だが、将来の版で誤りになる書き方を指す */
 export interface ValidationWarning {

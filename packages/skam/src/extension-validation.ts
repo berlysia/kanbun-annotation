@@ -5,8 +5,14 @@
  * 上限を超えたらすぐやめる。plain object への代入はしない (`__proto__` で prototype を汚染しない)。
  */
 
-import { type ValidationError, createValidationError } from './errors.js';
-import { isExtensionName } from './extensions/index.js';
+import {
+  type ValidationError,
+  type ValidationWarning,
+  LEGACY_EXT,
+  LEGACY_EXT_REGISTERED_NAME,
+  createValidationError,
+} from './errors.js';
+import { extensionRegistry, isExtensionName } from './extensions/index.js';
 import type { ExtensionOwner, SKAMExtensionDefinition } from './extensions/types.js';
 
 /** 入れ子の段数の上限 (`ext` / `custom` の値自身を 1 段とする) */
@@ -161,11 +167,25 @@ export function validateDeclaration(
   return { declared, used, required };
 }
 
-/** 文書全体の `ext` と `custom` を検査する */
+/** 登録簿の名前の集合。配列の登録簿を `ext` のキーごとに走査しないために 1 回だけ作る */
+export const REGISTERED_NAMES: ReadonlySet<string> = new Set(
+  extensionRegistry.map((entry) => entry.name)
+);
+
+const LEGACY_EXT_MESSAGE =
+  'ext in a document without extensions is read as free data; it becomes an error in 0.4.0. Move it to custom with moveLegacyExtToCustom';
+const LEGACY_EXT_REGISTERED_NAME_MESSAGE =
+  'This ext key is the name of a registered extension. If it holds the extension value, declare the extension in extensions';
+
+/**
+ * 文書全体の `ext` と `custom` を検査する。
+ * 宣言の無い文書の `ext` は自由なデータとして読み、`warnings` に警告を足す
+ */
 export function validateExtensionData(
   input: Record<string, unknown>,
   definitions: ReadonlyMap<string, SKAMExtensionDefinition>,
-  errors: ValidationError[]
+  errors: ValidationError[],
+  warnings: ValidationWarning[]
 ): void {
   const { declared, used, required } = validateDeclaration(input, definitions, errors);
   const budget: Budget = { seen: 0, exceeded: false };
@@ -209,7 +229,20 @@ export function validateExtensionData(
       return;
     }
     if (!checkFreeData(ext, at('ext'), budget, errors)) return;
-    if (!declared) return;
+    if (!declared) {
+      // shiori: LEGACY-EXT:validator
+      warnings.push({ kind: LEGACY_EXT, path: at('ext'), message: LEGACY_EXT_MESSAGE });
+      for (const name of Object.keys(ext)) {
+        if (REGISTERED_NAMES.has(name)) {
+          warnings.push({
+            kind: LEGACY_EXT_REGISTERED_NAME,
+            path: `${at('ext')}.${name}`,
+            message: LEGACY_EXT_REGISTERED_NAME_MESSAGE,
+          });
+        }
+      }
+      return;
+    }
     for (const name of Object.keys(ext)) {
       const namePath = `${at('ext')}.${name}`;
       if (!used.has(name)) {
@@ -242,6 +275,7 @@ export function validateExtensionData(
   each('blocks', 'block');
   each('tokens', 'token');
   each('marks', 'mark');
+  each('derivations', 'derivation');
 
   for (const name of usedRequired) {
     if (!required.has(name)) {

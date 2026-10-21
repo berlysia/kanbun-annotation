@@ -10,5 +10,11 @@
     "target": "packages/skam-xml-parser/src/parser-core.ts",
     "kind": "intentional",
     "notes": "docs/decisions/adr-038-kaeri-one-character-per-mark.md"
+  },
+  "LEGACY-EXT:validator": {
+    "reason": "deprecated: ext in a document without extensions becomes an error in 0.4.0; remove this warning then",
+    "target": "packages/skam/src/extension-validation.ts",
+    "kind": "intentional",
+    "notes": "docs/decisions/adr-040-extensions-and-edu.md"
   }
 }

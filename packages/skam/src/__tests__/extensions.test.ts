@@ -196,3 +196,118 @@ describe('extensions: resolveExtensions', () => {
     expect(() => resolveExtensions([{ ...test1, name: 'Test-1' }])).toThrow(TypeError);
   });
 });
+
+describe('extensions: derivations', () => {
+  const derivation = (extra: Record<string, unknown>) => ({
+    kind: 'readingOrder',
+    method: 'manual',
+    result: ['t1'],
+    ...extra,
+  });
+
+  it('derivations の custom も上限と危ないキーの検査を受ける', () => {
+    let deep: Record<string, unknown> = {};
+    for (let i = 1; i < 33; i++) deep = { a: deep };
+    const tooDeep = validateSKAMDocument(baseDoc({ derivations: [derivation({ custom: deep })] }));
+    expect(kinds(tooDeep)).toEqual(['INVALID_VALUE']);
+    const proto = validateSKAMDocument(
+      baseDoc({ derivations: [derivation({ custom: JSON.parse('{"__proto__":{"x":1}}') })] })
+    );
+    expect(kinds(proto)).toEqual(['INVALID_VALUE']);
+  });
+
+  it('宣言のある文書の derivations の ext は、宣言に無い名前が INVALID_EXTENSION', () => {
+    const result = validateSKAMDocument(
+      baseDoc({ extensions: [], derivations: [derivation({ ext: { foo: 1 } })] })
+    );
+    expect(kinds(result)).toEqual(['INVALID_EXTENSION']);
+  });
+
+  it('derivations の ext がオブジェクトでなければ INVALID_TYPE が 1 件', () => {
+    const result = validateSKAMDocument(baseDoc({ derivations: [derivation({ ext: 1 })] }));
+    expect(kinds(result)).toEqual(['INVALID_TYPE']);
+  });
+
+  it('注記の ext がオブジェクトでなければ INVALID_TYPE が 1 件だけ', () => {
+    const doc = baseDoc({});
+    (doc.marks[0] as Record<string, unknown>)['ext'] = 1;
+    expect(kinds(validateSKAMDocument(doc))).toEqual(['INVALID_TYPE']);
+  });
+});
+
+describe('extensions: LEGACY_EXT warnings', () => {
+  const warningsOf = (result: ReturnType<typeof validateSKAMDocument>) =>
+    result.valid ? (result.warnings ?? []) : [];
+  const derivationDoc = (extra: Record<string, unknown>) =>
+    baseDoc({
+      derivations: [{ kind: 'readingOrder', method: 'manual', result: ['t1'], ext: { d: 1 } }],
+      ...extra,
+    });
+
+  it('宣言の無い文書の注記の ext は LEGACY_EXT の警告 (valid のまま)', () => {
+    const result = validateSKAMDocument(baseDoc({}, { foo: 1 }));
+    expect(result.valid).toBe(true);
+    const warnings = warningsOf(result);
+    expect(warnings).toHaveLength(1);
+    expect(warnings[0]).toMatchObject({ kind: 'LEGACY_EXT', path: 'marks[0].ext' });
+    expect(warnings[0]!.message).toContain('0.4.0');
+    expect(warnings[0]!.message).toContain('moveLegacyExtToCustom');
+    expect(warnings[0]!.message).not.toContain('foo');
+  });
+
+  it('文書、ブロック、token、readings、derivations の ext にも 1 つにつき 1 件', () => {
+    const doc = derivationDoc({
+      ext: { a: 1 },
+      readings: [{ kind: 'kundoku', text: '学', ext: { b: 1 } }],
+    });
+    (doc.blocks[0] as Record<string, unknown>)['ext'] = { c: 1 };
+    (doc.tokens[0] as Record<string, unknown>)['ext'] = { d: 1 };
+    const result = validateSKAMDocument(doc);
+    expect(result.valid).toBe(true);
+    const warnings = warningsOf(result);
+    expect(warnings.map((w) => w.kind)).toEqual(Array(5).fill('LEGACY_EXT'));
+    expect(warnings.map((w) => w.path).sort()).toEqual(
+      ['blocks[0].ext', 'derivations[0].ext', 'ext', 'readings[0].ext', 'tokens[0].ext'].sort()
+    );
+  });
+
+  it('空のオブジェクトの ext も警告する', () => {
+    const warnings = warningsOf(validateSKAMDocument(baseDoc({}, {})));
+    expect(warnings.map((w) => w.kind)).toEqual(['LEGACY_EXT']);
+  });
+
+  it('登録済みの拡張の名前のキーには LEGACY_EXT_REGISTERED_NAME も付く', () => {
+    const warnings = warningsOf(validateSKAMDocument(baseDoc({}, { edu: { quiz: '問1' } })));
+    expect(warnings.map((w) => [w.kind, w.path])).toEqual([
+      ['LEGACY_EXT', 'marks[0].ext'],
+      ['LEGACY_EXT_REGISTERED_NAME', 'marks[0].ext.edu'],
+    ]);
+    expect(warnings[1]!.message).toContain('extensions');
+  });
+
+  it('ブロックの ext がオブジェクトでなければ型の誤りだけで、LEGACY_EXT は無い', () => {
+    const doc = baseDoc({});
+    (doc.blocks[0] as Record<string, unknown>)['ext'] = 1;
+    const result = validateSKAMDocument(doc);
+    expect(result.valid).toBe(false);
+    expect(kinds(result)).toEqual(['INVALID_TYPE']);
+    expect(result).not.toHaveProperty('warnings');
+  });
+
+  it('宣言のある文書と ext の無い文書は警告しない', () => {
+    const declared = validateSKAMDocument(
+      baseDoc({ extensions: ['edu'], extensionsRequired: ['edu'] }, { edu: { quiz: '問' } })
+    );
+    expect(declared.valid).toBe(true);
+    expect(declared).not.toHaveProperty('warnings');
+    expect(validateSKAMDocument(baseDoc({ extensions: [] }))).not.toHaveProperty('warnings');
+    expect(validateSKAMDocument(baseDoc({}))).not.toHaveProperty('warnings');
+  });
+
+  it('構造の誤りがある結果 (valid: false) には warnings が無い', () => {
+    const doc = baseDoc({ blocks: [{ id: 'b1', tokenIds: ['nope'] }] }, { foo: 1 });
+    const result = validateSKAMDocument(doc);
+    expect(result.valid).toBe(false);
+    expect(result).not.toHaveProperty('warnings');
+  });
+});

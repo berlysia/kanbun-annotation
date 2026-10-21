@@ -1596,7 +1596,7 @@ export interface ValidateOptions {
  * SKAMDocument を検証する
  *
  * 同じ位置の複数の kaeri は正しい書き方として許す (marks[] の順につないだ値と同じ意味)。
- * 複数の字の kaeri 値 (`㆒㆑`) は `valid: true` のまま `warnings` に警告を返す。
+ * 複数の字の kaeri 値 (`㆒㆑`) と、宣言 (`extensions`) の無い文書の `ext` は、`valid: true` のまま `warnings` に警告を返す。
  *
  * 検証は渡された object を複製しない。`@kanbun-skam/skam-xml-parser` は、この同一性に頼って
  * エラーの path が指す要素を作った SKAM-ML の行と列を引く。
@@ -1625,7 +1625,7 @@ export function validateSKAMDocument(
 
   // Field-level validation
   validateDocumentFields(input, errors, warnings);
-  validateExtensionData(input, definitions, errors);
+  validateExtensionData(input, definitions, errors, warnings);
 
   // Cross-reference validation (only if basic validation passed)
   const tokens = input['tokens'];

@@ -118,6 +118,7 @@ console.log(xml, losses[0].path); // path: "/ext"
 | `DERIVATIONS`            | `unrepresentable` | `derivations` は SKAM-ML に書けない（コンパイル時に生成される）       |
 | `ASCII_WHITESPACE_TOKEN` | `unrepresentable` | SKAM-ML が無視する空白だけの token                                    |
 | `BLOCK_START_KAERI`      | `unrepresentable` | ブロック先頭の返り点（直前の token がない）                           |
+| `BLOCK_START_LINEBREAK`  | `unrepresentable` | ブロック先頭の改行（直前の token がない）                             |
 | `DANGLING_REFERENCE`     | `unrepresentable` | 存在しない token / block、またはどのブロックにも属さない token を指す |
 | `CROSS_BLOCK_ANCHOR`     | `unrepresentable` | 複数のブロックにまたがる anchor                                       |
 | `PARTIAL_OVERLAP`        | `unsupported`     | 範囲が部分的に重なり、入れ子にできない                                |
@@ -132,7 +133,7 @@ console.log(xml, losses[0].path); // path: "/ext"
 
 ## 対応 Mark Types
 
-全 13 種の SKAM v0.1 mark type をサポート:
+全 14 種の SKAM v0.1 mark type をサポート:
 
 | type        | 出力形式                                      |
 | ----------- | --------------------------------------------- |
@@ -149,6 +150,7 @@ console.log(xml, losses[0].path); // path: "/ext"
 | `tateten`   | `<skam:tateten>...</skam:tateten>`            |
 | `highlight` | `<skam:span type="highlight">...</skam:span>` |
 | `ref`       | `<skam:ref .../>`                             |
+| `linebreak` | `<skam:br/>`                                  |
 
 ## 0.1 からの移行
 

@@ -220,7 +220,7 @@ const horizontal = render(doc, { writingMode: 'horizontal' });
 
 `profile` には 2 つの形がある。
 
-- **部分指定**: 13 個のキーの一部を書く。**書かなかったキーは full（表示）になる**。キーの書き忘れは、隠すつもりの注記が見える側に倒れる。
+- **部分指定**: 14 個のキーの一部を書く。**書かなかったキーは full（表示）になる**。キーの書き忘れは、隠すつもりの注記が見える側に倒れる。
 - **`{ base, overrides? }`**: プリセット（`full` / `learningBasic` / `learningHint`）から出発し、`overrides` で一部を変える。この形は安定した契約で、注記を隠す用途ではこちらを使う。
 
 2 つの形は混ぜられない。未知のキー、真偽値でない値（`'false'` など）、`null`、`{ base, okurigana: false }` のような混在は `SKAMRenderProfileError`（`TypeError` のサブクラス。下の「表示設定の誤り」）になる（Web Component では描画しない）。
@@ -255,7 +255,7 @@ const partial = render(doc, { profile: { kaeriten: true, okurigana: false } });
 
 #### キー名
 
-キーは次の 13 個で、`RENDER_PROFILE_KEYS`（凍結した配列）からも得られる。値が `false` のキーの注記は、画面にも `readingLayerSource: 'display'` の読み層にも出ない。
+キーは次の 14 個で、`RENDER_PROFILE_KEYS`（凍結した配列）からも得られる。値が `false` のキーの注記は、画面にも `readingLayerSource: 'display'` の読み層にも出ない。
 
 | キー        | 隠す・出す注記     |
 | ----------- | ------------------ |
@@ -272,13 +272,14 @@ const partial = render(doc, { profile: { kaeriten: true, okurigana: false } });
 | `soegana`   | 添え仮名           |
 | `highlight` | 傍線               |
 | `ref`       | 参照識別子・注釈   |
+| `linebreak` | 改行               |
 
 キー名は、作者が教材に書いて使えるよう、0.x の間も改名・削除しない。互換の方針（改名するときの移行期間、キーを足すとき）は [ADR-033](https://github.com/berlysia/kanbun-annotation/blob/master/docs/decisions/adr-033-render-profile-keys-and-errors.md) にある。
 
 - キーは minor で増えうる。増えたキーは、部分指定では表示される側に倒れる。
 - プリセット（`full` / `learningBasic` / `learningHint`）の各キーの値は約束しない。minor で変わりうり、変えるときは changeset に書く。
 - 出題に使うときは、`base` だけに頼らず、隠すキーを `overrides` で明示する。
-- 型 `RenderProfile` は、キーが増えると広がる。13 個の値を自前でそろえて作らず、`resolveRenderProfile` の戻り値か `PROFILES` から得る。
+- 型 `RenderProfile` は、キーが増えると広がる。14 個の値を自前でそろえて作らず、`resolveRenderProfile` の戻り値か `PROFILES` から得る。
 
 #### 表示設定の誤り
 
@@ -489,21 +490,22 @@ const css = generateCSS({ useLayer: false });
 
 ## レンダリング対応
 
-| Mark Type   | 対応状況                    |
-| ----------- | --------------------------- |
-| `kaeri`     | ✅                          |
-| `okurigana` | ✅                          |
-| `yomigana`  | ✅                          |
-| `soegana`   | ✅                          |
-| `okimoji`   | 分類のみ (既定の見た目なし) |
-| `joji`      | 分類のみ (既定の見た目なし) |
-| `kutoten`   | ✅                          |
-| `emphasis`  | ✅                          |
-| `saidoku`   | ✅                          |
-| `tateten`   | ✅                          |
-| `highlight` | ✅                          |
-| `ref`       | ✅                          |
-| `okototen`  | ✅                          |
+| Mark Type   | 対応状況                           |
+| ----------- | ---------------------------------- |
+| `kaeri`     | ✅                                 |
+| `okurigana` | ✅                                 |
+| `yomigana`  | ✅                                 |
+| `soegana`   | ✅                                 |
+| `okimoji`   | 分類のみ (既定の見た目なし)        |
+| `joji`      | 分類のみ (既定の見た目なし)        |
+| `kutoten`   | ✅                                 |
+| `emphasis`  | ✅                                 |
+| `saidoku`   | ✅                                 |
+| `tateten`   | ✅                                 |
+| `highlight` | ✅                                 |
+| `ref`       | ✅                                 |
+| `linebreak` | ✅ (`<br class="skam-linebreak">`) |
+| `okototen`  | ✅                                 |
 
 okototen は格子の外 (座標が範囲外) の場合は描画しない。
 

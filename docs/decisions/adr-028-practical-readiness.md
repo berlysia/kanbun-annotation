@@ -93,7 +93,7 @@ TS 型の表明 (mark の `id` は string、`ext` は plain object、`placementH
 - 空の `text`、空の `saidoku.forms`。
 - blocks / tokens / marks にまたがる ID の重複 (`DUPLICATE_ID`)。
 - 同じ anchor への同種注記の重複 (yomigana / okurigana / soegana / okimoji / joji / saidoku。`MARK_CONFLICT`)。okototen / emphasis / highlight / tateten は重複を許す。
-- ブロック先頭の kaeri (`BLOCK_START_KAERI`)。改行とブロックを取り違えた利用者のために、メッセージにヒント (`BLOCK_START_KAERI_HINT`) を含める。明示的な改行は後続の ADR で扱う。
+- ブロック先頭の kaeri (`BLOCK_START_KAERI`)。改行とブロックを取り違えた利用者のために、メッセージにヒント (`BLOCK_START_KAERI_HINT`) を含める。明示的な改行は後続の ADR で扱う。ADR-039 で扱った。
 
 扱わないもの: 同じ位置への kaeri の重複 (仕様が決めていない)。
 

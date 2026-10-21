@@ -69,7 +69,7 @@ canvas.height = height;
 
 `profile` には 2 つの形がある。
 
-- **部分指定**: 13 個のキーの一部を書く。**書かなかったキーは full（表示）になる**。
+- **部分指定**: 14 個のキーの一部を書く。**書かなかったキーは full（表示）になる**。
 - **`{ base, overrides? }`**: プリセットから出発し、`overrides` で一部を変える。この形は安定した契約で、注記を隠す用途ではこちらを使う。
 
 未知のキー、真偽値でない値、`{ base, okurigana: false }` のような混在は、`render` / `measure` が `TypeError` を投げる。
@@ -129,7 +129,7 @@ render(doc, canvas, { fontFamily: DEFAULT_FONT_FAMILY, fontSize: 24 });
 
 ## レンダリング対応
 
-縦書き専用です (`writingMode` は `'vertical'` のみ)。SKAM v0.1 の全 13 種の mark type を扱います:
+縦書き専用です (`writingMode` は `'vertical'` のみ)。SKAM v0.1 の全 14 種の mark type を扱います:
 
 | Mark Type   | 対応状況                          |
 | ----------- | --------------------------------- |
@@ -145,6 +145,7 @@ render(doc, canvas, { fontFamily: DEFAULT_FONT_FAMILY, fontSize: 24 });
 | `tateten`   | ✅                                |
 | `highlight` | ✅                                |
 | `ref`       | ✅                                |
+| `linebreak` | ✅ (改行の後ろで次の列に移る)     |
 | `okototen`  | ✅ (不正な格子座標の点は描かない) |
 
 ## 内部アーキテクチャ

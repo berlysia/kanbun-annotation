@@ -232,15 +232,29 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 | `tateten`   | たて点（熟語境界）                 | anchor       | なし                                               |
 | `highlight` | 傍線・ハイライト（後世の記述）     | anchor       | style任意、ref任意                                 |
 | `ref`       | 参照識別子・注釈                   | **position** | label/format/contentのいずれか必須                 |
+| `linebreak` | 改行                               | **position** | なし                                               |
 
 ※ `type` の追加は後方互換で許可される。
-※ **position** 参照の Mark（kaeri, kutoten, ref）はトークン間の位置に存在し、anchor を持たない。
+※ **position** 参照の Mark（kaeri, kutoten, ref, linebreak）はトークン間の位置に存在し、anchor を持たない。
 
 #### kaeri の書き方
 
 - 1 つの kaeri は 1 字（一、二、レ など）を表す。一レ点のような組み合わせは、同じ `position` に 1 字ずつの kaeri を並べて書く。
 - 同じ位置の複数の kaeri は、`marks[]` の順に値をつないだ 1 つの注記と同じ意味を持つ。順は意味を持つ（`㆒`、`㆑` と `㆑`、`㆒` は別の表示になる）。
 - 1 つの kaeri の `value` に複数の字を書く形（`㆒㆑`）は、0.3 では読めるが非推奨で、0.4.0 で誤りになる。検証は警告（`KAERI_MULTI_CHARACTER`）を返す。
+
+#### linebreak の書き方
+
+- `linebreak` は `position.after` の字の直後で行を改める。`value` は持たない。ブロックを分けずに、ブロックの中で行を改めるために使う。
+- 描画は、自動の折り返しの位置を変えず、`linebreak` のある所で必ず行を改める。読み上げのテキストは、ブロックの区切りと同じ半角空白を 1 つ入れる。
+- 次の場所には置けない（MUST NOT）。違反は `INVALID_LINEBREAK` とする。
+  - ブロックの先頭（`position.after` が無い）
+  - ブロックの最後の字の後ろ
+  - 不可分単位の中: 次の 2 つの範囲の、隣り合う 2 字の間
+    - `tateten` の範囲（たて点のグループ）
+    - `yomigana` / `okurigana` / `soegana` / `saidoku` / `okimoji` / `joji` の範囲（`anchor.from` から `anchor.to`）
+  - 同じ `position`（`blockId` と `after` が両方とも一致するもの）に既に `linebreak` がある場合の 2 つ目以降
+- `highlight` / `emphasis` / `okototen` の範囲の中には置ける。不可分単位の最後の字の後ろ（たて点のグループの最後の字の後ろなど）にも置ける。
 
 ---
 
@@ -262,7 +276,7 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 
 ### 6.4 Position（位置指定）
 
-トークン間の位置を指定する。**position ベースの Mark（kaeri, kutoten, ref）が使用**する。
+トークン間の位置を指定する。**position ベースの Mark（kaeri, kutoten, ref, linebreak）が使用**する。
 
 #### 構造
 
@@ -293,7 +307,7 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 - `blockId` は必須であり、存在する block の ID を参照しなければならない（MUST）
 - `after` を指定する場合、参照する token ID が存在しなければならない（MUST）
 - `after` で参照する token は、`blockId` で指定された block に属していなければならない（MUST）
-- `after` は省略可能。省略時はブロック先頭への配置を意味する。ただし **kaeri の position には `after` が必須**であり、ブロック先頭に返り点を置いてはならない（MUST NOT）。kutoten と ref は従来どおりブロック先頭に置いてよい。Position 型そのものは変えない
+- `after` は省略可能。省略時はブロック先頭への配置を意味する。ただし **kaeri の position には `after` が必須**であり、ブロック先頭に返り点を置いてはならない（MUST NOT）。kutoten と ref は従来どおりブロック先頭に置いてよい。linebreak の position も `after` が必須で、ブロック先頭に置けない（§6.2）。Position 型そのものは変えない
 
 #### 用例
 

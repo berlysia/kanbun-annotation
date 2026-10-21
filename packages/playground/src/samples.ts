@@ -336,6 +336,23 @@ export const SAMPLES: Sample[] = [
 </skam:doc>`,
   },
   {
+    name: '改行（句の途中で行を改める）',
+    description:
+      '<skam:br/> で、ブロックを分けずに行を改める例。春曉の起句と承句を 1 つのブロックに置く',
+    xml: `<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      春眠不<skam:kaeri kind="re"/><skam:kun yomi="おぼ" okuri="エ">覺</skam:kun><skam:kaeri kind="re"/><skam:kun soe="ヲ" yomi="あかつき">曉</skam:kun><skam:br/>
+      處處<skam:kun yomi="き" okuri="ク">聞</skam:kun><skam:kaeri kind="ni"/><skam:kun yomi="ていてう" soe="ヲ">啼鳥</skam:kun><skam:kaeri kind="ichi"/>
+    </skam:block>
+  </skam:body>
+  <skam:readings>
+    <skam:reading kind="kakikudashi">春眠暁を覚えず、処処啼鳥を聞く。</skam:reading>
+  </skam:readings>
+</skam:doc>`,
+  },
+  {
     name: '傍点＋傍線（配置順確認）',
     description: '傍点と傍線の共存パターン全12種。配置順序（外→内: 傍点→傍線→ルビ→本文）の確認用',
     xml: `<?xml version="1.0" encoding="UTF-8"?>

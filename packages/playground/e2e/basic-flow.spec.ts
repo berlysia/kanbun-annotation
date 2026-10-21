@@ -153,6 +153,18 @@ test.describe('Render Options', () => {
   });
 });
 
+test.describe('Explicit line break', () => {
+  test('the line-break sample renders <br> without errors', async ({ page }) => {
+    await page.goto('/');
+    await page.selectOption('#sample-select', { label: '改行（句の途中で行を改める）' });
+    await page.waitForTimeout(400);
+
+    await expect(page.locator('#xml-input')).toHaveValue(/<skam:br\/>/);
+    await expect(page.locator('#error-panel')).toBeEmpty();
+    await expect(page.locator('#render-output br.skam-linebreak')).toHaveCount(1);
+  });
+});
+
 test.describe('URL State Persistence', () => {
   test('sample selection updates URL', async ({ page }) => {
     await page.goto('/');

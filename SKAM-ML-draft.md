@@ -173,15 +173,15 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 
 各要素が子に持てるものの正本である。§7.3 以降の各節は、この表を参照する。
 
-| 親要素                                                                   | 子に持てるもの                                                       |
-| ------------------------------------------------------------------------ | -------------------------------------------------------------------- |
-| `skam:block`、`skam:span`、`skam:tateten`                                | テキスト、§7 のすべての注記要素、位置マーク（kaeri / kutoten / ref） |
-| `skam:yomigana`                                                          | テキスト、`skam:kun`                                                 |
-| `skam:okimoji`、`skam:joji`、`skam:okototen`、`skam:base`（saidokuの中） | テキスト、`skam:kun`、`skam:okimoji`、`skam:joji`、`skam:okototen`   |
-| `skam:kun`、`skam:soegana`                                               | テキストのみ                                                         |
-| `skam:saidoku`                                                           | `skam:base`、`skam:kunform`                                          |
+| 親要素                                                                   | 子に持てるもの                                                            |
+| ------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
+| `skam:block`、`skam:span`、`skam:tateten`                                | テキスト、§7 のすべての注記要素、位置マーク（kaeri / kutoten / ref / br） |
+| `skam:yomigana`                                                          | テキスト、`skam:kun`                                                      |
+| `skam:okimoji`、`skam:joji`、`skam:okototen`、`skam:base`（saidokuの中） | テキスト、`skam:kun`、`skam:okimoji`、`skam:joji`、`skam:okototen`        |
+| `skam:kun`、`skam:soegana`                                               | テキストのみ                                                              |
+| `skam:saidoku`                                                           | `skam:base`、`skam:kunform`                                               |
 
-- **位置マーク**: kaeri / kutoten / ref は、`skam:block` / `skam:span` / `skam:tateten` の子にだけ置ける。
+- **位置マーク**: kaeri / kutoten / ref / br は、`skam:block` / `skam:span` / `skam:tateten` の子にだけ置ける。
 - **入れ子の意味**: 内側の要素の範囲は、外側の範囲に含まれる。
 - **範囲が同じ要素どうしの入れ子順**: 外側から次の順に並べる。
   1. `skam:span` / `skam:tateten`
@@ -213,6 +213,7 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 | -------------- | ------------------------------------------------------------------------ |
 | `skam:kutoten` | 直前 token の後（`{ blockId, after: tokenId }`）、先頭なら `{ blockId }` |
 | `skam:ref`     | 直前 token の後（`{ blockId, after: tokenId }`）、先頭なら `{ blockId }` |
+| `skam:br`      | 直前 token の後（`{ blockId, after: tokenId }`）、先頭なら `{ blockId }` |
 
 position は `{ blockId, after: tokenId }` または `{ blockId }`（ブロック先頭）の形式。`blockId` は常に必須で、要素が属する `skam:block` の ID が設定される。
 
@@ -361,6 +362,35 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 - `position = { blockId: ブロックID, after: 直前token }`（先頭の場合は `{ blockId: ブロックID }`）
 - `value = value属性`
 - `kind` があれば保持、なければパーサーが推論してもよい
+
+---
+
+### 7.5.1 `skam:br`（改行）
+
+行を改める。**position ベース**でトークン間の位置に配置される。内容を持たない空要素で、子要素もテキストも持てない。
+
+```xml
+<skam:block>
+  春眠不覺曉<skam:br/>處處聞啼鳥
+</skam:block>
+```
+
+#### 属性
+
+| 属性     | 必須 | 説明                                           |
+| -------- | ---- | ---------------------------------------------- |
+| `xml:id` | 任意 | mark の `id`。文書全体で一意でなければならない |
+
+知らない属性は読み飛ばす。
+
+#### 正規化
+
+- `marks.type = "linebreak"`
+- `position = { blockId: ブロックID, after: 直前token }`（先頭の場合は `{ blockId: ブロックID }`）
+- 直前 token は、同じブロックの中で、`skam:br` の文書順で直前にある token である。`skam:tateten` や `skam:span` の先頭に置かれた `skam:br` も、その要素より前の token の後ろになる
+- `skam:tateten` の最後の子の `skam:br` と、`skam:tateten` の直後の `skam:br` は、同じ注記になる。stringify は、竪点のグループの最後の字の後ろの改行を、`</skam:tateten>` の後ろに書く（kaeri / kutoten / ref の後ろ）
+
+置けない場所（ブロックの先頭、ブロックの最後の字の後ろ、不可分単位の中、同じ位置の 2 つ目）は SKAM-draft §6.2 の `linebreak` の書き方に従い、検証が `INVALID_LINEBREAK` にする。
 
 ---
 
@@ -918,6 +948,7 @@ SKAM-ML/XMLはHTMLに依存しない純XML語彙とし、本文構造は`skam:bl
 | `skam:span` (type="emphasis")  | `emphasis`           |
 | `skam:span` (type="highlight") | `highlight`          |
 | `skam:ref`                     | `ref`                |
+| `skam:br`                      | `linebreak`          |
 | `skam:saidoku`                 | `saidoku`            |
 | `skam:tateten`                 | `tateten`            |
 

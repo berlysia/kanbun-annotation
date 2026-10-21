@@ -1745,6 +1745,7 @@ function getMarkTypeLabel(type: string): string {
     emphasis: '傍点',
     highlight: '傍線',
     ref: '参照',
+    linebreak: '改行',
     note: '注釈',
   };
   return labels[type] ?? type;

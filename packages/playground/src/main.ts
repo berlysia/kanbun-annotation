@@ -68,6 +68,7 @@ import {
 import type { Spacing, SpacingPreset } from '@kanbun-skam/skam/rendering';
 import { SAMPLES } from './samples.js';
 import { ErrorPanel, type ParseError } from './editor/error-panel.js';
+import { LintPanel, updateLintPanel } from './editor/lint-panel.js';
 import { XmlEditor } from './editor/xml-editor.js';
 
 // ============================================================================
@@ -77,6 +78,7 @@ import { XmlEditor } from './editor/xml-editor.js';
 const xmlEditorWrapper = document.querySelector('.xml-editor-wrapper') as HTMLDivElement;
 const parseBtn = document.getElementById('parse-btn') as HTMLButtonElement;
 const errorPanelContainer = document.getElementById('error-panel') as HTMLDivElement;
+const lintPanelContainer = document.getElementById('lint-panel') as HTMLDivElement;
 const fileUpload = document.getElementById('file-upload') as HTMLInputElement;
 const uploadBtn = document.getElementById('upload-btn') as HTMLButtonElement;
 const downloadBtn = document.getElementById('download-btn') as HTMLButtonElement;
@@ -307,6 +309,9 @@ const xmlEditor = new XmlEditor(xmlEditorWrapper, {
 
 // Error Panel instance
 const errorPanel = new ErrorPanel(errorPanelContainer);
+
+// Lint Panel instance (diagnostics for documents that parse fine)
+const lintPanel = new LintPanel(lintPanelContainer);
 
 // Setup error click callback to scroll to error line in editor
 errorPanel.onErrorClick((line, _column) => {
@@ -1978,6 +1983,7 @@ function renderDocument(doc: SKAMDocument): void {
 
 function parseAndRender(): void {
   hideErrors();
+  lintPanel.clear();
 
   const xmlText = xmlEditor.getValue().trim();
   if (!xmlText) {
@@ -2011,7 +2017,10 @@ function parseAndRender(): void {
         renderDocument(doc);
       }
     }
+    // After a successful render only; failures below empty the panel in the catch
+    updateLintPanel(lintPanel, doc);
   } catch (err) {
+    lintPanel.clear();
     if (err instanceof SKAMXMLParseError) {
       const parseError: ParseError = { message: err.message };
       if (err.line !== undefined) {

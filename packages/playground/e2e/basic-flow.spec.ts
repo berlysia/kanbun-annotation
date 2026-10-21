@@ -317,3 +317,57 @@ test.describe('Error positions in the browser', () => {
     expect(errors?.[0]).toMatchObject({ path: 'marks[0].position.x', line: 5, column: 7 });
   });
 });
+
+test.describe('Lint diagnostics panel', () => {
+  // A saidoku with a single reading parses and renders, and is the only diagnostic (SAIDOKU_SINGLE_READING).
+  const SINGLE_READING_XML = `<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      <skam:saidoku>
+        <skam:base>將</skam:base>
+        <skam:kunform n="1" yomi="まさ" okuri="ニ"/>
+      </skam:saidoku>
+      <skam:kun yomi="し" okuri="ナント">死</skam:kun>
+    </skam:block>
+  </skam:body>
+</skam:doc>`;
+
+  test.beforeEach(async ({ page }) => {
+    await page.goto('/');
+  });
+
+  test('keeps the preview and lists one diagnostic', async ({ page }) => {
+    await page.fill('#xml-input', SINGLE_READING_XML);
+    await page.waitForTimeout(400);
+
+    await expect(page.locator('#render-output')).toContainText('將');
+    await expect(page.locator('#error-panel')).toBeEmpty();
+    const lintPanel = page.locator('#lint-panel');
+    await expect(lintPanel.locator('.lint-heading')).toHaveText('診断 1 件');
+    await expect(lintPanel.locator('li')).toHaveCount(1);
+    await expect(lintPanel.locator('li')).toContainText('SAIDOKU_SINGLE_READING');
+  });
+
+  test('a broken XML shows the error panel and empties the diagnostics panel', async ({ page }) => {
+    await page.fill('#xml-input', SINGLE_READING_XML);
+    await page.waitForTimeout(400);
+    await expect(page.locator('#lint-panel li')).toHaveCount(1);
+
+    await page.fill('#xml-input', '<invalid>');
+    await page.waitForTimeout(400);
+
+    await expect(page.locator('#error-panel')).toBeVisible();
+    await expect(page.locator('#lint-panel')).toBeEmpty();
+  });
+
+  test('a document without diagnostics leaves the panel empty', async ({ page }) => {
+    await page.fill(
+      '#xml-input',
+      `<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja"><skam:body><skam:block>テスト文字</skam:block></skam:body></skam:doc>`
+    );
+    await page.waitForTimeout(400);
+    await expect(page.locator('#render-output')).toContainText('テスト文字');
+    await expect(page.locator('#lint-panel')).toBeEmpty();
+  });
+});

@@ -60,8 +60,8 @@ export const SAMPLES: Sample[] = [
     <skam:block>
       <skam:kun yomi="まな" okuri="ビテ">學</skam:kun>而
       <skam:kun okuri="ニ">時</skam:kun>
-      <skam:kun okuri="フ">習</skam:kun>
-      <skam:kun soe="ヲ">之</skam:kun><skam:kaeri kind="re"/><skam:kutoten value="。" kind="ku"/>
+      <skam:kun okuri="フ">習</skam:kun><skam:kaeri kind="re"/>
+      <skam:kun soe="ヲ">之</skam:kun><skam:kutoten value="。" kind="ku"/>
     </skam:block>
   </skam:body>
   <skam:readings>
@@ -78,8 +78,8 @@ export const SAMPLES: Sample[] = [
     <skam:block>
       <skam:kun yomi="まな" okuri="ビテ">學</skam:kun>而
       <skam:kun okuri="ニ">時</skam:kun>
-      <skam:kun okuri="フ">習</skam:kun>
-      <skam:kun soe="ヲ">之</skam:kun><skam:kaeri kind="re"/><skam:kutoten value="。" kind="ku"/>
+      <skam:kun okuri="フ">習</skam:kun><skam:kaeri kind="re"/>
+      <skam:kun soe="ヲ">之</skam:kun><skam:kutoten value="。" kind="ku"/>
     </skam:block>
     <skam:block>
       不亦<skam:kun yomi="よろこ" okuri="バ">説</skam:kun>乎<skam:kutoten value="。" kind="ku"/>
@@ -133,14 +133,14 @@ export const SAMPLES: Sample[] = [
 </skam:doc>`,
   },
   {
-    name: '複合返り点（一レ点）',
-    description: '一レ点・レ点を組み合わせた複合返り点の例（不可不學＝学ばざるべからず）',
+    name: 'レ点の連続',
+    description: 'レ点を続けて付ける例（不可不學＝学ばざるべからず）',
     xml: `<?xml version="1.0" encoding="UTF-8"?>
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      不<skam:kaeri kind="ichi"/><skam:kaeri kind="re"/>
-      <skam:kun okuri="カラ">可</skam:kun>不<skam:kaeri kind="re"/>
+      不<skam:kaeri kind="re"/>
+      <skam:kun okuri="カラ">可</skam:kun><skam:kaeri kind="re"/>不<skam:kaeri kind="re"/>
       <skam:kun yomi="まな" okuri="バ">學</skam:kun><skam:kutoten value="。" kind="ku"/>
     </skam:block>
   </skam:body>
@@ -173,8 +173,8 @@ export const SAMPLES: Sample[] = [
     <skam:block>
       學而
       <skam:kun okuri="ニ">時</skam:kun>
-      <skam:kun okuri="フ">習</skam:kun>
-      <skam:kun soe="ヲ">之</skam:kun><skam:kaeri kind="re"/><skam:kutoten value="。" kind="ku"/>
+      <skam:kun okuri="フ">習</skam:kun><skam:kaeri kind="re"/>
+      <skam:kun soe="ヲ">之</skam:kun><skam:kutoten value="。" kind="ku"/>
     </skam:block>
   </skam:body>
 </skam:doc>`,
@@ -215,8 +215,8 @@ export const SAMPLES: Sample[] = [
   <skam:body>
     <skam:block>
       學<skam:ref xml:id="n1" format="numeric-bracket"/>而時
-      <skam:kun okuri="ニ">之</skam:kun><skam:kaeri kind="re"/>
-      <skam:kun okuri="フ">習</skam:kun><skam:kutoten value="。" kind="ku"/>
+      <skam:kun okuri="フ">習</skam:kun><skam:kaeri kind="re"/>
+      <skam:kun soe="ヲ">之</skam:kun><skam:kutoten value="。" kind="ku"/>
     </skam:block>
   </skam:body>
   <skam:notes>
@@ -233,8 +233,8 @@ export const SAMPLES: Sample[] = [
     <skam:block>
       <skam:span type="highlight" style="solid" ref="ref-a"><skam:kun yomi="まな" okuri="ビテ">學</skam:kun>而<skam:ref xml:id="ref-a" format="alpha-upper"/></skam:span>
       <skam:kun okuri="ニ">時</skam:kun>
-      <skam:kun okuri="フ">習</skam:kun>
-      <skam:span type="highlight" style="solid" ref="ref-b"><skam:kun soe="ヲ">之</skam:kun><skam:kaeri kind="re"/><skam:ref xml:id="ref-b" format="alpha-upper"/></skam:span><skam:kutoten value="。" kind="ku"/>
+      <skam:kun okuri="フ">習</skam:kun><skam:kaeri kind="re"/>
+      <skam:span type="highlight" style="solid" ref="ref-b"><skam:kun soe="ヲ">之</skam:kun><skam:ref xml:id="ref-b" format="alpha-upper"/></skam:span><skam:kutoten value="。" kind="ku"/>
     </skam:block>
   </skam:body>
   <skam:readings>

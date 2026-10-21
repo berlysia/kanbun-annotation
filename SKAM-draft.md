@@ -245,6 +245,8 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 
 #### kaeri の書き方
 
+- kaeri の `position.after` は、その返り点が付く字（後で読む字）。レ点は返って読む先の上の字の後ろに置く（「學而時習之」は「習」の後ろ。下の字「之」の後ろではない）。一二点や上下点も、その印が付く字の後ろに置く
+- 例外: 竪点でつないだ 2 字以上の語に付く返り点は、語の中の字と字の間に置く（「所以」に付く二は「所」の後ろ）
 - 1 つの kaeri は 1 字（一、二、レ など）を表す。一レ点のような組み合わせは、同じ `position` に 1 字ずつの kaeri を並べて書く。
 - 同じ位置の複数の kaeri は、`marks[]` の順に値をつないだ 1 つの注記と同じ意味を持つ。順は意味を持つ（`㆒`、`㆑` と `㆑`、`㆒` は別の表示になる）。
 - 1 つの kaeri の `value` に複数の字を書く形（`㆒㆑`）は、0.3 では読めるが非推奨で、0.4.0 で誤りになる。検証は警告（`KAERI_MULTI_CHARACTER`）を返す。
@@ -726,10 +728,10 @@ SKAM-ML/XML では `<skam:ref>` 要素が内容を持つ場合があるが、SKA
    - レ点: 次の token と入れ替え
    - 一二点/上下点: 対応する点までスタックに保持し、後で出力
 
-#### 例：「學而時習之」（レ点が「之」に付く）
+#### 例：「學而時習之」（レ点が「習」に付く）
 
 原順: t1(學) t2(而) t3(時) t4(習) t5(之)
-返り点: t5 にレ点
+返り点: t4 の後ろにレ点
 読み順: t1 → t2 → t3 → t5 → t4
 
 ---
@@ -1094,7 +1096,7 @@ SKAM-ML の属性は SKAM-ML-draft §10.2 を参照。
     {
       "type": "kaeri",
       "id": "m5",
-      "position": { "blockId": "b1", "after": "t5" },
+      "position": { "blockId": "b1", "after": "t4" },
       "value": "\u3191"
     }
   ],
@@ -1198,73 +1200,75 @@ SKAM-ML の属性は SKAM-ML-draft §10.2 を参照。
 
 ## Appendix D: 複合返り点の例
 
-「不可不學」（学ばざるべからず）の例。末尾の一レ点は、同じ位置に 1 字ずつの kaeri（一、レ）を並べて書く：
+「孝者所以事君也」（孝は君に事うる所以なり）の例。竪点でつないだ「所以」に付く二点は語の中の「所」の後ろに、「事」に付く一レ点は同じ位置に 1 字ずつの kaeri（一、レ）を並べて書く：
 
 ```json
 {
   "format": "skam@0.1",
   "tokens": [
-    { "id": "t1", "text": "不" },
-    { "id": "t2", "text": "可" },
-    { "id": "t3", "text": "不" },
-    { "id": "t4", "text": "學" }
+    { "id": "t1", "text": "孝" },
+    { "id": "t2", "text": "者" },
+    { "id": "t3", "text": "所" },
+    { "id": "t4", "text": "以" },
+    { "id": "t5", "text": "事" },
+    { "id": "t6", "text": "君" },
+    { "id": "t7", "text": "也" }
   ],
-  "blocks": [{ "id": "b1", "tokenIds": ["t1", "t2", "t3", "t4"] }],
+  "blocks": [{ "id": "b1", "tokenIds": ["t1", "t2", "t3", "t4", "t5", "t6", "t7"] }],
   "marks": [
     {
-      "type": "kaeri",
+      "type": "soegana",
       "id": "m1",
-      "position": { "blockId": "b1", "after": "t2" },
-      "value": "\u3193"
+      "anchor": { "from": "t1", "to": "t1" },
+      "value": "は"
     },
     {
-      "type": "kaeri",
+      "type": "tateten",
       "id": "m2",
-      "position": { "blockId": "b1", "after": "t4" },
-      "value": "\u3192"
+      "anchor": { "from": "t3", "to": "t4" }
     },
     {
       "type": "kaeri",
       "id": "m3",
-      "position": { "blockId": "b1", "after": "t4" },
-      "value": "\u3191"
+      "position": { "blockId": "b1", "after": "t3" },
+      "value": "\u3193"
     },
     {
       "type": "okurigana",
       "id": "m4",
-      "anchor": { "from": "t4", "to": "t4" },
-      "value": "ば"
+      "anchor": { "from": "t5", "to": "t5" },
+      "value": "うる"
     },
     {
-      "type": "okurigana",
+      "type": "kaeri",
       "id": "m5",
-      "anchor": { "from": "t3", "to": "t3" },
-      "value": "ざる"
+      "position": { "blockId": "b1", "after": "t5" },
+      "value": "\u3192"
     },
     {
-      "type": "okurigana",
+      "type": "kaeri",
       "id": "m6",
-      "anchor": { "from": "t2", "to": "t2" },
-      "value": "から"
+      "position": { "blockId": "b1", "after": "t5" },
+      "value": "\u3191"
     },
     {
-      "type": "okurigana",
+      "type": "soegana",
       "id": "m7",
-      "anchor": { "from": "t1", "to": "t1" },
-      "value": "ず"
+      "anchor": { "from": "t6", "to": "t6" },
+      "value": "に"
     }
   ],
   "derivations": [
     {
       "kind": "readingOrder",
       "method": "kaeriten-stack",
-      "result": ["t4", "t3", "t2", "t1"]
+      "result": ["t1", "t2", "t6", "t5", "t3", "t4", "t7"]
     }
   ],
   "readings": [
     {
       "kind": "kakikudashi",
-      "text": "学ばざるべからず"
+      "text": "孝は君に事うる所以なり"
     }
   ]
 }
@@ -1328,7 +1332,7 @@ SKAM-ML の属性は SKAM-ML-draft §10.2 を参照。
     {
       "type": "kaeri",
       "id": "m7",
-      "position": { "blockId": "b1", "after": "t5" },
+      "position": { "blockId": "b1", "after": "t4" },
       "value": "\u3191"
     }
   ],

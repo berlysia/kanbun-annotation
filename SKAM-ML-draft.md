@@ -255,7 +255,7 @@ position は `{ blockId, after: tokenId }` または `{ blockId }`（ブロッ�
 
 ```xml
 <skam:block>
-  學而<skam:kaeri kind="re"/>時習之
+  學而時習<skam:kaeri kind="re"/>之
 </skam:block>
 ```
 
@@ -283,6 +283,8 @@ position は `{ blockId, after: tokenId }` または `{ blockId }`（ブロッ�
 | `otsu` | 乙              |
 | `hei`  | 丙              |
 | `tei`  | 丁              |
+
+`skam:kaeri` は、その返り点が付く字（後で読む字）の直後に書く。レ点は返って読む先の上の字の直後に書く（`時習<skam:kaeri kind="re"/>之`。下の字「之」の後ろではない）。竪点でつないだ語に付く返り点は、語の中の字と字の間に書く（`<skam:tateten>所<skam:kaeri kind="ni"/>以</skam:tateten>`）。
 
 複合返り点（例: 一レ）は、同じ位置に `skam:kaeri` を 1 字ずつ並べて書く（`<skam:kaeri kind="ichi"/><skam:kaeri kind="re"/>`）。同じ位置の複数の `skam:kaeri` は、文書の順につないだ 1 つの注記と同じ意味を持ち、順は意味を持つ。
 
@@ -895,9 +897,9 @@ skam:note (content を提供)
       <skam:kun yomi="まな" okuri="びて">學</skam:kun>
       而
       <skam:kun okuri="に">時</skam:kun>
-      <skam:kun soe="を">之</skam:kun>
-      <skam:kaeri kind="re"/>
       <skam:kun okuri="ふ">習</skam:kun>
+      <skam:kaeri kind="re"/>
+      <skam:kun soe="を">之</skam:kun>
       <skam:ref xml:id="n1" format="numeric-bracket"/>
     </skam:block>
   </skam:body>
@@ -925,8 +927,8 @@ skam:note (content を提供)
         <skam:kunform n="1" yomi="まさ" okuri="に"/>
         <skam:kunform n="2" okuri="す"/>
       </skam:saidoku>
-      <skam:kun yomi="し" okuri="な">死</skam:kun>
       <skam:kaeri kind="re"/>
+      <skam:kun yomi="し" okuri="な">死</skam:kun>
     </skam:block>
   </skam:body>
 
@@ -956,9 +958,9 @@ skam:note (content を提供)
     <skam:block>
       <skam:kun yomi="まな" okuri="びて">學</skam:kun>
       而時
-      <skam:kun okuri="に">之</skam:kun>
-      <skam:kaeri kind="re"/>
       <skam:kun okuri="ふ">習</skam:kun>
+      <skam:kaeri kind="re"/>
+      <skam:kun soe="を">之</skam:kun>
       <skam:kutoten value="。"/>
     </skam:block>
   </skam:body>
@@ -978,10 +980,10 @@ skam:note (content を提供)
         而
         <skam:kun okuri="に">時</skam:kun>
         <skam:kun okuri="ふ">習</skam:kun>
+        <skam:kaeri kind="re"/>
       </skam:span>
-      <skam:ref format="iroha-katakana"/>
+      <skam:ref xml:id="ref-1" format="iroha-katakana"/>
       <skam:kun soe="を">之</skam:kun>
-      <skam:kaeri kind="re"/>
     </skam:block>
   </skam:body>
 </skam:doc>
@@ -996,9 +998,9 @@ skam:note (content を提供)
       <skam:kun yomi="まな" okuri="びて">學</skam:kun>
       而
       <skam:kun okuri="に">時</skam:kun>
-      <skam:kun soe="を">之</skam:kun>
-      <skam:kaeri kind="re"/>
       <skam:kun okuri="ふ">習</skam:kun>
+      <skam:kaeri kind="re"/>
+      <skam:kun soe="を">之</skam:kun>
       <skam:ref xml:id="n1" format="numeric-bracket"/>
     </skam:block>
   </skam:body>

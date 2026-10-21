@@ -273,20 +273,21 @@ function computeBlockFlags(children: CanvasBlockChild[]): BlockLayoutFlags {
  * BlockLayoutFlags は AIR のスロット情報から導出する。
  */
 export function convertAIRToCanvasRenderTree(air: AIRDocument): CanvasRenderTree {
-  const blockNodes: CanvasBlockNode[] = air.blocks.map((airBlock) => {
+  const blockNodes: CanvasBlockNode[] = air.blocks.flatMap((airBlock) => {
     const children: CanvasBlockChild[] = airBlock.children.map(convertBlockChild);
 
     // Range info が non-tateten トークンにある場合の concentration 適用
     applyNonTatetenRangeConcentration(airBlock, children);
 
-    const flags = computeBlockFlags(children);
-
-    return {
+    // 改行の注記 (lineBreakAfter) は、ブロックの中を区間に分けて 1 区間を 1 列にする。
+    // 区間の間の空きは、ブロックの間の空き (columnGap) と同じ値になる。
+    // 区間ごとにフラグを求めるので、改行で分けた区間は、最初からブロックを分けた文書と同じ幅・座標になる
+    return splitAtLineBreaks(children, collectLineBreakAfterTokenIds(airBlock)).map((segment) => ({
       type: 'block' as const,
       blockId: airBlock.blockId,
-      children,
-      flags,
-    };
+      children: segment,
+      flags: computeBlockFlags(segment),
+    }));
   });
 
   // ドキュメント全体のフラグ
@@ -314,6 +315,93 @@ export function convertAIRToCanvasRenderTree(air: AIRDocument): CanvasRenderTree
     hasHighlight,
     hasRefLabel,
   };
+}
+
+// ============================================================================
+// 改行 (linebreak): ブロックを区間に分ける
+// ============================================================================
+
+/**
+ * AIR の lineBreakAfter から、「この字の後ろで列を改める」字の id を集める。
+ * 読みの範囲の印は範囲を描く先頭の字に付いているが、Canvas は字を 1 つずつ描くので、
+ * 範囲の最後の字の後ろで改める。竪点のグループの印はグループの最後の字の後ろ。
+ */
+function collectLineBreakAfterTokenIds(airBlock: AIRBlock): Set<string> {
+  const ids = new Set<string>();
+  const visit = (node: AIRTokenNode | AIRTatetenGroupNode): void => {
+    if (!node.lineBreakAfter) return;
+    if (node.type === 'token') {
+      ids.add(node.rangeInfo?.toTokenId ?? node.token.id);
+      return;
+    }
+    const lastToken = node.children.findLast((c): c is AIRTokenNode => c.type === 'token');
+    if (lastToken) ids.add(lastToken.token.id);
+  };
+  for (const child of airBlock.children) {
+    if (child.type === 'highlight-group') child.children.forEach(visit);
+    else visit(child);
+  }
+  return ids;
+}
+
+/** 子の中で最後に描く字の id */
+function lastTokenIdOf(child: CanvasTokenNode | CanvasTatetenGroupNode): string | undefined {
+  if (child.type === 'token') return child.token.id;
+  return child.children.findLast((c): c is CanvasTokenNode => c.type === 'token')?.token.id;
+}
+
+/**
+ * ブロックの子を、改行の後ろで区間に分ける。改行が無ければ元の子の並びを 1 区間で返す。
+ * highlight-group の途中で分けるときは、グループを 2 つに分ける (傍線は列ごとに引く)。
+ * 参照ラベルは傍線の上端に付くので、前の区間のグループが持つ。
+ */
+function splitAtLineBreaks(
+  children: CanvasBlockChild[],
+  breakAfter: ReadonlySet<string>
+): CanvasBlockChild[][] {
+  if (breakAfter.size === 0) return [children];
+
+  const segments: CanvasBlockChild[][] = [];
+  let current: CanvasBlockChild[] = [];
+  const cut = (): void => {
+    segments.push(current);
+    current = [];
+  };
+
+  for (const child of children) {
+    if (child.type !== 'highlight-group') {
+      current.push(child);
+      const last = lastTokenIdOf(child);
+      if (last !== undefined && breakAfter.has(last)) cut();
+      continue;
+    }
+
+    let part: (CanvasTokenNode | CanvasTatetenGroupNode)[] = [];
+    let isFirstPart = true;
+    const flush = (): void => {
+      const { highlightRef, refLabel, ...rest } = child;
+      current.push({
+        ...rest,
+        ...(isFirstPart && highlightRef ? { highlightRef } : {}),
+        ...(isFirstPart && refLabel ? { refLabel } : {}),
+        children: part,
+      });
+      part = [];
+      isFirstPart = false;
+    };
+    child.children.forEach((hlChild) => {
+      part.push(hlChild);
+      const last = lastTokenIdOf(hlChild);
+      if (last === undefined || !breakAfter.has(last)) return;
+      // 最後の子の後ろなら、flush した 1 つ目が group 全体になり、group の後ろで切ることになる
+      flush();
+      cut();
+    });
+    if (part.length > 0) flush();
+  }
+
+  if (current.length > 0) segments.push(current);
+  return segments;
 }
 
 /**

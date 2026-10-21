@@ -19,6 +19,7 @@ import type {
   GlyphGridCoord,
   SaidokuForm,
   RefFormat,
+  LinebreakPlacementIssue,
 } from './index.js';
 import { HIGHLIGHT_STYLES, isValidHighlightStyle } from './highlight-styles.js';
 import {
@@ -31,6 +32,7 @@ import {
   BLOCK_START_KAERI_HINT,
 } from './errors.js';
 import { isPositionBasedMark } from './operations/index.js';
+import { getLinebreakPlacementIssues } from './line-units.js';
 
 const VALID_FORMAT: SKAMVersion = 'skam@0.1';
 
@@ -48,6 +50,7 @@ const VALID_MARK_TYPES: MarkType[] = [
   'tateten',
   'highlight',
   'ref',
+  'linebreak',
 ];
 
 const VALID_REF_FORMATS: RefFormat[] = [
@@ -759,6 +762,7 @@ function validateMarkTypeFields(
     case 'okimoji':
     case 'joji':
     case 'tateten':
+    case 'linebreak':
       return true; // No additional required fields
     case 'kutoten':
       return validateKutotenMark(mark, path, errors);
@@ -832,8 +836,12 @@ function validateMark(
     }
   }
 
-  // Position-based marks (kaeri, kutoten, ref) require position instead of anchor
-  const isPositionBased = markType === 'kaeri' || markType === 'kutoten' || markType === 'ref';
+  // Position-based marks (kaeri, kutoten, ref, linebreak) require position instead of anchor
+  const isPositionBased =
+    markType === 'kaeri' ||
+    markType === 'kutoten' ||
+    markType === 'ref' ||
+    markType === 'linebreak';
 
   if (isPositionBased) {
     if (!validatePosition(mark['position'], `${path}.position`, errors)) {
@@ -1359,6 +1367,33 @@ function validateDuplicateMarks(marks: Mark[], errors: ValidationError[]): void 
   });
 }
 
+const LINEBREAK_ISSUE_MESSAGES: Record<LinebreakPlacementIssue, string> = {
+  'block-start': 'linebreak must follow a token (position.after is required)',
+  'block-end': 'linebreak cannot be placed after the last token of a block',
+  'inside-unit':
+    'linebreak cannot be placed inside an unbreakable unit (tateten group or the range of yomigana, okurigana, soegana, saidoku, okimoji, joji)',
+  duplicate: 'Duplicate linebreak at the same position',
+};
+
+/** 置けない場所の linebreak を報告する。判定は描画と共有する (`getLinebreakPlacementIssues`) */
+function validateLinebreakPlacement(
+  blocks: Block[],
+  marks: Mark[],
+  errors: ValidationError[]
+): void {
+  for (const [index, issue] of getLinebreakPlacementIssues({ blocks, marks })) {
+    errors.push(
+      createValidationError(
+        'INVALID_LINEBREAK',
+        `marks[${index}].position`,
+        LINEBREAK_ISSUE_MESSAGES[issue],
+        'linebreak between two units of the same block',
+        issue
+      )
+    );
+  }
+}
+
 function validateMarkConflicts(marks: Mark[], errors: ValidationError[]): void {
   validateDuplicateMarks(marks, errors);
   // anchor-based marks を anchor key でグループ化
@@ -1592,6 +1627,7 @@ export function validateSKAMDocument(input: unknown): ValidationResult<SKAMDocum
     );
     validateAnchorBlockConstraints(blocks as Block[], marks as Mark[], errors);
     validateMarkConflicts(marks as Mark[], errors);
+    validateLinebreakPlacement(blocks as Block[], marks as Mark[], errors);
   }
 
   if (errors.length > 0) {

@@ -21,6 +21,7 @@ const FULL_PROFILE: AIRRenderProfile = {
   soegana: true,
   highlight: true,
   ref: true,
+  linebreak: true,
 };
 
 function createDoc(marks: Mark[] = []): SKAMDocument {

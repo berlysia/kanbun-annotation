@@ -68,9 +68,20 @@ assertSKAMDocument(input);
 
 返り点（kaeri）はブロックの先頭に置けない。検証エラーと parser のエラーは、同じ案内文 `BLOCK_START_KAERI_HINT`（本パッケージが export する）を使う。同じ位置の複数の kaeri は正しい書き方として許す（`marks[]` の順につないだ値と同じ意味）。
 
+## 改行
+
+`linebreak` は、`position.after` の字の後ろで行を改める位置の注記で、SKAM-ML では `<skam:br/>` と書く。次の場所には置けず、検証は `INVALID_LINEBREAK` を返す。
+
+- ブロックの先頭（`position.after` が無い）
+- ブロックの最後の字の後ろ
+- 不可分単位の中: たて点のグループの中と、`yomigana` / `okurigana` / `soegana` / `saidoku` / `okimoji` / `joji` の範囲の中（`highlight` / `emphasis` / `okototen` の範囲の中には置ける）
+- 同じ位置の 2 つ目
+
+`getLinebreakPlacementIssues(doc)` は、置けない場所にある `linebreak` を `marks[]` の添字ごとに返す（理由は `'block-start' | 'block-end' | 'inside-unit' | 'duplicate'`）。描画は同じ判定を使い、置けない `linebreak` を無視する。`@kanbun-skam/skam/rendering` の AIR では、行を改める単位のノード（`AIRTokenNode` / `AIRTatetenGroupNode`）に `lineBreakAfter: true` が付く。表示設定のキー `linebreak` を `false` にすると、改行を描かない。
+
 ## 表示設定
 
-`@kanbun-skam/skam/rendering` は、表示設定（どの注記を出すか）の `RENDER_PROFILES`、`resolveRenderProfile`、キー名の一覧 `RENDER_PROFILE_KEYS`、誤りのクラス `SKAMRenderProfileError` を export する。html-renderer と canvas-renderer も同じものを再 export する。13 個のキー名は 0.x の間も改名・削除しない（[ADR-033](https://github.com/berlysia/kanbun-annotation/blob/master/docs/decisions/adr-033-render-profile-keys-and-errors.md)）。キー名の表と、誤りの `kind` / `key` の読み方は、`@kanbun-skam/skam-html-renderer` の README の「表示プロファイル」にある。
+`@kanbun-skam/skam/rendering` は、表示設定（どの注記を出すか）の `RENDER_PROFILES`、`resolveRenderProfile`、キー名の一覧 `RENDER_PROFILE_KEYS`、誤りのクラス `SKAMRenderProfileError` を export する。html-renderer と canvas-renderer も同じものを再 export する。14 個のキー名は 0.x の間も改名・削除しない（[ADR-033](https://github.com/berlysia/kanbun-annotation/blob/master/docs/decisions/adr-033-render-profile-keys-and-errors.md)）。キー名の表と、誤りの `kind` / `key` の読み方は、`@kanbun-skam/skam-html-renderer` の README の「表示プロファイル」にある。
 
 ## 読み上げ用テキスト (`@experimental`)
 
@@ -120,6 +131,7 @@ const text = formatAccessibleText(describeAnnotationIR(air));
 | `tateten`   | たて点（熟語境界）       |
 | `highlight` | 傍線（ref を参照可）     |
 | `ref`       | 参照識別子・注釈         |
+| `linebreak` | 改行                     |
 
 ## Reading Kinds
 

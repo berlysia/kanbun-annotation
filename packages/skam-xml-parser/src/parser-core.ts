@@ -19,6 +19,7 @@ import type {
   JojiMark,
   SoeganaMark,
   KutotenMark,
+  LinebreakMark,
   IdGenerator,
   EmphasisMark,
   SaidokuMark,
@@ -263,6 +264,7 @@ const KNOWN_SKAM_ELEMENTS: ReadonlySet<string> = new Set([
   'kun',
   'yomigana',
   'kutoten',
+  'br',
   'okototen',
   'soegana',
   'okimoji',
@@ -650,6 +652,35 @@ function processKutoten(
     mark.kind = kind;
   }
 
+  pushMark(state, mark, element);
+}
+
+/**
+ * skam:br は内容を持たない空の要素で、直前の字の後ろの linebreak になる。
+ * kaeri と同じく、読んだ時点の直前の字 (同じブロックの中) に付ける。
+ * kutoten のようにブロックの終わりまで待つと、入れ子の要素 (tateten、span) の先頭に置かれた br が
+ * ブロック先頭の位置になってしまう。
+ * 置けない場所 (先頭、末尾、不可分単位の中) は validator が報告する。ここでは位置を読むだけ
+ */
+function processLinebreak(
+  element: Element,
+  state: ParserState,
+  precedingTokenId: string | null
+): void {
+  for (const child of Array.from(element.childNodes)) {
+    if (isElement(child) || (isText(child) && !/^[\t\n\r ]*$/.test(child.textContent ?? ''))) {
+      throw parseErrorAt(element, '<skam:br> must be empty');
+    }
+  }
+  const xmlIdAttr = getAttr(element, 'xml:id') || getAttr(element, 'id');
+  const position: Position = precedingTokenId
+    ? { blockId: state.currentBlockId!, after: precedingTokenId }
+    : { blockId: state.currentBlockId! };
+  const mark: LinebreakMark = {
+    type: 'linebreak',
+    id: xmlIdAttr || generateMarkId(state),
+    position,
+  };
   pushMark(state, mark, element);
 }
 
@@ -1083,6 +1114,9 @@ function processBlockChildren(element: Element, state: ParserState): string[] {
             type: 'kutoten',
             precedingTokenIndex: allTokenIds.length - 1,
           });
+          break;
+        case 'br':
+          processLinebreak(child, state, lastTokenId);
           break;
         case 'okototen': {
           const ids = processOkototen(child, state);

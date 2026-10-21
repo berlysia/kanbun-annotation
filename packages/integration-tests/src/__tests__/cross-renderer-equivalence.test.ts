@@ -44,6 +44,7 @@ const FULL_PROFILE = {
   soegana: true,
   highlight: true,
   ref: true,
+  linebreak: true,
 };
 
 // ============================================================================

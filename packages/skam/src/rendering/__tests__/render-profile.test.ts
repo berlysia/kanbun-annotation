@@ -128,12 +128,12 @@ describe('resolveRenderProfile', () => {
     }
   });
 
-  it('learningHint の saidoku だけを外し、ほかの 12 キーは変えない', () => {
+  it('learningHint の saidoku だけを外し、ほかの 13 キーは変えない', () => {
     const p = resolveRenderProfile({ base: 'learningHint', overrides: { saidoku: false } });
     const { saidoku: _a, ...rest } = p;
     const { saidoku: _b, ...hintRest } = RENDER_PROFILES.learningHint;
     expect(rest).toEqual(hintRest);
-    expect(Object.keys(p)).toHaveLength(13);
+    expect(Object.keys(p)).toHaveLength(14);
   });
 });
 
@@ -303,7 +303,7 @@ describe('SKAMRenderProfileError', () => {
 });
 
 describe('RENDER_PROFILE_KEYS', () => {
-  it('13 個の名前を固定する', () => {
+  it('14 個の名前を固定する', () => {
     // このテストを変える変更は ADR-033 の互換の方針 (改名・削除をしない) の対象になる。
     expect([...RENDER_PROFILE_KEYS].sort()).toEqual([
       'emphasis',
@@ -311,6 +311,7 @@ describe('RENDER_PROFILE_KEYS', () => {
       'joji',
       'kaeriten',
       'kutoten',
+      'linebreak',
       'okimoji',
       'okototen',
       'okurigana',

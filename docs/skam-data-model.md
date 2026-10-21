@@ -14,7 +14,7 @@ SKAMDocument
 **Stand-off 方式**: 注記は本文テキストを直接分断しない。配置方式は 2 種:
 
 - **anchor ベース** (10 種): `anchor: { from, to }` で token 範囲を参照
-- **position ベース** (kaeri, kutoten, ref): `position: { blockId, after? }` で token 間位置を参照
+- **position ベース** (kaeri, kutoten, ref, linebreak): `position: { blockId, after? }` で token 間位置を参照
 
 ## Mark Types (v0.1)
 
@@ -33,6 +33,7 @@ SKAMDocument
 | `emphasis`  | A    | 傍点・圏点                               |
 | `highlight` | A    | 傍線（ref を参照可）                     |
 | `ref`       | P    | 参照識別子・注釈（highlight と連動）     |
+| `linebreak` | P    | 改行（ブロックの中で行を改める）         |
 
 `A = anchor: { from, to }、P = position: { blockId, after? }`
 
@@ -42,7 +43,7 @@ anchor ベースと position ベースは共通基底 `MarkBase` から対等に
 
 - `MarkBase`: 共通フィールド（type, id?, placementHint?, ext?）
 - anchor ベース (10 種): `AnchoredMark extends MarkBase`。`anchor: { from, to }` で token 範囲に付随
-- position ベース (kaeri, kutoten, ref): `PositionedMark extends MarkBase`。`position: { blockId, after? }` で token 間に配置
+- position ベース (kaeri, kutoten, ref, linebreak): `PositionedMark extends MarkBase`。`position: { blockId, after? }` で token 間に配置
 
 型ガード: `isAnchorBasedMark(mark)` / `isPositionBasedMark(mark)` で判定可能
 
@@ -69,4 +70,14 @@ anchor ベースと position ベースは共通基底 `MarkBase` から対等に
 - saidoku + trailing marks: kaeri/kutoten/ref は `</skam:saidoku>` の外に配置
 - multi-token range: 最終トークンの trailing marks は range 要素外に配置
 - 複数の字の kaeri 値（`㆒㆑`、非推奨）: `ichi-re` に変換して書く（`kaeriValueToKind` 関数）。正の書き方は同じ位置の 1 字ずつの kaeri で、それぞれ `kind="ichi"`、`kind="re"` として書く。同じ位置の kaeri は `marks[]` の順に出力する
+- linebreak: 直前の字の後ろの位置マークとして、kaeri、kutoten、ref の順の後に `<skam:br/>` を書く（`id` があれば `xml:id` も書く）。竪点のグループの最後の字の後ろの位置マークは、どれも `</skam:tateten>` の後ろに書く。`after` が無い linebreak は書けない（`BLOCK_START_LINEBREAK`）
 - readings: `doc.readings` を `<skam:readings>` 要素に出力
+
+## linebreak（改行）
+
+- 置けない場所（ブロックの先頭、ブロックの最後の字の後ろ、不可分単位の中、同じ位置の 2 つ目）の判定は `packages/skam/src/line-units.ts` の `getLinebreakPlacementIssues` の 1 か所にある。validator（`INVALID_LINEBREAK`）と AIR の組み立てが同じ判定を使う
+- 不可分単位は、竪点のグループと、yomigana / okurigana / soegana / saidoku / okimoji / joji の anchor の範囲。highlight / emphasis / okototen の範囲は単位を作らない
+- 竪点のグループの範囲は、`rendering/mark-groups.ts` の `getTatetenGroups` と同じ規則を `line-units.ts` の中で別に求めている（`getTatetenGroups` は循環する依存を持つため使えない）。2 つの一致は `packages/skam/src/__tests__/linebreak.test.ts` が確かめる
+- AIR は新しいノードを持たず、最上位の単位のノード（`AIRTokenNode` / `AIRTatetenGroupNode`）に `lineBreakAfter?: true` を付ける。置けない場所の linebreak は描画では無視する
+- html は `<br class="{prefix}-linebreak">` を `<wbr>` の代わりに出す。canvas は AIR adapter が改行の後ろでブロックを区間に分け、1 区間を 1 列にする（区間の間の空きは列の間の空きと同じ）。canvas の `buildRenderTree`（AIR を通らない経路）は改行を扱わない
+- 読み上げのテキストは、`lineBreakAfter` の単位の後ろにブロックの区切りと同じ半角空白を 1 つ入れる。注記の一覧には出さない

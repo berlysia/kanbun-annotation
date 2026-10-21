@@ -18,6 +18,8 @@ import type {
   PositionedMark,
   AnchoredMarkType,
   PositionedMarkType,
+  LinebreakMark,
+  LinebreakPlacementIssue,
   MarkInput,
   MarkUpdates,
   AddMarkResult,
@@ -30,7 +32,10 @@ import type {
 import { validateSKAMDocument, isSKAMDocument, assertSKAMDocument } from '@kanbun-skam/skam';
 import type { ValidationWarning, ValidationWarningKind } from '@kanbun-skam/skam';
 import { KAERI_MULTI_CHARACTER } from '@kanbun-skam/skam';
+import { getLinebreakPlacementIssues } from '@kanbun-skam/skam';
 ```
+
+`getLinebreakPlacementIssues(doc)` は、置けない場所にある `linebreak` を `marks[]` の添字をキーにして返す（`Map<number, LinebreakPlacementIssue>`）。理由は `'block-start'`、`'block-end'`、`'inside-unit'`、`'duplicate'` の 4 つで、1 つの `linebreak` に付くのは最初に当たる 1 つだけ。置ける `linebreak` は含まれない。validator はこの結果を `INVALID_LINEBREAK`（`path` は `marks[i].position`）にし、描画は同じ結果で置けない `linebreak` を無視する。
 
 `valid: true` の結果は、警告があるときだけ `warnings?: ValidationWarning[]` を持つ（無いときはキーごと無い）。`ValidationWarning` は `kind`、`path`、`message` を持つ。`message` は固定の文で、入力由来の値を含まない。
 
@@ -173,9 +178,9 @@ import type {
   AIRTrailingMark,
   AIRRangeInfo,
   AIRTokenSlots,
-  AIRTokenNode,
+  AIRTokenNode, // lineBreakAfter?: true
   AIRTatetenSeparator,
-  AIRTatetenGroupNode,
+  AIRTatetenGroupNode, // lineBreakAfter?: true
   AIRHighlightGroupNode,
   AIRBlockStartRef,
   AIRBlockStartKutoten,

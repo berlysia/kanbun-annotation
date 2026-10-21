@@ -142,6 +142,18 @@ const doc = parse(xml, { trustedTypesPolicy: policy });
 </skam:block>
 ```
 
+### 改行
+
+`<skam:br/>` は、直前の字の後ろで行を改める。内容を持たない空要素で、子や文字を持つと誤りになる。`xml:id` を書くと、その値が mark の `id` になる。
+
+<!-- doctest:xml block -->
+
+```xml
+春眠不覺曉<skam:br/>處處聞啼鳥
+```
+
+ブロックの先頭、ブロックの最後の字の後ろ、不可分単位の中（たて点のグループの中など）、同じ位置の 2 つ目に置いた `<skam:br/>` は、`validate: true`（既定）で `INVALID_LINEBREAK` の誤りになる。`validate: false` では読める（ブロック先頭の `<skam:br/>` は `after` の無い注記になる）。
+
 ### 再読文字
 
 <!-- doctest:xml block -->
@@ -198,7 +210,7 @@ const doc = parse(xml, { trustedTypesPolicy: policy });
 
 ## 往復変換と ID
 
-XML には token と mark の ID を書かない。`parse` はこれらの ID を毎回生成し直すので、JSON → XML → JSON と往復すると、token と mark の ID は元の値と一致しない。token や mark の ID を使った外部の参照は、往復で失われる。block と ref の `xml:id` は XML に書かれ、`parse` はそれを読む（`xml:id` がなければ生成する）。
+XML には token と mark の ID を書かない。`parse` はこれらの ID を毎回生成し直すので、JSON → XML → JSON と往復すると、token と mark の ID は元の値と一致しない。token や mark の ID を使った外部の参照は、往復で失われる。block、ref、`skam:br` の `xml:id` は XML に書かれ、`parse` はそれを読む（`xml:id` がなければ生成する）。
 
 決定的な出力が要るとき（スナップショットテストなど）は、`idGenerator: createSequentialIdGenerator()` を渡す。`createSequentialIdGenerator` は `@kanbun-skam/skam` から import する。
 

@@ -40,6 +40,7 @@ import {
   SKAMValidationError,
   HIGHLIGHT_STYLES,
   isValidHighlightStyle,
+  splitGraphemes,
 } from '@kanbun-skam/skam';
 import {
   extensionRegistry,
@@ -632,20 +633,29 @@ function generateMarkId(state: ParserState): string {
 // ============================================================================
 
 // SKAM-ML §6.2 が無視する空白 + U+000D。/\s/ は U+3000 (全角空白) も含むが、全角空白は token として残す
-const XML_IGNORED_WHITESPACE = /^[\t\n\r ]$/;
+const XML_IGNORED_LEADING_WHITESPACE = /^[\t\n\r ]+/;
 
 function addTokensFromText(text: string, state: ParserState, owner: Element): string[] {
   const ids: string[] = [];
   const tracker = state.positionTracker;
 
-  // Split by grapheme clusters (simplified: by character)
-  for (const char of text) {
-    if (XML_IGNORED_WHITESPACE.test(char)) {
+  // テキストノードごとに分ける。ノードをまたぐクラスタを作ると、要素の外の字が要素の中の token に入り、
+  // stringify で元の形に戻らない
+  for (const cluster of splitGraphemes(text)) {
+    // 空白で始まるクラスタは、先頭の空白だけ落とす (\r\n は丸ごと落ちる。空白 + 結合文字は結合文字だけが残る)
+    const char = cluster.replace(XML_IGNORED_LEADING_WHITESPACE, '');
+    // 位置は先頭の code point だけで探す。クラスタ全体で探すと、`葛&#xE0100;` のようにリテラルと
+    // 文字参照が混ざるときにソースの中で見つからない
+    const lead = char === '' ? cluster : char;
+    const leadLength = String.fromCodePoint(lead.codePointAt(0)!).length;
+    const leadText = lead.slice(0, leadLength);
+
+    if (char === '') {
       // Skip whitespace but update search offset if tracking
       if (tracker) {
-        const pos = tracker.findText(char, state.currentSearchOffset);
+        const pos = tracker.findText(leadText, state.currentSearchOffset);
         if (pos !== -1) {
-          state.currentSearchOffset = pos + char.length;
+          state.currentSearchOffset = pos + leadLength;
         }
       }
       continue;
@@ -656,14 +666,16 @@ function addTokensFromText(text: string, state: ParserState, owner: Element): st
 
     // Add position info if tracking is enabled
     if (tracker) {
-      const charPos = tracker.findText(char, state.currentSearchOffset);
+      const charPos = tracker.findText(leadText, state.currentSearchOffset);
       if (charPos !== -1) {
+        // リテラルで書かれたクラスタはソースに全体が並ぶので終端まで含める。文字参照が混ざるときは先頭の code point まで
+        const spanLength = tracker.getSource().startsWith(char, charPos) ? char.length : leadLength;
         const startPos = tracker.offsetToPosition(charPos);
-        const endPos = tracker.offsetToPosition(charPos + char.length);
+        const endPos = tracker.offsetToPosition(charPos + spanLength);
 
         // Convert to byte offsets for the offset field
         const startByteOffset = tracker.getByteOffset(charPos);
-        const endByteOffset = tracker.getByteOffset(charPos + char.length);
+        const endByteOffset = tracker.getByteOffset(charPos + spanLength);
 
         const position: TokenPosition = {
           start: { ...startPos, offset: startByteOffset },
@@ -671,7 +683,7 @@ function addTokensFromText(text: string, state: ParserState, owner: Element): st
         };
 
         token.ext = { ...token.ext, position };
-        state.currentSearchOffset = charPos + char.length;
+        state.currentSearchOffset = charPos + spanLength;
       }
     }
 

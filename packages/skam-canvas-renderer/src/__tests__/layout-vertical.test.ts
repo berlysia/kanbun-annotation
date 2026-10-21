@@ -1741,3 +1741,31 @@ describe('computeRangeRubyOverflow', () => {
     expect(result.spanHeight).toBe(8);
   });
 });
+
+describe('layoutVertical - ruby length counts grapheme clusters', () => {
+  /** Layout of the first token with the ruby text removed, so only the coordinates are compared */
+  const layoutWithRuby = (ruby: string, tokenCount: 1 | 2) => {
+    const tokens = tokenCount === 1 ? ['學'] : ['學', '而'];
+    const doc: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: tokens.map((text, i) => ({ id: `t${i + 1}`, text })),
+      blocks: [{ id: 'b1', tokenIds: tokens.map((_, i) => `t${i + 1}`) }],
+      marks: [{ type: 'yomigana', anchor: { from: 't1', to: `t${tokenCount}` }, value: ruby }],
+      readings: [],
+    };
+    const result = layout(buildRenderTree(doc, PROFILES.full), new RecordingContext());
+    return result.columns[0]!.children.map((child) => {
+      const token = asToken(child);
+      const { text: _text, ...ruby } = token.slots.ruby ?? { text: '' };
+      return { x: token.x, y: token.y, ruby };
+    });
+  };
+
+  it('treats か + combining voiced mark like the composed が (single token)', () => {
+    expect(layoutWithRuby('か\u3099', 1)).toEqual(layoutWithRuby('\u304C', 1));
+  });
+
+  it('treats か + combining voiced mark like the composed が (range ruby)', () => {
+    expect(layoutWithRuby('か\u3099', 2)).toEqual(layoutWithRuby('\u304C', 2));
+  });
+});

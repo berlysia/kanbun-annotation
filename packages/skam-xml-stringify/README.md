@@ -124,6 +124,7 @@ console.log(xml, losses[0].path); // path: "/ext"
 | ------------------------ | ----------------- | ---------------------------------------------------------------------------------- |
 | `DERIVATIONS`            | `unrepresentable` | `derivations` は SKAM-ML に書けない（コンパイル時に生成される）                    |
 | `ASCII_WHITESPACE_TOKEN` | `unrepresentable` | SKAM-ML が無視する空白だけの token                                                 |
+| `MULTI_GRAPHEME_TOKEN`   | `unrepresentable` | 拡張書記素クラスタを 2 つ以上含む token（読み直すと複数の token に分かれる）       |
 | `BLOCK_START_KAERI`      | `unrepresentable` | ブロック先頭の返り点（直前の token がない）                                        |
 | `BLOCK_START_LINEBREAK`  | `unrepresentable` | ブロック先頭の改行（直前の token がない）                                          |
 | `DANGLING_REFERENCE`     | `unrepresentable` | 存在しない token / block、またはどのブロックにも属さない token を指す              |
@@ -134,6 +135,15 @@ console.log(xml, losses[0].path); // path: "/ext"
 | `EXT`                    | `unsupported`     | `ext` と `custom` を書く場所がない（宣言のある文書で書く場所の無い拡張の値を含む） |
 | `UNKNOWN_EXTENSION`      | `unsupported`     | 書き方を知らない拡張の値、または名前空間の URI が分からない拡張の宣言              |
 | `PLACEMENT_HINT`         | `unsupported`     | `placementHint` を書く場所がない                                                   |
+
+### token と書記素
+
+1 つの token は拡張書記素クラスタ 1 つに限る。IVS・SVS・結合文字を基底文字と同じ token に持つのは損失ではない。`text: '学問'` のように 2 つ以上のクラスタを持つ token は `MULTI_GRAPHEME_TOKEN` になる（path は `/tokens/<添字>`、message に本文は入らない）。1 字ずつの token に分けるか、`lossy: true` で受け入れる。空白だけの token は `ASCII_WHITESPACE_TOKEN` だけを報告する。
+
+次の 2 つは損失として報告しないが、読み直すと token が変わる。どちらも `parse` が作る token には現れず、手で書いた JSON にだけ現れる。
+
+- 無視する空白で始まり、空白だけではない token（`' \u0301'`）: 先頭の空白が落ちる。
+- 結合文字や選択子で始まる token が、前の token と同じテキストに書かれる（`['葛', '\u{E0100}']`）: 1 つの token にまとまる。
 
 ### 内容モデル表
 

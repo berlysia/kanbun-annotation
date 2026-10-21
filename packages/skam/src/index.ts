@@ -526,6 +526,8 @@ export { moveLegacyExtToCustom } from './legacy-ext.js';
 
 export { isLanguageTag } from './language-tag.js';
 
+export { splitGraphemes } from './graphemes.js';
+
 export {
   type ValidateOptions,
   validateSKAMDocument,

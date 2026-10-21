@@ -5,6 +5,7 @@
  */
 
 import type { SKAMDocument, Token } from '@kanbun-skam/skam';
+import { splitGraphemes } from '@kanbun-skam/skam';
 import { groupTokensByBlock } from '@kanbun-skam/skam/rendering';
 
 /**
@@ -39,14 +40,15 @@ function isNarrowCodePoint(codePoint: number): boolean {
 }
 
 /**
- * 隠す注記の中身を、1 字ずつ空白に置き換える。全角の字は U+3000、半角の字は U+00A0。
+ * 隠す注記の中身を、書記素 1 つずつ空白に置き換える。全角の字は U+3000、半角の字は U+00A0。
+ * 幅は書記素の先頭の code point で決める (結合文字や選択子は幅を変えない)。
  * 占める場所は残るが、字数は空白の数から分かる。結果は escape の要らない空白だけ
  * @internal
  */
 export function blankOut(text: string): string {
   let blank = '';
-  for (const char of text) {
-    blank += isNarrowCodePoint(char.codePointAt(0)!) ? '\u00A0' : '\u3000';
+  for (const cluster of splitGraphemes(text)) {
+    blank += isNarrowCodePoint(cluster.codePointAt(0)!) ? '\u00A0' : '\u3000';
   }
   return blank;
 }
@@ -58,7 +60,7 @@ export function blankOut(text: string): string {
 export function generateEmphasisMarks(text: string, emphasisChar: string): string {
   // 公開関数なので、直接呼ばれても HTML を壊さないよう傍点の文字をここで 1 回だけ escape する
   const escapedChar = escapeHtml(emphasisChar);
-  return Array.from(text)
+  return splitGraphemes(text)
     .map(() => escapedChar)
     .join('');
 }

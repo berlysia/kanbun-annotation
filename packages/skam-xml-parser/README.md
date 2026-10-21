@@ -235,7 +235,14 @@ XML には token と mark の ID を書かない。`parse` はこれらの ID �
 
 ## IVS と結合文字
 
-`parse` は本文を code point ごとに別の token にする。異体字セレクタ（IVS）や結合文字は、基底文字とは別の token になる。注記を付けるときは、基底文字の token を anchor にする。
+`parse` は本文を拡張書記素クラスタ（Unicode の extended grapheme cluster）ごとに 1 つの token にする。異体字セレクタ（IVS・SVS）や結合文字は、基底文字と同じ token に入る。`<skam:p>葛&#xE0100;城</skam:p>` は `葛` + U+E0100 と `城` の 2 つの token になる。分割は `@kanbun-skam/skam` の `splitGraphemes` で、`Intl.Segmenter` が要る（無い実行環境では `TypeError`）。
+
+- 分けるのはテキストノードごと。要素をまたぐクラスタは作らない。`<skam:kun ...>葛</skam:kun>&#xE0100;` の IVS は、要素の後ろで単独の token になる。テキストの先頭に結合文字や異体字セレクタだけが来た場合も同じ。
+- 無視する空白（U+0009・U+000A・U+000D・U+0020）は、クラスタの先頭から取り除く。残りが空なら token にならない（`\r\n` など）。空白の後ろに結合文字が続くときは、結合文字だけが token になる。U+3000 は token になる。
+- `trackPositions: true` の位置は、クラスタの先頭の字を指す。リテラルで書いたクラスタは終端までを含み、文字参照が混ざるときは先頭の字までを含む。
+- 実行環境が持つ Unicode の版で、絵文字の ZWJ 列などの分かれ方が変わりうる。CJK の字、IVS、SVS、結合文字の組は版で変わらない。
+
+注記を付けるときは、クラスタの token を anchor にする。
 
 ## 0.1.x の parser との互換性
 

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { getVerticalForm, drawVerticalText } from '../draw-text.js';
+import { getVerticalForm, drawVerticalText, drawKutotenText } from '../draw-text.js';
 import { RecordingContext } from './recording-context.js';
 
 describe('getVerticalForm', () => {
@@ -72,5 +72,29 @@ describe('drawVerticalText with brackets', () => {
     // No rotate/translate calls
     const rotateCalls = ctx.calls.filter((c) => c.method === 'rotate');
     expect(rotateCalls).toHaveLength(0);
+  });
+});
+
+describe('grapheme clusters', () => {
+  const fillTexts = (ctx: RecordingContext) =>
+    ctx.calls.filter((c) => c.method === 'fillText').map((c) => c.args[0]);
+
+  it('drawVerticalText draws an IVS with its base character in one fillText', () => {
+    const ctx = new RecordingContext();
+    drawVerticalText(ctx, '葛\u{E0100}城', 100, 0, 24, '#000', 'serif');
+    expect(fillTexts(ctx)).toEqual(['葛\u{E0100}', '城']);
+  });
+
+  it('drawKutotenText draws one fillText per grapheme cluster', () => {
+    const ctx = new RecordingContext();
+    drawKutotenText(ctx, '。\u3099、', 100, 0, 24, '#000', 'serif');
+    expect(fillTexts(ctx)).toEqual(['。\u3099', '、']);
+  });
+
+  it('draws 1000 combining marks after one base as a single fillText', () => {
+    const ctx = new RecordingContext();
+    const text = '字' + '\u0301'.repeat(1000);
+    expect(() => drawVerticalText(ctx, text, 100, 0, 24, '#000', 'serif')).not.toThrow();
+    expect(fillTexts(ctx)).toEqual([text]);
   });
 });

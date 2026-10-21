@@ -233,6 +233,8 @@ XML には token と mark の ID を書かない。`parse` はこれらの ID �
 
 決定的な出力が要るとき（スナップショットテストなど）は、`idGenerator: createSequentialIdGenerator()` を渡す。`createSequentialIdGenerator` は `@kanbun-skam/skam` から import する。
 
+`parse` は、生成器が返した ID が本文（`skam:body`）の block、ref、`skam:br` に明示された `xml:id`（または `id`）と同じ値なら、その値を捨てて生成器を呼び直す。連番の生成器が `<skam:block xml:id="b2">` と同じ `b2` を振って重複を起こさないための扱いで、利用者が渡した生成器にも同じに働く。このため、衝突したときは `generate` が余分に呼ばれ、捨てた値は使われない。知らない `skam:*` 要素の中に明示した ID があっても避けるので、連番に欠番ができることがある。呼び直しは 1 回の生成につき、明示した ID の数 + 1 回までで、それでも衝突し続けると `SKAMXMLParseError` を投げる（message に ID の値は入らない）。
+
 ## IVS と結合文字
 
 `parse` は本文を拡張書記素クラスタ（Unicode の extended grapheme cluster）ごとに 1 つの token にする。異体字セレクタ（IVS・SVS）や結合文字は、基底文字と同じ token に入る。`<skam:p>葛&#xE0100;城</skam:p>` は `葛` + U+E0100 と `城` の 2 つの token になる。分割は `@kanbun-skam/skam` の `splitGraphemes` で、`Intl.Segmenter` が要る（無い実行環境では `TypeError`）。

@@ -892,3 +892,147 @@ describe('parse - position tracking', () => {
     expect(token.ext?.['position']).toBeDefined();
   });
 });
+
+// ============================================================================
+// Sequential ID generator vs explicit ids
+// ============================================================================
+
+describe('parse - generated ids avoid explicit ids', () => {
+  const wrap = (body: string) => `<?xml version="1.0" encoding="UTF-8"?>
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>${body}</skam:body>
+</skam:doc>`;
+  const markIds = (doc: ReturnType<typeof parseSeq>) => doc.marks.map((m) => m.id);
+
+  it('skips an explicit block id that comes after id-less blocks', () => {
+    const doc = parseSeq(
+      wrap(
+        '<skam:block>一</skam:block>' +
+          '<skam:block>二</skam:block>' +
+          '<skam:block xml:id="b2">三</skam:block>'
+      )
+    );
+    expect(doc.blocks.map((b) => b.id)).toEqual(['b1', 'b3', 'b2']);
+  });
+
+  it('skips an explicit block id that comes first', () => {
+    const doc = parseSeq(
+      wrap('<skam:block xml:id="b1">一</skam:block>' + '<skam:block>二</skam:block>')
+    );
+    expect(doc.blocks.map((b) => b.id)).toEqual(['b1', 'b2']);
+  });
+
+  it('skips an explicit ref xml:id', () => {
+    const doc = parseSeq(
+      wrap(
+        '<skam:block><skam:kun yomi="まな">學</skam:kun><skam:ref xml:id="m1" label="A"/></skam:block>'
+      )
+    );
+    expect(markIds(doc).filter((id) => id === 'm1')).toHaveLength(1);
+    expect(doc.marks.find((m) => m.type === 'ref')?.id).toBe('m1');
+  });
+
+  it('skips an explicit ref id attribute', () => {
+    const doc = parseSeq(
+      wrap(
+        '<skam:block><skam:kun yomi="まな">學</skam:kun><skam:ref id="m1" label="A"/></skam:block>'
+      )
+    );
+    expect(markIds(doc).filter((id) => id === 'm1')).toHaveLength(1);
+  });
+
+  it('skips an explicit skam:br id', () => {
+    const doc = parseSeq(
+      wrap(
+        '<skam:block><skam:kun yomi="まな">學</skam:kun><skam:kun yomi="じ">而</skam:kun>' +
+          '<skam:br xml:id="m2"/><skam:kun yomi="あ">亜</skam:kun></skam:block>'
+      )
+    );
+    const ids = markIds(doc);
+    expect(new Set(ids).size).toBe(ids.length);
+    expect(doc.marks.find((m) => m.type === 'linebreak')?.id).toBe('m2');
+    expect(ids.filter((id) => id === 'm2')).toHaveLength(1);
+  });
+
+  it('skips a token id equal to an explicit block id (one set across prefixes)', () => {
+    const doc = parseSeq(wrap('<skam:block xml:id="t1"><skam:p>一二</skam:p></skam:block>'));
+    expect(doc.tokens.map((t) => t.id)).not.toContain('t1');
+  });
+
+  it('treats an explicit ref id as explicit even when it equals a skipped generated id', () => {
+    const doc = parseSeq(
+      wrap(
+        '<skam:block><skam:kun yomi="まな">學</skam:kun>' +
+          '<skam:span type="highlight" ref="other"><skam:ref xml:id="m1" label="A"/>而</skam:span></skam:block>'
+      )
+    );
+    const highlight = doc.marks.find((m) => m.type === 'highlight') as { ref?: string };
+    expect(highlight.ref).toBe('other');
+  });
+
+  it('also skips explicit ids inside subtrees the parser does not read', () => {
+    const doc = parseSeq(
+      wrap('<skam:future><skam:block xml:id="b1"/></skam:future>' + '<skam:block>一</skam:block>')
+    );
+    expect(doc.blocks.map((b) => b.id)).toEqual(['b2']);
+  });
+
+  it('treats an empty xml:id as absent', () => {
+    const doc = parseSeq(wrap('<skam:block xml:id="">一</skam:block>'));
+    expect(doc.blocks.map((b) => b.id)).toEqual(['b1']);
+  });
+
+  it('calls the generator in proportion to the number of explicit ids', () => {
+    const explicit = Array.from(
+      { length: 10000 },
+      (_, i) => `<skam:block xml:id="b${i + 1}"/>`
+    ).join('');
+    const base = createSequentialIdGenerator();
+    const calls: Record<string, number> = {};
+    const doc = parse(wrap(`${explicit}<skam:block>一</skam:block>`), {
+      idGenerator: {
+        generate(prefix) {
+          calls[prefix] = (calls[prefix] ?? 0) + 1;
+          return base.generate(prefix);
+        },
+      },
+    });
+    expect(doc.blocks[doc.blocks.length - 1]?.id).toBe('b10001');
+    expect(calls['b']).toBe(10001);
+  });
+
+  it('throws SKAMXMLParseError without the id value when the generator keeps colliding', () => {
+    const xml = wrap('<skam:block xml:id="b1"/><skam:block>一</skam:block>');
+    const parseWithStuck = () => parse(xml, { idGenerator: { generate: () => 'b1' } });
+    expect(parseWithStuck).toThrow(SKAMXMLParseError);
+    expect(parseWithStuck).not.toThrow(/b1/);
+  });
+
+  it('uses the next value when the generator collides only once', () => {
+    const values = ['b1', 'b9'];
+    const doc = parse(wrap('<skam:block xml:id="b1"/><skam:block>一</skam:block>'), {
+      idGenerator: { generate: (prefix) => values.shift() ?? `${prefix}x${values.length}` },
+    });
+    expect(doc.blocks[1]?.id).toBe('b9');
+  });
+
+  it('still reports DUPLICATE_ID for two identical explicit ids', () => {
+    const xml = wrap(
+      '<skam:block xml:id="b1">一</skam:block>' + '<skam:block xml:id="b1">二</skam:block>'
+    );
+    expect(() => parseSeq(xml)).toThrow(/Duplicate block ID/);
+  });
+
+  it('keeps the usual ids when no explicit id exists', () => {
+    const doc = parseSeq(wrap('<skam:block><skam:kun yomi="まな">學</skam:kun>而</skam:block>'));
+    expect(doc.blocks[0]?.id).toBe('b1');
+    expect(doc.tokens.map((t) => t.id)).toEqual(['t1', 't2']);
+    expect(doc.marks[0]?.id).toBe('m1');
+  });
+
+  it('keeps the shape of random ids with the default generator', () => {
+    const doc = parse(wrap('<skam:block>一</skam:block>'));
+    expect(doc.blocks[0]?.id).toMatch(/^b-[0-9a-f]{8}$/);
+    expect(doc.tokens[0]?.id).toMatch(/^t-[0-9a-f]{8}$/);
+  });
+});

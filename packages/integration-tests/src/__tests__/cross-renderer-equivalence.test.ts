@@ -158,13 +158,13 @@ describe('cross-renderer equivalence: tateten+kaeri', () => {
 
     const firstToken = tatetenGroup.children[0] as AIRTokenNode;
     // レ成分がトークンの kaeri スロットに
-    expect(firstToken.slots.kaeri).toBeTruthy();
+    expect(firstToken.slots.kaeri).toBe('㆑');
 
     const separator = tatetenGroup.children[1]!;
     expect(separator.type).toBe('tateten-separator');
     // 非レ成分（一）がセパレータの kaeri に
     if (separator.type === 'tateten-separator') {
-      expect(separator.kaeri).toBeTruthy();
+      expect(separator.kaeri).toBe('㆒');
     }
   });
 

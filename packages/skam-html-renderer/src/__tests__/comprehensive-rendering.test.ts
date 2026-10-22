@@ -15,12 +15,26 @@
  * 8. Okototen grid/shape variations
  * 9. Complex document rendering（全マーク種別混在）
  * 10. Writing mode × mark type interactions
+ *
+ * 検査は HTML の文字列への部分一致ではなく、DOM にして「どの字の単位のどの部品に何があるか」を
+ * 引く (helpers/dom-contract.ts)。文字列のまま確かめるのは、出力の文字列そのものが契約である
+ * escape と出力の先頭のタグだけ。
  */
 import { describe, it, expect } from 'vitest';
 import type { SKAMDocument, Mark } from '@kanbun-skam/skam';
 import { KAERI } from '@kanbun-skam/skam';
 import { render, PROFILES } from '../index.js';
 import { expectCSSRule, expectCSSRuleLacksDeclaration } from './helpers/css-contract.js';
+import {
+  all,
+  attr,
+  closestPart,
+  count,
+  partText,
+  parts,
+  renderDom,
+  unit,
+} from './helpers/dom-contract.js';
 
 // ============================================================================
 // Test Helpers
@@ -109,6 +123,33 @@ function createMultiBlockDoc(marks: Mark[] = []): SKAMDocument {
   };
 }
 
+/** 範囲 from..to に含まれる字 (文書の順)。件数の期待値を文書から数えるのに使う */
+function tokensInRange(doc: SKAMDocument, from: string, to: string): string[] {
+  const ids = doc.blocks.flatMap((block) => block.tokenIds);
+  const start = ids.indexOf(from);
+  const end = ids.indexOf(to);
+  return ids.slice(start, end + 1).map((id) => doc.tokens.find((token) => token.id === id)!.text);
+}
+
+/** 文書の注記の数 */
+function countMarks(doc: SKAMDocument, type: Mark['type']): number {
+  return doc.marks.filter((mark) => mark.type === type).length;
+}
+
+function cssValue(el: Element, property: string): string {
+  return (el as HTMLElement).style.getPropertyValue(property);
+}
+
+/** 字の単位のうち、部品を 1 つだけ持つもの */
+function expectOnly(root: Element, texts: string[], name: Parameters<typeof parts>[2]): void {
+  for (const text of texts) expect(parts(root, text, name)).toHaveLength(1);
+}
+
+/** 表示される文字 (DOM の textContent) に、その文字列があるか */
+function containsText(root: Element, text: string): boolean {
+  return (root.textContent ?? '').includes(text);
+}
+
 // ============================================================================
 // 1. Multi-token range rendering
 // ============================================================================
@@ -119,43 +160,39 @@ describe('Multi-token range rendering', () => {
       const doc = createTwoTokenDoc('朝', '廷', [
         { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'ちょうてい' },
       ]);
-      const { html } = render(doc);
-      // Multi-token base text is segmented into individual spans
-      expect(html).toContain('skam-base-seg');
-      expect(html).toContain('朝');
-      expect(html).toContain('廷');
-      expect(html).toContain('ちょうてい');
-      expect(html).toContain('skam-ruby');
+      const root = renderDom(doc);
+      const base = tokensInRange(doc, 't1', 't2');
+      // Multi-token base text is segmented into individual spans, in one unit
+      expect(parts(root, base.join(''), 'baseSeg').map((seg) => seg.textContent)).toEqual(base);
+      expect(partText(root, base.join(''), 'ruby')).toBe('ちょうてい');
     });
 
     it('3-token yomigana: segments all token texts with base-seg spans', () => {
       const doc = createThreeTokenDoc('自', '由', '民', [
         { type: 'yomigana', anchor: { from: 't1', to: 't3' }, value: 'じゆうみん' },
       ]);
-      const { html } = render(doc);
-      expect(html).toContain('skam-base-seg');
-      expect(html).toContain('自');
-      expect(html).toContain('由');
-      expect(html).toContain('民');
-      expect(html).toContain('じゆうみん');
+      const root = renderDom(doc);
+      const base = tokensInRange(doc, 't1', 't3');
+      expect(parts(root, base.join(''), 'baseSeg').map((seg) => seg.textContent)).toEqual(base);
+      expect(partText(root, base.join(''), 'ruby')).toBe('じゆうみん');
     });
 
     it('2-token yomigana with interactive: data-token-from/to', () => {
       const doc = createTwoTokenDoc('朝', '廷', [
         { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'ちょうてい' },
       ]);
-      const { html } = render(doc, { interactive: true });
-      expect(html).toContain('data-token-from="t1"');
-      expect(html).toContain('data-token-to="t2"');
+      const root = renderDom(doc, { interactive: true });
+      const range = unit(root, '朝廷').querySelector('[data-token-from]')!;
+      expect(attr(range, 'data-token-from')).toBe('t1');
+      expect(attr(range, 'data-token-to')).toBe('t2');
     });
 
     it('multi-char yomi with single token', () => {
       const doc = createSingleTokenDoc('學', [
         { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まなぶ' },
       ]);
-      const { html } = render(doc);
-      expect(html).toContain('まなぶ');
-      expect(html).toContain('skam-ruby');
+      const root = renderDom(doc);
+      expect(partText(root, '學', 'ruby')).toBe('まなぶ');
     });
   });
 
@@ -164,18 +201,16 @@ describe('Multi-token range rendering', () => {
       const doc = createTwoTokenDoc('自', '然', [
         { type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'と' },
       ]);
-      const { html } = render(doc);
-      expect(html).toContain('skam-okuri');
-      expect(html).toContain('と');
+      const root = renderDom(doc);
+      expect(partText(root, '自然', 'okuri')).toBe('と');
     });
 
     it('multi-char okurigana on single token', () => {
       const doc = createSingleTokenDoc('學', [
         { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'びて' },
       ]);
-      const { html } = render(doc);
-      expect(html).toContain('びて');
-      expect(html).toContain('skam-okuri');
+      const root = renderDom(doc);
+      expect(partText(root, '學', 'okuri')).toBe('びて');
     });
   });
 
@@ -184,9 +219,8 @@ describe('Multi-token range rendering', () => {
       const doc = createTwoTokenDoc('天', '下', [
         { type: 'soegana', anchor: { from: 't1', to: 't2' }, value: 'をば' },
       ]);
-      const { html } = render(doc);
-      expect(html).toContain('skam-soegana');
-      expect(html).toContain('をば');
+      const root = renderDom(doc);
+      expect(partText(root, '天下', 'soe')).toBe('をば');
     });
   });
 
@@ -195,21 +229,27 @@ describe('Multi-token range rendering', () => {
       const doc = createThreeTokenDoc('子', '曰', '學', [
         { type: 'emphasis', anchor: { from: 't1', to: 't3' }, style: 'filled dot' },
       ]);
-      const { html } = render(doc);
-      expect(html).toContain('skam-emphasis');
-      // All 3 tokens should have emphasis style applied
-      // Count occurrences of emphasis style
-      const emphasisCount = (html.match(/text-emphasis-style/g) ?? []).length;
-      expect(emphasisCount).toBeGreaterThanOrEqual(3);
+      const root = renderDom(doc);
+      const covered = tokensInRange(doc, 't1', 't3');
+      // All 3 tokens should have emphasis style applied, and no more
+      expect(count(root, 'emphasis')).toBe(covered.length);
+      for (const text of covered) {
+        const [emphasis] = parts(root, text, 'emphasis');
+        expect(cssValue(emphasis!, 'text-emphasis-style')).toBe('filled dot');
+      }
     });
 
     it('2-token range emphasis with different style', () => {
       const doc = createTwoTokenDoc('重', '要', [
         { type: 'emphasis', anchor: { from: 't1', to: 't2' }, style: 'open circle' },
       ]);
-      const { html } = render(doc);
-      expect(html).toContain('skam-emphasis');
-      expect(html).toContain('text-emphasis-style: open circle');
+      const root = renderDom(doc);
+      const covered = tokensInRange(doc, 't1', 't2');
+      expect(count(root, 'emphasis')).toBe(covered.length);
+      for (const text of covered) {
+        const [emphasis] = parts(root, text, 'emphasis');
+        expect(cssValue(emphasis!, 'text-emphasis-style')).toBe('open circle');
+      }
     });
   });
 
@@ -218,17 +258,22 @@ describe('Multi-token range rendering', () => {
       const doc = createThreeTokenDoc('子', '曰', '學', [
         { type: 'highlight', anchor: { from: 't1', to: 't3' }, style: 'solid' },
       ]);
-      const { html } = render(doc);
-      expect(html).toContain('skam-highlight');
-      expect(html).toContain('data-style="solid"');
+      const root = renderDom(doc);
+      const highlight = closestPart(root, '子', 'highlight')!;
+      expect(attr(highlight, 'data-style')).toBe('solid');
+      // One highlight holds the whole range
+      expect(all(root, 'highlight')).toEqual([highlight]);
+      for (const text of tokensInRange(doc, 't1', 't3')) {
+        expect(closestPart(root, text, 'highlight')).toBe(highlight);
+      }
     });
 
     it('multi-token highlight with wavy style', () => {
       const doc = createThreeTokenDoc('子', '曰', '學', [
         { type: 'highlight', anchor: { from: 't1', to: 't3' }, style: 'wavy' },
       ]);
-      const { html } = render(doc);
-      expect(html).toContain('data-style="wavy"');
+      const root = renderDom(doc);
+      expect(attr(closestPart(root, '子', 'highlight')!, 'data-style')).toBe('wavy');
     });
   });
 
@@ -237,9 +282,13 @@ describe('Multi-token range rendering', () => {
       const doc = createThreeTokenDoc('朝', '聞', '道', [
         { type: 'tateten', anchor: { from: 't1', to: 't3' } },
       ]);
-      const { html } = render(doc);
-      expect(html).toContain('skam-tateten-group');
-      expect(html).toContain('skam-tateten-mark');
+      const root = renderDom(doc);
+      const covered = tokensInRange(doc, 't1', 't3');
+      const group = closestPart(root, '朝', 'tatetenGroup')!;
+      expect(all(root, 'tatetenGroup')).toEqual([group]);
+      for (const text of covered) expect(closestPart(root, text, 'tatetenGroup')).toBe(group);
+      // A mark between each pair of neighbours
+      expect(count(root, 'tatetenMark')).toBe(covered.length - 1);
     });
   });
 
@@ -248,18 +297,19 @@ describe('Multi-token range rendering', () => {
       const doc = createTwoTokenDoc('於', '是', [
         { type: 'okimoji', anchor: { from: 't1', to: 't2' } },
       ]);
-      const { html } = render(doc);
-      expect(html).toContain('skam-okimoji');
+      const root = renderDom(doc);
+      expectOnly(root, tokensInRange(doc, 't1', 't2'), 'okimoji');
     });
 
     it('3-token okimoji range: all tokens should have okimoji class', () => {
       const doc = createThreeTokenDoc('於', '是', '乎', [
         { type: 'okimoji', anchor: { from: 't1', to: 't3' } },
       ]);
-      const { html } = render(doc);
-      // All 3 tokens should have okimoji class applied
-      const okimojiCount = (html.match(/skam-okimoji/g) ?? []).length;
-      expect(okimojiCount).toBeGreaterThanOrEqual(3);
+      const root = renderDom(doc);
+      // All 3 tokens should have okimoji class applied, and no more
+      const covered = tokensInRange(doc, 't1', 't3');
+      expectOnly(root, covered, 'okimoji');
+      expect(count(root, 'okimoji')).toBe(covered.length);
     });
   });
 
@@ -268,18 +318,19 @@ describe('Multi-token range rendering', () => {
       const doc = createTwoTokenDoc('而', '已', [
         { type: 'joji', anchor: { from: 't1', to: 't2' } },
       ]);
-      const { html } = render(doc);
-      expect(html).toContain('skam-joji');
+      const root = renderDom(doc);
+      expectOnly(root, tokensInRange(doc, 't1', 't2'), 'joji');
     });
 
     it('3-token joji range: all tokens should have joji class', () => {
       const doc = createThreeTokenDoc('之', '乎', '矣', [
         { type: 'joji', anchor: { from: 't1', to: 't3' } },
       ]);
-      const { html } = render(doc);
-      // All 3 tokens should have joji class applied
-      const jojiCount = (html.match(/skam-joji/g) ?? []).length;
-      expect(jojiCount).toBeGreaterThanOrEqual(3);
+      const root = renderDom(doc);
+      // All 3 tokens should have joji class applied, and no more
+      const covered = tokensInRange(doc, 't1', 't3');
+      expectOnly(root, covered, 'joji');
+      expect(count(root, 'joji')).toBe(covered.length);
     });
   });
 
@@ -288,10 +339,10 @@ describe('Multi-token range rendering', () => {
       const doc = createThreeTokenDoc('不', '可', '得', [
         { type: 'kaeri', position: { blockId: 'b1', after: 't3' }, value: '㆒' },
       ]);
-      const { html } = render(doc);
-      // Kaeriten should be applied
-      const kaeriCount = (html.match(/skam-kaeriten/g) ?? []).length;
-      expect(kaeriCount).toBeGreaterThanOrEqual(1);
+      const root = renderDom(doc);
+      // Kaeriten is applied to the token it follows, and only there
+      expect(partText(root, '得', 'kaeri')).toBe(KAERI.ICHI);
+      expect(count(root, 'kaeri')).toBe(countMarks(doc, 'kaeri'));
     });
   });
 });
@@ -306,11 +357,9 @@ describe('Mark combination rendering', () => {
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
       { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'びて' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('まな');
-    expect(html).toContain('びて');
-    expect(html).toContain('skam-ruby');
-    expect(html).toContain('skam-okuri');
+    const root = renderDom(doc);
+    expect(partText(root, '學', 'ruby')).toBe('まな');
+    expect(partText(root, '學', 'okuri')).toBe('びて');
   });
 
   it('yomigana + kaeri on same token', () => {
@@ -318,10 +367,9 @@ describe('Mark combination rendering', () => {
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'なら' },
       { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('なら');
-    expect(html).toContain('skam-kaeriten');
-    expect(html).toContain(KAERI.RE); // レ
+    const root = renderDom(doc);
+    expect(partText(root, '習', 'ruby')).toBe('なら');
+    expect(partText(root, '習', 'kaeri')).toBe(KAERI.RE); // レ
   });
 
   it('yomigana + okurigana + kaeri on same token', () => {
@@ -330,13 +378,10 @@ describe('Mark combination rendering', () => {
       { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'ふ' },
       { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('なら');
-    expect(html).toContain('ふ');
-    expect(html).toContain(KAERI.RE); // レ
-    expect(html).toContain('skam-ruby');
-    expect(html).toContain('skam-okuri');
-    expect(html).toContain('skam-kaeriten');
+    const root = renderDom(doc);
+    expect(partText(root, '習', 'ruby')).toBe('なら');
+    expect(partText(root, '習', 'okuri')).toBe('ふ');
+    expect(partText(root, '習', 'kaeri')).toBe(KAERI.RE); // レ
   });
 
   it('yomigana + okurigana + kaeri + soegana on same token', () => {
@@ -346,15 +391,11 @@ describe('Mark combination rendering', () => {
       { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆓' },
       { type: 'soegana', anchor: { from: 't1', to: 't1' }, value: 'を' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('まな');
-    expect(html).toContain('ブ');
-    expect(html).toContain(KAERI.NI); // 二
-    expect(html).toContain('を');
-    expect(html).toContain('skam-ruby');
-    expect(html).toContain('skam-okuri');
-    expect(html).toContain('skam-kaeriten');
-    expect(html).toContain('skam-soegana');
+    const root = renderDom(doc);
+    expect(partText(root, '學', 'ruby')).toBe('まな');
+    expect(partText(root, '學', 'okuri')).toBe('ブ');
+    expect(partText(root, '學', 'kaeri')).toBe(KAERI.NI); // 二
+    expect(partText(root, '學', 'soe')).toBe('を');
   });
 
   it('emphasis + yomigana + okurigana on same token', () => {
@@ -363,10 +404,11 @@ describe('Mark combination rendering', () => {
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
       { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'ブ' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('skam-emphasis');
-    expect(html).toContain('まな');
-    expect(html).toContain('ブ');
+    const root = renderDom(doc);
+    // With a reading, the grid draws the emphasis in its own row
+    expect(parts(root, '學', 'emphasisRow')).toHaveLength(1);
+    expect(partText(root, '學', 'ruby')).toBe('まな');
+    expect(partText(root, '學', 'okuri')).toBe('ブ');
   });
 
   it('okimoji + kaeri on same token', () => {
@@ -374,10 +416,9 @@ describe('Mark combination rendering', () => {
       { type: 'okimoji', anchor: { from: 't1', to: 't1' } },
       { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆒' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('skam-okimoji');
-    expect(html).toContain('skam-kaeriten');
-    expect(html).toContain(KAERI.ICHI); // 一
+    const root = renderDom(doc);
+    expect(parts(root, '而', 'okimoji')).toHaveLength(1);
+    expect(partText(root, '而', 'kaeri')).toBe(KAERI.ICHI); // 一
   });
 
   it('joji + okurigana on same token', () => {
@@ -385,9 +426,9 @@ describe('Mark combination rendering', () => {
       { type: 'joji', anchor: { from: 't1', to: 't1' } },
       { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'の' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('skam-joji');
-    expect(html).toContain('の');
+    const root = renderDom(doc);
+    expect(parts(root, '之', 'joji')).toHaveLength(1);
+    expect(partText(root, '之', 'okuri')).toBe('の');
   });
 
   it('anchor mark + kutoten after same token', () => {
@@ -395,11 +436,9 @@ describe('Mark combination rendering', () => {
       { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'や' },
       { type: 'kutoten', position: { blockId: 'b1', after: 't1' }, value: '。' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('skam-okuri');
-    expect(html).toContain('や');
-    expect(html).toContain('skam-suffix-kutoten');
-    expect(html).toContain('。');
+    const root = renderDom(doc);
+    expect(partText(root, '乎', 'okuri')).toBe('や');
+    expect(partText(root, '乎', 'kutoten')).toBe('。');
   });
 
   it('yomigana + ref after same token', () => {
@@ -407,10 +446,9 @@ describe('Mark combination rendering', () => {
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
       { type: 'ref', position: { blockId: 'b1', after: 't1' }, format: 'iroha-katakana' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('まな');
-    expect(html).toContain('skam-ref');
-    expect(html).toContain('イ');
+    const root = renderDom(doc);
+    expect(partText(root, '學', 'ruby')).toBe('まな');
+    expect(partText(root, '學', 'ref')).toBe('（イ）');
   });
 
   it('highlight range with yomigana on inner tokens', () => {
@@ -419,10 +457,14 @@ describe('Mark combination rendering', () => {
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
       { type: 'yomigana', anchor: { from: 't3', to: 't3' }, value: 'とき' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('skam-highlight');
-    expect(html).toContain('まな');
-    expect(html).toContain('とき');
+    const root = renderDom(doc);
+    const highlight = closestPart(root, '學', 'highlight');
+    expect(highlight).not.toBeNull();
+    expect(closestPart(root, '時', 'highlight')).toBe(highlight);
+    expect(partText(root, '學', 'ruby')).toBe('まな');
+    expect(partText(root, '時', 'ruby')).toBe('とき');
+    // The token between them has no reading
+    expect(partText(root, '而', 'ruby')).toBeNull();
   });
 
   it('highlight range with okurigana + kaeri on inner tokens', () => {
@@ -431,10 +473,12 @@ describe('Mark combination rendering', () => {
       { type: 'okurigana', anchor: { from: 't2', to: 't2' }, value: 'ハズ' },
       { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆑' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('skam-highlight');
-    expect(html).toContain('ハズ');
-    expect(html).toContain('skam-kaeriten');
+    const root = renderDom(doc);
+    expect(closestPart(root, '能', 'highlight')).not.toBeNull();
+    expect(partText(root, '能', 'okuri')).toBe('ハズ');
+    expect(partText(root, '能', 'kaeri')).toBe(KAERI.RE);
+    expect(partText(root, '不', 'okuri')).toBeNull();
+    expect(partText(root, '爲', 'kaeri')).toBeNull();
   });
 
   it('tateten + yomigana on grouped tokens', () => {
@@ -442,9 +486,11 @@ describe('Mark combination rendering', () => {
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'ちょうもん' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('skam-tateten-group');
-    expect(html).toContain('ちょうもん');
+    const root = renderDom(doc);
+    expect(closestPart(root, '朝', 'tatetenGroup')).not.toBeNull();
+    // The group reading belongs to every token of the group
+    expect(partText(root, '朝', 'ruby')).toBe('ちょうもん');
+    expect(partText(root, '聞', 'ruby')).toBe('ちょうもん');
   });
 
   it('tateten + yomigana: tateten-mark separator preserved between tokens', () => {
@@ -452,10 +498,10 @@ describe('Mark combination rendering', () => {
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'ちょうもん' },
     ]);
-    const { html } = render(doc);
+    const root = renderDom(doc);
     // tateten-mark separator should exist between grouped tokens
     // even when multi-token yomigana spans the same range
-    expect(html).toContain('skam-tateten-mark');
+    expect(count(root, 'tatetenMark')).toBe(doc.tokens.length - 1);
   });
 
   it('tateten + okurigana: tateten-mark separator preserved between tokens', () => {
@@ -463,10 +509,10 @@ describe('Mark combination rendering', () => {
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
       { type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'き' },
     ]);
-    const { html } = render(doc);
+    const root = renderDom(doc);
     // tateten-mark separator should exist between grouped tokens
     // even when multi-token okurigana spans the same range
-    expect(html).toContain('skam-tateten-mark');
+    expect(count(root, 'tatetenMark')).toBe(doc.tokens.length - 1);
   });
 
   it('3-token tateten + yomigana: all tateten-mark separators preserved', () => {
@@ -474,12 +520,16 @@ describe('Mark combination rendering', () => {
       { type: 'tateten', anchor: { from: 't1', to: 't3' } },
       { type: 'yomigana', anchor: { from: 't1', to: 't3' }, value: 'ちょうもんどう' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('skam-tateten-group');
-    expect(html).toContain('ちょうもんどう');
+    const root = renderDom(doc);
+    const covered = tokensInRange(doc, 't1', 't3');
+    const group = closestPart(root, '朝', 'tatetenGroup');
+    expect(group).not.toBeNull();
+    for (const text of covered) {
+      expect(closestPart(root, text, 'tatetenGroup')).toBe(group);
+      expect(partText(root, text, 'ruby')).toBe('ちょうもんどう');
+    }
     // 3 tokens should have 2 tateten-mark separators
-    const markCount = (html.match(/skam-tateten-mark/g) ?? []).length;
-    expect(markCount).toBe(2);
+    expect(count(root, 'tatetenMark')).toBe(covered.length - 1);
   });
 
   it('tateten + soegana: tateten-mark separator preserved between tokens', () => {
@@ -487,8 +537,8 @@ describe('Mark combination rendering', () => {
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
       { type: 'soegana', anchor: { from: 't1', to: 't2' }, value: 'を' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('skam-tateten-mark');
+    const root = renderDom(doc);
+    expect(count(root, 'tatetenMark')).toBe(doc.tokens.length - 1);
   });
 
   it('emphasis range + tateten on same range', () => {
@@ -496,9 +546,12 @@ describe('Mark combination rendering', () => {
       { type: 'emphasis', anchor: { from: 't1', to: 't2' }, style: 'filled dot' },
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('skam-emphasis');
-    expect(html).toContain('skam-tateten-group');
+    const root = renderDom(doc);
+    const covered = tokensInRange(doc, 't1', 't2');
+    expectOnly(root, covered, 'emphasis');
+    const group = closestPart(root, '天', 'tatetenGroup');
+    expect(group).not.toBeNull();
+    expect(closestPart(root, '道', 'tatetenGroup')).toBe(group);
   });
 
   // Range kana marks merge tokens, causing per-token marks on middle tokens to be lost
@@ -509,10 +562,11 @@ describe('Mark combination rendering', () => {
       { type: 'yomigana', anchor: { from: 't1', to: 't3' }, value: 'ここに' },
       { type: 'okimoji', anchor: { from: 't2', to: 't2' } },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('ここに');
+    const root = renderDom(doc);
+    const range = tokensInRange(doc, 't1', 't3').join('');
+    expect(partText(root, range, 'ruby')).toBe('ここに');
     // okimoji on the middle token should still be reflected in the output
-    expect(html).toContain('skam-okimoji');
+    expect(parts(root, range, 'okimoji')).toHaveLength(1);
   });
 
   it('range yomigana + joji on middle token: joji should be preserved', () => {
@@ -520,10 +574,11 @@ describe('Mark combination rendering', () => {
       { type: 'yomigana', anchor: { from: 't1', to: 't3' }, value: 'えざる' },
       { type: 'joji', anchor: { from: 't2', to: 't2' } },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('えざる');
+    const root = renderDom(doc);
+    const range = tokensInRange(doc, 't1', 't3').join('');
+    expect(partText(root, range, 'ruby')).toBe('えざる');
     // joji on the middle token should still be reflected in the output
-    expect(html).toContain('skam-joji');
+    expect(parts(root, range, 'joji')).toHaveLength(1);
   });
 
   it('range yomigana + emphasis on middle token: emphasis should be preserved', () => {
@@ -531,10 +586,11 @@ describe('Mark combination rendering', () => {
       { type: 'yomigana', anchor: { from: 't1', to: 't3' }, value: 'てんちじん' },
       { type: 'emphasis', anchor: { from: 't2', to: 't2' }, style: 'filled dot' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('てんちじん');
+    const root = renderDom(doc);
+    const range = tokensInRange(doc, 't1', 't3').join('');
+    expect(partText(root, range, 'ruby')).toBe('てんちじん');
     // emphasis on the middle token should still be reflected in the output
-    expect(html).toContain('skam-emphasis');
+    expect(parts(root, range, 'emphasisRow')).toHaveLength(1);
   });
 
   it('range okurigana + okimoji on middle token: okimoji should be preserved', () => {
@@ -542,10 +598,11 @@ describe('Mark combination rendering', () => {
       { type: 'okurigana', anchor: { from: 't1', to: 't3' }, value: 'ニ' },
       { type: 'okimoji', anchor: { from: 't2', to: 't2' } },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('ニ');
+    const root = renderDom(doc);
+    const range = tokensInRange(doc, 't1', 't3').join('');
+    expect(partText(root, range, 'okuri')).toBe('ニ');
     // okimoji on the middle token should still be reflected
-    expect(html).toContain('skam-okimoji');
+    expect(parts(root, range, 'okimoji')).toHaveLength(1);
   });
 });
 
@@ -577,9 +634,8 @@ describe('Kaeri value rendering variations', () => {
       const doc = createSingleTokenDoc('漢', [
         { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value },
       ]);
-      const { html } = render(doc);
-      expect(html).toContain('skam-kaeriten');
-      expect(html).toContain(unicode);
+      const root = renderDom(doc);
+      expect(partText(root, '漢', 'kaeri')).toBe(unicode);
     });
   }
 
@@ -589,16 +645,16 @@ describe('Kaeri value rendering variations', () => {
         // 互換: 複数の字の kaeri は 0.3 では読めるが非推奨 (0.4.0 で誤り)。この値を読めることを確かめる
         { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆒㆑' },
       ]);
-      const { html } = render(doc);
-      expect(html).toContain(KAERI.ICHI + KAERI.RE); // 一レ
+      const root = renderDom(doc);
+      expect(partText(root, '不', 'kaeri')).toBe(KAERI.ICHI + KAERI.RE); // 一レ
     });
 
     it('二レ → 二 + レ Unicode', () => {
       const doc = createSingleTokenDoc('不', [
         { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆓㆑' },
       ]);
-      const { html } = render(doc);
-      expect(html).toContain(KAERI.NI + KAERI.RE); // 二レ
+      const root = renderDom(doc);
+      expect(partText(root, '不', 'kaeri')).toBe(KAERI.NI + KAERI.RE); // 二レ
     });
 
     it('上レ → 上 + レ Unicode', () => {
@@ -606,24 +662,24 @@ describe('Kaeri value rendering variations', () => {
         // 互換: 複数の字の kaeri は 0.3 では読めるが非推奨 (0.4.0 で誤り)。この値を読めることを確かめる
         { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆖㆑' },
       ]);
-      const { html } = render(doc);
-      expect(html).toContain(KAERI.JO + KAERI.RE); // 上レ
+      const root = renderDom(doc);
+      expect(partText(root, '不', 'kaeri')).toBe(KAERI.JO + KAERI.RE); // 上レ
     });
 
     it('甲レ → 甲 + レ Unicode', () => {
       const doc = createSingleTokenDoc('不', [
         { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆙㆑' },
       ]);
-      const { html } = render(doc);
-      expect(html).toContain(KAERI.KO + KAERI.RE); // 甲レ
+      const root = renderDom(doc);
+      expect(partText(root, '不', 'kaeri')).toBe(KAERI.KO + KAERI.RE); // 甲レ
     });
 
     it('天レ → 天 + レ Unicode', () => {
       const doc = createSingleTokenDoc('不', [
         { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆝㆑' },
       ]);
-      const { html } = render(doc);
-      expect(html).toContain(KAERI.TEN + KAERI.RE); // 天レ
+      const root = renderDom(doc);
+      expect(partText(root, '不', 'kaeri')).toBe(KAERI.TEN + KAERI.RE); // 天レ
     });
   });
 });
@@ -634,21 +690,21 @@ describe('Kaeri value rendering variations', () => {
 
 describe('Emphasis style rendering variations', () => {
   const emphasisStyles = [
-    { style: 'dot', expected: 'text-emphasis-style: dot' },
-    { style: 'circle', expected: 'text-emphasis-style: circle' },
-    { style: 'double-circle', expected: 'text-emphasis-style: double-circle' },
-    { style: 'triangle', expected: 'text-emphasis-style: triangle' },
-    { style: 'sesame', expected: 'text-emphasis-style: sesame' },
-    { style: 'filled dot', expected: 'text-emphasis-style: filled dot' },
-    { style: 'filled circle', expected: 'text-emphasis-style: filled circle' },
-    { style: 'filled sesame', expected: 'text-emphasis-style: filled sesame' },
-    { style: 'filled triangle', expected: 'text-emphasis-style: filled triangle' },
-    { style: 'filled double-circle', expected: 'text-emphasis-style: filled double-circle' },
-    { style: 'open dot', expected: 'text-emphasis-style: open dot' },
-    { style: 'open circle', expected: 'text-emphasis-style: open circle' },
-    { style: 'open sesame', expected: 'text-emphasis-style: open sesame' },
-    { style: 'open triangle', expected: 'text-emphasis-style: open triangle' },
-    { style: 'open double-circle', expected: 'text-emphasis-style: open double-circle' },
+    { style: 'dot', expected: 'dot' },
+    { style: 'circle', expected: 'circle' },
+    { style: 'double-circle', expected: 'double-circle' },
+    { style: 'triangle', expected: 'triangle' },
+    { style: 'sesame', expected: 'sesame' },
+    { style: 'filled dot', expected: 'filled dot' },
+    { style: 'filled circle', expected: 'filled circle' },
+    { style: 'filled sesame', expected: 'filled sesame' },
+    { style: 'filled triangle', expected: 'filled triangle' },
+    { style: 'filled double-circle', expected: 'filled double-circle' },
+    { style: 'open dot', expected: 'open dot' },
+    { style: 'open circle', expected: 'open circle' },
+    { style: 'open sesame', expected: 'open sesame' },
+    { style: 'open triangle', expected: 'open triangle' },
+    { style: 'open double-circle', expected: 'open double-circle' },
   ];
 
   for (const { style, expected } of emphasisStyles) {
@@ -656,9 +712,10 @@ describe('Emphasis style rendering variations', () => {
       const doc = createSingleTokenDoc('道', [
         { type: 'emphasis', anchor: { from: 't1', to: 't1' }, style },
       ]);
-      const { html } = render(doc);
-      expect(html).toContain('skam-emphasis');
-      expect(html).toContain(expected);
+      const root = renderDom(doc);
+      const [emphasis] = parts(root, '道', 'emphasis');
+      expect(emphasis).toBeDefined();
+      expect(cssValue(emphasis!, 'text-emphasis-style')).toBe(expected);
     });
   }
 
@@ -666,19 +723,22 @@ describe('Emphasis style rendering variations', () => {
     const doc = createSingleTokenDoc('道', [
       { type: 'emphasis', anchor: { from: 't1', to: 't1' } },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('skam-emphasis');
-    expect(html).toContain('text-emphasis-style: filled dot');
+    const root = renderDom(doc);
+    const [emphasis] = parts(root, '道', 'emphasis');
+    expect(emphasis).toBeDefined();
+    expect(cssValue(emphasis!, 'text-emphasis-style')).toBe('filled dot');
   });
 
   it('emphasis with custom character', () => {
     const doc = createSingleTokenDoc('道', [
       { type: 'emphasis', anchor: { from: 't1', to: 't1' }, style: '★' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('skam-emphasis');
-    // Custom character is emitted as a CSS string literal (lowercase hex escape); the quotes are HTML-escaped
-    expect(html).toContain('text-emphasis-style: &quot;\\2605 &quot;');
+    const root = renderDom(doc);
+    const [emphasis] = parts(root, '道', 'emphasis');
+    expect(emphasis).toBeDefined();
+    // Custom character is emitted as a CSS string literal (lowercase hex escape).
+    // Read through the DOM, the attribute's HTML escaping is already undone
+    expect(cssValue(emphasis!, 'text-emphasis-style')).toBe('"\\2605 "');
   });
 });
 
@@ -694,9 +754,11 @@ describe('Highlight style rendering variations', () => {
       const doc = createTwoTokenDoc('重', '要', [
         { type: 'highlight', anchor: { from: 't1', to: 't2' }, style },
       ]);
-      const { html } = render(doc);
-      expect(html).toContain('skam-highlight');
-      expect(html).toContain(`data-style="${style}"`);
+      const root = renderDom(doc);
+      const highlight = closestPart(root, '重', 'highlight');
+      expect(highlight).not.toBeNull();
+      expect(attr(highlight!, 'data-style')).toBe(style);
+      expect(closestPart(root, '要', 'highlight')).toBe(highlight);
     });
   }
 
@@ -704,11 +766,12 @@ describe('Highlight style rendering variations', () => {
     const doc = createTwoTokenDoc('重', '要', [
       { type: 'highlight', anchor: { from: 't1', to: 't2' } },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('skam-highlight');
+    const root = renderDom(doc);
+    const highlight = closestPart(root, '重', 'highlight');
+    expect(highlight).not.toBeNull();
     // emphasis なし・ref なしの highlight には data-has-emphasis / data-has-ref が付かない
-    expect(html).not.toContain('data-has-emphasis');
-    expect(html).not.toContain('data-has-ref');
+    expect(highlight!.hasAttribute('data-has-emphasis')).toBe(false);
+    expect(highlight!.hasAttribute('data-has-ref')).toBe(false);
   });
 });
 
@@ -721,118 +784,117 @@ describe('Ref format rendering variations', () => {
     const doc = createSingleTokenDoc('語', [
       { type: 'ref', position: { blockId: 'b1', after: 't1' }, format: 'alpha-upper' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('(A)');
-    expect(html).toContain('skam-ref');
+    const root = renderDom(doc);
+    expect(partText(root, '語', 'ref')).toBe('(A)');
   });
 
   it('alpha-lower: (a)', () => {
     const doc = createSingleTokenDoc('語', [
       { type: 'ref', position: { blockId: 'b1', after: 't1' }, format: 'alpha-lower' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('(a)');
+    const root = renderDom(doc);
+    expect(partText(root, '語', 'ref')).toBe('(a)');
   });
 
   it('numeric-paren: (1)', () => {
     const doc = createSingleTokenDoc('語', [
       { type: 'ref', position: { blockId: 'b1', after: 't1' }, format: 'numeric-paren' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('(1)');
+    const root = renderDom(doc);
+    expect(partText(root, '語', 'ref')).toBe('(1)');
   });
 
   it('numeric-bracket: [1]', () => {
     const doc = createSingleTokenDoc('語', [
       { type: 'ref', position: { blockId: 'b1', after: 't1' }, format: 'numeric-bracket' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('[1]');
+    const root = renderDom(doc);
+    expect(partText(root, '語', 'ref')).toBe('[1]');
   });
 
   it('numeric-circled: ①', () => {
     const doc = createSingleTokenDoc('語', [
       { type: 'ref', position: { blockId: 'b1', after: 't1' }, format: 'numeric-circled' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('①');
+    const root = renderDom(doc);
+    expect(partText(root, '語', 'ref')).toBe('①');
   });
 
   it('iroha-katakana: （イ）', () => {
     const doc = createSingleTokenDoc('語', [
       { type: 'ref', position: { blockId: 'b1', after: 't1' }, format: 'iroha-katakana' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('（イ）');
+    const root = renderDom(doc);
+    expect(partText(root, '語', 'ref')).toBe('（イ）');
   });
 
   it('iroha-hiragana: （い）', () => {
     const doc = createSingleTokenDoc('語', [
       { type: 'ref', position: { blockId: 'b1', after: 't1' }, format: 'iroha-hiragana' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('（い）');
+    const root = renderDom(doc);
+    expect(partText(root, '語', 'ref')).toBe('（い）');
   });
 
   it('gojuon-katakana: （ア）', () => {
     const doc = createSingleTokenDoc('語', [
       { type: 'ref', position: { blockId: 'b1', after: 't1' }, format: 'gojuon-katakana' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('（ア）');
+    const root = renderDom(doc);
+    expect(partText(root, '語', 'ref')).toBe('（ア）');
   });
 
   it('gojuon-hiragana: （あ）', () => {
     const doc = createSingleTokenDoc('語', [
       { type: 'ref', position: { blockId: 'b1', after: 't1' }, format: 'gojuon-hiragana' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('（あ）');
+    const root = renderDom(doc);
+    expect(partText(root, '語', 'ref')).toBe('（あ）');
   });
 
   it('kanji-numeric: （一）', () => {
     const doc = createSingleTokenDoc('語', [
       { type: 'ref', position: { blockId: 'b1', after: 't1' }, format: 'kanji-numeric' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('（一）');
+    const root = renderDom(doc);
+    expect(partText(root, '語', 'ref')).toBe('（一）');
   });
 
   describe('multiple refs with sequential numbering', () => {
+    const sequential = (format: 'alpha-upper' | 'iroha-katakana' | 'numeric-circled'): Mark[] => [
+      { type: 'ref', position: { blockId: 'b1', after: 't1' }, format },
+      { type: 'ref', position: { blockId: 'b1', after: 't2' }, format },
+      { type: 'ref', position: { blockId: 'b1', after: 't3' }, format },
+    ];
+
     it('alpha-upper: (A), (B), (C)', () => {
-      const doc = createThreeTokenDoc('一', '二', '三', [
-        { type: 'ref', position: { blockId: 'b1', after: 't1' }, format: 'alpha-upper' },
-        { type: 'ref', position: { blockId: 'b1', after: 't2' }, format: 'alpha-upper' },
-        { type: 'ref', position: { blockId: 'b1', after: 't3' }, format: 'alpha-upper' },
+      const doc = createThreeTokenDoc('一', '二', '三', sequential('alpha-upper'));
+      const root = renderDom(doc);
+      expect(['一', '二', '三'].map((text) => partText(root, text, 'ref'))).toEqual([
+        '(A)',
+        '(B)',
+        '(C)',
       ]);
-      const { html } = render(doc);
-      expect(html).toContain('(A)');
-      expect(html).toContain('(B)');
-      expect(html).toContain('(C)');
     });
 
     it('iroha-katakana: （イ）,（ロ）,（ハ）', () => {
-      const doc = createThreeTokenDoc('一', '二', '三', [
-        { type: 'ref', position: { blockId: 'b1', after: 't1' }, format: 'iroha-katakana' },
-        { type: 'ref', position: { blockId: 'b1', after: 't2' }, format: 'iroha-katakana' },
-        { type: 'ref', position: { blockId: 'b1', after: 't3' }, format: 'iroha-katakana' },
+      const doc = createThreeTokenDoc('一', '二', '三', sequential('iroha-katakana'));
+      const root = renderDom(doc);
+      expect(['一', '二', '三'].map((text) => partText(root, text, 'ref'))).toEqual([
+        '（イ）',
+        '（ロ）',
+        '（ハ）',
       ]);
-      const { html } = render(doc);
-      expect(html).toContain('（イ）');
-      expect(html).toContain('（ロ）');
-      expect(html).toContain('（ハ）');
     });
 
     it('numeric-circled: ①, ②, ③', () => {
-      const doc = createThreeTokenDoc('一', '二', '三', [
-        { type: 'ref', position: { blockId: 'b1', after: 't1' }, format: 'numeric-circled' },
-        { type: 'ref', position: { blockId: 'b1', after: 't2' }, format: 'numeric-circled' },
-        { type: 'ref', position: { blockId: 'b1', after: 't3' }, format: 'numeric-circled' },
+      const doc = createThreeTokenDoc('一', '二', '三', sequential('numeric-circled'));
+      const root = renderDom(doc);
+      expect(['一', '二', '三'].map((text) => partText(root, text, 'ref'))).toEqual([
+        '①',
+        '②',
+        '③',
       ]);
-      const { html } = render(doc);
-      expect(html).toContain('①');
-      expect(html).toContain('②');
-      expect(html).toContain('③');
     });
   });
 
@@ -840,8 +902,8 @@ describe('Ref format rendering variations', () => {
     const doc = createSingleTokenDoc('語', [
       { type: 'ref', position: { blockId: 'b1', after: 't1' }, label: '※注' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('※注');
+    const root = renderDom(doc);
+    expect(partText(root, '語', 'ref')).toBe('※注');
   });
 
   it('ref with content generates notes section', () => {
@@ -852,10 +914,14 @@ describe('Ref format rendering variations', () => {
         content: '學問に励むこと。',
       },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('skam-notes');
-    expect(html).toContain('學問に励むこと。');
-    expect(html).toContain('[1]'); // auto-numbered
+    const root = renderDom(doc);
+    expect(count(root, 'notes')).toBe(1);
+    const items = all(root, 'noteItem');
+    expect(items).toHaveLength(countMarks(doc, 'ref'));
+    expect(items[0]!.textContent).toBe('[1]學問に励むこと。');
+    // auto-numbered: the marker in the text and the one in the note agree
+    expect(partText(root, '學', 'ref')).toBe('[1]');
+    expect(all(root, 'noteMarker')[0]!.textContent).toBe('[1]');
   });
 });
 
@@ -864,6 +930,14 @@ describe('Ref format rendering variations', () => {
 // ============================================================================
 
 describe('Saidoku rendering variations', () => {
+  /** 再読文字の読みの要素 (data-saidoku-n の順に) */
+  function saidokuReadings(root: Element, base: string): Array<[string | null, string]> {
+    return parts(root, base, 'ruby').map((el) => [
+      attr(el, 'data-saidoku-n'),
+      el.textContent ?? '',
+    ]);
+  }
+
   it('forms with only yomi (no okuri)', () => {
     const doc = createSingleTokenDoc('將', [
       {
@@ -875,11 +949,14 @@ describe('Saidoku rendering variations', () => {
         ],
       },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('skam-saidoku');
-    expect(html).toContain('まさに');
-    expect(html).toContain('data-saidoku-n="1"');
-    expect(html).toContain('data-saidoku-n="2"');
+    const root = renderDom(doc);
+    expect(parts(root, '將', 'saidoku')).toHaveLength(1);
+    expect(saidokuReadings(root, '將')).toEqual([
+      ['1', 'まさに'],
+      ['2', 'べし'],
+    ]);
+    // The second reading goes under the character
+    expect(partText(root, '將', 'saidokuUnder')).toBe('べし');
   });
 
   it('forms with only okuri (no yomi)', () => {
@@ -893,10 +970,10 @@ describe('Saidoku rendering variations', () => {
         ],
       },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('skam-saidoku');
-    expect(html).toContain('く');
-    expect(html).toContain('し');
+    const root = renderDom(doc);
+    expect(parts(root, '須', 'saidoku')).toHaveLength(1);
+    expect(partText(root, '須', 'okuri')).toBe('く');
+    expect(partText(root, '須', 'saidokuOkuri2')).toBe('し');
   });
 
   it('forms with mixed yomi/okuri', () => {
@@ -910,13 +987,11 @@ describe('Saidoku rendering variations', () => {
         ],
       },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('まさ');
-    expect(html).toContain('に');
-    expect(html).toContain('す');
+    const root = renderDom(doc);
+    expect(partText(root, '將', 'ruby')).toBe('まさ');
     // First form's okuri is in suffix-okuri, second in suffix-saidoku
-    expect(html).toContain('skam-suffix-okuri');
-    expect(html).toContain('skam-suffix-saidoku');
+    expect(partText(root, '將', 'okuri')).toBe('に');
+    expect(partText(root, '將', 'saidokuOkuri2')).toBe('す');
   });
 
   it('3-form saidoku', () => {
@@ -931,10 +1006,10 @@ describe('Saidoku rendering variations', () => {
         ],
       },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('data-saidoku-n="1"');
-    expect(html).toContain('data-saidoku-n="2"');
-    expect(html).toContain('data-saidoku-n="3"');
+    const root = renderDom(doc);
+    const marked = [...unit(root, '將').querySelectorAll('[data-saidoku-n]')];
+    const numbers = new Set(marked.map((el) => attr(el, 'data-saidoku-n')));
+    expect([...numbers].sort()).toEqual(['1', '2', '3']);
   });
 
   it('saidoku with multi-char yomi', () => {
@@ -948,9 +1023,9 @@ describe('Saidoku rendering variations', () => {
         ],
       },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('よろしく');
-    expect(html).toContain('は');
+    const root = renderDom(doc);
+    expect(partText(root, '宜', 'ruby')).toBe('よろしく');
+    expect(partText(root, '宜', 'okuri')).toBe('は');
   });
 
   it('saidoku + kaeri on same token', () => {
@@ -965,10 +1040,9 @@ describe('Saidoku rendering variations', () => {
       },
       { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆓' },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('skam-saidoku');
-    expect(html).toContain('skam-kaeriten');
-    expect(html).toContain(KAERI.NI); // 二
+    const root = renderDom(doc);
+    expect(parts(root, '將', 'saidoku')).toHaveLength(1);
+    expect(partText(root, '將', 'kaeri')).toBe(KAERI.NI); // 二
   });
 
   it('saidoku with interactive mode', () => {
@@ -982,8 +1056,8 @@ describe('Saidoku rendering variations', () => {
         ],
       },
     ]);
-    const { html } = render(doc, { interactive: true });
-    expect(html).toContain('data-token-id="t1"');
+    const root = renderDom(doc, { interactive: true });
+    expect(attr(unit(root, '將'), 'data-token-id')).toBe('t1');
   });
 });
 
@@ -992,6 +1066,16 @@ describe('Saidoku rendering variations', () => {
 // ============================================================================
 
 describe('Okototen rendering variations', () => {
+  /** ヲコト点の要素と、その形・格子の位置 */
+  function okototenCells(root: Element, base: string) {
+    return parts(root, base, 'okototen').map((el) => ({
+      shape: attr(el, 'data-shape'),
+      x: cssValue(el, '--okototen-x'),
+      y: cssValue(el, '--okototen-y'),
+      grid: cssValue(el, '--okototen-grid'),
+    }));
+  }
+
   it('5x5 grid at center position', () => {
     const doc = createSingleTokenDoc('國', [
       {
@@ -1001,13 +1085,9 @@ describe('Okototen rendering variations', () => {
         shape: 'dot',
       },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('skam-has-okototen');
-    expect(html).toContain('skam-okototen');
-    expect(html).toContain('data-shape="dot"');
-    expect(html).toContain('--okototen-x: 2');
-    expect(html).toContain('--okototen-y: 2');
-    expect(html).toContain('--okototen-grid: 5');
+    const root = renderDom(doc);
+    expect(parts(root, '國', 'hasOkototen')).toHaveLength(1);
+    expect(okototenCells(root, '國')).toEqual([{ shape: 'dot', x: '2', y: '2', grid: '5' }]);
   });
 
   it('7x7 grid', () => {
@@ -1015,15 +1095,13 @@ describe('Okototen rendering variations', () => {
       {
         type: 'okototen',
         anchor: { from: 't1', to: 't1' },
-        position: { system: 'glyph-grid', grid: '7x7', x: 6, y: 6 },
+        // x と y を違う値にして、取り違えが値に出るようにする
+        position: { system: 'glyph-grid', grid: '7x7', x: 6, y: 3 },
         shape: 'circle',
       },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('--okototen-grid: 7');
-    expect(html).toContain('--okototen-x: 6');
-    expect(html).toContain('--okototen-y: 6');
-    expect(html).toContain('data-shape="circle"');
+    const root = renderDom(doc);
+    expect(okototenCells(root, '國')).toEqual([{ shape: 'circle', x: '6', y: '3', grid: '7' }]);
   });
 
   it('different shapes: dot', () => {
@@ -1035,8 +1113,8 @@ describe('Okototen rendering variations', () => {
         shape: 'dot',
       },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('data-shape="dot"');
+    const root = renderDom(doc);
+    expect(okototenCells(root, '漢').map((cell) => cell.shape)).toEqual(['dot']);
   });
 
   it('different shapes: circle', () => {
@@ -1048,8 +1126,8 @@ describe('Okototen rendering variations', () => {
         shape: 'circle',
       },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('data-shape="circle"');
+    const root = renderDom(doc);
+    expect(okototenCells(root, '漢').map((cell) => cell.shape)).toEqual(['circle']);
   });
 
   it('different shapes: line', () => {
@@ -1061,8 +1139,8 @@ describe('Okototen rendering variations', () => {
         shape: 'line',
       },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('data-shape="line"');
+    const root = renderDom(doc);
+    expect(okototenCells(root, '漢').map((cell) => cell.shape)).toEqual(['line']);
   });
 
   it('corner positions (0,0) and (4,4)', () => {
@@ -1074,9 +1152,9 @@ describe('Okototen rendering variations', () => {
         shape: 'dot',
       },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('--okototen-x: 0');
-    expect(html).toContain('--okototen-y: 0');
+    const root = renderDom(doc);
+    const [cell] = okototenCells(root, '漢');
+    expect(cell).toMatchObject({ x: '0', y: '0' });
   });
 
   it('multiple okototen on same token', () => {
@@ -1094,11 +1172,14 @@ describe('Okototen rendering variations', () => {
         shape: 'circle',
       },
     ]);
-    const { html } = render(doc);
-    expect(html).toContain('skam-has-okototen');
-    // Should have 2 okototen elements
-    const okototenCount = (html.match(/skam-okototen"/g) ?? []).length;
-    expect(okototenCount).toBeGreaterThanOrEqual(2);
+    const root = renderDom(doc);
+    expect(parts(root, '國', 'hasOkototen')).toHaveLength(1);
+    // Should have 2 okototen elements, each with its own shape and position
+    expect(okototenCells(root, '國')).toHaveLength(countMarks(doc, 'okototen'));
+    expect(okototenCells(root, '國')).toEqual([
+      { shape: 'dot', x: '0', y: '0', grid: '5' },
+      { shape: 'circle', x: '4', y: '4', grid: '5' },
+    ]);
   });
 });
 
@@ -1120,32 +1201,23 @@ describe('Complex document rendering', () => {
       { type: 'kutoten', position: { blockId: 'b1', after: 't5' }, value: '。', kind: 'ku' },
     ]);
 
-    const { html } = render(doc);
+    const root = renderDom(doc);
 
-    // All tokens present
-    expect(html).toContain('學');
-    expect(html).toContain('而');
-    expect(html).toContain('時');
-    expect(html).toContain('習');
-    expect(html).toContain('之');
+    // All tokens present, each as its own unit
+    for (const token of doc.tokens) expect(unit(root, token.text)).toBeDefined();
 
-    // All annotations present
-    expect(html).toContain('まな');
-    expect(html).toContain('びて');
-    expect(html).toContain('とき');
-    expect(html).toContain('に');
-    expect(html).toContain('を');
-    expect(html).toContain('なら');
-    expect(html).toContain('ふ');
-    expect(html).toContain(KAERI.RE); // レ
-    expect(html).toContain('。');
-
-    // CSS classes present
-    expect(html).toContain('skam-ruby');
-    expect(html).toContain('skam-okuri');
-    expect(html).toContain('skam-soegana');
-    expect(html).toContain('skam-kaeriten');
-    expect(html).toContain('skam-suffix-kutoten');
+    // Each annotation sits on the token it was given to
+    expect(partText(root, '學', 'ruby')).toBe('まな');
+    expect(partText(root, '學', 'okuri')).toBe('びて');
+    expect(partText(root, '而', 'ruby')).toBeNull();
+    expect(partText(root, '而', 'okuri')).toBeNull();
+    expect(partText(root, '時', 'ruby')).toBe('とき');
+    expect(partText(root, '時', 'okuri')).toBe('に');
+    expect(partText(root, '習', 'ruby')).toBe('なら');
+    expect(partText(root, '習', 'okuri')).toBe('ふ');
+    expect(partText(root, '習', 'kaeri')).toBe(KAERI.RE); // レ
+    expect(partText(root, '之', 'soe')).toBe('を');
+    expect(partText(root, '之', 'kutoten')).toBe('。');
   });
 
   it('document with all anchor-based mark types on different tokens', () => {
@@ -1159,14 +1231,16 @@ describe('Complex document rendering', () => {
       { type: 'tateten', anchor: { from: 't4', to: 't5' } },
     ]);
 
-    const { html } = render(doc);
-    expect(html).toContain('skam-ruby');
-    expect(html).toContain('skam-okuri');
-    expect(html).toContain('skam-kaeriten');
-    expect(html).toContain('skam-okimoji');
-    expect(html).toContain('skam-soegana');
-    expect(html).toContain('skam-emphasis');
-    expect(html).toContain('skam-tateten-group');
+    const root = renderDom(doc);
+    expect(partText(root, '學', 'ruby')).toBe('まな');
+    expect(partText(root, '學', 'okuri')).toBe('ブ');
+    expect(partText(root, '而', 'kaeri')).toBe(KAERI.RE);
+    expect(parts(root, '而', 'okimoji')).toHaveLength(1);
+    expect(partText(root, '時', 'soe')).toBe('を');
+    expect(parts(root, '習', 'emphasis')).toHaveLength(1);
+    const group = closestPart(root, '習', 'tatetenGroup');
+    expect(group).not.toBeNull();
+    expect(closestPart(root, '之', 'tatetenGroup')).toBe(group);
   });
 
   it('document with highlight + ref + kutoten', () => {
@@ -1191,10 +1265,16 @@ describe('Complex document rendering', () => {
       },
     ]);
 
-    const { html } = render(doc);
-    expect(html).toContain('skam-highlight');
-    expect(html).toContain('(A)');
-    expect(html).toContain('。');
+    const root = renderDom(doc);
+    const highlight = closestPart(root, '重', 'highlight');
+    expect(highlight).not.toBeNull();
+    expect(closestPart(root, '要', 'highlight')).toBe(highlight);
+    expect(closestPart(root, '語', 'highlight')).toBeNull();
+    // The highlight's ref label is shared by the characters inside it
+    expect(partText(root, '重', 'ref')).toBe('(A)');
+    expect(partText(root, '要', 'ref')).toBe('(A)');
+    expect(partText(root, '語', 'ref')).toBeNull();
+    expect(partText(root, '語', 'kutoten')).toBe('。');
   });
 
   it('multi-block document with different marks per block', () => {
@@ -1208,14 +1288,16 @@ describe('Complex document rendering', () => {
       { type: 'okurigana', anchor: { from: 't6', to: 't6' }, value: 'ふ' },
     ]);
 
-    const { html } = render(doc);
+    const root = renderDom(doc);
     // Block 1 marks
-    expect(html).toContain('し');
-    expect(html).toContain(KAERI.RE); // レ
-    expect(html).toContain('。');
+    expect(partText(root, '子', 'ruby')).toBe('し');
+    expect(partText(root, '曰', 'kaeri')).toBe(KAERI.RE); // レ
+    expect(partText(root, '學', 'kutoten')).toBe('。');
     // Block 2 marks
-    expect(html).toContain('skam-emphasis');
-    expect(html).toContain('ふ');
+    const emphasized = tokensInRange(doc, 't4', 't5');
+    expectOnly(root, emphasized, 'emphasis');
+    expect(count(root, 'emphasis')).toBe(emphasized.length);
+    expect(partText(root, '習', 'okuri')).toBe('ふ');
   });
 
   it('document with reading layer', () => {
@@ -1230,10 +1312,11 @@ describe('Complex document rendering', () => {
       ],
     };
 
-    const { html } = render(doc);
-    expect(html).toContain('skam-reading');
+    const root = renderDom(doc);
     // Prefers yomiage over kakikudashi
-    expect(html).toContain('学びて時に之を習ふ');
+    const readings = all(root, 'reading');
+    expect(readings).toHaveLength(1);
+    expect(readings[0]!.textContent).toBe('学びて時に之を習ふ');
   });
 });
 
@@ -1246,8 +1329,9 @@ describe('Writing mode × mark type', () => {
     const doc = createSingleTokenDoc('學', [
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
     ]);
-    const { html, css } = render(doc, { writingMode: 'vertical' });
-    expect(html).toContain('data-writing-mode="vertical"');
+    const { css } = render(doc, { writingMode: 'vertical' });
+    const root = renderDom(doc, { writingMode: 'vertical' });
+    expect(attr(root, 'data-writing-mode')).toBe('vertical');
     expectCSSRule(css, ':where(.skam-document)', [
       { property: 'writing-mode', value: 'vertical-rl' },
     ]);
@@ -1257,8 +1341,9 @@ describe('Writing mode × mark type', () => {
     const doc = createSingleTokenDoc('學', [
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
     ]);
-    const { html, css } = render(doc, { writingMode: 'horizontal' });
-    expect(html).toContain('data-writing-mode="horizontal"');
+    const { css } = render(doc, { writingMode: 'horizontal' });
+    const root = renderDom(doc, { writingMode: 'horizontal' });
+    expect(attr(root, 'data-writing-mode')).toBe('horizontal');
     expectCSSRuleLacksDeclaration(css, ':where(.skam-document)', {
       property: 'writing-mode',
       value: 'vertical-rl',
@@ -1269,22 +1354,20 @@ describe('Writing mode × mark type', () => {
     const doc = createSingleTokenDoc('習', [
       { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
     ]);
-    const { html } = render(doc, { writingMode: 'vertical' });
-    expect(html).toContain('skam-kaeriten');
-    expect(html).toContain(KAERI.RE);
+    const root = renderDom(doc, { writingMode: 'vertical' });
+    expect(partText(root, '習', 'kaeri')).toBe(KAERI.RE);
   });
 
   it('horizontal mode with kaeriten', () => {
     const doc = createSingleTokenDoc('習', [
       { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
     ]);
-    const { html } = render(doc, { writingMode: 'horizontal' });
-    expect(html).toContain('skam-kaeriten');
-    expect(html).toContain(KAERI.RE);
+    const root = renderDom(doc, { writingMode: 'horizontal' });
+    expect(partText(root, '習', 'kaeri')).toBe(KAERI.RE);
   });
 
-  it('vertical mode with saidoku', () => {
-    const doc = createSingleTokenDoc('將', [
+  const saidokuDoc = (): SKAMDocument =>
+    createSingleTokenDoc('將', [
       {
         type: 'saidoku',
         anchor: { from: 't1', to: 't1' },
@@ -1294,41 +1377,33 @@ describe('Writing mode × mark type', () => {
         ],
       },
     ]);
-    const { html } = render(doc, { writingMode: 'vertical' });
-    expect(html).toContain('skam-saidoku');
-    expect(html).toContain('まさ');
+
+  it('vertical mode with saidoku', () => {
+    const root = renderDom(saidokuDoc(), { writingMode: 'vertical' });
+    expect(parts(root, '將', 'saidoku')).toHaveLength(1);
+    expect(partText(root, '將', 'ruby')).toBe('まさ');
   });
 
   it('horizontal mode with saidoku', () => {
-    const doc = createSingleTokenDoc('將', [
-      {
-        type: 'saidoku',
-        anchor: { from: 't1', to: 't1' },
-        forms: [
-          { n: 1, yomi: 'まさ', okuri: 'に' },
-          { n: 2, okuri: 'す' },
-        ],
-      },
-    ]);
-    const { html } = render(doc, { writingMode: 'horizontal' });
-    expect(html).toContain('skam-saidoku');
-    expect(html).toContain('まさ');
+    const root = renderDom(saidokuDoc(), { writingMode: 'horizontal' });
+    expect(parts(root, '將', 'saidoku')).toHaveLength(1);
+    expect(partText(root, '將', 'ruby')).toBe('まさ');
   });
 
   it('vertical mode with emphasis', () => {
     const doc = createSingleTokenDoc('道', [
       { type: 'emphasis', anchor: { from: 't1', to: 't1' }, style: 'filled dot' },
     ]);
-    const { html } = render(doc, { writingMode: 'vertical' });
-    expect(html).toContain('skam-emphasis');
+    const root = renderDom(doc, { writingMode: 'vertical' });
+    expect(parts(root, '道', 'emphasis')).toHaveLength(1);
   });
 
   it('horizontal mode with emphasis', () => {
     const doc = createSingleTokenDoc('道', [
       { type: 'emphasis', anchor: { from: 't1', to: 't1' }, style: 'filled dot' },
     ]);
-    const { html } = render(doc, { writingMode: 'horizontal' });
-    expect(html).toContain('skam-emphasis');
+    const root = renderDom(doc, { writingMode: 'horizontal' });
+    expect(parts(root, '道', 'emphasis')).toHaveLength(1);
   });
 });
 
@@ -1342,49 +1417,53 @@ describe('Profile × mark type interactions', () => {
       const doc = createSingleTokenDoc('學', [
         { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
       ]);
-      const { html } = render(doc, { profile: PROFILES.learningBasic });
-      expect(html).not.toContain('まな');
+      const root = renderDom(doc, { profile: PROFILES.learningBasic });
+      // Neither the reading's text nor an empty reading element is left
+      expect(count(root, 'ruby')).toBe(0);
+      expect(containsText(root, 'まな')).toBe(false);
     });
 
     it('hides okurigana', () => {
       const doc = createSingleTokenDoc('學', [
         { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'ブ' },
       ]);
-      const { html } = render(doc, { profile: PROFILES.learningBasic });
-      expect(html).not.toContain('ブ');
+      const root = renderDom(doc, { profile: PROFILES.learningBasic });
+      expect(count(root, 'okuri')).toBe(0);
+      expect(containsText(root, 'ブ')).toBe(false);
     });
 
     it('shows kaeriten', () => {
       const doc = createSingleTokenDoc('習', [
         { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
       ]);
-      const { html } = render(doc, { profile: PROFILES.learningBasic });
-      expect(html).toContain('skam-kaeriten');
-      expect(html).toContain(KAERI.RE);
+      const root = renderDom(doc, { profile: PROFILES.learningBasic });
+      expect(partText(root, '習', 'kaeri')).toBe(KAERI.RE);
     });
 
     it('shows kutoten', () => {
       const doc = createSingleTokenDoc('乎', [
         { type: 'kutoten', position: { blockId: 'b1', after: 't1' }, value: '。' },
       ]);
-      const { html } = render(doc, { profile: PROFILES.learningBasic });
-      expect(html).toContain('。');
+      const root = renderDom(doc, { profile: PROFILES.learningBasic });
+      expect(partText(root, '乎', 'kutoten')).toBe('。');
     });
 
     it('shows highlight', () => {
       const doc = createTwoTokenDoc('重', '要', [
         { type: 'highlight', anchor: { from: 't1', to: 't2' }, style: 'solid' },
       ]);
-      const { html } = render(doc, { profile: PROFILES.learningBasic });
-      expect(html).toContain('skam-highlight');
+      const root = renderDom(doc, { profile: PROFILES.learningBasic });
+      const highlight = closestPart(root, '重', 'highlight');
+      expect(highlight).not.toBeNull();
+      expect(closestPart(root, '要', 'highlight')).toBe(highlight);
     });
 
     it('shows ref', () => {
       const doc = createSingleTokenDoc('語', [
         { type: 'ref', position: { blockId: 'b1', after: 't1' }, format: 'alpha-upper' },
       ]);
-      const { html } = render(doc, { profile: PROFILES.learningBasic });
-      expect(html).toContain('(A)');
+      const root = renderDom(doc, { profile: PROFILES.learningBasic });
+      expect(partText(root, '語', 'ref')).toBe('(A)');
     });
   });
 
@@ -1394,25 +1473,26 @@ describe('Profile × mark type interactions', () => {
         { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
         { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'ブ' },
       ]);
-      const { html } = render(doc, { profile: PROFILES.learningHint });
-      expect(html).not.toContain('まな');
-      expect(html).toContain('ブ');
+      const root = renderDom(doc, { profile: PROFILES.learningHint });
+      expect(count(root, 'ruby')).toBe(0);
+      expect(containsText(root, 'まな')).toBe(false);
+      expect(partText(root, '學', 'okuri')).toBe('ブ');
     });
 
     it('shows soegana', () => {
       const doc = createSingleTokenDoc('之', [
         { type: 'soegana', anchor: { from: 't1', to: 't1' }, value: 'を' },
       ]);
-      const { html } = render(doc, { profile: PROFILES.learningHint });
-      expect(html).toContain('を');
+      const root = renderDom(doc, { profile: PROFILES.learningHint });
+      expect(partText(root, '之', 'soe')).toBe('を');
     });
 
     it('shows kaeriten', () => {
       const doc = createSingleTokenDoc('習', [
         { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
       ]);
-      const { html } = render(doc, { profile: PROFILES.learningHint });
-      expect(html).toContain(KAERI.RE);
+      const root = renderDom(doc, { profile: PROFILES.learningHint });
+      expect(partText(root, '習', 'kaeri')).toBe(KAERI.RE);
     });
   });
 
@@ -1426,13 +1506,16 @@ describe('Profile × mark type interactions', () => {
         { type: 'emphasis', anchor: { from: 't4', to: 't4' }, style: 'filled dot' },
         { type: 'highlight', anchor: { from: 't4', to: 't5' }, style: 'solid' },
       ]);
-      const { html } = render(doc, { profile: PROFILES.full });
-      expect(html).toContain('まな');
-      expect(html).toContain('ブ');
-      expect(html).toContain(KAERI.RE);
-      expect(html).toContain('を');
-      expect(html).toContain('skam-emphasis');
-      expect(html).toContain('skam-highlight');
+      const root = renderDom(doc, { profile: PROFILES.full });
+      expect(partText(root, '學', 'ruby')).toBe('まな');
+      expect(partText(root, '學', 'okuri')).toBe('ブ');
+      expect(partText(root, '而', 'kaeri')).toBe(KAERI.RE);
+      expect(partText(root, '時', 'soe')).toBe('を');
+      // Inside a highlight, the emphasis is drawn in the grid's emphasis row
+      expect(parts(root, '習', 'emphasisRow')).toHaveLength(1);
+      const highlight = closestPart(root, '習', 'highlight');
+      expect(highlight).not.toBeNull();
+      expect(closestPart(root, '之', 'highlight')).toBe(highlight);
     });
   });
 
@@ -1441,30 +1524,31 @@ describe('Profile × mark type interactions', () => {
       const doc = createSingleTokenDoc('道', [
         { type: 'emphasis', anchor: { from: 't1', to: 't1' }, style: 'filled dot' },
       ]);
-      const { html } = render(doc, { profile: { emphasis: false } });
-      expect(html).not.toContain('skam-emphasis');
+      const root = renderDom(doc, { profile: { emphasis: false } });
+      expect(count(root, 'emphasis')).toBe(0);
+      expect(count(root, 'emphasisRow')).toBe(0);
     });
 
     it('okimoji=false hides okimoji class', () => {
       const doc = createSingleTokenDoc('而', [
         { type: 'okimoji', anchor: { from: 't1', to: 't1' } },
       ]);
-      const { html } = render(doc, { profile: { okimoji: false } });
-      expect(html).not.toContain('skam-okimoji');
+      const root = renderDom(doc, { profile: { okimoji: false } });
+      expect(count(root, 'okimoji')).toBe(0);
     });
 
     it('joji=false hides joji class', () => {
       const doc = createSingleTokenDoc('之', [{ type: 'joji', anchor: { from: 't1', to: 't1' } }]);
-      const { html } = render(doc, { profile: { joji: false } });
-      expect(html).not.toContain('skam-joji');
+      const root = renderDom(doc, { profile: { joji: false } });
+      expect(count(root, 'joji')).toBe(0);
     });
 
     it('tateten=false hides tateten group', () => {
       const doc = createTwoTokenDoc('朝', '聞', [
         { type: 'tateten', anchor: { from: 't1', to: 't2' } },
       ]);
-      const { html } = render(doc, { profile: { tateten: false } });
-      expect(html).not.toContain('skam-tateten-group');
+      const root = renderDom(doc, { profile: { tateten: false } });
+      expect(count(root, 'tatetenGroup')).toBe(0);
     });
 
     it('saidoku=false hides saidoku rendering', () => {
@@ -1478,8 +1562,9 @@ describe('Profile × mark type interactions', () => {
           ],
         },
       ]);
-      const { html } = render(doc, { profile: { saidoku: false } });
-      expect(html).not.toContain('skam-saidoku');
+      const root = renderDom(doc, { profile: { saidoku: false } });
+      // No element is classed as saidoku in any way (token, grid, under, suffix)
+      expect(count(root, 'anySaidoku')).toBe(0);
     });
 
     it('okototen=false hides okototen rendering', () => {
@@ -1491,26 +1576,26 @@ describe('Profile × mark type interactions', () => {
           shape: 'dot',
         },
       ]);
-      const { html } = render(doc, { profile: { okototen: false } });
-      expect(html).not.toContain('skam-okototen');
-      expect(html).not.toContain('skam-has-okototen');
+      const root = renderDom(doc, { profile: { okototen: false } });
+      expect(count(root, 'okototen')).toBe(0);
+      expect(count(root, 'hasOkototen')).toBe(0);
     });
 
     it('kutoten=false hides kutoten', () => {
       const doc = createSingleTokenDoc('乎', [
         { type: 'kutoten', position: { blockId: 'b1', after: 't1' }, value: '。' },
       ]);
-      const { html } = render(doc, { profile: { kutoten: false } });
-      expect(html).not.toContain('skam-suffix-kutoten');
+      const root = renderDom(doc, { profile: { kutoten: false } });
+      expect(count(root, 'kutoten')).toBe(0);
     });
 
     it('soegana=false hides soegana', () => {
       const doc = createSingleTokenDoc('之', [
         { type: 'soegana', anchor: { from: 't1', to: 't1' }, value: 'を' },
       ]);
-      const { html } = render(doc, { profile: { soegana: false } });
-      expect(html).not.toContain('skam-soegana');
-      expect(html).not.toContain('を');
+      const root = renderDom(doc, { profile: { soegana: false } });
+      expect(count(root, 'soe')).toBe(0);
+      expect(containsText(root, 'を')).toBe(false);
     });
   });
 });
@@ -1525,18 +1610,20 @@ describe('Inline mode with various marks', () => {
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
     ]);
     const { html } = render(doc, { inline: true });
+    // The tag the output starts with is part of the output string itself
     expect(html).toMatch(/^<span/);
-    expect(html).toContain('skam-document--inline');
-    expect(html).toContain('まな');
+    const root = renderDom(doc, { inline: true });
+    expect(root.classList.contains('skam-document--inline')).toBe(true);
+    expect(partText(root, '學', 'ruby')).toBe('まな');
   });
 
   it('inline mode with emphasis', () => {
     const doc = createSingleTokenDoc('道', [
       { type: 'emphasis', anchor: { from: 't1', to: 't1' }, style: 'filled dot' },
     ]);
-    const { html } = render(doc, { inline: true });
-    expect(html).toContain('skam-emphasis');
-    expect(html).toContain('skam-document--inline');
+    const root = renderDom(doc, { inline: true });
+    expect(parts(root, '道', 'emphasis')).toHaveLength(1);
+    expect(root.classList.contains('skam-document--inline')).toBe(true);
   });
 
   it('inline mode hides ref content (notes)', () => {
@@ -1547,19 +1634,18 @@ describe('Inline mode with various marks', () => {
         content: '注釈テキスト',
       },
     ]);
-    const { html } = render(doc, { inline: true });
-    expect(html).not.toContain('skam-notes');
-    expect(html).not.toContain('注釈テキスト');
+    const root = renderDom(doc, { inline: true });
+    expect(count(root, 'notes')).toBe(0);
+    expect(containsText(root, '注釈テキスト')).toBe(false);
   });
 
   it('inline mode with kaeriten', () => {
     const doc = createSingleTokenDoc('習', [
       { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆑' },
     ]);
-    const { html } = render(doc, { inline: true });
-    expect(html).toContain('skam-kaeriten');
-    expect(html).toContain(KAERI.RE);
-    expect(html).toContain('skam-document--inline');
+    const root = renderDom(doc, { inline: true });
+    expect(partText(root, '習', 'kaeri')).toBe(KAERI.RE);
+    expect(root.classList.contains('skam-document--inline')).toBe(true);
   });
 });
 
@@ -1568,6 +1654,9 @@ describe('Inline mode with various marks', () => {
 // ============================================================================
 
 describe('HTML escaping in various mark values', () => {
+  // 文字列一致のまま残す: escape は出力の文字列そのものの契約。
+  // DOM の検査 (値が文字としてそのまま読めること、要素が増えないこと) を併せて確かめる
+
   it('yomigana value with special characters', () => {
     const doc = createSingleTokenDoc('學', [
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: '<script>alert(1)</script>' },
@@ -1575,6 +1664,9 @@ describe('HTML escaping in various mark values', () => {
     const { html } = render(doc);
     expect(html).not.toContain('<script>');
     expect(html).toContain('&lt;script&gt;');
+    const root = renderDom(doc);
+    expect(root.querySelector('script')).toBeNull();
+    expect(partText(root, '學', 'ruby')).toBe('<script>alert(1)</script>');
   });
 
   it('okurigana value with HTML entities', () => {
@@ -1583,6 +1675,9 @@ describe('HTML escaping in various mark values', () => {
     ]);
     const { html } = render(doc);
     expect(html).not.toContain('<b>');
+    const root = renderDom(doc);
+    expect(root.querySelector('b')).toBeNull();
+    expect(partText(root, '學', 'okuri')).toBe('<b>test</b>');
   });
 
   it('soegana value with special characters', () => {
@@ -1591,6 +1686,8 @@ describe('HTML escaping in various mark values', () => {
     ]);
     const { html } = render(doc);
     expect(html).toContain('&amp;を');
+    const root = renderDom(doc);
+    expect(partText(root, '之', 'soe')).toBe('&を');
   });
 
   it('kutoten value with special characters', () => {
@@ -1600,6 +1697,8 @@ describe('HTML escaping in various mark values', () => {
     const { html } = render(doc);
     expect(html).not.toContain('<>');
     expect(html).toContain('&lt;&gt;');
+    const root = renderDom(doc);
+    expect(partText(root, '乎', 'kutoten')).toBe('<>');
   });
 });
 
@@ -1612,28 +1711,33 @@ describe('Interactive mode with mark combinations', () => {
     const doc = createSingleTokenDoc('學', [
       { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'まな' },
     ]);
-    const { html } = render(doc, { interactive: true, rubyMethod: 'ruby' });
-    expect(html).toContain('data-token-id="t1"');
-    expect(html).toContain('<rb class="skam-base" data-token-id="t1">學</rb>');
+    const root = renderDom(doc, { interactive: true, rubyMethod: 'ruby' });
+    expect(attr(unit(root, '學'), 'data-token-id')).toBe('t1');
+    const base = unit(root, '學').querySelector('rb')!;
+    expect(base.classList.contains('skam-base')).toBe(true);
+    expect(attr(base, 'data-token-id')).toBe('t1');
+    expect(base.textContent).toBe('學');
   });
 
   it('interactive: single token with okurigana only (no ruby)', () => {
     const doc = createSingleTokenDoc('習', [
       { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'ふ' },
     ]);
-    const { html } = render(doc, { interactive: true });
-    expect(html).toContain('data-token-id="t1"');
+    const root = renderDom(doc, { interactive: true });
+    expect(attr(unit(root, '習'), 'data-token-id')).toBe('t1');
     // No ruby element when only okurigana
-    expect(html).not.toContain('<ruby>');
+    expect(root.querySelector('ruby')).toBeNull();
+    expect(count(root, 'ruby')).toBe(0);
   });
 
   it('interactive: multi-token yomigana uses data-token-from/to', () => {
     const doc = createTwoTokenDoc('朝', '廷', [
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'ちょうてい' },
     ]);
-    const { html } = render(doc, { interactive: true });
-    expect(html).toContain('data-token-from="t1"');
-    expect(html).toContain('data-token-to="t2"');
+    const root = renderDom(doc, { interactive: true });
+    const range = unit(root, '朝廷').querySelector('[data-token-from]')!;
+    expect(attr(range, 'data-token-from')).toBe('t1');
+    expect(attr(range, 'data-token-to')).toBe('t2');
   });
 
   it('interactive: multiple tokens each with marks', () => {
@@ -1642,9 +1746,9 @@ describe('Interactive mode with mark combinations', () => {
       { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆑' },
       { type: 'yomigana', anchor: { from: 't3', to: 't3' }, value: 'まな' },
     ]);
-    const { html } = render(doc, { interactive: true });
-    expect(html).toContain('data-token-id="t1"');
-    expect(html).toContain('data-token-id="t2"');
-    expect(html).toContain('data-token-id="t3"');
+    const root = renderDom(doc, { interactive: true });
+    for (const token of doc.tokens) {
+      expect(attr(unit(root, token.text), 'data-token-id')).toBe(token.id);
+    }
   });
 });

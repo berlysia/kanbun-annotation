@@ -71,6 +71,8 @@ IDが `m` で始まるかどうかで「自動生成かユーザー指定か」�
 - **本番**: `createRandomIdGenerator()` (デフォルト)
 - **テスト**: `createSequentialIdGenerator()` を注入して既存のテストアサーションを維持
 
+ADR-047 で改めた: parser は乱数の id を使わず、手書きの id の無いブロックと字に位置から決まる自動の id (`b#n`、`b#n#m`) を、注記に `m#n` を付ける。`idGenerator` の引数は消した。
+
 ### `generateId` API の変更
 
 `delimiter` パラメータを削除し、ランダム生成に変更する。
@@ -88,6 +90,8 @@ export function generateId(doc: SKAMDocument, prefix = 'm'): string;
 
 - `generateId` の `delimiter` パラメータ削除
 - `ParseOptions` に `idGenerator` フィールド追加（後方互換、optional）
+
+ADR-047 で改めた: `ParseOptions` の `idGenerator` は消した。`generateMarkId` は `m#<n>` を返す。
 
 ### 影響を受けるパッケージ
 

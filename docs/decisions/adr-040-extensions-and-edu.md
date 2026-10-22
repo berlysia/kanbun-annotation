@@ -54,6 +54,7 @@ status: Complete
 - 定義のある拡張の名前空間の属性を、定義の対応で読み書きする。宣言の無い拡張の名前空間の属性は誤り。登録されていない名前空間の属性は読み飛ばす (ほかの道具が付けた属性を含む文書を誤りにしない)。必須の拡張を知らなければ、`validate` の値にかかわらず parse の誤り。
 - 名前空間の URI は識別子で、取りに行かない。
 - 書けない拡張の値と、名前空間の URI が分からない拡張の宣言は損失 `UNKNOWN_EXTENSION`。`custom` と宣言の無い文書の `ext` は損失 `EXT`。
+  - ADR-047 で改めた: 書き方の定義の無い拡張の値、`custom`、宣言の無い文書の `ext` は `skam:ext` / `skam:custom` 属性で書け、URI の分からない拡張は `uri` を省いて宣言するので、`EXT` と `UNKNOWN_EXTENSION` は妥当な文書では出ない。
 - 空の宣言 (`extensions: []`) は SKAM-ML に書く要素が無く、往復で宣言の無い文書に戻る。空の宣言のある文書は `ext` を持てないので、読み方は変わらない。
 
 ### 入力の上限
@@ -85,6 +86,7 @@ status: Complete
 
 - 0.2.x の reader は拡張の宣言を知らず、必須の拡張でも止まらない。公開済みの 0.2.0 (skam、skam-xml-parser、skam-xml-stringify、skam-html-renderer) で 2026-10-21 に確かめた: parser は `skam:meta` の `skam:extension` と `edu:okuri-quiz`、`edu:quiz` の属性を、`validate: true` でも `false` でも誤りにも警告にもせずに捨てる。validator は最上位の `extensions` と `extensionsRequired` を落とし、注記の `ext.edu` を残して `valid: true`。stringify (`lossy: true`) は `ext` を損失 `EXT` にし、宣言の損失は出さない。html の描画は答えをそのまま描く。canvas、web component、`lossy` なしの stringify は確かめていない。
 - `custom` は SKAM-ML に書けず、往復で残らない (損失 `EXT`)。
+  - ADR-047 で改めた: `custom` は `skam:custom` 属性で書け、往復で残る。
 - 答えは同じ文書に平文である。文書と、`'readings'` を明示した読み上げ層には答えが残る。答えの字数は空白の数から分かる。空白の幅は元の字に近いだけで、半角の字や結合文字では違いうる。
 
 ## 却下した案

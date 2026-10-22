@@ -31,7 +31,16 @@ import type {
 ```typescript
 import { validateSKAMDocument, isSKAMDocument, assertSKAMDocument } from '@kanbun-skam/skam';
 import type { ValidationWarning, ValidationWarningKind } from '@kanbun-skam/skam';
-import { KAERI_MULTI_CHARACTER, LEGACY_EXT, LEGACY_EXT_REGISTERED_NAME } from '@kanbun-skam/skam';
+import {
+  KAERI_MULTI_CHARACTER,
+  LEGACY_EXT,
+  LEGACY_EXT_REGISTERED_NAME,
+  ID_FORM,
+  XML_UNWRITABLE_CHAR,
+  SAIDOKU_READING_OVERLAP,
+  SAIDOKU_MULTI_TOKEN,
+  READING_OVERLAP,
+} from '@kanbun-skam/skam';
 import { getLinebreakPlacementIssues } from '@kanbun-skam/skam';
 ```
 
@@ -44,6 +53,9 @@ import { getLinebreakPlacementIssues } from '@kanbun-skam/skam';
 - `LEGACY_EXT_REGISTERED_NAME`: `LEGACY_EXT` のうち、`ext` のキーが登録済みの拡張の名前と同じもの。宣言の書き忘れの疑い。`path` は `marks[i].ext.edu` など。0.4.0 では無くなる（`LEGACY_EXT` の誤りが同じ所を指す）
 - `ID_FORM`: id の形が SKAM-draft §3.1 に合わない。手書きの id（NCName）でも位置に合う自動の id でもないブロック・字・注記の id、手書きの id の ref を指さない `highlight.ref`、同じ anchor の読み仮名・送り仮名・添え仮名の 2 つ目以降の手書きの id。0.4.0 で同じコードの誤りになる。`path` は `blocks[i].id`、`tokens[i].id`、`marks[i].id`、`marks[i].ref`
 - `XML_UNWRITABLE_CHAR`: 字の text、reading の text、注記の文字列、placementHint に、XML 1.0 で書けない文字がある（SKAM-draft §3.2）。1 つの欄につき 1 件。0.4.0 で同じコードの誤りになる。`path` は `tokens[i].text` など
+- `SAIDOKU_READING_OVERLAP`: yomigana か okurigana の範囲が再読文字の字を含み、`anchor` が再読文字と完全には同じでない（完全に同じ組は `MARK_CONFLICT`）。再読文字は読みと送り仮名を `forms` に持つ。0.4.0 で同じコードの誤りになる。`path` は `marks[i]`
+- `SAIDOKU_MULTI_TOKEN`: 再読文字の `anchor` が 2 字以上（SKAM-draft §6.7 の「1 つの文字を複数回読む」に合わない）。0.4.0 で同じコードの誤りになる。`path` は `marks[i]`
+- `READING_OVERLAP`: 同じ種類の読み（yomigana どうし、okurigana どうし、soegana どうし）が、別の `anchor` で 1 字でも同じ字を含む（完全に同じ `anchor` の組は `MARK_CONFLICT`）。描画は `marks[]` で先にある読みを描き、字を共有する後の読みは描かない。0.4.0 で同じコードの誤りになる。`path` は `marks[i]`
 - `ValidationWarningKind` に値を足すのは minor の変更
 
 ### 未完成の検査
@@ -84,7 +96,13 @@ const eduSchema = require('@kanbun-skam/skam/schema/ext-edu.schema.json');
 import { splitGraphemes } from '@kanbun-skam/skam';
 ```
 
-`splitGraphemes(text)` は、文字列を拡張書記素クラスタ（`Intl.Segmenter` の `granularity: 'grapheme'`）の配列に分ける。parser の token、stringify の `MULTI_GRAPHEME_TOKEN`、html と canvas の字数は、この分け方を使う。`Intl.Segmenter` の無い実行環境では、呼ぶと `TypeError`（読み込むだけなら誤りにならない）。
+`splitGraphemes(text)` は、文字列を拡張書記素クラスタ（`Intl.Segmenter` の `granularity: 'grapheme'`）の配列に分ける。parser の token、stringify が平文で書くか `<skam:t>` で書くかの判定、html と canvas の字数は、この分け方を使う。`Intl.Segmenter` の無い実行環境では、呼ぶと `TypeError`（読み込むだけなら誤りにならない）。
+
+```typescript
+import { tokenizePlainText } from '@kanbun-skam/skam';
+```
+
+`tokenizePlainText(text)` は、SKAM-ML の平文のテキストノード 1 つを token の並び（`{ text, start, end }[]`）にする。書記素に分け、各書記素の先頭の ASCII 空白（U+0009、U+000A、U+000D、U+0020）を取り除き、空になった書記素は捨てる。`start` と `end` は、取り除く前の書記素の元の文字列の中の UTF-16 の位置。parser と stringify が同じ規則で判定するための定義で、`<skam:t>` の中の文字はこの関数を通さない（そのまま 1 つの token になる）。`@experimental`。
 
 ### 言語タグ
 
@@ -185,7 +203,9 @@ import {
 
 id は手書きの id（XML の NCName）と、`#` を含む自動の id に分かれる（SKAM-draft §3.1）。
 
-- `generateMarkId(doc)` は、文書のどの id とも重ならない最小の `m#<正の整数>` を返す。`addMark` などが id の無い注記に付けるのはこの値。`generateId(doc, prefix)` は `{prefix}-{8 桁の 16 進}` を返す
+- `generateMarkId(doc)` は、文書のどの id とも重ならない最小の `m#<正の整数>` を返す。`addMark` などが注記に付けるのはこの値。`generateId(doc, prefix)` は `{prefix}-{8 桁の 16 進}` を返す
+- parser が手書きの id の無いブロックと字に付ける自動の id は、位置から決まる（ブロック `b#n`、字 `<ブロックの id>#n`）。注記には文書の順で `m#n` を付ける。自動の id は文書を直すと変わるので、外から指す箇所には手書きの id を付ける
+- `createRandomIdGenerator` / `createSequentialIdGenerator` は `IdGenerator`（`generate(prefix)`）を返す。使う所は `splitMultiCharacterKaeri` の `idGenerator` 選択肢で、parser の選択肢ではない
 - `renumberAutoIds(doc)` は、自動の形の id を今の位置の値（ブロック `b#n`、字 `<ブロックの id>#n`、注記 `m#n`）に付け直し、それを指す参照（`tokenIds`、anchor、position、`highlight.ref`、derivations の `result`）を一緒に付け替えた新しい文書を返す。`ext` と `custom` の中は見ない
 - `convertHandIdsToAuto(doc, keep)` は、`keep` に無い手書きの id を自動の id に変える。乱数の id で作った文書を、外から指す id だけ残して XML に書くときに使う。自動の id にすると `ID_FORM` になる ref の id は残す
 - `findIdFormIssues(doc)` は `ID_FORM` に当たる所の path を返す。`findXmlUnwritableChars(doc)` は `XML_UNWRITABLE_CHAR` に当たる所の path を返す（どちらも validator の警告と同じ）
@@ -299,13 +319,12 @@ import type {
   RenderProfile,
   RenderProfileInput,
   RenderProfileName,
-  AIRTrailingMark,
-  AIRRangeInfo,
   AIRTokenSlots,
   AIRHiddenSlot,
-  AIRTokenNode, // lineBreakAfter?: true, hiddenSlots?
-  AIRTatetenSeparator, // kaeriHidden?: true
-  AIRTatetenGroupNode, // lineBreakAfter?: true, hidden?: true
+  AIRTokenNode, // lineBreakAfter?, joinedWithNext?, hiddenSlots?
+  AIRRubyGroupNode, // 2 字以上の yomigana の範囲
+  AIRTatetenSeparator, // kaeri?, kaeriHidden?, hidden?
+  AIRTatetenGroupNode, // continuesBefore?, continuesAfter?, lineBreakAfter?, hidden?
   Hiding,
   RenderExtensionOptions,
   AIRHighlightGroupNode,
@@ -323,9 +342,27 @@ import type {
 
 `buildAnnotationIR(doc, profile, { extensions, extensionOptions })` の `extensions` は判定に使う拡張の定義（束を含めて渡す。rendering は拡張を import しない）、`extensionOptions` は拡張の名前ごとの選択肢（例 `{ edu: { hideQuiz: true } }`）。選択肢は定義の `assertOptions` が入口で検査し、不正なら TypeError。文書が `extensions` に挙げた拡張の定義だけが判定に使われる。
 
+### AIR の形
+
+どの字も、ブロックの木に 1 回だけ現れる（`AIRTokenNode`）。字自身の注記は `slots`（`AIRTokenSlots`）に入り、範囲の注記は区間の入れ子の木で表す。`AIRBlock.children` と各グループの `children` は `AIRTokenNode`、`AIRRubyGroupNode`、`AIRTatetenGroupNode`、`AIRHighlightGroupNode`、`AIRTatetenSeparator` の和（グループごとに入れられる種類は型定義による）。
+
+- `AIRTokenNode`
+  - `lineBreakAfter?: true`: この字の直後で行を改める。その字で終わる ruby か竪点のグループがあれば、最も外側のグループのノードに付く（傍線のグループには付かない）
+  - `joinedWithNext?: true`: 同じブロックの次の字との間で改行できない（同じ不可分単位に入る）
+  - `slots`: `ruby`、`okuri`、`soegana`、`kaeri`、`kutoten`、`kutotenValues`（同じ位置の句読点を `marks[]` の順に 1 つずつ）、`isOkimoji`、`isJoji`、`emphasis`、`emphasisStyle`（傍点の style の検証済みの値）、`saidoku`（`forms` の配列）、`saidokuUnder`、`saidokuOkuri2`、`ref`、`refLabels`（同じ位置の ref のラベルを `marks[]` の順に 1 つずつ）、`okototen`
+  - `hiddenSlots?`: 拡張（出題の印）が隠す slot の名前
+- `AIRRubyGroupNode`（`type: 'ruby-group'`）: 2 字以上の yomigana の範囲。`yomigana: { value, hidden? }`、`fromTokenId`、`toTokenId`、`span`（範囲の字の数）、`children`、`lineBreakAfter?`。1 字の yomigana は字の `slots.ruby`、送り仮名と添え仮名の範囲は範囲の最後の字の `slots.okuri` / `slots.soegana` に入り、グループにならない。`READING_OVERLAP` の文書では、`marks[]` で先にある読みだけがグループになる
+- `AIRTatetenGroupNode`: 竪点 1 つの範囲、または範囲を部分交差する注記で切った断片。`tatetenMark`、`children`、`continuesBefore?` / `continuesAfter?`（前後に同じ注記の断片がある）、`lineBreakAfter?`、`hidden?`
+- `AIRTatetenSeparator`: 竪点の区切り。`kaeri?`（非レ返り点）、`kaeriHidden?`、`hidden?`（区切りを含む竪点がどれも隠されている）
+- `AIRHighlightGroupNode`: 傍線 1 つの範囲、または断片。`highlightMark`、`highlightStyle`、`refLabel?`（断片に分かれたときは最後の断片だけ）、`lane?`（傍線の段。同じ字を共有する傍線は段が違い、段が大きいほど字から離して描く。1 以上のときだけ付き、断片はどれも同じ値）、`children`、`continuesBefore?` / `continuesAfter?`、`hasKana`、`hasEmphasis`
+
+`getTatetenGroups(tokens, marks)` と `getHighlightGroups(tokens, marks)` は、範囲に含まれる字ごとに、その字を含むすべての竪点（傍線）を `Map<tokenId, TatetenMark[]>`（`Map<tokenId, HighlightMark[]>`）で返す。配列は `marks[]` の順で、同じ注記には同じオブジェクトが入る。`getRangeMarkGroups(tokens, marks, type)` は `anchor.from !== anchor.to` の yomigana・okurigana・soegana を字ごとに `RangeMarkGroup` で返す。
+
+描画の上限は、1 ブロックの竪点と傍線の合計 1,024 個（竪点が先）、1 つの注記の断片 8 個、範囲の要素の深さ 56（ruby のグループも数える）。上限を超えた注記は描かず、字は必ず描く。
+
 `createMarkLookup(marks, tokenGroups)` は注記の索引を作り、字の id からその字に付く注記を種別ごとに引く関数を返す。`tokenGroups` は描く字の配列の列で、`groupTokensByBlock(blocks, tokens).map((g) => g.tokens)` を渡す。範囲の注記の間の字は、`tokens[]` の順序ではなくこの列の中の位置で決まる。`getMarksForToken(tokenId, marks, allTokens)` は呼ぶたびに索引を作るので、字ごとに引くときは `createMarkLookup` を使う。`@kanbun-skam/skam` の `getMarksForToken(doc, tokenId)` は、編集の操作のための別の関数である。
 
-読み上げ用テキスト（`describeAnnotationIR` / `formatAccessibleText` / `DEFAULT_ACCESSIBLE_LABELS`）はすべて `@experimental`。AIR から「画面に見えている注記だけ」を言葉にする。`formatAccessibleText` は生のテキストを返し、HTML のエスケープをしない。読み上げの言葉は 0.x のマイナーで変わりうる。既知の制約として、竪点のグループからはみ出す読みの範囲（#16）は先頭の字の読み仮名として出る。2 回目の読みが無い再読文字は、1 回目の読みが読み仮名・送り仮名として出る。
+読み上げ用テキスト（`describeAnnotationIR` / `formatAccessibleText` / `DEFAULT_ACCESSIBLE_LABELS`）はすべて `@experimental`。AIR から「画面に見えている注記だけ」を言葉にする。`formatAccessibleText` は生のテキストを返し、HTML のエスケープをしない。読み上げの言葉は 0.x のマイナーで変わりうる。2 字以上の読みの範囲（`AIRRubyGroupNode`）は、範囲の最後の字の単位の後ろに、本文の無い単位で yomigana の注記として 1 つ出る（竪点や傍線の断片にまたがっても 1 回）。傍線の始まりと終わりも、断片に分かれても 1 回ずつ出る。2 回目の読みが無い再読文字は、1 回目の読みが読み仮名・送り仮名として出る。
 
 ## @kanbun-skam/skam-canvas-renderer
 
@@ -359,11 +396,15 @@ import { parse } from '@kanbun-skam/skam-xml-parser';
 const doc = parse(xmlString);
 ```
 
-本文は書記素クラスタ 1 つを 1 token にする（IVS、SVS、結合文字は基底の字と 1 token）。`Intl.Segmenter` が要る。
+本文は書記素クラスタ 1 つを 1 token にする（IVS、SVS、結合文字は基底の字と 1 token）。`Intl.Segmenter` が要る。`<skam:t>` の中の文字は書記素に分けず、空白も捨てずに 1 つの token にする。
+
+手書きの id（`xml:id`）の無いブロックと字には位置から決まる自動の id（`b#1`、`b#1#2`）を、注記には文書の順で `m#1` の形の id を付ける。`parse` に id の生成器は渡さない。
+
+入れ子にできない範囲は、`sID` / `eID` の空要素の対で書いた形を読む。ext、custom、placementHint は `skam:ext`、`skam:custom`、`placement-hint` 属性の JSON から読み、長さの上限と自由なデータの検査に通す。
 
 ルートの `xml:lang` は文書の `lang` になる（空の値なら `lang` を持たない）。`validate: true` なら形の誤りは `SKAMValidationError`（`path` は `lang`、位置は付かない）。`validate: false` では値をそのまま入れるので、HTML に使うときは `isLanguageTag` を通す。
 
-`skam:meta` の子の `skam:extension` は `extensions` と `extensionsRequired` になり、拡張の名前空間の属性（例 `edu:quiz`）は `ext.<拡張の名前>` になる。選択肢 `extensions` で、既定の束に利用者の拡張の定義を足せる。知らない必須の拡張を宣言した文書は、`validate` の値にかかわらず誤り。
+`skam:meta` の子の `skam:extension` は `extensions` と `extensionsRequired` になり、拡張の名前空間の属性（例 `edu:quiz`）は `ext.<拡張の名前>` になる。選択肢 `extensions` で、既定の束に利用者の拡張の定義を足せる。`uri` を省いた `skam:extension` は名前だけの宣言で、名前で拡張を決める（登録簿にも定義にも無い名前は知らない拡張で、値は `skam:ext` に書く）。知らない必須の拡張を宣言した文書は、`validate` の値にかかわらず誤り。
 
 `onWarning` には、未知の要素（`UNKNOWN_ELEMENT`）のほかに、ハイフンで連結した `kind` の `skam:kaeri`（`KAERI_MULTI_CHARACTER`）の警告が届く。後者は `validate` の値に関係なく 1 要素につき 1 回出る。validator の `warnings` は `onWarning` に流れない。
 
@@ -378,7 +419,11 @@ const xml = stringify(doc);
 
 文書の `lang` が文字列なら、ルートに `xml:lang` を書く（値は escape する）。
 
-宣言のある文書は、`skam:meta` に `skam:extension` を、ルートに拡張の名前空間を書き、拡張の値を定義の `writeXmlAttributes` で属性にする。選択肢 `extensions` で拡張の定義を足せる。書き方を知らない拡張の値は欠落 `UNKNOWN_EXTENSION` になる。2 つ以上の書記素の token は欠落 `MULTI_GRAPHEME_TOKEN` になる。
+宣言のある文書は、`skam:meta` に `skam:extension` を、ルートに拡張の名前空間を書き、拡張の値を定義の `writeXmlAttributes` で属性にする。選択肢 `extensions` で拡張の定義を足せる。登録簿にも定義にも無い拡張は `uri` を省いて宣言し、値は `skam:ext` 属性に JSON で書く。`UNKNOWN_EXTENSION` の損失になるのは、拡張の名前の形でない名前と、知らない必須の拡張の宣言だけ。
+
+validator が誤りも警告も返さない文書は、損失なしで書け、`parse` で読み直すと同じ文書に戻る。平文で書くと同じ字の並びに戻らない字（2 書記素以上の字、空白だけの字、空白で始まる字）と、手書きの id・ext・custom を持つ字は `<skam:t>` で書く。入れ子にできない範囲は `sID` / `eID` の空要素の対で書く。ext・custom・placementHint は持ち主の要素の属性（`skam:ext`、`skam:custom`、`placement-hint`）に書く。`derivations` は書かない（損失 `DERIVATIONS`）。
+
+`SKAM_ML_CONTENT_MODEL`（`@kanbun-skam/skam`）は、SKAM-ML-draft §7.0 の内容モデルの表。キーはテキストを持てる親要素（`block`、`span`、`tateten`、`yomigana`、`okimoji`、`joji`、`okototen`、`base`、`kun`、`soegana`、`t`）で、値は子に持てる要素の名前（テキストは `#text`）の配列。`yomigana`、`kun`、`base` は `saidoku` を子に持てない。`SKAM_ML_NESTING_ORDER` は範囲の要素の入れ子の順（外側から）。どちらも `@experimental` で、parser と stringify が同じ表を使う。
 
 ## @kanbun-skam/skam-html-renderer
 

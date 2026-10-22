@@ -1250,12 +1250,13 @@ describe('round-trip - extensions', () => {
         { type: 'okurigana', anchor: { from: 'b1#2', to: 'b1#2' }, value: 'ず' } as OkuriganaMark,
       ]
     );
-    // 入れ子の内側の注記が先に読まれるので、注記の並びは種類で揃えて比べる
+    // 種類の違う注記どうしの並びは問わない (K1)。比べるときは種類で揃える
     const sorted = (doc: SKAMDocument) => ({
       ...withoutIds(doc),
       marks: withoutIds(doc).marks.sort((a, b) => a.type.localeCompare(b.type)),
     });
-    expect(roundTrip(original).marks.map((m) => m.type)).toEqual(['okurigana', 'yomigana']);
+    // parser は開くタグを読んだ順に注記を並べるので、外側の読み仮名が先になる
+    expect(roundTrip(original).marks.map((m) => m.type)).toEqual(['yomigana', 'okurigana']);
     expect(sorted(roundTrip(original))).toEqual(sorted(original));
   });
 
@@ -1313,11 +1314,30 @@ describe('round-trip - extensions', () => {
     expect(withoutIds(roundTrip(undeclared))).toEqual(withoutIds(undeclared));
   });
 
-  it('URI の分からない拡張は、宣言そのものが書けないので損失になる', () => {
+  it('URI の分からない拡張は、uri を省いた宣言で書き、損失なしで往復する', () => {
     const unknown = declared(['學'], [], { extensions: ['edu', 'zzz'] });
     const losses: StringifyLoss[] = [];
-    stringify(unknown, { lossy: true, onLoss: (l) => losses.push(l) });
-    expect(losses).toMatchObject([{ code: 'UNKNOWN_EXTENSION', path: '/extensions/1' }]);
+    const xml = stringify(unknown, { lossy: true, onLoss: (l) => losses.push(l) });
+    expect(losses).toEqual([]);
+    expect(xml).toContain('<skam:extension name="zzz"/>');
+    expect(withoutIds(parse(xml)).extensions).toEqual(['edu', 'zzz']);
+  });
+
+  it('拡張の定義を渡さずに stringify し、定義を渡して parse しても、逆でも、同じ文書に戻る', () => {
+    const zzz: SKAMExtensionDefinition = { name: 'zzz', uri: 'urn:test:zzz', required: false };
+    const original = declared(
+      ['學'],
+      [{ type: 'okimoji', anchor, ext: { zzz: { a: 1 } } } as OkimojiMark],
+      { extensions: ['edu', 'zzz'] }
+    );
+    // 定義なしで書いた uri 無しの宣言は、定義ありの parser が名前で照合して zzz の宣言として読む
+    const withoutDefinition = stringify(original);
+    expect(withoutIds(parse(withoutDefinition, { extensions: [zzz] }))).toEqual(
+      withoutIds(original)
+    );
+    // 定義ありで書いた uri つきの宣言は、定義なしの parser が知らない拡張として読む
+    const withDefinition = stringify(original, { extensions: [zzz] });
+    expect(withoutIds(parse(withDefinition))).toEqual(withoutIds(original));
   });
 
   it('edu の値を名前空間の属性で書けない要素 (emphasis) では skam:ext に書く。validator は edu をここに置く文書を誤りにする', () => {

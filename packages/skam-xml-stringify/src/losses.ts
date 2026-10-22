@@ -6,7 +6,12 @@
  *
  * `ASCII_WHITESPACE_TOKEN`, `MULTI_GRAPHEME_TOKEN`, `EXT`, `PLACEMENT_HINT` and the value case of
  * `UNKNOWN_EXTENSION` are no longer produced: `<skam:t>` and the skam:ext / skam:custom / placement-hint
- * attributes write them. The values stay in the type so existing `switch` statements keep compiling.
+ * attributes write them. `PARTIAL_OVERLAP` and `CONFLICTING_MARKS` are no longer produced for a document that
+ * has no error and no warning from the validator: ranges that cannot be nested are written as pairs of empty
+ * elements, and several okototen marks on one anchor are written nested. `UNNESTABLE_OVERLAP` is produced only for
+ * the saidoku cases that the validator warns about (SAIDOKU_READING_OVERLAP, SAIDOKU_MULTI_TOKEN), and
+ * `UNKNOWN_EXTENSION` only for an extension whose name is not a valid extension name, or a required extension that
+ * is not known. The values stay in the type so existing `switch` statements keep compiling.
  */
 export type StringifyLossCode =
   | 'DERIVATIONS'

@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import type { SKAMExtensionDefinition } from '@kanbun-skam/skam/extensions';
-import { parse } from '../index.js';
+import { parse, SKAMXMLParseError } from '../index.js';
 
 const EDU_DECL =
   '<skam:meta><skam:extension name="edu" uri="urn:skam:edu:1" required="true"/></skam:meta>';
@@ -48,7 +48,6 @@ describe('parse: extension declaration', () => {
       '<skam:meta><skam:extension name="edu" uri="urn:x"/></skam:meta>',
       '<skam:meta><skam:extension name="foo" uri="urn:skam:edu:1"/></skam:meta>',
       '<skam:meta><skam:extension name="Edu" uri="urn:skam:edu:1"/></skam:meta>',
-      '<skam:meta><skam:extension name="edu"/></skam:meta>',
       '<skam:meta><skam:extension uri="urn:skam:edu:1"/></skam:meta>',
       '<skam:meta><skam:extension name="edu" uri="urn:skam:edu:1" required="yes"/></skam:meta>',
       `<skam:meta>${'<skam:extension name="edu" uri="urn:skam:edu:1"/>'.repeat(2)}</skam:meta>`,
@@ -291,5 +290,63 @@ describe('parse: skam:ext / skam:custom / placement-hint', () => {
     const result = parse(doc(` skam:custom='{"constructor":1}'`, '學'), { validate: false });
     expect(Object.hasOwn(result.custom!, 'constructor')).toBe(true);
     expect(Object.getPrototypeOf(result.custom)).toBe(Object.prototype);
+  });
+});
+
+describe('parse: skam:extension without uri', () => {
+  const noUriDoc = (
+    meta: string,
+    block: string,
+    rootAttrs = '',
+    ns = ' xmlns:edu="urn:skam:edu:1"'
+  ): string =>
+    `<skam:doc xmlns:skam="urn:skam:1"${ns}${rootAttrs}>${meta}<skam:body><skam:block xml:id="b1">${block}</skam:block></skam:body></skam:doc>`;
+  const saidokuWithQuiz =
+    '<skam:saidoku edu:quiz="問2"><skam:base>未</skam:base><skam:kunform yomi="いま"/></skam:saidoku>';
+
+  it('reads an unknown name as a declaration of an unknown extension', () => {
+    const doc = parse(
+      noUriDoc(
+        '<skam:meta><skam:extension name="zzz"/></skam:meta>',
+        '甲',
+        ` skam:ext='{"zzz":{"a":1}}'`
+      )
+    );
+    expect(doc.extensions).toEqual(['zzz']);
+    expect((doc.ext as { zzz: { a: number } }).zzz.a).toBe(1);
+  });
+
+  it('reads a registered name as that extension and its namespaced attribute', () => {
+    const doc = parse(
+      noUriDoc(
+        '<skam:meta><skam:extension name="edu" required="true"/></skam:meta>',
+        saidokuWithQuiz
+      )
+    );
+    expect(doc.extensions).toEqual(['edu']);
+    expect(doc.marks.find((m) => m.type === 'saidoku')!.ext).toEqual({ edu: { quiz: '問2' } });
+  });
+
+  it('rejects a registered name whose prefix is bound to another namespace', () => {
+    expect(() =>
+      parse(
+        noUriDoc(
+          '<skam:meta><skam:extension name="edu" required="true"/></skam:meta>',
+          saidokuWithQuiz,
+          '',
+          ' xmlns:edu="urn:other"'
+        )
+      )
+    ).toThrow(SKAMXMLParseError);
+  });
+
+  it('keeps required with an unknown name, an empty uri and double declarations as errors', () => {
+    const bad = [
+      '<skam:meta><skam:extension name="zzz" required="true"/></skam:meta>',
+      '<skam:meta><skam:extension name="zzz" uri=""/></skam:meta>',
+      '<skam:meta><skam:extension name="zzz" uri="urn:x:zzz"/><skam:extension name="zzz"/></skam:meta>',
+      '<skam:meta><skam:extension name="zzz"/><skam:extension name="zzz" uri="urn:x:zzz"/></skam:meta>',
+    ];
+    for (const meta of bad) expect(() => parse(noUriDoc(meta, '甲'))).toThrow(SKAMXMLParseError);
   });
 });

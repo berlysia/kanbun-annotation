@@ -29,12 +29,14 @@ import {
   KAERI_MULTI_CHARACTER,
   ID_FORM,
   XML_UNWRITABLE_CHAR,
+  SAIDOKU_READING_OVERLAP,
+  SAIDOKU_MULTI_TOKEN,
   type ValidationResult,
   createValidationError,
   SKAMValidationError,
   BLOCK_START_KAERI_HINT,
 } from './errors.js';
-import { isPositionBasedMark } from './operations/index.js';
+import { isPositionBasedMark, buildTokenIndexMap } from './operations/index.js';
 import { getLinebreakPlacementIssues } from './line-units.js';
 import { resolveExtensions } from './extensions/index.js';
 import type { SKAMExtensionDefinition } from './extensions/types.js';
@@ -1622,6 +1624,61 @@ const ID_FORM_MESSAGE =
 const XML_UNWRITABLE_CHAR_MESSAGE =
   'This string contains a character that XML 1.0 cannot represent (a control character other than tab, line feed and carriage return, U+FFFE, U+FFFF, or an unpaired surrogate). It becomes an error in 0.4.0.';
 
+const SAIDOKU_READING_OVERLAP_MESSAGE =
+  'A yomigana or okurigana range contains a character of a saidoku, but the two anchors are not the same. A saidoku already holds readings and suffixes in forms. It becomes an error in 0.4.0.';
+
+const SAIDOKU_MULTI_TOKEN_MESSAGE =
+  'A saidoku anchor spans more than one token. A saidoku reads one character more than once. It becomes an error in 0.4.0.';
+
+/**
+ * 再読文字の警告 (`SAIDOKU_READING_OVERLAP`、`SAIDOKU_MULTI_TOKEN`) を集める。
+ * anchor が完全に同じ読みと saidoku の組は `MARK_CONFLICT` なのでここでは数えない。
+ * saidoku の字の位置の集まりを作り、各読みの範囲の字と突き合わせる (注記の数 × 範囲の字数)。
+ */
+function collectSaidokuWarnings(doc: SKAMDocument): ValidationWarning[] {
+  const warnings: ValidationWarning[] = [];
+  const indexMap = buildTokenIndexMap(doc);
+  const saidokuPositions = new Set<number>();
+  const saidokuAnchors = new Set<string>();
+  doc.marks.forEach((mark, index) => {
+    if (isPositionBasedMark(mark) || mark.type !== 'saidoku') return;
+    const from = indexMap.get(mark.anchor.from);
+    const to = indexMap.get(mark.anchor.to);
+    if (from === undefined || to === undefined) return;
+    saidokuAnchors.add(`${mark.anchor.from}:${mark.anchor.to}`);
+    for (let position = from; position <= to; position++) saidokuPositions.add(position);
+    if (from !== to) {
+      warnings.push({
+        kind: SAIDOKU_MULTI_TOKEN,
+        path: `marks[${index}]`,
+        message: SAIDOKU_MULTI_TOKEN_MESSAGE,
+      });
+    }
+  });
+  if (saidokuPositions.size === 0) return warnings;
+
+  doc.marks.forEach((mark, index) => {
+    if (isPositionBasedMark(mark)) return;
+    if (mark.type !== 'yomigana' && mark.type !== 'okurigana') return;
+    // anchor が saidoku と完全に同じ読みは MARK_CONFLICT の誤りで、警告にしない
+    if (saidokuAnchors.has(`${mark.anchor.from}:${mark.anchor.to}`)) return;
+    const from = indexMap.get(mark.anchor.from);
+    const to = indexMap.get(mark.anchor.to);
+    if (from === undefined || to === undefined) return;
+    for (let position = from; position <= to; position++) {
+      if (saidokuPositions.has(position)) {
+        warnings.push({
+          kind: SAIDOKU_READING_OVERLAP,
+          path: `marks[${index}]`,
+          message: SAIDOKU_READING_OVERLAP_MESSAGE,
+        });
+        return;
+      }
+    }
+  });
+  return warnings;
+}
+
 /**
  * 構造の検証を通った文書の警告 (`ID_FORM`、`XML_UNWRITABLE_CHAR`) を集める。
  * 字の text、reading の text、注記の文字列の値と属性、placementHint が対象で、1 つの欄につき 1 件。
@@ -1741,6 +1798,7 @@ export function validateSKAMDocument(
   }
 
   warnings.push(...collectIdAndCharWarnings(document));
+  warnings.push(...collectSaidokuWarnings(document));
 
   return warnings.length > 0 ? { valid: true, document, warnings } : { valid: true, document };
 }

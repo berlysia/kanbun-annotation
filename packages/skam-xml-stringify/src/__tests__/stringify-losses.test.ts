@@ -35,10 +35,12 @@ const doc = (over: Partial<SKAMDocument> = {}): SKAMDocument => ({
   marks: [],
   ...over,
 });
+// 部分交差する emphasis と highlight は空要素の対で書けるので損失にならない。saidoku は対にしないので、
+// 別の範囲と部分交差する複数の字の saidoku は損失になる
 const partial = doc({
   marks: [
     { id: 'e1', type: 'emphasis', anchor: { from: 't1', to: 't2' } },
-    { id: 'h1', type: 'highlight', anchor: { from: 't2', to: 't3' } },
+    { id: 's1', type: 'saidoku', anchor: { from: 't2', to: 't3' }, forms: [{ yomi: 'a' }] },
   ],
 });
 const lossesOf = (d: SKAMDocument) => {
@@ -55,9 +57,9 @@ describe('stringify loss contract (K1)', () => {
     expect(lossesOf(partial)).toEqual([
       expect.objectContaining({
         category: 'unsupported',
-        code: 'PARTIAL_OVERLAP',
+        code: 'UNNESTABLE_OVERLAP',
         path: '/marks/1',
-        markId: 'h1',
+        markId: 's1',
       }),
     ]);
   });
@@ -65,7 +67,7 @@ describe('stringify loss contract (K1)', () => {
     const seen: StringifyLoss[] = [];
     const xml = stringify(partial, { lossy: true, onLoss: (l) => seen.push(l) });
     expect(xml).toContain('<skam:span type="emphasis" xml:id="e1">');
-    expect(seen.map((l) => l.code)).toEqual(['PARTIAL_OVERLAP']);
+    expect(seen.map((l) => l.code)).toEqual(['UNNESTABLE_OVERLAP']);
   });
   it('does not call onLoss when lossy is false', () => {
     const seen: StringifyLoss[] = [];
@@ -93,12 +95,12 @@ describe('stringify loss contract (K1)', () => {
         { id: 't3', text: '丙' },
       ],
       marks: [
-        { id: 'h1', type: 'highlight', anchor: { from: 't2', to: 't3' } },
+        { id: 's1', type: 'saidoku', anchor: { from: 't2', to: 't3' }, forms: [{ yomi: 'a' }] },
         { id: 'e1', type: 'emphasis', anchor: { from: 't1', to: 't2' } },
       ],
     });
-    // collectRangeMarks は開始位置の昇順に並べるので、e1 (t1–t2) が残り、h1 (marks[0], t2–t3) が部分交差で落ちる。
-    // h1 の鍵は {0,1,0,0}、tokens/1/text の鍵は {0,1,-1,0} なので、字の損失が先に来る。
+    // collectRangeMarks は開始位置の昇順に並べるので、e1 (t1–t2) が残り、s1 (marks[0], t2–t3) が部分交差で落ちる。
+    // s1 の鍵は {0,1,0,0}、tokens/1/text の鍵は {0,1,-1,0} なので、字の損失が先に来る。
     expect(lossesOf(d).map((l) => l.path)).toEqual(['/derivations', '/tokens/1/text', '/marks/0']);
   });
   it('is deterministic across calls', () => {
@@ -184,17 +186,34 @@ describe('each loss code is produced (K1)', () => {
     expect(lossCodes(d)).toEqual([]);
     expect(stringify(d)).toContain('placement-hint="inline"');
   });
-  it('UNNESTABLE_OVERLAP: range group with okuri containing an inner single-token kun', () =>
-    expect(
-      lossCodes(
-        doc({
-          marks: [
-            { type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'て' },
-            { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'び' },
-          ],
-        })
-      ).filter((c) => c.startsWith('unsupported:UNNESTABLE_OVERLAP'))
-    ).toHaveLength(1));
+  it('a range kun containing a single-token kun is nested, without loss', () => {
+    const d = doc({
+      marks: [
+        { type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'て' },
+        { type: 'yomigana', anchor: { from: 't1', to: 't1' }, value: 'び' },
+      ],
+    });
+    expect(lossCodes(d)).toEqual([]);
+    expect(stringify(d)).toContain(
+      '<skam:kun okuri="て"><skam:kun yomi="び">甲</skam:kun>乙</skam:kun>丙'
+    );
+  });
+});
+
+describe('unknown extensions (K5)', () => {
+  it('declares an unknown extension by name only and does not lose it', () => {
+    const d = doc({ extensions: ['zzz'], ext: { zzz: { a: 1 } } });
+    expect(lossCodes(d)).toEqual([]);
+    expect(stringify(d)).toContain('<skam:extension name="zzz"/>');
+  });
+  it('loses an extension whose name is invalid, and a required one that is not known', () => {
+    expect(lossCodes(doc({ extensions: ['Bad Name'] }))).toEqual([
+      'unsupported:UNKNOWN_EXTENSION@/extensions/0',
+    ]);
+    const required = doc({ extensions: ['zzz'], extensionsRequired: ['zzz'] });
+    expect(lossCodes(required)).toEqual(['unsupported:UNKNOWN_EXTENSION@/extensions/0']);
+    expect(stringify(required, { lossy: true })).not.toContain('required=');
+  });
 });
 
 describe('implementation gaps fixed (K1) — output shape', () => {
@@ -307,13 +326,9 @@ describe('content model in stringify (K2b)', () => {
       )
     ).toContain('<skam:okimoji><skam:kun okuri="て">甲乙</skam:kun></skam:okimoji>');
   });
-  it('reports UNNESTABLE_OVERLAP (outer dropped) for table violations', () => {
+  it('writes what the relaxed table allows without loss', () => {
     const cases: unknown[][] = [
       [{ type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'て' }, { ...oto }], // kun の範囲 > 包む要素
-      [
-        { type: 'okurigana', anchor: { from: 't1', to: 't3' }, value: 'a' },
-        { type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'b' },
-      ], // kun の範囲 > kun の範囲
       [
         { type: 'okimoji', anchor: { from: 't1', to: 't3' } },
         { type: 'emphasis', anchor: { from: 't1', to: 't2' } },
@@ -322,10 +337,36 @@ describe('content model in stringify (K2b)', () => {
         { type: 'okimoji', anchor: { from: 't1', to: 't2' } },
         { type: 'saidoku', anchor: { from: 't1', to: 't1' }, forms: [{ yomi: 'a' }] },
       ], // 包む要素 > saidoku
+      [
+        { type: 'okurigana', anchor: { from: 't1', to: 't3' }, value: 'a' },
+        { type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'b' },
+      ], // kun の範囲 > kun の範囲
     ];
     for (const marks of cases) {
+      expect(lossCodes(doc({ marks: marks as never }))).toEqual([]);
+    }
+  });
+  it('reports UNNESTABLE_OVERLAP for the ranges that a saidoku cannot be nested in or with', () => {
+    const saidoku = (from: string, to: string) =>
+      ({ type: 'saidoku', anchor: { from, to }, forms: [{ yomi: 'a' }] }) as const;
+    const cases: [unknown[], string][] = [
+      // 読みの範囲が saidoku の字を含む (SAIDOKU_READING_OVERLAP の文書): 外側の読みを損失にする
+      [
+        [{ type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'x' }, saidoku('t2', 't2')],
+        '/marks/0',
+      ],
+      [
+        [{ type: 'okurigana', anchor: { from: 't1', to: 't3' }, value: 'x' }, saidoku('t2', 't2')],
+        '/marks/0',
+      ],
+      // 複数の字の saidoku が別の範囲と部分交差する (SAIDOKU_MULTI_TOKEN の文書): saidoku を損失にする
+      [[{ type: 'emphasis', anchor: { from: 't1', to: 't2' } }, saidoku('t2', 't3')], '/marks/1'],
+      // saidoku は saidoku の中に置けない
+      [[saidoku('t1', 't3'), saidoku('t2', 't2')], '/marks/1'],
+    ];
+    for (const [marks, path] of cases) {
       expect(lossCodes(doc({ marks: marks as never }))).toEqual([
-        'unsupported:UNNESTABLE_OVERLAP@/marks/0',
+        `unsupported:UNNESTABLE_OVERLAP@${path}`,
       ]);
     }
   });
@@ -341,40 +382,37 @@ describe('content model in stringify (K2b)', () => {
       )
     ).toEqual([]);
   });
-  it('reports UNNESTABLE_OVERLAP for yomigana and a wrapper on the same range', () => {
-    expect(
-      lossCodes(
-        doc({
-          marks: [
-            { type: 'okimoji', anchor: { from: 't1', to: 't2' } },
-            { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'x' },
-            { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'y' },
-          ],
-        })
-      )
-    ).toEqual(['unsupported:UNNESTABLE_OVERLAP@/marks/0']);
+  it('writes yomigana and a wrapper on the same range without loss (the wrapper is outside)', () => {
+    const d = doc({
+      marks: [
+        { type: 'okimoji', anchor: { from: 't1', to: 't2' } },
+        { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'x' },
+        { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'y' },
+      ],
+    });
+    expect(lossCodes(d)).toEqual([]);
+    expect(stringify(d)).toContain(
+      '<skam:okimoji><skam:yomigana value="x"><skam:kun okuri="y">甲</skam:kun>乙</skam:yomigana></skam:okimoji>丙'
+    );
   });
-  it('reports UNNESTABLE_OVERLAP when a position mark sits inside a wrapper or kun range', () => {
-    expect(
-      lossCodes(
-        doc({
-          marks: [
-            { type: 'okimoji', anchor: { from: 't1', to: 't2' } },
-            { type: 'kutoten', kind: 'ten', value: '、', position: { blockId: 'b1', after: 't1' } },
-          ],
-        })
-      )
-    ).toEqual(['unsupported:UNNESTABLE_OVERLAP@/marks/0']);
-    expect(
-      lossCodes(
-        doc({
-          marks: [
-            { type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'て' },
-            { type: 'kaeri', value: '㆑', position: { blockId: 'b1', after: 't1' } },
-          ],
-        })
-      )
-    ).toEqual(['unsupported:UNNESTABLE_OVERLAP@/marks/0']);
+  it('writes a position mark inside a wrapper or kun range, between the characters, without loss', () => {
+    const inside = (marks: unknown[]) => doc({ marks: marks as never });
+    const wrapper = inside([
+      { type: 'okimoji', anchor: { from: 't1', to: 't2' } },
+      { type: 'kutoten', kind: 'ten', value: '、', position: { blockId: 'b1', after: 't1' } },
+    ]);
+    expect(lossCodes(wrapper)).toEqual([]);
+    expect(stringify(wrapper)).toContain(
+      '<skam:okimoji>甲<skam:kutoten value="、" kind="ten"/>乙</skam:okimoji>丙'
+    );
+    const kun = inside([
+      { type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'て' },
+      { type: 'kaeri', value: '㆑', position: { blockId: 'b1', after: 't1' } },
+    ]);
+    expect(lossCodes(kun)).toEqual([]);
+    expect(stringify(kun)).toContain(
+      '<skam:kun okuri="て">甲<skam:kaeri kind="re"/>乙</skam:kun>丙'
+    );
   });
   it('hoists a trailing position mark out of every range that ends on the same token', () => {
     expect(

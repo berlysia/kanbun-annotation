@@ -1,6 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import { validateSKAMDocument } from '../validator.js';
-import { KAERI_MULTI_CHARACTER, ID_FORM, XML_UNWRITABLE_CHAR } from '../errors.js';
+import {
+  KAERI_MULTI_CHARACTER,
+  ID_FORM,
+  XML_UNWRITABLE_CHAR,
+  SAIDOKU_READING_OVERLAP,
+  SAIDOKU_MULTI_TOKEN,
+} from '../errors.js';
 import type { SKAMDocument, Mark } from '../index.js';
 
 function docWithMarks(marks: Mark[]): SKAMDocument {
@@ -276,6 +282,107 @@ describe('validateSKAMDocument warnings (XML_UNWRITABLE_CHAR)', () => {
       },
     ]);
     const result = validateSKAMDocument(d);
+    expect(result.valid).toBe(true);
+    expect(result).not.toHaveProperty('warnings');
+  });
+});
+
+describe('validateSKAMDocument warnings (saidoku)', () => {
+  const t1 = 'b#1#1';
+  const t2 = 'b#1#2';
+  const t3 = 'b#1#3';
+  const yomigana = (id: string, from: string, to: string): Mark => ({
+    type: 'yomigana',
+    id,
+    anchor: { from, to },
+    value: 'あ',
+  });
+  const okurigana = (id: string, from: string, to: string): Mark => ({
+    type: 'okurigana',
+    id,
+    anchor: { from, to },
+    value: 'て',
+  });
+  const soegana = (id: string, from: string, to: string): Mark => ({
+    type: 'soegana',
+    id,
+    anchor: { from, to },
+    value: 'て',
+  });
+  const okimoji = (id: string, from: string, to: string): Mark => ({
+    type: 'okimoji',
+    id,
+    anchor: { from, to },
+  });
+  const saidoku = (id: string, from: string, to: string): Mark => ({
+    type: 'saidoku',
+    id,
+    anchor: { from, to },
+    forms: [{ yomi: 'ま' }],
+  });
+  const kinds = (doc: unknown): { kind: string; path: string }[] => {
+    const result = validateSKAMDocument(doc);
+    expect(result.valid).toBe(true);
+    if (!result.valid) return [];
+    return (result.warnings ?? []).map((w) => ({ kind: w.kind, path: w.path }));
+  };
+
+  it('yomigana t1-t2 と saidoku t2 は SAIDOKU_READING_OVERLAP (marks[0])、valid: true', () => {
+    expect(kinds(autoDoc([yomigana('y1', t1, t2), saidoku('s1', t2, t2)]))).toEqual([
+      { kind: SAIDOKU_READING_OVERLAP, path: 'marks[0]' },
+    ]);
+  });
+
+  it('okurigana t1-t2 と saidoku t2 は SAIDOKU_READING_OVERLAP', () => {
+    expect(kinds(autoDoc([saidoku('s1', t2, t2), okurigana('o1', t1, t2)]))).toEqual([
+      { kind: SAIDOKU_READING_OVERLAP, path: 'marks[1]' },
+    ]);
+  });
+
+  it('yomigana t3 と saidoku t2-t3 は OVERLAP と MULTI_TOKEN', () => {
+    const found = kinds(autoDoc([yomigana('y1', t3, t3), saidoku('s1', t2, t3)]));
+    expect(found).toHaveLength(2);
+    expect(found).toContainEqual({ kind: SAIDOKU_READING_OVERLAP, path: 'marks[0]' });
+    expect(found).toContainEqual({ kind: SAIDOKU_MULTI_TOKEN, path: 'marks[1]' });
+  });
+
+  it('yomigana t1-t2 と saidoku t2-t3 は両方の警告', () => {
+    const found = kinds(autoDoc([yomigana('y1', t1, t2), saidoku('s1', t2, t3)]));
+    expect(found.map((w) => w.kind).sort()).toEqual(
+      [SAIDOKU_MULTI_TOKEN, SAIDOKU_READING_OVERLAP].sort()
+    );
+  });
+
+  it('警告の message に入力の値を入れない', () => {
+    const result = validateSKAMDocument(autoDoc([yomigana('y1', t1, t2), saidoku('s1', t2, t2)]));
+    expect(result.valid).toBe(true);
+    if (!result.valid) return;
+    expect(result.warnings?.[0]?.message).toContain('0.4.0');
+    expect(result.warnings?.[0]?.message).not.toContain('b#1');
+  });
+
+  it('yomigana t2 と saidoku t2 (anchor が同じ) は今の MARK_CONFLICT の誤りだけ', () => {
+    const result = validateSKAMDocument(autoDoc([yomigana('y1', t2, t2), saidoku('s1', t2, t2)]));
+    expect(result.valid).toBe(false);
+    if (result.valid) return;
+    expect(result.errors.map((e) => e.kind)).toEqual(['MARK_CONFLICT']);
+    expect(result).not.toHaveProperty('warnings');
+  });
+
+  it('soegana t1-t2 と saidoku t2 は警告なし', () => {
+    const result = validateSKAMDocument(autoDoc([soegana('e1', t1, t2), saidoku('s1', t2, t2)]));
+    expect(result.valid).toBe(true);
+    expect(result).not.toHaveProperty('warnings');
+  });
+
+  it('okimoji t1-t2 と yomigana t1-t3 は警告なし', () => {
+    const result = validateSKAMDocument(autoDoc([okimoji('k1', t1, t2), yomigana('y1', t1, t3)]));
+    expect(result.valid).toBe(true);
+    expect(result).not.toHaveProperty('warnings');
+  });
+
+  it('yomigana と離れた saidoku は警告なし', () => {
+    const result = validateSKAMDocument(autoDoc([yomigana('y1', t1, t2), saidoku('s1', t3, t3)]));
     expect(result.valid).toBe(true);
     expect(result).not.toHaveProperty('warnings');
   });

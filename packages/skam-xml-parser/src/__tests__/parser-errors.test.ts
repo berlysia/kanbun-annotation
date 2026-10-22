@@ -319,3 +319,113 @@ describe('parse - <skam:t> and free-data attribute errors', () => {
     positionedError(wrap(`<skam:kun yomi="まな" skam:soe-ext='{"a":1}'>學</skam:kun>`));
   });
 });
+
+// ============================================================================
+// 空要素の対と深さの誤り (plan-3 T2)
+// ============================================================================
+
+describe('parse - pair and depth errors', () => {
+  const wrapBlocks = (...blocks: string[]): string =>
+    `<skam:doc xmlns:skam="urn:skam:1" xmlns:edu="urn:skam:edu:1"><skam:body>${blocks
+      .map((b) => `<skam:block>${b}</skam:block>`)
+      .join('')}</skam:body></skam:doc>`;
+  const start = (id: string): string => `<skam:span type="emphasis" sID="${id}"/>`;
+  const end = (id: string): string => `<skam:span eID="${id}"/>`;
+
+  function positioned(xml: string): SKAMXMLParseError {
+    try {
+      parse(xml);
+    } catch (e) {
+      expect(e).toBeInstanceOf(SKAMXMLParseError);
+      expect((e as SKAMXMLParseError).line).toBeGreaterThan(0);
+      return e as SKAMXMLParseError;
+    }
+    throw new Error('expected a parse error');
+  }
+
+  it('rejects sID / eID values that are not NCNames, without echoing the value', () => {
+    for (const value of ['', 'a b', 'a:b', '1a']) {
+      const error = positioned(
+        wrapBlocks(`<skam:span type="emphasis" sID="${value}"/>甲<skam:span eID="${value}"/>`)
+      );
+      if (value !== '') expect(error.message).not.toContain(value);
+    }
+    const eid = positioned(wrapBlocks(`${start('r1')}甲<skam:span eID="9z"/>`));
+    expect(eid.message).not.toContain('9z');
+  });
+
+  it.each([
+    ['an sID without eID', start('r1') + '甲'],
+    ['an eID before its sID', end('r1') + '甲' + start('r1')],
+    ['two eIDs', start('r1') + '甲' + end('r1') + end('r1')],
+    [
+      'an sID used again after it closed',
+      start('r1') + '甲' + end('r1') + start('r1') + '乙' + end('r1'),
+    ],
+    ['a pair with different element names', start('r1') + '甲<skam:tateten eID="r1"/>'],
+    ['an element with both sID and eID', '<skam:span type="emphasis" sID="r1" eID="r1"/>甲'],
+    ['an end element with a style attribute', start('r1') + '甲<skam:span eID="r1" style="dot"/>'],
+    [
+      'an end element with a namespaced attribute',
+      start('r1') + '甲<skam:span eID="r1" edu:quiz="q"/>',
+    ],
+    [
+      'a start element with content',
+      '<skam:span type="emphasis" sID="r1">甲</skam:span>' + end('r1'),
+    ],
+    [
+      'a pair with only a position mark between',
+      start('r1') + '<skam:kutoten value="、"/>' + end('r1') + '甲',
+    ],
+    [
+      'a saidoku with sID',
+      '<skam:saidoku sID="r1"><skam:base>甲</skam:base><skam:kunform yomi="あ"/></skam:saidoku>',
+    ],
+    ['a skam:t with sID', '<skam:t sID="r1">甲</skam:t>'],
+    ['a kaeri with sID', '甲<skam:kaeri sID="r1" kind="re"/>'],
+    [
+      'a pair element with a processing instruction',
+      '<skam:span type="emphasis" sID="r1"><?pi x?></skam:span>甲' + end('r1'),
+    ],
+    [
+      'a pair element with whitespace-only CDATA',
+      '<skam:span type="emphasis" sID="r1"><![CDATA[ ]]></skam:span>甲' + end('r1'),
+    ],
+  ])('rejects %s', (_label, inner) => {
+    positioned(wrapBlocks(inner));
+  });
+
+  it('rejects an sID reused in another block and a pair across two blocks', () => {
+    positioned(wrapBlocks(start('r1') + '甲' + end('r1'), start('r1') + '乙' + end('r1')));
+    positioned(wrapBlocks(start('r1') + '甲', '乙' + end('r1')));
+  });
+
+  it('rejects saidoku inside yomigana, kun and base', () => {
+    const saidoku =
+      '<skam:saidoku><skam:base>未</skam:base><skam:kunform yomi="いま"/></skam:saidoku>';
+    positioned(wrapBlocks(`<skam:yomigana value="あ">甲${saidoku}</skam:yomigana>`));
+    positioned(wrapBlocks(`<skam:kun yomi="あ">甲${saidoku}</skam:kun>`));
+    positioned(
+      wrapBlocks(
+        `<skam:saidoku><skam:base>${saidoku}</skam:base><skam:kunform yomi="いま"/></skam:saidoku>`
+      )
+    );
+  });
+
+  it('allows 56 nested range elements and rejects 57 with a positioned error', () => {
+    const nest = (n: number): string =>
+      wrapBlocks(`${'<skam:span type="emphasis">'.repeat(n)}甲${'</skam:span>'.repeat(n)}`);
+    expect(() => parse(nest(56))).not.toThrow();
+    // 既定の maxDepth (64) では要素の深さの事前走査が先に止めることがある
+    positioned(nest(57));
+    // 呼び出し側が maxDepth を上げたときの防御
+    expect(() => parse(nest(57), { maxDepth: 200 })).toThrow(SKAMXMLParseError);
+  });
+
+  it('rejects 10,000 different open sIDs (unmatched) and a repeated sID at the second one', () => {
+    const many = Array.from({ length: 10_000 }, (_, i) => start(`r${i}`)).join('');
+    positioned(wrapBlocks(many + '甲'));
+    const same = Array.from({ length: 10_000 }, () => start('r1')).join('');
+    positioned(wrapBlocks(same + '甲'));
+  });
+});

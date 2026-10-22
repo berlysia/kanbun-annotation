@@ -29,6 +29,7 @@ import type {
   HighlightMark,
   RefMark,
   RefFormat,
+  Anchor,
 } from '@kanbun-skam/skam';
 import {
   KAERI,
@@ -40,6 +41,9 @@ import {
   isValidHighlightStyle,
   tokenizePlainText,
   SKAM_ML_CONTENT_MODEL,
+  SKAM_ML_RANGE_DEPTH_ELEMENTS,
+  SKAM_ML_PAIRABLE_ELEMENTS,
+  SKAM_ML_MAX_RANGE_DEPTH,
   isHandId,
 } from '@kanbun-skam/skam';
 import {
@@ -190,6 +194,12 @@ interface ParserState {
   currentBlockId: string | null;
   /** state.tokens 内で現在のブロックが始まるインデックス (ブロック先頭の判定に使う) */
   currentBlockTokenStart: number;
+  /** 現在のブロックで開いている空要素の対 (sID の値から)。ブロックごとに作り直す */
+  openPairs: Map<string, OpenPair>;
+  /** 現在のブロックで開いている範囲の要素の数。ブロックごとに 0 に戻す */
+  rangeDepth: number;
+  /** 文書の中で使った sID の値。閉じた後の再利用も誤りにする */
+  usedPairIds: Set<string>;
   positionTracker: PositionTracker | null;
   /** Current search offset in the source for position tracking */
   currentSearchOffset: number;
@@ -214,6 +224,9 @@ function createParserState(
     pendingHighlights: [],
     currentBlockId: null,
     currentBlockTokenStart: 0,
+    openPairs: new Map(),
+    rangeDepth: 0,
+    usedPairIds: new Set(),
     positionTracker: source ? new PositionTracker(source) : null,
     currentSearchOffset: 0,
     onWarning,
@@ -345,6 +358,30 @@ function buildExtensionTable(
 interface ExtensionDeclaration {
   used: string[];
   required: string[];
+  /** `uri` を省いた宣言の名前 (名前だけの宣言。拡張の同一性は名前で決まる) */
+  nameOnly: string[];
+}
+
+/** 宣言した拡張の名前の集まりと、そのうち `uri` を省いた名前の集まり */
+function declaredNameSets(
+  declaration: ExtensionDeclaration | undefined
+): [ReadonlySet<string>, ReadonlySet<string>] {
+  return [new Set(declaration?.used), new Set(declaration?.nameOnly)];
+}
+
+/** `uri` を書いた宣言が、登録簿か渡された定義の名前と URI の組に合うか */
+function assertDeclaredUri(child: Element, name: string, uri: string, table: ExtensionTable): void {
+  const known = table.uriByName.get(name);
+  if (known !== undefined && known !== uri) {
+    throw parseErrorAt(child, `Extension "${name}" is declared with a uri that does not match`);
+  }
+  const owner = table.byUri.get(uri);
+  if (owner !== undefined && owner.name !== name) {
+    throw parseErrorAt(
+      child,
+      `The uri of extension "${owner.name}" is declared under another name`
+    );
+  }
 }
 
 /** `skam:meta` の子の `skam:extension` を読む。1 つも無ければ宣言の無い文書 (undefined) */
@@ -352,14 +389,16 @@ function readExtensionDeclarations(
   metas: Element[],
   table: ExtensionTable
 ): ExtensionDeclaration | undefined {
-  const declaration: ExtensionDeclaration = { used: [], required: [] };
+  const declaration: ExtensionDeclaration = { used: [], required: [], nameOnly: [] };
   let found = false;
   for (const meta of metas) {
     for (const child of childElements(meta)) {
       if (getLocalName(child) !== 'extension') continue;
       found = true;
       const name = child.getAttribute('name');
-      const uri = child.getAttribute('uri');
+      // `uri` は属性が無いときだけ省けたとする (空の値は誤り)
+      const hasUri = child.hasAttribute('uri');
+      const uri = hasUri ? (child.getAttribute('uri') ?? '') : null;
       const required = child.getAttribute('required');
       if (!name || !isExtensionName(name)) {
         throw parseErrorAt(
@@ -367,24 +406,15 @@ function readExtensionDeclarations(
           '<skam:extension> requires a name of lowercase letters and digits, starting with a letter'
         );
       }
-      if (!uri) throw parseErrorAt(child, '<skam:extension> requires a uri');
+      if (uri === '') throw parseErrorAt(child, '<skam:extension> uri must not be empty');
       if (required !== null && required !== '' && required !== 'true') {
         throw parseErrorAt(child, '<skam:extension> required must be "true" when present');
       }
       if (declaration.used.includes(name)) {
         throw parseErrorAt(child, `Extension "${name}" is declared more than once`);
       }
-      const known = table.uriByName.get(name);
-      if (known !== undefined && known !== uri) {
-        throw parseErrorAt(child, `Extension "${name}" is declared with a uri that does not match`);
-      }
-      const owner = table.byUri.get(uri);
-      if (owner !== undefined && owner.name !== name) {
-        throw parseErrorAt(
-          child,
-          `The uri of extension "${owner.name}" is declared under another name`
-        );
-      }
+      if (uri !== null) assertDeclaredUri(child, name, uri, table);
+      else declaration.nameOnly.push(name);
       declaration.used.push(name);
       if (required === 'true') {
         // 必須の拡張は、知らなければ読まない (validate の有無にかかわらず)
@@ -517,6 +547,27 @@ function applyFreeData(
 }
 
 /**
+ * 名前だけで宣言した (`uri` を省いた) 既知の拡張は、その名前の接頭辞が登録簿か定義の URI に束縛されているときだけ読む。
+ * 別の名前空間に束縛されていれば位置つきの誤り (`uri` を書いた宣言の「同じ名前で違う URI は誤り」と同じ扱い)
+ */
+function assertNameOnlyPrefix(
+  element: Element,
+  attr: Attr,
+  table: ExtensionTable,
+  nameOnly: ReadonlySet<string>
+): void {
+  const prefix = attr.prefix;
+  if (!prefix || !nameOnly.has(prefix)) return;
+  const registered = table.uriByName.get(prefix);
+  if (registered !== undefined && registered !== attr.namespaceURI) {
+    throw parseErrorAt(
+      element,
+      `The prefix "${prefix}" is bound to a namespace other than the one of extension "${prefix}"`
+    );
+  }
+}
+
+/**
  * 拡張の名前空間の属性を、要素が作った注記の `ext.<拡張の名前>` にし、
  * `skam:ext` / `skam:custom` / `placement-hint` を、要素の持ち主 (文書、ブロック、字、reading、注記) に付ける。
  * 注記ができた後に文書全体を一度走査するので、要素ごとの処理には手を入れない。
@@ -528,7 +579,8 @@ function applyExtensionAttributes(
   skamDoc: SKAMDocument,
   state: ParserState,
   table: ExtensionTable,
-  declared: ReadonlySet<string>
+  declared: ReadonlySet<string>,
+  nameOnly: ReadonlySet<string>
 ): void {
   const marksByElement = new Map<Element, Mark[]>();
   for (const mark of state.marks) {
@@ -558,6 +610,7 @@ function applyExtensionAttributes(
     for (const attr of Array.from(element.attributes)) {
       const uri = attr.namespaceURI;
       if (!uri || uri === XMLNS_NAMESPACE) continue;
+      assertNameOnlyPrefix(element, attr, table, nameOnly);
       const known = table.byUri.get(uri);
       if (!known) continue;
       if (!declared.has(known.name)) {
@@ -743,38 +796,6 @@ function warn(state: ParserState, element: Element): void {
   state.onWarning(warning);
 }
 
-/** 表に載る親要素の子を読む。返す token は文書順 */
-function processConstrainedContent(
-  element: Element,
-  state: ParserState,
-  owner: keyof typeof SKAM_ML_CONTENT_MODEL
-): string[] {
-  const allowed = SKAM_ML_CONTENT_MODEL[owner];
-  const tokenIds: string[] = [];
-  for (const child of Array.from(element.childNodes)) {
-    if (isText(child)) {
-      tokenIds.push(...addTokensFromText(child.textContent ?? '', state, element));
-      continue;
-    }
-    if (!isElement(child)) continue;
-    assertSkamNamespace(child);
-    const name = getLocalName(child);
-    if (!KNOWN_SKAM_ELEMENTS.has(name)) {
-      warn(state, child);
-      continue;
-    }
-    if (!allowed.includes(name)) {
-      throw parseErrorAt(child, `<skam:${owner}> must not contain <skam:${name}>`);
-    }
-    if (name === 't') tokenIds.push(...processToken(child, state));
-    else if (name === 'kun') tokenIds.push(...processKun(child, state));
-    else if (name === 'okimoji') tokenIds.push(...processOkimoji(child, state));
-    else if (name === 'joji') tokenIds.push(...processJoji(child, state));
-    else if (name === 'okototen') tokenIds.push(...processOkototen(child, state));
-  }
-  return tokenIds;
-}
-
 /** 字の id は `<そのブロックの id>#<ブロックの中の 1 始まりの順>` */
 function generateTokenId(state: ParserState): string {
   const order = state.tokens.length - state.currentBlockTokenStart + 1;
@@ -854,45 +875,6 @@ function processToken(element: Element, state: ParserState): string[] {
   return [pushToken(state, text, element, readHandId(element))];
 }
 
-/**
- * kun と soegana の中身を読む。平文のテキスト (間に未知の要素やコメントがあってもつなげて 1 つのテキストとして分ける) と
- * `<skam:t>` を文書順に token にする。ほかの既知の要素は内容モデル違反、未知の skam:* は部分木ごと無視して通知する。
- */
-function readTextAndTokens(element: Element, state: ParserState, owner: string): string[] {
-  const tokenIds: string[] = [];
-  let pending = '';
-  const flush = (): void => {
-    if (pending === '') return;
-    tokenIds.push(...addTokensFromText(pending, state, element));
-    pending = '';
-  };
-  for (const child of Array.from(element.childNodes)) {
-    if (isText(child)) {
-      pending += child.textContent ?? '';
-    } else if (isElement(child)) {
-      assertSkamNamespace(child);
-      const name = getLocalName(child);
-      if (name === 't') {
-        flush();
-        tokenIds.push(...processToken(child, state));
-      } else if (KNOWN_SKAM_ELEMENTS.has(name)) {
-        throw parseErrorAt(child, `<skam:${owner}> must not contain <skam:${name}>`);
-      } else {
-        warn(state, child);
-      }
-    }
-  }
-  flush();
-  return tokenIds;
-}
-
-function createAnchor(tokenIds: string[], element: Element): { from: string; to: string } {
-  if (tokenIds.length === 0) {
-    throw parseErrorAt(element, 'Cannot create anchor from empty token list');
-  }
-  return { from: tokenIds[0]!, to: tokenIds[tokenIds.length - 1]! };
-}
-
 // ============================================================================
 // Mark Processors
 // ============================================================================
@@ -938,80 +920,440 @@ function processKaeri(element: Element, state: ParserState, precedingTokenId: st
   pushMark(state, mark, element);
 }
 
-function processKun(element: Element, state: ParserState): string[] {
-  const yomi = getAttr(element, 'yomi');
-  const okuri = getAttr(element, 'okuri');
-  const soe = getAttr(element, 'soe');
+// ============================================================================
+// Range Elements (nested form and empty-element pairs)
+// ============================================================================
 
-  // Extract text content (and <skam:t>) and generate tokens
-  const tokenIds = readTextAndTokens(element, state, 'kun');
-
-  if (tokenIds.length === 0) {
-    throw parseErrorAt(element, '<skam:kun> must contain text');
-  }
-
-  const anchor = createAnchor(tokenIds, element);
-
-  // 1 つの要素から最大 3 つの注記を作る。xml:id は最初に作る注記 (yomigana、okurigana、soegana の順) に付ける
-  let kunId = readMarkId(element);
-  const takeKunId = (): string => {
-    const id = kunId;
-    kunId = PENDING_MARK_ID;
-    return id;
-  };
-
-  if (yomi) {
-    const yomiganaMark: YomiganaMark = {
-      type: 'yomigana',
-      id: takeKunId(),
-      anchor,
-      value: yomi,
-    };
-    pushMark(state, yomiganaMark, element);
-  }
-
-  if (okuri) {
-    const okuriganaMark: OkuriganaMark = {
-      type: 'okurigana',
-      id: takeKunId(),
-      anchor,
-      value: okuri,
-    };
-    pushMark(state, okuriganaMark, element);
-  }
-
-  if (soe) {
-    const soeganaMark: SoeganaMark = {
-      type: 'soegana',
-      id: takeKunId(),
-      anchor,
-      value: soe,
-    };
-    pushMark(state, soeganaMark, element);
-  }
-
-  return tokenIds;
+/** ブロックの中で、始まりの要素を読んで終わりの要素をまだ読んでいない対 */
+interface OpenPair {
+  element: Element;
+  name: string;
+  /** 始まりの要素が作った注記。anchor は終わりの要素で埋める */
+  marks: AnchoredMark[];
+  /** 始まりの要素の時点の `state.tokens.length`。この位置の token が対の最初の字 */
+  startIndex: number;
 }
 
-function processYomigana(element: Element, state: ParserState): string[] {
-  const value = getRequiredAttr(element, 'value', 'skam:yomigana');
+type AnchoredMark = Extract<Mark, { anchor: Anchor }>;
+type ContentOwner = keyof typeof SKAM_ML_CONTENT_MODEL;
 
-  // yomigana は kun を内包できる (内側の範囲 ⊆ 外側の範囲)。表は §7.0
-  const tokenIds = processConstrainedContent(element, state, 'yomigana');
+const RANGE_DEPTH_NAMES: ReadonlySet<string> = new Set(SKAM_ML_RANGE_DEPTH_ELEMENTS);
+const PAIRABLE_NAMES: ReadonlySet<string> = new Set(SKAM_ML_PAIRABLE_ELEMENTS);
+const POSITION_ELEMENT_NAMES: ReadonlySet<string> = new Set(['kaeri', 'kutoten', 'ref', 'br']);
 
-  if (tokenIds.length === 0) {
-    throw parseErrorAt(element, '<skam:yomigana> must contain text');
-  }
+/** 直前の token (同じブロックの中)。ブロックの先頭なら null。ブロックをまたいで引き継がない */
+function precedingTokenId(state: ParserState): string | null {
+  return state.tokens.length > state.currentBlockTokenStart
+    ? state.tokens[state.tokens.length - 1]!.id
+    : null;
+}
 
-  const mark: YomiganaMark = {
-    type: 'yomigana',
-    id: readMarkId(element),
-    anchor: createAnchor(tokenIds, element),
-    value,
+/** 範囲の注記を作った時点では、字がまだ読まれていない。閉じるタグ (対では終わりの要素) で埋める */
+function pendingAnchor(): Anchor {
+  return { from: '', to: '' };
+}
+
+function emptyRangeMessage(name: string): string {
+  if (name === 'span') return '<skam:span> must contain content';
+  if (name === 'soegana') return '<skam:soegana> must contain text (the character to annotate)';
+  return `<skam:${name}> must contain text`;
+}
+
+/**
+ * 範囲の要素の属性を読み、注記を作って state に積む (開くタグを読んだ順に marks[] に並べる)。
+ * anchor は閉じるタグで埋める。`skam:kun` は最大 3 つ (yomigana、okurigana、soegana の順)
+ */
+// oxlint-disable-next-line eslint/complexity
+function openRangeMarks(element: Element, name: string, state: ParserState): AnchoredMark[] {
+  const marks: AnchoredMark[] = [];
+  const add = (mark: AnchoredMark): void => {
+    marks.push(mark);
+    pushMark(state, mark, element);
   };
 
+  switch (name) {
+    case 'kun': {
+      const yomi = getAttr(element, 'yomi');
+      const okuri = getAttr(element, 'okuri');
+      const soe = getAttr(element, 'soe');
+      // 1 つの要素から最大 3 つの注記を作る。xml:id は最初に作る注記に付ける
+      let kunId = readMarkId(element);
+      const takeKunId = (): string => {
+        const id = kunId;
+        kunId = PENDING_MARK_ID;
+        return id;
+      };
+      if (yomi) {
+        const mark: YomiganaMark = {
+          type: 'yomigana',
+          id: takeKunId(),
+          anchor: pendingAnchor(),
+          value: yomi,
+        };
+        add(mark);
+      }
+      if (okuri) {
+        const mark: OkuriganaMark = {
+          type: 'okurigana',
+          id: takeKunId(),
+          anchor: pendingAnchor(),
+          value: okuri,
+        };
+        add(mark);
+      }
+      if (soe) {
+        const mark: SoeganaMark = {
+          type: 'soegana',
+          id: takeKunId(),
+          anchor: pendingAnchor(),
+          value: soe,
+        };
+        add(mark);
+      }
+      break;
+    }
+    case 'yomigana': {
+      const value = getRequiredAttr(element, 'value', 'skam:yomigana');
+      const mark: YomiganaMark = {
+        type: 'yomigana',
+        id: readMarkId(element),
+        anchor: pendingAnchor(),
+        value,
+      };
+      add(mark);
+      break;
+    }
+    case 'soegana': {
+      const value = getRequiredAttr(element, 'value', 'skam:soegana');
+      const mark: SoeganaMark = {
+        type: 'soegana',
+        id: readMarkId(element),
+        anchor: pendingAnchor(),
+        value,
+      };
+      add(mark);
+      break;
+    }
+    case 'okimoji': {
+      const mark: OkimojiMark = {
+        type: 'okimoji',
+        id: readMarkId(element),
+        anchor: pendingAnchor(),
+      };
+      add(mark);
+      break;
+    }
+    case 'joji': {
+      const mark: JojiMark = { type: 'joji', id: readMarkId(element), anchor: pendingAnchor() };
+      add(mark);
+      break;
+    }
+    case 'tateten': {
+      const mark: TatetenMark = {
+        type: 'tateten',
+        id: readMarkId(element),
+        anchor: pendingAnchor(),
+      };
+      add(mark);
+      break;
+    }
+    case 'okototen': {
+      const grid = getRequiredAttr(element, 'grid', 'skam:okototen');
+      const xStr = getRequiredAttr(element, 'x', 'skam:okototen');
+      const yStr = getRequiredAttr(element, 'y', 'skam:okototen');
+      const shape = getRequiredAttr(element, 'shape', 'skam:okototen');
+      const sound = getAttr(element, 'sound');
+      const color = getAttr(element, 'color');
+
+      if (!/^\d+x\d+$/.test(grid)) {
+        throw parseErrorAt(
+          element,
+          `Invalid grid format '${grid}'. Expected format: NxN (e.g., '5x5')`
+        );
+      }
+      const x = parseInt(xStr, 10);
+      const y = parseInt(yStr, 10);
+      if (Number.isNaN(x) || Number.isNaN(y)) {
+        throw parseErrorAt(element, 'x and y must be integers');
+      }
+      const position: GlyphGridCoord = { system: 'glyph-grid', grid, x, y };
+      const mark: OkototenMark = {
+        type: 'okototen',
+        id: readMarkId(element),
+        anchor: pendingAnchor(),
+        position,
+        shape,
+      };
+      if (sound) mark.sound = sound;
+      if (color) mark.color = color;
+      add(mark);
+      break;
+    }
+    case 'span': {
+      const type = getRequiredAttr(element, 'type', 'skam:span');
+      const styleAttr = getAttr(element, 'style');
+      if (type === 'emphasis') {
+        const mark: EmphasisMark = {
+          type: 'emphasis',
+          id: readMarkId(element),
+          anchor: pendingAnchor(),
+        };
+        // style は CSS text-emphasis-style の値（任意の文字列も可）
+        if (styleAttr) mark.style = styleAttr;
+        add(mark);
+      } else if (type === 'highlight') {
+        const mark: HighlightMark = {
+          type: 'highlight',
+          id: readMarkId(element),
+          anchor: pendingAnchor(),
+        };
+        if (styleAttr) {
+          if (!isValidHighlightStyle(styleAttr)) {
+            throw parseErrorAt(
+              element,
+              `Invalid highlight style '${styleAttr}'. Valid styles: ${HIGHLIGHT_STYLES.join(', ')}`
+            );
+          }
+          mark.style = styleAttr;
+        }
+        // ref との結びは `ref` 属性だけで決める。後ろの ref も指せるよう本文を読み終えてから解決する
+        // (resolveHighlightRefs)。空の値は属性なしと同じ
+        const refAttribute = getAttr(element, 'ref') ?? '';
+        if (refAttribute !== '') state.pendingHighlights.push({ mark, element, refAttribute });
+        add(mark);
+      }
+      break;
+    }
+  }
+  return marks;
+}
+
+/**
+ * 範囲の要素の閉じるタグ (対では終わりの要素) で、注記の anchor を埋める。
+ * `startIndex` 以降に積まれた token が範囲の字。1 つも無ければ位置つきの誤り
+ */
+function closeRange(
+  element: Element,
+  name: string,
+  marks: readonly AnchoredMark[],
+  startIndex: number,
+  state: ParserState,
+  form: 'nested' | 'pair'
+): void {
+  if (state.tokens.length === startIndex) {
+    throw parseErrorAt(
+      element,
+      form === 'pair'
+        ? `A pair of <skam:${name}> must enclose at least one token`
+        : emptyRangeMessage(name)
+    );
+  }
+  const from = state.tokens[startIndex]!.id;
+  const to = state.tokens[state.tokens.length - 1]!.id;
+  for (const mark of marks) mark.anchor = { from, to };
+}
+
+/** 入れ子の形の範囲の要素 */
+function processNestedRange(element: Element, name: string, state: ParserState): void {
+  // 子を読む前に深さを検査する。内容モデルを緩めたので、同じ範囲の注記を何重にも重ねた入力で再帰が深くなる
+  state.rangeDepth += 1;
+  if (state.rangeDepth > SKAM_ML_MAX_RANGE_DEPTH) {
+    throw parseErrorAt(
+      element,
+      `Range elements are nested more than ${SKAM_ML_MAX_RANGE_DEPTH} levels deep`
+    );
+  }
+  const marks = openRangeMarks(element, name, state);
+  const startIndex = state.tokens.length;
+  readContent(element, state, name as ContentOwner);
+  state.rangeDepth -= 1;
+  closeRange(element, name, marks, startIndex, state, 'nested');
+}
+
+/** 対の要素の `sID` / `eID` の値。値は NCName。メッセージに値を入れない (長さも中身も検査の前は分からない) */
+function readPairId(element: Element, attribute: 'sID' | 'eID'): string {
+  const value = element.getAttribute(attribute) ?? '';
+  if (!isHandId(value)) {
+    throw parseErrorAt(element, `${attribute} must be an XML NCName`);
+  }
+  return value;
+}
+
+/** 対の要素の中身は、空白だけの文字とコメントだけ。処理命令と CDATA セクションは、空白だけでも誤り */
+function assertEmptyPairContent(element: Element): void {
+  for (const child of Array.from(element.childNodes)) {
+    if (child.nodeType === 8) continue; // COMMENT_NODE
+    if (child.nodeType === 3 && /^[ \t\r\n]*$/.test(child.textContent ?? '')) continue;
+    throw parseErrorAt(
+      element,
+      `<${element.nodeName}> as a start or end element of a pair may hold only whitespace and comments`
+    );
+  }
+}
+
+/** 終わりの要素は `eID` 以外の属性を持てない (名前空間つきの属性も。`xmlns` の宣言は数えない) */
+function assertEndElementAttributes(element: Element): void {
+  for (const attr of Array.from(element.attributes)) {
+    if (attr.namespaceURI === XMLNS_NAMESPACE || attr.name === 'xmlns') continue;
+    if (attr.name !== 'eID') {
+      throw parseErrorAt(element, 'The end element of a pair takes no attribute other than eID');
+    }
+  }
+}
+
+function openPair(element: Element, name: string, state: ParserState): void {
+  assertEmptyPairContent(element);
+  const id = readPairId(element, 'sID');
+  if (state.usedPairIds.has(id)) {
+    throw parseErrorAt(element, 'The same sID is used more than once in the document');
+  }
+  state.usedPairIds.add(id);
+  const marks = openRangeMarks(element, name, state);
+  state.openPairs.set(id, { element, name, marks, startIndex: state.tokens.length });
+}
+
+function closePair(element: Element, name: string, state: ParserState): void {
+  assertEndElementAttributes(element);
+  assertEmptyPairContent(element);
+  const id = readPairId(element, 'eID');
+  const open = state.openPairs.get(id);
+  if (!open) {
+    throw parseErrorAt(element, 'eID has no start element (sID) before it in the same block');
+  }
+  if (open.name !== name) {
+    throw parseErrorAt(element, `The end element <skam:${name}> does not match its start element`);
+  }
+  state.openPairs.delete(id);
+  closeRange(element, name, open.marks, open.startIndex, state, 'pair');
+}
+
+/** `sID` / `eID` を持てない要素 (対にできない範囲の要素、`skam:t`、位置の注記) が持っていたら誤り */
+function assertNoPairAttributes(element: Element, name: string): void {
+  if (element.hasAttribute('sID') || element.hasAttribute('eID')) {
+    throw parseErrorAt(element, `<skam:${name}> cannot be a start or end element of a pair`);
+  }
+}
+
+function processRangeElement(element: Element, name: string, state: ParserState): void {
+  const isStart = element.hasAttribute('sID');
+  const isEnd = element.hasAttribute('eID');
+  if (isStart && isEnd) {
+    throw parseErrorAt(element, `<skam:${name}> cannot have both sID and eID`);
+  }
+  if (isEnd) closePair(element, name, state);
+  else if (isStart) openPair(element, name, state);
+  else processNestedRange(element, name, state);
+}
+
+/**
+ * 内容モデル (§7.0) の表に載る親要素の子を、文書の順に読む。子を読む入口はここだけ。
+ * 表で許す子はすべて処理する (字を黙って落とさない)。表に無い既知の子は位置つきの誤り。
+ * 未知の `skam:*` は部分木ごと無視して通知する (将来の拡張との前方互換)。
+ * `skam:kun` と `skam:soegana` のテキストは、間の未知の要素やコメントをまたいでつなげて 1 つのテキストとして分ける
+ */
+// oxlint-disable-next-line eslint/complexity
+function readContent(element: Element, state: ParserState, owner: ContentOwner): void {
+  const allowed = SKAM_ML_CONTENT_MODEL[owner];
+  const joinText = owner === 'kun' || owner === 'soegana';
+  let pending = '';
+  const flush = (): void => {
+    if (pending === '') return;
+    addTokensFromText(pending, state, element);
+    pending = '';
+  };
+
+  for (const child of Array.from(element.childNodes)) {
+    if (isText(child)) {
+      const text = child.textContent ?? '';
+      if (joinText) pending += text;
+      else addTokensFromText(text, state, element);
+      continue;
+    }
+    if (!isElement(child)) continue;
+    assertSkamNamespace(child);
+    const name = getLocalName(child);
+    if (!KNOWN_SKAM_ELEMENTS.has(name)) {
+      warn(state, child);
+      continue;
+    }
+    flush();
+    if (!allowed.includes(name)) {
+      // 読み飛ばすと中の字が黙って消えるので、表に無い既知の子 (block の中の block など) は誤り
+      throw parseErrorAt(child, `<skam:${owner}> must not contain <skam:${name}>`);
+    }
+    if (name === 't') {
+      assertNoPairAttributes(child, name);
+      processToken(child, state);
+    } else if (POSITION_ELEMENT_NAMES.has(name)) {
+      assertNoPairAttributes(child, name);
+      if (name === 'kaeri') processKaeri(child, state, precedingTokenId(state));
+      else if (name === 'kutoten') processKutoten(child, state, precedingTokenId(state));
+      else if (name === 'br') processLinebreak(child, state, precedingTokenId(state));
+      else processRef(child, state, precedingTokenId(state));
+    } else if (name === 'saidoku') {
+      assertNoPairAttributes(child, name);
+      processSaidoku(child, state);
+    } else if (RANGE_DEPTH_NAMES.has(name) && PAIRABLE_NAMES.has(name)) {
+      processRangeElement(child, name, state);
+    }
+  }
+  flush();
+}
+
+function processSaidoku(element: Element, state: ParserState): void {
+  let baseElement: Element | null = null;
+  const kunforms: Element[] = [];
+
+  // Find base and kunform elements
+  for (const child of childElements(element)) {
+    const localName = getLocalName(child);
+    if (localName === 'base') {
+      baseElement = child;
+    } else if (localName === 'kunform') {
+      kunforms.push(child);
+    }
+  }
+
+  if (!baseElement) {
+    throw parseErrorAt(element, '<skam:saidoku> requires <skam:base> element');
+  }
+
+  if (kunforms.length === 0) {
+    throw parseErrorAt(element, '<skam:saidoku> requires at least one <skam:kunform> element');
+  }
+
+  // Build forms array
+  const forms: SaidokuForm[] = kunforms.map((kunform) => {
+    const form: SaidokuForm = {};
+    const nAttr = getAttr(kunform, 'n');
+    const yomi = getAttr(kunform, 'yomi');
+    const okuri = getAttr(kunform, 'okuri');
+
+    if (nAttr) {
+      form.n = parseInt(nAttr, 10);
+    }
+    if (yomi) {
+      form.yomi = yomi;
+    }
+    if (okuri) {
+      form.okuri = okuri;
+    }
+
+    return form;
+  });
+
+  const mark: SaidokuMark = {
+    type: 'saidoku',
+    id: readMarkId(element),
+    anchor: pendingAnchor(),
+    forms,
+  };
   pushMark(state, mark, element);
-  return tokenIds;
+
+  // saidoku は saidoku の中に置けず (base の表に saidoku が無い)、範囲の深さに数えない
+  const startIndex = state.tokens.length;
+  readContent(baseElement, state, 'base');
+  closeRange(baseElement, 'base', [mark], startIndex, state, 'nested');
 }
 
 function processKutoten(
@@ -1069,247 +1411,6 @@ function processLinebreak(
     position,
   };
   pushMark(state, mark, element);
-}
-
-function processOkototen(element: Element, state: ParserState): string[] {
-  const grid = getRequiredAttr(element, 'grid', 'skam:okototen');
-  const xStr = getRequiredAttr(element, 'x', 'skam:okototen');
-  const yStr = getRequiredAttr(element, 'y', 'skam:okototen');
-  const shape = getRequiredAttr(element, 'shape', 'skam:okototen');
-  const sound = getAttr(element, 'sound');
-  const color = getAttr(element, 'color');
-
-  // Validate grid format
-  if (!/^\d+x\d+$/.test(grid)) {
-    throw parseErrorAt(
-      element,
-      `Invalid grid format '${grid}'. Expected format: NxN (e.g., '5x5')`
-    );
-  }
-
-  const x = parseInt(xStr, 10);
-  const y = parseInt(yStr, 10);
-
-  if (Number.isNaN(x) || Number.isNaN(y)) {
-    throw parseErrorAt(element, 'x and y must be integers');
-  }
-
-  const tokenIds = processConstrainedContent(element, state, 'okototen');
-
-  if (tokenIds.length === 0) {
-    throw parseErrorAt(element, '<skam:okototen> must contain text');
-  }
-
-  const position: GlyphGridCoord = {
-    system: 'glyph-grid',
-    grid,
-    x,
-    y,
-  };
-
-  const mark: OkototenMark = {
-    type: 'okototen',
-    id: readMarkId(element),
-    anchor: createAnchor(tokenIds, element),
-    position,
-    shape,
-  };
-
-  if (sound) {
-    mark.sound = sound;
-  }
-
-  if (color) {
-    mark.color = color;
-  }
-
-  pushMark(state, mark, element);
-  return tokenIds;
-}
-
-function processOkimoji(element: Element, state: ParserState): string[] {
-  const tokenIds = processConstrainedContent(element, state, 'okimoji');
-
-  if (tokenIds.length === 0) {
-    throw parseErrorAt(element, '<skam:okimoji> must contain text');
-  }
-
-  const mark: OkimojiMark = {
-    type: 'okimoji',
-    id: readMarkId(element),
-    anchor: createAnchor(tokenIds, element),
-  };
-
-  pushMark(state, mark, element);
-  return tokenIds;
-}
-
-function processJoji(element: Element, state: ParserState): string[] {
-  const tokenIds = processConstrainedContent(element, state, 'joji');
-
-  if (tokenIds.length === 0) {
-    throw parseErrorAt(element, '<skam:joji> must contain text');
-  }
-
-  const mark: JojiMark = {
-    type: 'joji',
-    id: readMarkId(element),
-    anchor: createAnchor(tokenIds, element),
-  };
-
-  pushMark(state, mark, element);
-  return tokenIds;
-}
-
-function processSoegana(element: Element, state: ParserState): string[] {
-  const value = getRequiredAttr(element, 'value', 'skam:soegana');
-
-  // Extract text content (the wrapped character, and <skam:t>) and generate tokens
-  const tokenIds = readTextAndTokens(element, state, 'soegana');
-
-  if (tokenIds.length === 0) {
-    throw parseErrorAt(element, '<skam:soegana> must contain text (the character to annotate)');
-  }
-
-  const mark: SoeganaMark = {
-    type: 'soegana',
-    id: readMarkId(element),
-    anchor: createAnchor(tokenIds, element),
-    value,
-  };
-
-  pushMark(state, mark, element);
-  return tokenIds;
-}
-
-function processSpan(element: Element, state: ParserState): string[] {
-  const type = getRequiredAttr(element, 'type', 'skam:span');
-  const styleAttr = getAttr(element, 'style');
-
-  // Process children to get tokens
-  const tokenIds = processBlockChildren(element, state);
-
-  if (tokenIds.length === 0) {
-    throw parseErrorAt(element, '<skam:span> must contain content');
-  }
-
-  if (type === 'emphasis') {
-    const mark: EmphasisMark = {
-      type: 'emphasis',
-      id: readMarkId(element),
-      anchor: createAnchor(tokenIds, element),
-    };
-
-    // style は CSS text-emphasis-style の値（任意の文字列も可）
-    if (styleAttr) {
-      mark.style = styleAttr;
-    }
-
-    pushMark(state, mark, element);
-  } else if (type === 'highlight') {
-    const mark: HighlightMark = {
-      type: 'highlight',
-      id: readMarkId(element),
-      anchor: createAnchor(tokenIds, element),
-    };
-
-    if (styleAttr) {
-      if (!isValidHighlightStyle(styleAttr)) {
-        throw parseErrorAt(
-          element,
-          `Invalid highlight style '${styleAttr}'. Valid styles: ${HIGHLIGHT_STYLES.join(', ')}`
-        );
-      }
-      mark.style = styleAttr;
-    }
-
-    // ref との結びは `ref` 属性だけで決める。後ろの ref も指せるよう本文を読み終えてから解決する
-    // (resolveHighlightRefs)。空の値は属性なしと同じ
-    const refAttribute = getAttr(element, 'ref') ?? '';
-    if (refAttribute !== '') state.pendingHighlights.push({ mark, element, refAttribute });
-
-    pushMark(state, mark, element);
-  }
-
-  return tokenIds;
-}
-
-function processTateten(element: Element, state: ParserState): string[] {
-  // Process children recursively to handle inner elements like <skam:kaeri>
-  const tokenIds = processBlockChildren(element, state);
-
-  if (tokenIds.length === 0) {
-    throw parseErrorAt(element, '<skam:tateten> must contain text');
-  }
-
-  const mark: TatetenMark = {
-    type: 'tateten',
-    id: readMarkId(element),
-    anchor: createAnchor(tokenIds, element),
-  };
-
-  pushMark(state, mark, element);
-  return tokenIds;
-}
-
-function processSaidoku(element: Element, state: ParserState): string[] {
-  let baseElement: Element | null = null;
-  const kunforms: Element[] = [];
-
-  // Find base and kunform elements
-  for (const child of childElements(element)) {
-    const localName = getLocalName(child);
-    if (localName === 'base') {
-      baseElement = child;
-    } else if (localName === 'kunform') {
-      kunforms.push(child);
-    }
-  }
-
-  if (!baseElement) {
-    throw parseErrorAt(element, '<skam:saidoku> requires <skam:base> element');
-  }
-
-  if (kunforms.length === 0) {
-    throw parseErrorAt(element, '<skam:saidoku> requires at least one <skam:kunform> element');
-  }
-
-  // Generate tokens from base
-  const tokenIds = processConstrainedContent(baseElement, state, 'base');
-
-  if (tokenIds.length === 0) {
-    throw parseErrorAt(baseElement, '<skam:base> must contain text');
-  }
-
-  // Build forms array
-  const forms: SaidokuForm[] = kunforms.map((kunform) => {
-    const form: SaidokuForm = {};
-    const nAttr = getAttr(kunform, 'n');
-    const yomi = getAttr(kunform, 'yomi');
-    const okuri = getAttr(kunform, 'okuri');
-
-    if (nAttr) {
-      form.n = parseInt(nAttr, 10);
-    }
-    if (yomi) {
-      form.yomi = yomi;
-    }
-    if (okuri) {
-      form.okuri = okuri;
-    }
-
-    return form;
-  });
-
-  const mark: SaidokuMark = {
-    type: 'saidoku',
-    id: readMarkId(element),
-    anchor: createAnchor(tokenIds, element),
-    forms,
-  };
-
-  pushMark(state, mark, element);
-  return tokenIds;
 }
 
 /**
@@ -1399,147 +1500,6 @@ function processRef(element: Element, state: ParserState, precedingTokenId: stri
 // Block Processing
 // ============================================================================
 
-/**
- * Pending position-based mark that needs position assignment after tokens are known
- */
-interface PendingPositionMark {
-  element: Element;
-  type: 'kutoten' | 'ref';
-  /** Token index before this mark (-1 if at beginning) */
-  precedingTokenIndex: number;
-}
-
-// oxlint-disable-next-line eslint/complexity
-function processBlockChildren(element: Element, state: ParserState): string[] {
-  const allTokenIds: string[] = [];
-  const pendingPositionMarks: PendingPositionMark[] = [];
-  // 直前の token はブロックをまたいで引き継がない (ブロック先頭の返り点が前ブロックの末尾に付くのを防ぐ)
-  let lastTokenId: string | null =
-    state.tokens.length > state.currentBlockTokenStart
-      ? state.tokens[state.tokens.length - 1]!.id
-      : null;
-
-  for (let i = 0; i < element.childNodes.length; i++) {
-    const child = element.childNodes[i];
-    if (!child) continue;
-
-    if (isText(child)) {
-      const text = child.textContent ?? '';
-      const ids = addTokensFromText(text, state, element);
-      allTokenIds.push(...ids);
-      if (ids.length > 0) {
-        lastTokenId = ids[ids.length - 1]!;
-      }
-    } else if (isElement(child)) {
-      assertSkamNamespace(child);
-      const localName = getLocalName(child);
-
-      switch (localName) {
-        case 'kaeri':
-          processKaeri(child, state, lastTokenId);
-          break;
-        case 't': {
-          const ids = processToken(child, state);
-          allTokenIds.push(...ids);
-          lastTokenId = ids[ids.length - 1]!;
-          break;
-        }
-        case 'kun': {
-          const ids = processKun(child, state);
-          allTokenIds.push(...ids);
-          if (ids.length > 0) lastTokenId = ids[ids.length - 1]!;
-          break;
-        }
-        case 'yomigana': {
-          const ids = processYomigana(child, state);
-          allTokenIds.push(...ids);
-          if (ids.length > 0) lastTokenId = ids[ids.length - 1]!;
-          break;
-        }
-        case 'kutoten':
-          // Defer to ensure precedingTokenIndex is within current block
-          pendingPositionMarks.push({
-            element: child,
-            type: 'kutoten',
-            precedingTokenIndex: allTokenIds.length - 1,
-          });
-          break;
-        case 'br':
-          processLinebreak(child, state, lastTokenId);
-          break;
-        case 'okototen': {
-          const ids = processOkototen(child, state);
-          allTokenIds.push(...ids);
-          if (ids.length > 0) lastTokenId = ids[ids.length - 1]!;
-          break;
-        }
-        case 'okimoji': {
-          const ids = processOkimoji(child, state);
-          allTokenIds.push(...ids);
-          if (ids.length > 0) lastTokenId = ids[ids.length - 1]!;
-          break;
-        }
-        case 'joji': {
-          const ids = processJoji(child, state);
-          allTokenIds.push(...ids);
-          if (ids.length > 0) lastTokenId = ids[ids.length - 1]!;
-          break;
-        }
-        case 'soegana': {
-          const ids = processSoegana(child, state);
-          allTokenIds.push(...ids);
-          if (ids.length > 0) lastTokenId = ids[ids.length - 1]!;
-          break;
-        }
-        case 'span': {
-          const ids = processSpan(child, state);
-          allTokenIds.push(...ids);
-          if (ids.length > 0) lastTokenId = ids[ids.length - 1]!;
-          break;
-        }
-        case 'tateten': {
-          const ids = processTateten(child, state);
-          allTokenIds.push(...ids);
-          if (ids.length > 0) lastTokenId = ids[ids.length - 1]!;
-          break;
-        }
-        case 'saidoku': {
-          const ids = processSaidoku(child, state);
-          allTokenIds.push(...ids);
-          if (ids.length > 0) lastTokenId = ids[ids.length - 1]!;
-          break;
-        }
-        case 'ref':
-          // Defer to ensure precedingTokenIndex is within current block
-          pendingPositionMarks.push({
-            element: child,
-            type: 'ref',
-            precedingTokenIndex: allTokenIds.length - 1,
-          });
-          break;
-        default:
-          // 未知の skam:* は部分木ごと無視する (将来の拡張との前方互換)。既知だが置き場所の違う要素は黙って無視する
-          if (!KNOWN_SKAM_ELEMENTS.has(localName)) warn(state, child);
-          break;
-      }
-    }
-  }
-
-  // Process pending position-based marks now that we have all token IDs
-  for (const pending of pendingPositionMarks) {
-    const precedingTokenId =
-      pending.precedingTokenIndex >= 0 ? (allTokenIds[pending.precedingTokenIndex] ?? null) : null;
-
-    if (pending.type === 'kutoten') {
-      processKutoten(pending.element, state, precedingTokenId);
-    } else {
-      processRef(pending.element, state, precedingTokenId);
-    }
-  }
-
-  return allTokenIds;
-}
-
 function processBlock(element: Element, state: ParserState): void {
   // Read xml:id attribute, or auto-generate block ID
   const blockId = readHandId(element) ?? `b#${state.blocks.length + 1}`;
@@ -1548,7 +1508,19 @@ function processBlock(element: Element, state: ParserState): void {
   state.currentBlockId = blockId;
   state.currentBlockTokenStart = state.tokens.length;
 
-  const tokenIds = processBlockChildren(element, state);
+  state.openPairs = new Map();
+  state.rangeDepth = 0;
+
+  readContent(element, state, 'block');
+
+  // 対は同じブロックの中で閉じる。ブロックの終わりで残った sID は誤り
+  for (const open of state.openPairs.values()) {
+    throw parseErrorAt(
+      open.element,
+      `<skam:${open.name}> sID has no end element (eID) in the block`
+    );
+  }
+  const tokenIds = state.tokens.slice(state.currentBlockTokenStart).map((token) => token.id);
 
   // Clear current block ID
   state.currentBlockId = null;
@@ -1874,7 +1846,7 @@ function parseDocument(
     if (declaration.required.length > 0) skamDoc.extensionsRequired = declaration.required;
   }
 
-  applyExtensionAttributes(root, skamDoc, state, table, new Set(declaration?.used));
+  applyExtensionAttributes(root, skamDoc, state, table, ...declaredNameSets(declaration));
 
   if (validate) {
     const result = validateSKAMDocument(

@@ -519,6 +519,8 @@ export {
   LEGACY_EXT_REGISTERED_NAME,
   ID_FORM,
   XML_UNWRITABLE_CHAR,
+  SAIDOKU_READING_OVERLAP,
+  SAIDOKU_MULTI_TOKEN,
   SKAMValidationError,
   createValidationError,
   BLOCK_START_KAERI_HINT,
@@ -577,6 +579,14 @@ export {
 // ============================================================================
 
 export { SKAM_ML_CONTENT_MODEL, SKAM_ML_NESTING_ORDER } from './skam-ml-content-model.js';
+export {
+  /** @internal parser と stringify が深さと対の判定に使う。公開 API として案内しない */
+  SKAM_ML_RANGE_DEPTH_ELEMENTS,
+  /** @internal 同上 */
+  SKAM_ML_PAIRABLE_ELEMENTS,
+  /** @internal 同上 */
+  SKAM_ML_MAX_RANGE_DEPTH,
+} from './skam-ml-content-model.js';
 
 // ============================================================================
 // Line Units

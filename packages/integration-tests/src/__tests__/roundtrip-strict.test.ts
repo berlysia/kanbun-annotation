@@ -32,13 +32,15 @@ const fixtureDir = join(
  * - ブロックの id と字の id は値まで比べる (手書きの id はそのまま、自動の id は位置の値)
  * - 字は id ごとに text、ext、custom を比べる。文書、ブロックの ext と custom も比べる
  * - 注記は、手書きの id は値まで、自動の id は値を比べない。highlight.ref は指す注記で比べる
+ * - 注記の並びは、種類の違う注記どうしでは問わない。同じ anchor (position) で同じ種類の注記どうしの相対の順は比べる
+ * - extensions と extensionsRequired は名前の集まりとして比べる。derivations は比べない
  */
 const normalize = (d: SKAMDocument) => {
   const order = d.blocks.flatMap((b) => b.tokenIds);
   const pos = (id: string | undefined) => (id === undefined ? 'start' : order.indexOf(id));
   const text = (id: string) => d.tokens.find((t) => t.id === id)!.text;
   const handId = (id: string | undefined) => (id !== undefined && isHandId(id) ? id : undefined);
-  const markKey = (m: Mark, resolveRef: boolean): string => {
+  const markKey = (m: Mark, resolveRef: boolean, sameKindOrder = 0): string => {
     const { id, ...rest } = m as Mark & { id?: string; ref?: string };
     const anchor = 'anchor' in m ? [pos(m.anchor.from), pos(m.anchor.to)] : undefined;
     const position =
@@ -55,9 +57,14 @@ const normalize = (d: SKAMDocument) => {
           })()
         : undefined;
     // Key order depends on which side built the object, so sort keys before comparing.
-    const entries = Object.entries({ ...rest, anchor, position, handId: handId(id), linked }).sort(
-      ([x], [y]) => (x < y ? -1 : 1)
-    );
+    const entries = Object.entries({
+      ...rest,
+      anchor,
+      position,
+      handId: handId(id),
+      linked,
+      sameKindOrder,
+    }).sort(([x], [y]) => (x < y ? -1 : 1));
     return JSON.stringify(entries);
   };
   return {
@@ -71,7 +78,28 @@ const normalize = (d: SKAMDocument) => {
     tokens: d.tokens
       .map(({ id, text: tokenText, ext, custom }) => ({ id, text: tokenText, ext, custom }))
       .sort((x, y) => (x.id < y.id ? -1 : 1)),
-    marks: d.marks.map((m) => markKey(m, true)).sort(),
+    marks: d.marks
+      .map((m, i) => {
+        const where = JSON.stringify(
+          'anchor' in m
+            ? [m.type, pos(m.anchor.from), pos(m.anchor.to)]
+            : [m.type, (m as { position: { after?: string } }).position.after ?? 'start']
+        );
+        const sameKindOrder = d.marks
+          .slice(0, i)
+          .filter(
+            (x) =>
+              JSON.stringify(
+                'anchor' in x
+                  ? [x.type, pos(x.anchor.from), pos(x.anchor.to)]
+                  : [x.type, (x as { position: { after?: string } }).position.after ?? 'start']
+              ) === where
+          ).length;
+        return markKey(m, true, sameKindOrder);
+      })
+      .sort(),
+    extensions: [...(d.extensions ?? [])].sort(),
+    extensionsRequired: [...(d.extensionsRequired ?? [])].sort(),
     readings: d.readings,
     lang: d.lang,
     ext: d.ext,
@@ -185,8 +213,8 @@ it('SKAM_ML_CONTENT_MODEL matches the normative table in SKAM-ML-draft §7.0', (
         ];
     for (const [, name] of parentCell!.matchAll(/`skam:([a-z]+)`/g)) parsed[name!] = children;
   }
-  // 子の制約がない行と saidoku は、定数に含めない (K2a)
-  for (const k of ['block', 'span', 'tateten', 'saidoku']) delete parsed[k];
+  // saidoku は base / kunform の構造として個別に検査するので、定数に含めない (K2a)
+  delete parsed['saidoku'];
   expect(parsed).toEqual(
     Object.fromEntries(Object.entries(PARSER_MODEL).map(([k, v]) => [k, [...v]]))
   );
@@ -214,14 +242,16 @@ const ANCHORED = [
   'okototen',
   'saidoku',
   'emphasis',
+  'emphasis',
   'highlight',
   'tateten',
 ] as const;
-const randomMark = (r: () => number, n: number, blockId: string) => {
+const randomMark = (r: () => number, n: number, idAt: (index: number) => string) => {
   const a = Math.floor(r() * n);
-  const b = Math.min(n - 1, a + Math.floor(r() * 3));
   const type = ANCHORED[Math.floor(r() * ANCHORED.length)]!;
-  const anchor = { from: `${blockId}#${a + 1}`, to: `${blockId}#${b + 1}` };
+  // saidoku は 1 字 (複数の字は警告になる)。ほかは 1〜3 字の範囲で、部分交差と包含が自然に起きる
+  const b = type === 'saidoku' ? a : Math.min(n - 1, a + Math.floor(r() * 3));
+  const anchor = { from: idAt(a), to: idAt(b) };
   switch (type) {
     case 'yomigana':
     case 'okurigana':
@@ -232,7 +262,7 @@ const randomMark = (r: () => number, n: number, blockId: string) => {
         type,
         anchor,
         shape: 'dot',
-        position: { system: 'glyph-grid', grid: '5x5', x: 1, y: 2 },
+        position: { system: 'glyph-grid', grid: '5x5', x: 1 + Math.floor(r() * 3), y: 2 },
       };
     case 'saidoku':
       return { type, anchor, forms: [{ yomi: 'まさ' }, { okuri: 'す' }] };
@@ -249,55 +279,88 @@ const withMarkId = <T extends { type: string }>(r: () => number, mark: T, k: num
   if (roll < 2 / 3) return { ...mark, id: `m#${k + 1}` };
   return KUN_TYPES.has(mark.type) ? mark : { ...mark, id: `n${k + 1}` };
 };
-const randomPositionMark = (r: () => number, n: number, blockId: string) => {
-  const after = `${blockId}#${1 + Math.floor(r() * n)}`;
+// ext、custom、placementHint を持つ注記。kun にまとめて書く 3 種には付けない (部分ごとの名前で書くため、別の検査がある)
+const withFreeData = <T extends { type: string }>(r: () => number, mark: T): T => {
+  if (KUN_TYPES.has(mark.type)) return mark;
+  const roll = r();
+  if (roll < 0.1) return { ...mark, custom: { c: [1, { d: 'x' }] } };
+  if (roll < 0.15) return { ...mark, placementHint: 'left' };
+  if (roll < 0.2) return { ...mark, ext: { zzz: { a: 1 } } };
+  return mark;
+};
+const randomPositionMark = (
+  r: () => number,
+  n: number,
+  blockId: string,
+  idAt: (index: number) => string
+) => {
+  const after = idAt(Math.floor(r() * n));
   return r() < 0.5
     ? { type: 'kutoten', kind: 'ten', value: '、', position: { blockId, after } }
     : { type: 'kaeri', value: '㆑', position: { blockId, after } };
 };
 
-// 性質 (a)(b): validator を通るランダムな文書は、lossy stringify の後に strict parse を通る。
-// 欠落を除いた部分は、意味が変わらない
-describe('property (a)(b): validator-valid documents survive lossy stringify → strict parse', () => {
+// 性質 (a)(b): validator が誤りも警告も返さない文書は、損失なしで stringify でき、parse すると K1 の「同じ文書」に戻り、
+// 2 回目の stringify が同じ文字列になる。生成器は、部分交差、包含、同じ範囲の同じ種類の注記、範囲の中の位置の注記、
+// 添え仮名と saidoku の組、2 書記素以上の字、空白の字、結合する字、手書きと自動の id、ext、custom、placementHint を作る
+describe('property (a)(b): documents without errors or warnings round-trip without loss', () => {
   const r = prng(4242);
+  const TEXTS = ['甲', '乙', '丙', '丁', '戊', '己', ' ', '學問', '\u0301', ' 庚', '辛'];
   let checked = 0;
-  for (let n = 0; n < 400; n++) {
-    const len = 2 + Math.floor(r() * 4);
-    // ブロックの id は自動の形と手書きの形の両方。字の id は自動の形だけ (手書きの字の id を書くのは plan-2)
+  let withPairs = 0;
+  let withTokenElements = 0;
+  const pickTexts = (len: number): string[] =>
+    Array.from({ length: len }, () => TEXTS[Math.floor(r() * TEXTS.length)]!);
+  for (let n = 0; n < 600; n++) {
+    const len = 2 + Math.floor(r() * 5);
+    // ブロックの id は自動の形と手書きの形の両方。字の id も自動の形と手書きの形をばらまく
     const blockId = r() < 0.5 ? 'b#1' : 'p1';
-    const tokens = Array.from({ length: len }, (_, i) => ({
-      id: `${blockId}#${i + 1}`,
-      text: '甲乙丙丁戊'[i]!,
-    }));
+    const texts = pickTexts(len);
+    const tokens = texts.map((text, i) => {
+      const hand = r() < 0.15;
+      const token: { id: string; text: string; ext?: object; custom?: object } = {
+        id: hand ? `k${n}x${i}` : `${blockId}#${i + 1}`,
+        text,
+      };
+      if (r() < 0.1) token.custom = { tc: i };
+      if (r() < 0.05) token.ext = { zzz: { t: i } };
+      return token;
+    });
+    const idAt = (index: number): string => tokens[index]!.id;
     const rawMarks = [
-      ...Array.from({ length: 1 + Math.floor(r() * 4) }, () => randomMark(r, len, blockId)),
-      ...Array.from({ length: Math.floor(r() * 2) }, () => randomPositionMark(r, len, blockId)),
+      ...Array.from({ length: 1 + Math.floor(r() * 5) }, () => randomMark(r, len, idAt)),
+      ...Array.from({ length: Math.floor(r() * 3) }, () =>
+        randomPositionMark(r, len, blockId, idAt)
+      ),
     ];
+    const marks = rawMarks.map((mark, k) => withFreeData(r, withMarkId(r, mark, k)));
+    const usesExt = [...tokens, ...marks].some((x) => 'ext' in x);
     const doc = {
       format: 'skam@0.1' as const,
       readings: [],
       tokens,
       blocks: [{ id: blockId, tokenIds: tokens.map((t) => t.id) }],
-      marks: rawMarks.map((mark, k) => withMarkId(r, mark, k)),
+      marks,
+      ...(usesExt ? { extensions: ['zzz'] } : {}),
     };
-    if (!validateSKAMDocument(doc).valid) continue;
+    const checkedResult = validateSKAMDocument(doc);
+    if (!checkedResult.valid || (checkedResult.warnings ?? []).length > 0) continue;
     checked++;
     it(`case ${n}`, () => {
-      const losses: StringifyLoss[] = [];
-      const xml = stringify(doc as unknown as SKAMDocument, {
-        lossy: true,
-        onLoss: (l) => losses.push(l),
-      });
+      // 損失が 1 つでも出たら stringify が投げて落ちる
+      const xml = stringify(doc as unknown as SKAMDocument);
       const back = parse(xml);
-      const lost = new Set(losses.map((l) => l.path));
-      const kept = {
-        ...doc,
-        marks: doc.marks.filter((_, i) => !lost.has(`/marks/${i}`)),
-      } as unknown as SKAMDocument;
-      expect(normalize(back)).toEqual(normalize(kept));
+      expect(normalize(back)).toEqual(normalize(doc as unknown as SKAMDocument));
+      expect(stringify(back)).toBe(xml);
+      if (/ sID="/.test(xml)) withPairs++;
+      if (/<skam:t[ >]/.test(xml)) withTokenElements++;
     });
   }
-  it('generated enough valid cases', () => expect(checked).toBeGreaterThanOrEqual(100));
+  it('generated enough valid cases, and some of them use pairs and <skam:t>', () => {
+    expect(checked).toBeGreaterThanOrEqual(100);
+    expect(withPairs).toBeGreaterThan(10);
+    expect(withTokenElements).toBeGreaterThan(10);
+  });
 });
 
 // 性質 (c): §7.0 の表に沿って生成した SKAM-ML は、往復しても欠落が 0 件である (stringify から独立した生成器)
@@ -307,33 +370,50 @@ const genXml = (r: () => number) => {
   const ch = () => CHARS[c++ % CHARS.length]!;
   const oto = () =>
     `<skam:okototen grid="5x5" x="${Math.floor(r() * 5)}" y="${Math.floor(r() * 5)}" shape="dot">`;
-  const inner = (kind: 'wrapper' | 'yomigana' | 'kun', depth: number): string => {
-    const pick = Math.floor(r() * (kind === 'kun' || depth > 2 ? 1 : kind === 'yomigana' ? 2 : 5));
+  let pairNo = 0;
+  // 緩めた内容モデルで、saidoku 以外の範囲の要素と位置の注記を子に持てる
+  const inner = (depth: number): string => {
+    const pick = Math.floor(r() * (depth > 2 ? 1 : 7));
     const n = 1 + Math.floor(r() * 2);
     if (pick === 0) return Array.from({ length: n }, ch).join('');
-    if (pick === 1) return `<skam:kun okuri="ニ">${inner('kun', depth + 1)}</skam:kun>`;
-    if (pick === 2) return `<skam:okimoji>${inner('wrapper', depth + 1)}</skam:okimoji>`;
-    if (pick === 3) return `<skam:joji>${inner('wrapper', depth + 1)}</skam:joji>`;
-    return `${oto()}${inner('wrapper', depth + 1)}</skam:okototen>`;
+    if (pick === 1) return `<skam:kun okuri="ニ">${inner(depth + 1)}</skam:kun>`;
+    if (pick === 2) return `<skam:okimoji>${inner(depth + 1)}</skam:okimoji>`;
+    if (pick === 3) return `<skam:joji>${inner(depth + 1)}</skam:joji>`;
+    if (pick === 4) return `<skam:span type="highlight">${inner(depth + 1)}</skam:span>`;
+    if (pick === 5) return `${ch()}<skam:kaeri kind="re"/>${inner(depth + 1)}`;
+    return `${oto()}${inner(depth + 1)}</skam:okototen>`;
   };
   const blockItem = (depth: number): string => {
-    switch (Math.floor(r() * (depth > 1 ? 1 : 8))) {
+    switch (Math.floor(r() * (depth > 1 ? 1 : 12))) {
       case 0:
         return ch();
       case 1:
-        return `<skam:kun yomi="か">${inner('kun', depth + 1)}</skam:kun>`;
+        return `<skam:kun yomi="か">${inner(depth + 1)}</skam:kun>`;
       case 2:
-        return `<skam:yomigana value="よ">${inner('yomigana', depth + 1)}</skam:yomigana>`;
+        return `<skam:yomigana value="よ">${inner(depth + 1)}</skam:yomigana>`;
       case 3:
-        return `<skam:okimoji>${inner('wrapper', depth + 1)}</skam:okimoji>`;
+        return `<skam:okimoji>${inner(depth + 1)}</skam:okimoji>`;
       case 4:
-        return `${oto()}${inner('wrapper', depth + 1)}</skam:okototen>`;
+        return `${oto()}${inner(depth + 1)}</skam:okototen>`;
       case 5:
         return `<skam:span type="emphasis">${blockItem(depth + 1)}${blockItem(depth + 1)}</skam:span>`;
       case 6:
-        return `<skam:saidoku><skam:base>${inner('wrapper', depth + 1)}</skam:base><skam:kunform n="1" yomi="まさ"/></skam:saidoku>`;
-      default:
+        return `<skam:saidoku><skam:base>${inner(depth + 1)}</skam:base><skam:kunform n="1" yomi="まさ"/></skam:saidoku>`;
+      case 7:
         return `${ch()}<skam:kutoten value="、" kind="ten"/>`;
+      case 8: {
+        // 部分交差する範囲: 始まりの空要素は okimoji の外、終わりの空要素は中
+        const k = ++pairNo;
+        return `<skam:span type="highlight" sID="r${k}"/>${ch()}<skam:okimoji>${ch()}<skam:span eID="r${k}"/>${ch()}</skam:okimoji>`;
+      }
+      case 9:
+        return `<skam:yomigana value="よ">${ch()}<skam:okimoji>${ch()}</skam:okimoji>${ch()}</skam:yomigana>`;
+      case 10:
+        return `<skam:okimoji>${ch()}<skam:kaeri kind="re"/>${ch()}</skam:okimoji>`;
+      default: {
+        const k = ++pairNo;
+        return `<skam:kun sID="r${k}" yomi="か"/>${ch()}<skam:span type="emphasis">${ch()}<skam:kun eID="r${k}"/>${ch()}</skam:span>`;
+      }
     }
   };
   const body = Array.from({ length: 2 + Math.floor(r() * 4) }, () => blockItem(0)).join('');
@@ -358,6 +438,7 @@ describe('property (c): content-model-generated SKAM-ML round-trips with zero lo
       const out = stringify(first, { lossy: true, onLoss: (l) => losses.push(l) });
       expect(losses).toEqual([]);
       expect(normalize(parse(out))).toEqual(normalize(first));
+      expect(stringify(parse(out))).toBe(out);
     });
   }
   it('generated enough cases', () => expect(checked).toBeGreaterThanOrEqual(100));
@@ -654,4 +735,128 @@ describe('<skam:t>, ext, custom and placementHint round-trip without loss', () =
       );
     }
   });
+});
+
+// ============================================================================
+// 範囲の深さの上限 (spec K4): 深さ 56 の文書は、既定の入力の上限 (maxDepth = 64) で往復する
+// ============================================================================
+
+/** 開始タグと終了タグを数えて求めた、要素の深さの最大 (空要素は子を持たないので 1 段) */
+function maxElementDepth(xml: string): number {
+  let depth = 0;
+  let deepest = 0;
+  for (const [tag] of xml.matchAll(/<(\/?)[A-Za-z][^>]*?(\/?)>/g)) {
+    if (tag.startsWith('</')) depth--;
+    else if (tag.endsWith('/>')) deepest = Math.max(deepest, depth + 1);
+    else {
+      depth++;
+      deepest = Math.max(deepest, depth);
+    }
+  }
+  return deepest;
+}
+
+describe('range depth 56 round-trips under the default maxDepth (64)', () => {
+  const ids = ['b#1#1', 'b#1#2', 'b#1#3'];
+  const anchor = { from: ids[0]!, to: ids[2]! };
+  const deep = (): SKAMDocument => ({
+    format: 'skam@0.1',
+    readings: [],
+    // 2 番目の字は saidoku の中の空白だけの字で、`<skam:t>` が要る。3 番目の字も空白だけで `<skam:t>` が要る
+    tokens: [
+      { id: ids[0]!, text: '甲' },
+      { id: ids[1]!, text: ' ' },
+      { id: ids[2]!, text: ' ' },
+    ],
+    blocks: [{ id: 'b#1', tokenIds: ids }],
+    marks: [
+      ...Array.from({ length: 53 }, () => ({ type: 'emphasis' as const, anchor })),
+      { type: 'okimoji', anchor },
+      { type: 'joji', anchor },
+      {
+        type: 'okototen',
+        anchor,
+        shape: 'dot',
+        position: { system: 'glyph-grid', grid: '5x5', x: 1, y: 1 },
+      },
+      { type: 'saidoku', anchor: { from: ids[1]!, to: ids[1]! }, forms: [{ yomi: 'まさ' }] },
+    ],
+  });
+
+  it('is nested without pairs, within maxDepth, and parses back to the same document', () => {
+    const d = deep();
+    expect(validateSKAMDocument(d).valid).toBe(true);
+    const xml = stringify(d);
+    expect(xml).not.toContain('sID=');
+    // skam:doc、body、block の 3 段 + 範囲 56 段 + saidoku、base、t の 3 段
+    expect(maxElementDepth(xml)).toBe(62);
+    expect(maxElementDepth(xml)).toBeLessThanOrEqual(64);
+    const back = parse(xml);
+    expect(normalize(back)).toEqual(normalize(d));
+    expect(stringify(back)).toBe(xml);
+  });
+
+  it('writes the 57th level as a pair, which keeps the depth within maxDepth', () => {
+    const d = deep();
+    d.marks.unshift({ type: 'tateten', anchor });
+    const xml = stringify(d);
+    // 先に決まる tateten と emphasis は入れ子で、深さを超える最後の okototen が対になる
+    expect(xml).toMatch(/<skam:okototen [^>]* sID="r1"\/>/);
+    expect(xml).toContain('<skam:tateten>');
+    expect(maxElementDepth(xml)).toBeLessThanOrEqual(64);
+    expect(normalize(parse(xml))).toEqual(normalize(d));
+  });
+});
+
+// ============================================================================
+// 読みやすさの確認 (spec K4): 代表の文書の出力を文字列で固定する
+// ============================================================================
+
+describe('representative documents have a readable, fixed form', () => {
+  const doc = (marks: SKAMDocument['marks'], count = 3): SKAMDocument => {
+    const ids = Array.from({ length: count }, (_, i) => `b#1#${i + 1}`);
+    return {
+      format: 'skam@0.1',
+      readings: [],
+      tokens: ids.map((id, i) => ({ id, text: '天将軍主君'[i]! })),
+      blocks: [{ id: 'b#1', tokenIds: ids }],
+      marks,
+    };
+  };
+  const block = (xml: string): string => /<skam:block[^>]*>(.*)<\/skam:block>/s.exec(xml)![1]!;
+  const a = (from: number, to = from) => ({ from: `b#1#${from}`, to: `b#1#${to}` });
+
+  const cases: [string, SKAMDocument, string][] = [
+    [
+      'a yomigana range with an okimoji inside',
+      doc([
+        { type: 'yomigana', anchor: a(1, 2), value: 'てん' },
+        { type: 'okimoji', anchor: a(2) },
+      ]),
+      '<skam:yomigana value="てん">天<skam:okimoji>将</skam:okimoji></skam:yomigana>軍',
+    ],
+    [
+      'two crossing ranges',
+      doc([
+        { type: 'emphasis', anchor: a(1, 2) },
+        { type: 'highlight', anchor: a(2, 3) },
+      ]),
+      '<skam:span type="emphasis">天<skam:span type="highlight" sID="r1"/>将</skam:span>軍<skam:span eID="r1"/>',
+    ],
+    [
+      'a kaeri inside a range',
+      doc([
+        { type: 'okimoji', anchor: a(1, 3) },
+        { type: 'kaeri', value: '㆑', position: { blockId: 'b#1', after: 'b#1#2' } },
+      ]),
+      '<skam:okimoji>天将<skam:kaeri kind="re"/>軍</skam:okimoji>',
+    ],
+  ];
+  for (const [title, d, expected] of cases) {
+    it(`${title}`, () => {
+      const xml = stringify(d);
+      expect(block(xml)).toBe(expected);
+      expect(normalize(parse(xml))).toEqual(normalize(d));
+    });
+  }
 });

@@ -87,3 +87,38 @@ describe('splitGraphemes', () => {
     });
   });
 });
+
+describe('SKAM_ML_CONTENT_MODEL: relaxed nesting (§7.0)', () => {
+  it('lets kun, yomigana, okimoji and base take okimoji, span, kaeri and t', () => {
+    for (const owner of ['kun', 'yomigana', 'okimoji', 'base'] as const) {
+      for (const child of ['okimoji', 'span', 'kaeri', 't']) {
+        expect(SKAM_ML_CONTENT_MODEL[owner]).toContain(child);
+      }
+    }
+  });
+
+  it('keeps saidoku out of kun, yomigana and base only', () => {
+    for (const owner of ['kun', 'yomigana', 'base'] as const) {
+      expect(SKAM_ML_CONTENT_MODEL[owner]).not.toContain('saidoku');
+    }
+    expect(SKAM_ML_CONTENT_MODEL.okimoji).toContain('saidoku');
+  });
+
+  it('has a key for every parent that takes text', () => {
+    expect(Object.keys(SKAM_ML_CONTENT_MODEL).sort()).toEqual(
+      [
+        'base',
+        'block',
+        'joji',
+        'kun',
+        'okimoji',
+        'okototen',
+        'soegana',
+        'span',
+        't',
+        'tateten',
+        'yomigana',
+      ].sort()
+    );
+  });
+});

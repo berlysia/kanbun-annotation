@@ -453,7 +453,9 @@ anchor で存在しない `id` を参照した場合、パーサーはエラー�
 - saidoku は `forms[].yomi` で読み仮名を、`forms[].okuri` で送り仮名を内包する
 - 同一 anchor に `yomigana` を併用できない（`MARK_CONFLICT`）
 - 同一 anchor に `okurigana` を併用できない（`MARK_CONFLICT`）
-- `soegana` は性質が異なるため共存可能
+- `yomigana` と `okurigana` の範囲は、saidoku の字を含んではならない。0.3 では検証が警告（`SAIDOKU_READING_OVERLAP`）を返し、0.4.0 で誤りになる。読みは `forms` に書き、読み仮名・送り仮名の範囲から saidoku の字を外す
+- anchor は 1 字（`from` と `to` が同じ token）でなければならない。0.3 では検証が警告（`SAIDOKU_MULTI_TOKEN`）を返し、0.4.0 で誤りになる
+- `soegana` は性質が異なるため共存可能（範囲が saidoku の字を含んでもよい）
 
 #### 主な再読文字
 

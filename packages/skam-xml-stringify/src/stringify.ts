@@ -48,6 +48,7 @@ import {
   tokenizePlainText,
   SKAM_ML_CONTENT_MODEL,
   SKAM_ML_NESTING_ORDER,
+  SKAM_ML_MAX_RANGE_DEPTH,
   isHandId,
   findIdFormIssues,
   findXmlUnwritableChars,
@@ -159,22 +160,14 @@ interface StringifyContext {
   extension: ExtensionOutput;
   /** 手書きの id を持つ ref 注記の id。`highlight.ref` がこの中の値を指すときだけ `ref` 属性に書く */
   handRefIds: ReadonlySet<string>;
+  /** 次の空要素の対に付ける番号 (`r1`、`r2`、…)。文書の中で通して数える */
+  nextPairNumber: number;
 }
 
 const UNPLACED = Number.MAX_SAFE_INTEGER;
 
-// Token に付随する mark 情報（単一トークン用）
+// Token の直後に置く位置の注記 (kaeri / kutoten / ref / br)
 interface TokenAnnotation {
-  /** 読み仮名 */
-  yomi?: string;
-  /** 送り仮名 */
-  okuri?: string;
-  /** 添え仮名 */
-  soe?: string;
-  /** yomi / okuri / soe の元の注記 (拡張の属性を書くため) */
-  yomiMark?: YomiganaMark;
-  okuriMark?: OkuriganaMark;
-  soeMark?: SoeganaMark;
   /** 直後に配置する返り点 */
   kaeriAfter?: KaeriMark[];
   /** 直後に配置する句読点 */
@@ -183,16 +176,7 @@ interface TokenAnnotation {
   refAfter?: RefMark[];
   /** 直後に配置する改行（空要素） */
   linebreakAfter?: LinebreakMark[];
-  /** 包囲要素（単一トークン用） */
-  wrappers?: SingleTokenWrapper[];
 }
-
-// 単一トークンを包む要素
-type SingleTokenWrapper =
-  | { type: 'okimoji'; mark: OkimojiMark }
-  | { type: 'joji'; mark: JojiMark }
-  | { type: 'okototen'; mark: OkototenMark }
-  | { type: 'saidoku'; mark: SaidokuMark };
 
 // 複数トークンにまたがるkun属性をまとめた合成マーク（stringify内部用）
 interface KunRangeSyntheticMark {
@@ -215,25 +199,6 @@ interface RangeMark {
   mark: Mark | KunRangeSyntheticMark;
   startIndex: number;
   endIndex: number;
-}
-
-// コンテンツノード（木構造用）
-type ContentNode = TextNode | ElementNode;
-
-interface TextNode {
-  type: 'text';
-  tokenId: string;
-  text: string;
-  annotation: TokenAnnotation;
-  token: Token;
-  /** 字を `<skam:t>` で書く (decideTokenElements が決める)。false なら平文で書く */
-  asElement: boolean;
-}
-
-interface ElementNode {
-  type: 'element';
-  mark: Mark | KunRangeSyntheticMark;
-  children: ContentNode[];
 }
 
 // ============================================================================
@@ -534,60 +499,9 @@ const WRAPPER_TYPES: ReadonlySet<string> = new Set(['okimoji', 'joji', 'okototen
 /** 同じ anchor に重ねられない包む要素 (SKAM-draft §6.1)。okototen は重ねて付けてよい */
 const UNIQUE_WRAPPER_TYPES: ReadonlySet<string> = new Set(['okimoji', 'joji', 'saidoku']);
 
-/** 単字の包む要素を追加する。入れ子順 (外側から) に並べ、同じ種類は 2 件目以降を落とす */
-function addSingleTokenWrapper(
-  annotation: TokenAnnotation,
-  mark: OkimojiMark | JojiMark | OkototenMark | SaidokuMark,
-  ctx: StringifyContext
-): void {
-  const wrappers = (annotation.wrappers ??= []);
-  if (UNIQUE_WRAPPER_TYPES.has(mark.type) && wrappers.some((w) => w.type === mark.type)) {
-    reportConflictingMark(ctx, mark);
-    return;
-  }
-  wrappers.push({ type: mark.type, mark } as SingleTokenWrapper);
-  wrappers.sort((a, b) => nestingRank(a.type) - nestingRank(b.type));
-}
-
-/** 単一トークンの anchor-based mark を annotation に追加 */
-function applySingleTokenAnchorMark(
-  mark: Mark,
-  annotation: TokenAnnotation,
-  ctx: StringifyContext
-): void {
-  switch (mark.type) {
-    case 'yomigana':
-      if (annotation.yomi !== undefined) reportConflictingMark(ctx, mark);
-      else {
-        annotation.yomi = (mark as YomiganaMark).value;
-        annotation.yomiMark = mark as YomiganaMark;
-      }
-      break;
-    case 'okurigana':
-      if (annotation.okuri !== undefined) reportConflictingMark(ctx, mark);
-      else {
-        annotation.okuri = (mark as OkuriganaMark).value;
-        annotation.okuriMark = mark as OkuriganaMark;
-      }
-      break;
-    case 'soegana':
-      if (annotation.soe !== undefined) reportConflictingMark(ctx, mark);
-      else {
-        annotation.soe = (mark as SoeganaMark).value;
-        annotation.soeMark = mark as SoeganaMark;
-      }
-      break;
-    case 'okimoji':
-    case 'joji':
-    case 'okototen':
-    case 'saidoku':
-      addSingleTokenWrapper(annotation, mark, ctx);
-      break;
-  }
-}
-
 /**
- * Token ごとの annotation を収集（単一トークンマーク用）
+ * Token ごとの位置の注記 (kaeri / kutoten / ref / br) を収集する。
+ * anchor を持つ注記はすべて範囲の要素として collectRangeMarks が集める (単字の注記も範囲の要素の 1 つ)
  */
 function collectTokenAnnotations(
   tokens: Token[],
@@ -604,25 +518,7 @@ function collectTokenAnnotations(
   for (const mark of marks) {
     if (!isAnchorBasedMark(mark)) {
       applyPositionBasedMark(mark, annotations, blockStart, ctx);
-      continue;
     }
-
-    // 複数 token にまたがる mark は別途処理
-    if (mark.anchor.from !== mark.anchor.to) continue;
-    // emphasis / tateten / highlight は単字でも範囲マークとして扱う (参照切れもそちらで報告する)
-    if (mark.type === 'emphasis' || mark.type === 'tateten' || mark.type === 'highlight') continue;
-
-    const annotation = annotations.get(mark.anchor.from);
-    if (!annotation) {
-      addMarkLoss(ctx, mark, {
-        category: 'unrepresentable',
-        code: 'DANGLING_REFERENCE',
-        message: `Mark refers to token "${mark.anchor.from}", which does not exist`,
-      });
-      continue;
-    }
-
-    applySingleTokenAnchorMark(mark, annotation, ctx);
   }
 
   return { annotations, blockStart };
@@ -699,19 +595,9 @@ function addToKunGroup(group: KunGroup, mark: Mark): boolean {
   return true;
 }
 
-function isYomiOnlyGroup(group: KunGroup): boolean {
-  return Boolean(group.yomi) && !group.okuri && !group.soe;
-}
-
-function groupContains(outer: KunGroup, inner: KunGroup): boolean {
-  return (
-    inner !== outer && inner.startIndex >= outer.startIndex && inner.endIndex <= outer.endIndex
-  );
-}
-
-function toSyntheticKunMark(group: KunGroup, upgrade: boolean): KunRangeSyntheticMark {
+function toSyntheticKunMark(group: KunGroup): KunRangeSyntheticMark {
   const syntheticMark: KunRangeSyntheticMark = {
-    type: upgrade ? '__yomigana_range' : '__kun_range',
+    type: '__kun_range',
     anchor: { from: group.from, to: group.to },
     sources: group.sources,
   };
@@ -721,23 +607,30 @@ function toSyntheticKunMark(group: KunGroup, upgrade: boolean): KunRangeSyntheti
   return syntheticMark;
 }
 
-/** 複数トークンにまたがる kun 系マークをグループ化して合成マークを生成 */
+/** 範囲の token の通し位置の昇順に並べたときの、前から見て最初の別の anchor の位置 */
+function firstOfOtherAnchor(rangeMarks: readonly RangeMark[], position: number): number {
+  const self = rangeMarks[position]!;
+  let next = position + 1;
+  while (
+    next < rangeMarks.length &&
+    rangeMarks[next]!.startIndex === self.startIndex &&
+    rangeMarks[next]!.endIndex === self.endIndex
+  ) {
+    next++;
+  }
+  return next;
+}
+
+/** 複数トークンにまたがる kun 系マークをグループ化して合成マークを生成 (単字の kun 系マークも 1 つのまとまりにする) */
 function collectKunRangeGroups(
   marks: Mark[],
   tokenIndexMap: Map<string, number>,
   ctx: StringifyContext
 ): RangeMark[] {
   const kunGroups = new Map<string, KunGroup>();
-  // 単字の kun 系マークを持つ token の位置。読みだけの範囲は、内側に kun があれば <skam:yomigana> で出す
-  const singleKunIndices: number[] = [];
 
   for (const mark of marks) {
     if (mark.type !== 'yomigana' && mark.type !== 'okurigana' && mark.type !== 'soegana') continue;
-    if (mark.anchor.from === mark.anchor.to) {
-      const index = tokenIndexMap.get(mark.anchor.from);
-      if (index !== undefined) singleKunIndices.push(index);
-      continue;
-    }
 
     const range = resolveAnchorRange(mark, tokenIndexMap, ctx);
     if (!range) continue;
@@ -751,20 +644,14 @@ function collectKunRangeGroups(
     if (!addToKunGroup(group, mark)) reportConflictingMark(ctx, mark);
   }
 
-  const groups = [...kunGroups.values()];
-  return groups.map((group) => {
-    const hasInnerKun =
-      singleKunIndices.some((i) => i >= group.startIndex && i <= group.endIndex) ||
-      groups.some((other) => groupContains(group, other));
-    return {
-      mark: toSyntheticKunMark(group, hasInnerKun && isYomiOnlyGroup(group)),
-      startIndex: group.startIndex,
-      endIndex: group.endIndex,
-    };
-  });
+  return [...kunGroups.values()].map((group) => ({
+    mark: toSyntheticKunMark(group),
+    startIndex: group.startIndex,
+    endIndex: group.endIndex,
+  }));
 }
 
-/** 複数 token の包む要素 (okimoji / joji / okototen / saidoku) を範囲マークとして集める */
+/** 包む要素 (okimoji / joji / okototen / saidoku) を範囲マークとして集める (単字のものも含む) */
 function collectWrapperRanges(
   marks: Mark[],
   tokenIndexMap: Map<string, number>,
@@ -774,7 +661,6 @@ function collectWrapperRanges(
   const seen = new Set<string>();
   for (const mark of marks) {
     if (!WRAPPER_TYPES.has(mark.type) || !isAnchorBasedMark(mark)) continue;
-    if (mark.anchor.from === mark.anchor.to) continue;
     const range = resolveAnchorRange(mark, tokenIndexMap, ctx);
     if (!range) continue;
     const key = `${mark.type}:${mark.anchor.from}:${mark.anchor.to}`;
@@ -794,6 +680,18 @@ function rangeMarkIndex(rm: RangeMark, ctx: StringifyContext): number {
   return Math.min(...sources.map((source) => ctx.markIndexMap.get(source) ?? UNPLACED));
 }
 
+/** 同じ順位の span の種類の並び。tateten、emphasis、highlight の順 */
+function spanKindRank(type: string): number {
+  if (type === 'emphasis') return 1;
+  if (type === 'highlight') return 2;
+  return 0;
+}
+
+/**
+ * anchor を持つ注記をすべて範囲マークとして集め、(始まりの位置の昇順、終わりの位置の降順、§7.0 の入れ子順、
+ * tateten・emphasis・highlight の順、marks の添字) に並べる。単字の注記も範囲の要素の 1 つとして扱う。
+ * 読みだけの範囲の内側に別の範囲があれば、`<skam:yomigana>` で書く合成マークにする
+ */
 function collectRangeMarks(
   marks: Mark[],
   tokenIndexMap: Map<string, number>,
@@ -811,20 +709,39 @@ function collectRangeMarks(
   }
 
   rangeMarks.push(...collectWrapperRanges(marks, tokenIndexMap, ctx));
-  // 複数トークン kun 系マークのグループ化
   rangeMarks.push(...collectKunRangeGroups(marks, tokenIndexMap, ctx));
 
-  // ソート：開始位置昇順 → 終了位置降順 (外側が先) → 入れ子順 (§7.0) → marks の添字
-  const rankOf = (rm: RangeMark) => nestingRank(nestingNameOf(rm.mark.type));
-  rangeMarks.sort(
-    (a, b) =>
-      a.startIndex - b.startIndex ||
-      b.endIndex - a.endIndex ||
-      rankOf(a) - rankOf(b) ||
-      rangeMarkIndex(a, ctx) - rangeMarkIndex(b, ctx)
+  // 並べ替えの鍵は 1 回ずつ計算する (比較のたびに添字を求めない)
+  const keyed = rangeMarks.map((rm) => ({
+    rm,
+    rank: nestingRank(nestingNameOf(rm.mark.type)),
+    span: spanKindRank(rm.mark.type),
+    index: rangeMarkIndex(rm, ctx),
+  }));
+  keyed.sort(
+    (x, y) =>
+      x.rm.startIndex - y.rm.startIndex ||
+      y.rm.endIndex - x.rm.endIndex ||
+      x.rank - y.rank ||
+      x.span - y.span ||
+      x.index - y.index
   );
+  const sorted = keyed.map((entry) => entry.rm);
 
-  return rangeMarks;
+  // 読みだけの範囲の内側に、別の anchor の範囲があるか。後ろから見た終わりの位置の最小で、並べ替えの線形の走査で決める
+  const minEndFrom: number[] = Array.from({ length: sorted.length + 1 }, () => Infinity);
+  for (let k = sorted.length - 1; k >= 0; k--) {
+    minEndFrom[k] = Math.min(minEndFrom[k + 1]!, sorted[k]!.endIndex);
+  }
+  sorted.forEach((rm, position) => {
+    if (rm.mark.type !== '__kun_range' || rm.startIndex === rm.endIndex) return;
+    const kun = rm.mark as KunRangeSyntheticMark;
+    if (!isYomiOnlyKun(kun)) return;
+    if (minEndFrom[firstOfOtherAnchor(sorted, position)]! <= rm.endIndex) {
+      kun.type = '__yomigana_range';
+    }
+  });
+  return sorted;
 }
 
 /** mark 起点の並べ替え鍵。anchor の開始 token か position.after の token で位置を決める */
@@ -870,67 +787,13 @@ function describeRangeMark(rm: RangeMark): string {
   return 'id' in rm.mark ? (rm.mark.id ?? rm.mark.type) : rm.mark.type;
 }
 
-/**
- * 部分重複するマークを検出してフィルタリング
- */
-function filterPartialOverlaps(rangeMarks: RangeMark[], ctx: StringifyContext): RangeMark[] {
-  const valid: RangeMark[] = [];
-
-  for (const mark of rangeMarks) {
-    let hasPartialOverlap = false;
-
-    for (const existing of valid) {
-      // 部分重複の検出：
-      // mark が existing の途中で開始し、existing より後で終了
-      // または mark が existing より前で開始し、existing の途中で終了
-      const markStart = mark.startIndex;
-      const markEnd = mark.endIndex;
-      const existStart = existing.startIndex;
-      const existEnd = existing.endIndex;
-
-      // 完全に含まれる or 完全に含む は OK
-      const contained = markStart >= existStart && markEnd <= existEnd;
-      const contains = markStart <= existStart && markEnd >= existEnd;
-      const disjoint = markEnd < existStart || markStart > existEnd;
-
-      if (!contained && !contains && !disjoint) {
-        // 部分重複
-        hasPartialOverlap = true;
-        const message = `Mark ${describeRangeMark(mark)} partially overlaps ${describeRangeMark(existing)}; SKAM-ML ranges must nest`;
-        if ('sources' in mark.mark) {
-          for (const source of mark.mark.sources) {
-            addMarkLoss(ctx, source, {
-              category: 'unsupported',
-              code: 'UNNESTABLE_OVERLAP',
-              message,
-            });
-          }
-        } else {
-          addMarkLoss(ctx, mark.mark as Mark, {
-            category: 'unsupported',
-            code: 'PARTIAL_OVERLAP',
-            message,
-          });
-        }
-        break;
-      }
-    }
-
-    if (!hasPartialOverlap) {
-      valid.push(mark);
-    }
-  }
-
-  return valid;
-}
-
 /** 合成マークは元の mark ごとに、そうでなければ mark 自身を返す */
 function sourcesOf(mark: Mark | KunRangeSyntheticMark): Mark[] {
   return 'sources' in mark ? mark.sources : [mark];
 }
 
-/** 範囲マークが表 (§7.0) の中で親になるときのキー。span / tateten は制約がないので undefined */
-function contentModelKeyOf(mark: Mark | KunRangeSyntheticMark): ContentModelKey | undefined {
+/** 範囲マークが表 (§7.0) の中で親になるときのキー */
+function contentModelKeyOf(mark: Mark | KunRangeSyntheticMark): ContentModelKey {
   switch (mark.type) {
     case '__yomigana_range':
       return 'yomigana';
@@ -942,8 +805,10 @@ function contentModelKeyOf(mark: Mark | KunRangeSyntheticMark): ContentModelKey 
       return mark.type;
     case 'saidoku':
       return 'base';
+    case 'tateten':
+      return 'tateten';
     default:
-      return undefined;
+      return 'span';
   }
 }
 
@@ -952,185 +817,161 @@ function childNameOfRange(mark: Mark | KunRangeSyntheticMark): string {
   return nestingNameOf(mark.type);
 }
 
-/** token の単字の注記が、親から見て子になる要素名。最後の token でなければ位置マークも子になる */
-function childNamesOfAnnotation(annotation: TokenAnnotation, isFinalToken: boolean): string[] {
-  const names: string[] = [];
-  if (annotation.yomi || annotation.okuri || annotation.soe) names.push('kun');
-  for (const wrapper of annotation.wrappers ?? []) names.push(wrapper.type);
-  const hasPosition =
-    annotation.kaeriAfter ||
-    annotation.kutotenAfter ||
-    annotation.refAfter ||
-    annotation.linebreakAfter;
-  if (hasPosition && !isFinalToken) names.push('position');
-  return names;
+function isYomiOnlyKun(kun: KunRangeSyntheticMark): boolean {
+  return Boolean(kun.yomi) && !kun.okuri && !kun.soe;
 }
 
-/** outer の内側にある子孫のうち、表で許されていないものの名前を返す */
-function findDisallowedDescendant(
-  outer: RangeMark,
-  key: ContentModelKey,
-  inner: RangeMark[],
-  annotations: Map<string, TokenAnnotation>,
-  blockTokens: Token[],
-  blockStartIndex: number
-): string | undefined {
-  const allowed = SKAM_ML_CONTENT_MODEL[key];
-  for (const candidate of inner) {
-    if (candidate.startIndex < outer.startIndex || candidate.endIndex > outer.endIndex) continue;
-    const name = childNameOfRange(candidate.mark);
-    if (!allowed.includes(name)) return name;
-  }
-  for (let index = outer.startIndex; index <= outer.endIndex; index++) {
-    const token = blockTokens[index - blockStartIndex];
-    const annotation = token ? annotations.get(token.id) : undefined;
-    if (!annotation) continue;
-    const names = childNamesOfAnnotation(annotation, index === outer.endIndex);
-    const disallowed = names.find((name) => !allowed.includes(name));
-    if (disallowed) return disallowed;
-  }
-  return undefined;
+function isSoeOnlyKun(kun: KunRangeSyntheticMark): boolean {
+  return Boolean(kun.soe) && !kun.yomi && !kun.okuri;
 }
 
-/**
- * §7.0 の表で許されていない親子関係を見つけ、外側の範囲を出力から除く。
- * 内側から順に調べるので、先に落ちた内側の範囲は外側の判定に使わない。
- * 外側を落としても、その子孫と外側の外側との関係は、すでに調べた組のままである
- */
-function dropUnnestableRanges(
-  rangeMarks: RangeMark[],
-  annotations: Map<string, TokenAnnotation>,
-  blockTokens: Token[],
-  blockStartIndex: number,
-  ctx: StringifyContext
-): RangeMark[] {
-  const dropped = new Set<RangeMark>();
-  for (let i = rangeMarks.length - 1; i >= 0; i--) {
-    const outer = rangeMarks[i];
-    const key = outer && contentModelKeyOf(outer.mark);
-    if (!outer || !key) continue;
-    const inner = rangeMarks.slice(i + 1).filter((rm) => !dropped.has(rm));
-    const name = findDisallowedDescendant(
-      outer,
-      key,
-      inner,
-      annotations,
-      blockTokens,
-      blockStartIndex
-    );
-    if (name === undefined) continue;
-    dropped.add(outer);
-    for (const source of sourcesOf(outer.mark)) {
-      addMarkLoss(ctx, source, {
-        category: 'unsupported',
-        code: 'UNNESTABLE_OVERLAP',
-        message: `${describeRangeMark(outer)} cannot contain ${name} (SKAM-ML §7.0)`,
-      });
-    }
-  }
-  return rangeMarks.filter((rm) => !dropped.has(rm));
+/** 同じ anchor の同じ種類の範囲マークのまとまり。入れ子にするか対にするかは、まとまりごとに決める */
+interface RangeGroup {
+  units: RangeMark[];
+  /** mark の type。yomigana・okurigana・soegana のまとまり (合成マーク) は 'kun' */
+  type: string;
+  startIndex: number;
+  endIndex: number;
+  /** 入れ子にしたときに足す範囲の要素の段数。kun のまとまりは 1 段、saidoku は 0 段 */
+  depth: number;
 }
 
-// ============================================================================
-// Content Tree Building
-// ============================================================================
-
-/**
- * コンテンツの木構造を構築
- */
-function buildContentTree(
-  blockTokens: Token[],
-  annotations: Map<string, TokenAnnotation>,
-  allRangeMarks: RangeMark[],
-  blockStartIndex: number,
-  blockEndIndex: number,
-  ctx: StringifyContext
-): ContentNode[] {
-  // このブロックに関係する範囲マークをフィルタ
-  const blockRangeMarks = allRangeMarks.filter(
-    (rm) => rm.startIndex >= blockStartIndex && rm.endIndex <= blockEndIndex
-  );
-
-  // 部分重複をフィルタリング
-  const validRangeMarks = dropUnnestableRanges(
-    filterPartialOverlaps(blockRangeMarks, ctx),
-    annotations,
-    blockTokens,
-    blockStartIndex,
-    ctx
-  );
-
-  const result: ContentNode[] = [];
-  const activeRanges: {
-    mark: Mark | KunRangeSyntheticMark;
-    endIndex: number;
-    children: ContentNode[];
-  }[] = [];
-
-  for (let i = 0; i < blockTokens.length; i++) {
-    const token = blockTokens[i];
-    if (!token) continue;
-
-    const globalIndex = blockStartIndex + i;
-
-    // この位置で開始する範囲マークを処理
-    for (const rangeMark of validRangeMarks) {
-      if (rangeMark.startIndex === globalIndex) {
-        activeRanges.push({
-          mark: rangeMark.mark,
-          endIndex: rangeMark.endIndex,
-          children: [],
-        });
-      }
-    }
-
-    // トークンノードを作成
-    const tokenNode: TextNode = {
-      type: 'text',
-      tokenId: token.id,
-      text: token.text,
-      annotation: annotations.get(token.id) ?? {},
-      token,
-      asElement: false,
-    };
-
-    // 最も内側のアクティブ範囲に追加
-    if (activeRanges.length > 0) {
-      const innermost = activeRanges[activeRanges.length - 1];
-      if (innermost) {
-        innermost.children.push(tokenNode);
-      }
-    } else {
-      result.push(tokenNode);
-    }
-
-    // この位置で終了する範囲マークを処理（内側から）
-    while (
-      activeRanges.length > 0 &&
-      activeRanges[activeRanges.length - 1]?.endIndex === globalIndex
+function groupRangeMarks(units: readonly RangeMark[]): RangeGroup[] {
+  const groups: RangeGroup[] = [];
+  for (const unit of units) {
+    const type = 'sources' in unit.mark ? 'kun' : unit.mark.type;
+    const last = groups[groups.length - 1];
+    if (
+      last &&
+      last.type === type &&
+      last.startIndex === unit.startIndex &&
+      last.endIndex === unit.endIndex
     ) {
-      const completed = activeRanges.pop();
-      if (!completed) break;
-
-      const elementNode: ElementNode = {
-        type: 'element',
-        mark: completed.mark,
-        children: completed.children,
-      };
-
-      if (activeRanges.length > 0) {
-        const parent = activeRanges[activeRanges.length - 1];
-        if (parent) {
-          parent.children.push(elementNode);
-        }
-      } else {
-        result.push(elementNode);
-      }
+      last.units.push(unit);
+      if (type !== 'kun' && type !== 'saidoku') last.depth += 1;
+      continue;
     }
+    groups.push({
+      units: [unit],
+      type,
+      startIndex: unit.startIndex,
+      endIndex: unit.endIndex,
+      depth: type === 'saidoku' ? 0 : 1,
+    });
   }
+  return groups;
+}
 
-  decideTokenElements(result);
-  return result;
+/** 昇順の配列で、value 以上の最初の位置 */
+function lowerBound(sorted: readonly number[], value: number): number {
+  let low = 0;
+  let high = sorted.length;
+  while (low < high) {
+    const middle = (low + high) >> 1;
+    if (sorted[middle]! < value) low = middle + 1;
+    else high = middle;
+  }
+  return low;
+}
+
+/** 開いている入れ子の範囲 (スタックの要素) */
+interface OpenRange {
+  endIndex: number;
+  /** この範囲を含む、開いている範囲の要素の段数 */
+  depth: number;
+  key: ContentModelKey;
+}
+
+interface RangeForms {
+  /** 入れ子の要素で書く範囲マーク。並べ替えの順 */
+  nested: RangeMark[];
+  /** 空要素の対で書く範囲マーク。並べ替えの順 */
+  paired: RangeMark[];
+}
+
+function reportUnwritableRange(ctx: StringifyContext, unit: RangeMark, message: string): void {
+  for (const source of sourcesOf(unit.mark)) {
+    addMarkLoss(ctx, source, { category: 'unsupported', code: 'UNNESTABLE_OVERLAP', message });
+  }
+}
+
+/**
+ * ブロックの範囲マークを、入れ子の要素で書くものと空要素の対で書くものに分ける (K4)。
+ * 並べ替えの順に、同じ anchor の同じ種類のまとまりを単位として、開いている入れ子の範囲のスタックの
+ * 一番内側に含まれるか離れていて、入れ子にしたときの範囲の深さが上限以内なら入れ子、そうでなければ対にする。
+ * 計算量は、並べ替えの n log n と、スタックとの比較 n。
+ * 先に対と決めるのは、再読文字の字を含む添え仮名だけのまとまり。saidoku は対にしない:
+ * 入れ子にできないのは、再読文字と読みが重なる文書か、複数の字の saidoku だけで、そのときは損失にする
+ */
+// oxlint-disable-next-line eslint/complexity
+function chooseRangeForms(units: readonly RangeMark[], ctx: StringifyContext): RangeForms {
+  const nested: RangeMark[] = [];
+  const paired: RangeMark[] = [];
+  const saidokuAt = units
+    .filter((unit) => unit.mark.type === 'saidoku' && unit.startIndex === unit.endIndex)
+    .map((unit) => unit.startIndex);
+  const hasSaidokuIn = (from: number, to: number): boolean => {
+    const position = lowerBound(saidokuAt, from);
+    return position < saidokuAt.length && saidokuAt[position]! <= to;
+  };
+
+  const stack: OpenRange[] = [];
+  for (const group of groupRangeMarks(units)) {
+    while (stack.length > 0 && stack[stack.length - 1]!.endIndex < group.startIndex) stack.pop();
+    const top = stack[stack.length - 1];
+    const contained = top === undefined || group.endIndex <= top.endIndex;
+    const first = group.units[0]!;
+
+    if (group.type === 'saidoku') {
+      if (
+        !contained ||
+        (top !== undefined && !SKAM_ML_CONTENT_MODEL[top.key].includes('saidoku'))
+      ) {
+        for (const unit of group.units) {
+          reportUnwritableRange(
+            ctx,
+            unit,
+            `${describeRangeMark(unit)} cannot be nested in the range that encloses it (SKAM-ML §7.0)`
+          );
+        }
+        continue;
+      }
+      nested.push(...group.units);
+      stack.push({ endIndex: group.endIndex, depth: top?.depth ?? 0, key: 'base' });
+      continue;
+    }
+
+    if (
+      group.type === 'kun' &&
+      group.endIndex > group.startIndex &&
+      hasSaidokuIn(group.startIndex, group.endIndex)
+    ) {
+      if (isSoeOnlyKun(first.mark as KunRangeSyntheticMark)) {
+        // kun の要素は saidoku を子に持てないので、入れ子の範囲の集まりに入れずに対で書く
+        paired.push(...group.units);
+      } else {
+        for (const unit of group.units) {
+          reportUnwritableRange(
+            ctx,
+            unit,
+            `${describeRangeMark(unit)} contains a saidoku, which a reading cannot contain (SKAM-ML §7.0)`
+          );
+        }
+      }
+      continue;
+    }
+
+    const depth = (top?.depth ?? 0) + group.depth;
+    const allowed =
+      top === undefined || SKAM_ML_CONTENT_MODEL[top.key].includes(childNameOfRange(first.mark));
+    if (!contained || !allowed || depth > SKAM_ML_MAX_RANGE_DEPTH) {
+      paired.push(...group.units);
+      continue;
+    }
+    nested.push(...group.units);
+    stack.push({ endIndex: group.endIndex, depth, key: contentModelKeyOf(first.mark) });
+  }
+  return { nested, paired };
 }
 
 // ============================================================================
@@ -1181,52 +1022,32 @@ function findTextsNeedingElement(texts: readonly string[]): Set<number> {
   return needed;
 }
 
-/** 字が平文のまま書かれる (kun や包む要素の中に入らない) */
-function isBareTextNode(node: TextNode): boolean {
-  const { annotation } = node;
-  return !(annotation.yomi || annotation.okuri || annotation.soe) && !annotation.wrappers?.length;
-}
-
-function hasTrailingMarks(annotation: TokenAnnotation): boolean {
-  return Boolean(
-    annotation.kaeriAfter ||
-    annotation.kutotenAfter ||
-    annotation.refAfter ||
-    annotation.linebreakAfter
-  );
-}
-
 /**
- * 木の兄弟の並びごとに、`<skam:t>` で書く字を決める (`asElement`)。
- * 平文のまま隣り合う字は 1 つのテキストノードになり、parser が 1 回の `tokenizePlainText` で分ける。
- * 要素の開閉タグ、位置の注記の要素、`<skam:t>`、kun と包む要素の中の字はテキストノードを区切るので、
- * 並びは兄弟のうち平文の字が続く範囲になる。手書きの id、ext、custom を持つ字は常に `<skam:t>` で書く
+ * 字ごとに、`<skam:t>` で書くかを決める。boundaries[i] は i 番目の字の前に出す要素 (開閉のタグ、対の要素、
+ * 位置の注記) で、空でなければテキストノードを区切る。平文のまま隣り合う字 (間が空の字) は 1 つのテキストノードになり、
+ * parser が 1 回の `tokenizePlainText` で分ける。手書きの id、ext、custom を持つ字は常に `<skam:t>` で書く
  */
-function decideTokenElements(nodes: ContentNode[]): void {
-  let run: TextNode[] = [];
+function decideTokenElements(tokens: readonly Token[], boundaries: readonly string[]): boolean[] {
+  const asElement: boolean[] = tokens.map(() => false);
+  let run: number[] = [];
   const flush = (): void => {
-    const needed = findTextsNeedingElement(run.map((node) => node.text));
-    run.forEach((node, i) => {
-      if (needed.has(i)) node.asElement = true;
+    const needed = findTextsNeedingElement(run.map((index) => tokens[index]!.text));
+    run.forEach((index, order) => {
+      if (needed.has(order)) asElement[index] = true;
     });
     run = [];
   };
-  for (const node of nodes) {
-    if (node.type === 'element') {
+  tokens.forEach((token, index) => {
+    if (boundaries[index] !== '') flush();
+    if (tokenElementAttributes(token) !== '') {
       flush();
-      decideTokenElements(node.children);
-    } else if (tokenElementAttributes(node.token) !== '') {
-      flush();
-      node.asElement = true;
-    } else if (!isBareTextNode(node)) {
-      flush();
-      node.asElement = !isReadBackAs([node.text]);
+      asElement[index] = true;
     } else {
-      run.push(node);
-      if (hasTrailingMarks(node.annotation)) flush();
+      run.push(index);
     }
-  }
+  });
   flush();
+  return asElement;
 }
 
 // ============================================================================
@@ -1238,15 +1059,6 @@ const KUN_PART_OF_TYPE: ReadonlyMap<string, 'yomi' | 'okuri' | 'soe'> = new Map(
   ['okurigana', 'okuri'],
   ['soegana', 'soe'],
 ]);
-
-/** 単字の `skam:kun` が作る注記と、その部分 */
-function kunParts(annotation: TokenAnnotation): XmlElementMarks['marks'] {
-  const parts: { part: 'yomi' | 'okuri' | 'soe'; mark: Mark }[] = [];
-  if (annotation.yomiMark) parts.push({ part: 'yomi', mark: annotation.yomiMark });
-  if (annotation.okuriMark) parts.push({ part: 'okuri', mark: annotation.okuriMark });
-  if (annotation.soeMark) parts.push({ part: 'soe', mark: annotation.soeMark });
-  return parts;
-}
 
 const KUN_ID_ORDER: ReadonlyMap<string, number> = new Map([
   ['yomigana', 0],
@@ -1264,39 +1076,6 @@ function kunIdAttribute(sources: readonly Mark[]): string {
     (a, b) => (KUN_ID_ORDER.get(a.type) ?? 0) - (KUN_ID_ORDER.get(b.type) ?? 0)
   );
   return idAttribute(ordered[0]?.id);
-}
-
-/**
- * 単一トークンのベース XML を生成（テキスト + kun 属性のみ、trailing marks なし）
- */
-function tokenBaseToXml(node: TextNode, ctx: StringifyContext): string {
-  const { annotation } = node;
-  // 平文で読み戻せない字 (decideTokenElements) は `<skam:t>` で書く。内容は書記素に分けず、空白も捨てない
-  const text = node.asElement
-    ? `<skam:t${tokenElementAttributes(node.token)}>${escapeText(node.text)}</skam:t>`
-    : escapeText(node.text);
-  const { yomi, okuri, soe } = annotation;
-  const hasKunAttrs = yomi || okuri || soe;
-
-  if (hasKunAttrs) {
-    const attrs: string[] = [];
-    if (yomi) {
-      attrs.push(`yomi="${escapeXml(yomi)}"`);
-    }
-    if (okuri) {
-      attrs.push(`okuri="${escapeXml(okuri)}"`);
-    }
-    if (soe) {
-      attrs.push(`soe="${escapeXml(soe)}"`);
-    }
-
-    const parts = kunParts(annotation);
-    const extension =
-      kunIdAttribute(parts.map(({ mark }) => mark)) + extensionAttributes(ctx, 'skam:kun', parts);
-    return `<skam:kun ${attrs.join(' ')}${extension}>${text}</skam:kun>`;
-  }
-
-  return text;
 }
 
 /**
@@ -1344,65 +1123,20 @@ function tokenTrailingToXml(annotation: TokenAnnotation, ctx: StringifyContext):
   return xml;
 }
 
-/**
- * 単一トークンの XML を生成（wrapper なし、annotation のみ）
- */
-function tokenContentToXml(node: TextNode, ctx: StringifyContext): string {
-  return tokenBaseToXml(node, ctx) + tokenTrailingToXml(node.annotation, ctx);
-}
-
-/** 字を包む要素の開始タグと終了タグ。単字 (applyWrappers) と範囲 (renderRangeElement) で共有する */
-function wrapperTags(
+/** 字を包む要素 (okimoji / joji / okototen / saidoku) の開始タグの属性 (先頭に空白を含む) */
+function wrapperAttributes(
   mark: OkimojiMark | JojiMark | OkototenMark | SaidokuMark,
   ctx: StringifyContext
-): {
-  open: string;
-  close: string;
-} {
+): string {
   const extension =
     idAttribute(mark.id) + extensionAttributes(ctx, `skam:${mark.type}`, [{ part: 'self', mark }]);
-  switch (mark.type) {
-    case 'okimoji':
-      return { open: `<skam:okimoji${extension}>`, close: '</skam:okimoji>' };
-    case 'joji':
-      return { open: `<skam:joji${extension}>`, close: '</skam:joji>' };
-    case 'okototen': {
-      let attrs = `grid="${escapeXml(mark.position.grid)}" x="${mark.position.x}" y="${mark.position.y}" shape="${escapeXml(mark.shape)}"`;
-      if (mark.sound) attrs += ` sound="${escapeXml(mark.sound)}"`;
-      if (mark.color) attrs += ` color="${escapeXml(mark.color)}"`;
-      return { open: `<skam:okototen ${attrs}${extension}>`, close: '</skam:okototen>' };
-    }
-    case 'saidoku': {
-      let formsXml = '';
-      for (const form of mark.forms) {
-        let formAttrs = '';
-        if (form.n !== undefined) formAttrs += ` n="${form.n}"`;
-        if (form.yomi) formAttrs += ` yomi="${escapeXml(form.yomi)}"`;
-        if (form.okuri) formAttrs += ` okuri="${escapeXml(form.okuri)}"`;
-        formsXml += `<skam:kunform${formAttrs}/>`;
-      }
-      return {
-        open: `<skam:saidoku${extension}><skam:base>`,
-        close: `</skam:base>${formsXml}</skam:saidoku>`,
-      };
-    }
+  if (mark.type === 'okototen') {
+    let attrs = `grid="${escapeXml(mark.position.grid)}" x="${mark.position.x}" y="${mark.position.y}" shape="${escapeXml(mark.shape)}"`;
+    if (mark.sound) attrs += ` sound="${escapeXml(mark.sound)}"`;
+    if (mark.color) attrs += ` color="${escapeXml(mark.color)}"`;
+    return ` ${attrs}${extension}`;
   }
-}
-
-/** 単字の包む要素を適用してトークン XML を生成。wrappers は入れ子順 (外側から) に並んでいる */
-function applyWrappers(
-  innerXml: string,
-  wrappers: SingleTokenWrapper[] | undefined,
-  ctx: StringifyContext
-): string {
-  let xml = innerXml;
-  for (let i = (wrappers?.length ?? 0) - 1; i >= 0; i--) {
-    const wrapper = wrappers?.[i];
-    if (!wrapper) continue;
-    const { open, close } = wrapperTags(wrapper.mark, ctx);
-    xml = open + xml + close;
-  }
-  return xml;
+  return extension;
 }
 
 /**
@@ -1443,17 +1177,24 @@ function highlightAttributes(hl: HighlightMark, ctx: StringifyContext): string {
   return attrs;
 }
 
-/**
- * 範囲マークの型に応じた XML 要素を生成
- */
-function renderRangeElement(
+/** 範囲の要素の名前と属性 (先頭に空白を含む)。入れ子の形と対の始まりの要素で同じ */
+function rangeTag(
   mark: Mark | KunRangeSyntheticMark,
-  childrenXml: string,
-  ctx: StringifyContext
-): string {
+  ctx: StringifyContext,
+  asPair: boolean
+): { name: string; attrs: string } {
   switch (mark.type) {
-    case '__kun_range': {
+    case '__kun_range':
+    case '__yomigana_range': {
       const kun = mark as KunRangeSyntheticMark;
+      if (mark.type === '__yomigana_range' && !asPair) {
+        const source = kun.sources.find((candidate) => candidate.type === 'yomigana');
+        const extension = source
+          ? idAttribute(source.id) +
+            extensionAttributes(ctx, 'skam:yomigana', [{ part: 'self', mark: source }])
+          : '';
+        return { name: 'yomigana', attrs: ` value="${escapeXml(kun.yomi ?? '')}"${extension}` };
+      }
       const attrs: string[] = [];
       if (kun.yomi) attrs.push(`yomi="${escapeXml(kun.yomi)}"`);
       if (kun.okuri) attrs.push(`okuri="${escapeXml(kun.okuri)}"`);
@@ -1463,120 +1204,105 @@ function renderRangeElement(
         return part === undefined ? [] : [{ part, mark: source }];
       });
       const extension = kunIdAttribute(kun.sources) + extensionAttributes(ctx, 'skam:kun', parts);
-      return `<skam:kun ${attrs.join(' ')}${extension}>${childrenXml}</skam:kun>`;
-    }
-    case '__yomigana_range': {
-      const yomigana = mark as KunRangeSyntheticMark;
-      const source = yomigana.sources.find((candidate) => candidate.type === 'yomigana');
-      const extension = source
-        ? idAttribute(source.id) +
-          extensionAttributes(ctx, 'skam:yomigana', [{ part: 'self', mark: source }])
-        : '';
-      return `<skam:yomigana value="${escapeXml(yomigana.yomi ?? '')}"${extension}>${childrenXml}</skam:yomigana>`;
+      return { name: 'kun', attrs: ` ${attrs.join(' ')}${extension}` };
     }
     case 'emphasis': {
       const emp = mark as EmphasisMark;
-      let attrs = 'type="emphasis"';
+      let attrs = ' type="emphasis"';
       if (emp.style) {
         attrs += ` style="${escapeXml(emp.style)}"`;
       }
       attrs += idAttribute(emp.id);
       attrs += extensionAttributes(ctx, 'skam:span', [{ part: 'self', mark: emp }], false);
-      return `<skam:span ${attrs}>${childrenXml}</skam:span>`;
+      return { name: 'span', attrs };
     }
     case 'tateten': {
       const extension =
         idAttribute(mark.id) +
         extensionAttributes(ctx, 'skam:tateten', [{ part: 'self', mark: mark as TatetenMark }]);
-      return `<skam:tateten${extension}>${childrenXml}</skam:tateten>`;
+      return { name: 'tateten', attrs: extension };
     }
-    case 'highlight': {
-      const attrs = highlightAttributes(mark as HighlightMark, ctx);
-      return `<skam:span ${attrs}>${childrenXml}</skam:span>`;
-    }
-    case 'okimoji':
-    case 'joji':
-    case 'okototen':
-    case 'saidoku': {
-      const { open, close } = wrapperTags(
-        mark as OkimojiMark | JojiMark | OkototenMark | SaidokuMark,
-        ctx
-      );
-      return open + childrenXml + close;
-    }
-    case 'ref':
-      return refMarkToXml(mark as RefMark, false, ctx);
+    case 'highlight':
+      return { name: 'span', attrs: ` ${highlightAttributes(mark as HighlightMark, ctx)}` };
     default:
-      return childrenXml;
+      return {
+        name: mark.type,
+        attrs: wrapperAttributes(mark as OkimojiMark | JojiMark | OkototenMark, ctx),
+      };
   }
 }
 
-/** 範囲の連鎖 (最後の子をたどった先) の最後の字。位置マークはこの字の後ろにある */
-function findTrailingLeaf(node: ElementNode): TextNode | undefined {
-  let current: ContentNode | undefined = node;
-  while (current?.type === 'element') current = current.children[current.children.length - 1];
-  return current;
+/** 入れ子の形の開始タグと終了タグ */
+function nestedTags(
+  mark: Mark | KunRangeSyntheticMark,
+  ctx: StringifyContext
+): { open: string; close: string } {
+  if (mark.type === 'saidoku') {
+    const saidoku = mark as SaidokuMark;
+    let formsXml = '';
+    for (const form of saidoku.forms) {
+      let formAttrs = '';
+      if (form.n !== undefined) formAttrs += ` n="${form.n}"`;
+      if (form.yomi) formAttrs += ` yomi="${escapeXml(form.yomi)}"`;
+      if (form.okuri) formAttrs += ` okuri="${escapeXml(form.okuri)}"`;
+      formsXml += `<skam:kunform${formAttrs}/>`;
+    }
+    return {
+      open: `<skam:saidoku${wrapperAttributes(saidoku, ctx)}><skam:base>`,
+      close: `</skam:base>${formsXml}</skam:saidoku>`,
+    };
+  }
+  const { name, attrs } = rangeTag(mark, ctx, false);
+  return { open: `<skam:${name}${attrs}>`, close: `</skam:${name}>` };
 }
 
-/** annotation から後置の位置マークをすべて取り外して返す */
-function takeTrailing(annotation: TokenAnnotation): TokenAnnotation {
-  const taken: TokenAnnotation = {};
-  if (annotation.kaeriAfter) taken.kaeriAfter = annotation.kaeriAfter;
-  if (annotation.kutotenAfter) taken.kutotenAfter = annotation.kutotenAfter;
-  if (annotation.refAfter) taken.refAfter = annotation.refAfter;
-  if (annotation.linebreakAfter) taken.linebreakAfter = annotation.linebreakAfter;
-  delete annotation.kaeriAfter;
-  delete annotation.kutotenAfter;
-  delete annotation.refAfter;
-  delete annotation.linebreakAfter;
-  return taken;
-}
-
-/** takeTrailing の前の後置の位置マークに戻す */
-function restoreTrailing(annotation: TokenAnnotation, original: TokenAnnotation): void {
-  delete annotation.kaeriAfter;
-  delete annotation.kutotenAfter;
-  delete annotation.refAfter;
-  delete annotation.linebreakAfter;
-  if (original.kaeriAfter) annotation.kaeriAfter = original.kaeriAfter;
-  if (original.kutotenAfter) annotation.kutotenAfter = original.kutotenAfter;
-  if (original.refAfter) annotation.refAfter = original.refAfter;
-  if (original.linebreakAfter) annotation.linebreakAfter = original.linebreakAfter;
+/** 空要素の対の始まりの要素と終わりの要素。始まりの要素は入れ子の形と同じ属性に sID を足し、終わりの要素は eID だけ */
+function pairTags(
+  mark: Mark | KunRangeSyntheticMark,
+  id: string,
+  ctx: StringifyContext
+): { start: string; end: string } {
+  const { name, attrs } = rangeTag(mark, ctx, true);
+  return { start: `<skam:${name}${attrs} sID="${id}"/>`, end: `<skam:${name} eID="${id}"/>` };
 }
 
 /**
- * コンテンツノードを XML に変換
+ * ブロックごとの範囲マークを取り出す関数。範囲マークは始まりの位置の昇順に並んでいるので、
+ * ブロックの順に前から 1 回ずつ走査する (ブロックごとに全体を絞り込まない)
  */
-function contentNodeToXml(node: ContentNode, ctx: StringifyContext): string {
-  if (node.type === 'text') {
-    // wrapper がある場合、trailing marks を wrapper の外に配置
-    if (node.annotation.wrappers?.length) {
-      const baseXml = tokenBaseToXml(node, ctx);
-      const trailingXml = tokenTrailingToXml(node.annotation, ctx);
-      return applyWrappers(baseXml, node.annotation.wrappers, ctx) + trailingXml;
+function rangeMarksTaker(
+  rangeMarks: readonly RangeMark[]
+): (startIndex: number, endIndex: number) => RangeMark[] {
+  let cursor = 0;
+  return (startIndex, endIndex) => {
+    while (cursor < rangeMarks.length && rangeMarks[cursor]!.startIndex < startIndex) cursor++;
+    const taken: RangeMark[] = [];
+    while (cursor < rangeMarks.length && rangeMarks[cursor]!.startIndex <= endIndex) {
+      const unit = rangeMarks[cursor]!;
+      if (unit.endIndex <= endIndex) taken.push(unit);
+      cursor++;
     }
-    const innerXml = tokenContentToXml(node, ctx);
-    return applyWrappers(innerXml, node.annotation.wrappers, ctx);
-  }
+    return taken;
+  };
+}
 
-  // 要素ノード：最後の字の位置マークを、同じ字で終わる範囲の連鎖のうち最も外側の後ろへ出す (§7.0)
-  const leaf = findTrailingLeaf(node);
-  const original = leaf ? { ...leaf.annotation } : undefined;
-  const trailing = leaf ? takeTrailing(leaf.annotation) : {};
-  const childrenXml = node.children.map((child) => contentNodeToXml(child, ctx)).join('');
-  const elementXml = renderRangeElement(node.mark, childrenXml, ctx);
-  if (leaf && original) restoreTrailing(leaf.annotation, original);
-  return elementXml + tokenTrailingToXml(trailing, ctx);
+function pushTo(map: Map<number, string[]>, key: number, value: string): void {
+  const list = map.get(key);
+  if (list) list.push(value);
+  else map.set(key, [value]);
 }
 
 /**
  * ブロックの XML を生成
+ *
+ * 字と字の間に出すものの順は、閉じるタグ、終わりの要素 (r の降順)、位置の注記、始まりの要素 (r の昇順)、開くタグ。
+ * ブロックの先頭は、位置の注記、始まりの要素、開くタグ
  */
 function blockToXml(
   block: Block,
   blockTokens: Token[],
   annotations: Map<string, TokenAnnotation>,
-  rangeMarks: RangeMark[],
+  blockRangeMarks: RangeMark[],
   blockStartIndex: number,
   indentLevel: number,
   indentSize: number,
@@ -1584,22 +1310,65 @@ function blockToXml(
   startMarks: BlockStartMarks | undefined
 ): string {
   const ind = indentStr(indentLevel, indentSize);
+  const count = blockTokens.length;
 
-  // 木構造を構築
-  const contentTree = buildContentTree(
-    blockTokens,
-    annotations,
-    rangeMarks,
-    blockStartIndex,
-    blockStartIndex + blockTokens.length - 1,
-    ctx
-  );
+  const forms = chooseRangeForms(blockRangeMarks, ctx);
+  const openAt = new Map<number, string[]>();
+  const closeAt = new Map<number, string[]>();
+  const pairStartAt = new Map<number, string[]>();
+  const pairEndAt = new Map<number, string[]>();
+  const local = (unit: RangeMark): { from: number; to: number } | undefined => {
+    const from = unit.startIndex - blockStartIndex;
+    const to = unit.endIndex - blockStartIndex;
+    return from >= 0 && to < count ? { from, to } : undefined;
+  };
+  for (const unit of forms.nested) {
+    const at = local(unit);
+    if (!at) continue;
+    const { open, close } = nestedTags(unit.mark, ctx);
+    pushTo(openAt, at.from, open);
+    pushTo(closeAt, at.to, close);
+  }
+  // 対の番号は、始まりの要素の文書の順
+  for (const unit of forms.paired) {
+    const at = local(unit);
+    if (!at) continue;
+    const { start, end } = pairTags(unit.mark, `r${ctx.nextPairNumber++}`, ctx);
+    pushTo(pairStartAt, at.from, start);
+    pushTo(pairEndAt, at.to, end);
+  }
 
-  // XML に変換
-  // ブロック先頭の句読点・ref (§7.1: position に blockId だけを指定したもの) を本文の前に置く
-  const content =
-    (startMarks ? tokenTrailingToXml(startMarks, ctx) : '') +
-    contentTree.map((node) => contentNodeToXml(node, ctx)).join('');
+  const reversed = (map: Map<number, string[]>, key: number): string =>
+    (map.get(key) ?? []).slice().reverse().join('');
+  const joined = (map: Map<number, string[]>, key: number): string => (map.get(key) ?? []).join('');
+  const trailingOf = (index: number): string => {
+    const token = blockTokens[index];
+    const annotation = token ? annotations.get(token.id) : undefined;
+    return annotation ? tokenTrailingToXml(annotation, ctx) : '';
+  };
+
+  // boundaries[i] は i 番目の字の前、boundaries[count] は最後の字の後ろに出すもの
+  const boundaries: string[] = [];
+  for (let index = 0; index <= count; index++) {
+    let text = '';
+    if (index === 0) {
+      if (startMarks) text += tokenTrailingToXml(startMarks, ctx);
+    } else {
+      text += reversed(closeAt, index - 1) + reversed(pairEndAt, index - 1) + trailingOf(index - 1);
+    }
+    if (index < count) text += joined(pairStartAt, index) + joined(openAt, index);
+    boundaries.push(text);
+  }
+
+  const asElement = decideTokenElements(blockTokens, boundaries);
+  let content = '';
+  blockTokens.forEach((token, index) => {
+    content += boundaries[index]!;
+    content += asElement[index]
+      ? `<skam:t${tokenElementAttributes(token)}>${escapeText(token.text)}</skam:t>`
+      : escapeText(token.text);
+  });
+  content += boundaries[count]!;
 
   const attrs = idAttribute(block.id) + ownerDataAttributes(block);
   if (content === '') {
@@ -1692,6 +1461,7 @@ function createContext(
     blockIndexById,
     extension: { writers, consumed: new Map() },
     handRefIds,
+    nextPairNumber: 1,
   };
 }
 
@@ -1777,13 +1547,15 @@ function recordIdAndCharLosses(doc: SKAMDocument, ctx: StringifyContext): void {
 
 interface ExtensionDeclaration {
   name: string;
-  uri: string;
+  /** 登録簿にも定義にも無い拡張は、`uri` を省いて名前だけで宣言する */
+  uri: string | undefined;
   required: boolean;
 }
 
 /**
- * 宣言のある文書は、名前空間の URI が分かる拡張だけを宣言する。
- * URI の無い拡張 (定義も登録簿も無い) と名前が不正な拡張は、宣言も値も書けないので損失にする
+ * 宣言のある文書は、拡張を名前で宣言する。名前空間の URI が分かる拡張には `uri` を書き、
+ * 登録簿にも定義にも無い拡張は `uri` を省く (値は `skam:ext` に書く)。名前が拡張の名前の形でない拡張は、
+ * 宣言も値も書けないので損失にする。名前だけの宣言の `required` は parser が読めないので書かず、損失にする
  */
 function collectDeclarations(
   doc: SKAMDocument,
@@ -1793,22 +1565,28 @@ function collectDeclarations(
   const declarations: ExtensionDeclaration[] = [];
   const names: unknown[] = Array.isArray(doc.extensions) ? doc.extensions : [];
   names.forEach((name, index) => {
-    const uri = isExtensionName(name) ? extensionUri(name, definitions) : undefined;
-    if (!isExtensionName(name) || uri === undefined) {
+    const addLoss = (message: string): void =>
       ctx.collector.add(
         {
           category: 'unsupported',
           code: 'UNKNOWN_EXTENSION',
           path: `/extensions/${index}`,
-          message:
-            'An extension that is not known, or whose name is invalid, cannot be declared in SKAM-ML (its namespace uri is needed)',
+          message,
         },
         { blockIndex: -1, tokenIndex: -1, markIndex: -1, fieldOrder: 2 }
       );
+    if (!isExtensionName(name)) {
+      addLoss('An extension whose name is invalid cannot be declared in SKAM-ML');
       return;
     }
+    const uri = extensionUri(name, definitions);
     const required = Array.isArray(doc.extensionsRequired) && doc.extensionsRequired.includes(name);
-    declarations.push({ name, uri, required });
+    if (uri === undefined && required) {
+      addLoss(
+        'A required extension that is not known cannot be declared in SKAM-ML (a reader that does not know it must refuse the document)'
+      );
+    }
+    declarations.push({ name, uri, required: required && uri !== undefined });
   });
   return declarations;
 }
@@ -1820,7 +1598,7 @@ function metaLines(declarations: ExtensionDeclaration[], indentSize: number): st
     `${indentStr(1, indentSize)}<skam:meta tokenization="char">`,
     ...declarations.map(
       ({ name, uri, required }) =>
-        `${indentStr(2, indentSize)}<skam:extension name="${escapeXml(name)}" uri="${escapeXml(uri)}"${required ? ' required="true"' : ''}/>`
+        `${indentStr(2, indentSize)}<skam:extension name="${escapeXml(name)}"${uri === undefined ? '' : ` uri="${escapeXml(uri)}"`}${required ? ' required="true"' : ''}/>`
     ),
     `${indentStr(1, indentSize)}</skam:meta>`,
   ];
@@ -1870,8 +1648,8 @@ export function stringify(doc: SKAMDocument, options: StringifyOptions = {}): st
   // Annotation を収集
   const { annotations, blockStart } = collectTokenAnnotations(doc.tokens, doc.marks, ctx);
 
-  // 範囲マークを収集
-  const rangeMarks = collectRangeMarks(doc.marks, tokenIndexMap, ctx);
+  // 範囲マークを収集 (始まりの位置の昇順)
+  const takeBlockRangeMarks = rangeMarksTaker(collectRangeMarks(doc.marks, tokenIndexMap, ctx));
 
   // XML を構築
   const lines: string[] = [];
@@ -1885,7 +1663,7 @@ export function stringify(doc: SKAMDocument, options: StringifyOptions = {}): st
 
   // ルート要素開始
   const namespaces = declarations
-    .map(({ name, uri }) => ` xmlns:${name}="${escapeXml(uri)}"`)
+    .flatMap(({ name, uri }) => (uri === undefined ? [] : [` xmlns:${name}="${escapeXml(uri)}"`]))
     .join('');
   lines.push(
     `<skam:doc xmlns:skam="${SKAM_NS}"${namespaces}${langAttribute(doc)}${ownerDataAttributes(doc)}>`
@@ -1908,12 +1686,17 @@ export function stringify(doc: SKAMDocument, options: StringifyOptions = {}): st
       }
     }
 
+    const blockRangeMarks = takeBlockRangeMarks(
+      blockStartIndex,
+      blockStartIndex + blockTokens.length - 1
+    );
+
     lines.push(
       blockToXml(
         block,
         blockTokens,
         annotations,
-        rangeMarks,
+        blockRangeMarks,
         blockStartIndex,
         2,
         indentSize,

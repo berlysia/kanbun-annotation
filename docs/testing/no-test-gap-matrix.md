@@ -4,18 +4,18 @@
 
 ## Case ID マッピング
 
-| case_id             | semantic テスト (cross-renderer-equivalence.test.ts の describe) | legacy テスト参照                                                 |
-| ------------------- | ---------------------------------------------------------------- | ----------------------------------------------------------------- |
-| ruby-range-core     | `cross-renderer equivalence: range ruby`                         | `legacy-detector.test.ts` の `[legacy][case:ruby-range-core]`     |
-| tateten-kaeri-split | `cross-renderer equivalence: tateten+kaeri`                      | `legacy-detector.test.ts` の `[legacy][case:tateten-kaeri-split]` |
-| highlight-ref-label | `cross-renderer equivalence: highlight+ref`                      | `legacy-detector.test.ts` の `[legacy][case:highlight-ref-label]` |
-| saidoku-two-stage   | `cross-renderer equivalence: saidoku`                            | `legacy-detector.test.ts` の `[legacy][case:saidoku-two-stage]`   |
+| case_id             | semantic テスト (cross-renderer-equivalence.test.ts の describe) | legacy テスト参照          |
+| ------------------- | ---------------------------------------------------------------- | -------------------------- |
+| ruby-range-core     | `cross-renderer equivalence: range ruby`                         | なし (migrated で削除済み) |
+| tateten-kaeri-split | `cross-renderer equivalence: tateten+kaeri`                      | なし (migrated で削除済み) |
+| highlight-ref-label | `cross-renderer equivalence: highlight+ref`                      | なし (migrated で削除済み) |
+| saidoku-two-stage   | `cross-renderer equivalence: saidoku`                            | なし (migrated で削除済み) |
 
 ## 移行対応表
 
 | case_id             | legacy_snapshot | semantic_test | visual_test | migration_state | owner    | last_verified_at |
 | ------------------- | --------------- | ------------- | ----------- | --------------- | -------- | ---------------- |
-| ruby-range-core     | yes             | yes           | yes         | dual            | berlysia | 2026-02-15       |
-| tateten-kaeri-split | yes             | yes           | yes         | dual            | berlysia | 2026-02-15       |
-| highlight-ref-label | yes             | yes           | yes         | dual            | berlysia | 2026-02-15       |
-| saidoku-two-stage   | yes             | yes           | yes         | dual            | berlysia | 2026-02-15       |
+| ruby-range-core     | no              | yes           | yes         | migrated        | berlysia | 2026-10-22       |
+| tateten-kaeri-split | no              | yes           | yes         | migrated        | berlysia | 2026-10-22       |
+| highlight-ref-label | no              | yes           | yes         | migrated        | berlysia | 2026-10-22       |
+| saidoku-two-stage   | no              | yes           | yes         | migrated        | berlysia | 2026-10-22       |

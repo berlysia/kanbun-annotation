@@ -76,3 +76,73 @@ describe('parse - grapheme cluster tokens', () => {
     });
   });
 });
+
+describe('parse - <skam:t>', () => {
+  it('makes one token of its content without splitting it, and the kaeri after it follows the last token', () => {
+    const doc = parseSeq(wrap('<skam:t>學問</skam:t>而<skam:kaeri kind="re"/>'));
+    expect(doc.tokens.map((t) => t.text)).toEqual(['學問', '而']);
+    expect(doc.tokens.map((t) => t.id)).toEqual(['b#1#1', 'b#1#2']);
+    expect(doc.blocks[0]!.tokenIds).toEqual(['b#1#1', 'b#1#2']);
+    const kaeri = doc.marks.find((m) => m.type === 'kaeri')!;
+    expect(kaeri).toMatchObject({ position: { blockId: 'b#1', after: 'b#1#2' } });
+  });
+
+  it('puts the kaeri after a <skam:t> token', () => {
+    const doc = parseSeq(wrap('而<skam:t>學問</skam:t><skam:kaeri kind="re"/>'));
+    const kaeri = doc.marks.find((m) => m.type === 'kaeri')!;
+    expect(kaeri).toMatchObject({ position: { after: 'b#1#2' } });
+  });
+
+  it('keeps whitespace as the token text', () => {
+    expect(texts(wrap('<skam:t> </skam:t>'))).toEqual([' ']);
+    expect(texts(wrap('<skam:t>&#13;</skam:t>'))).toEqual(['\r']);
+    expect(texts(wrap('<skam:t> 學</skam:t>'))).toEqual([' 學']);
+  });
+
+  it('keeps a combining mark as its own token', () => {
+    expect(texts(wrap('e<skam:t>&#x301;</skam:t>'))).toEqual(['e', '́']);
+  });
+
+  it('takes the token id from xml:id (or id), counting it in the automatic ids', () => {
+    const doc = parseSeq(wrap('甲<skam:t xml:id="cite-1">學</skam:t>乙'));
+    expect(doc.tokens.map((t) => t.id)).toEqual(['b#1#1', 'cite-1', 'b#1#3']);
+    expect(doc.blocks[0]!.tokenIds).toEqual(['b#1#1', 'cite-1', 'b#1#3']);
+    expect(parseSeq(wrap('<skam:t id="c2">學</skam:t>')).tokens[0]!.id).toBe('c2');
+  });
+
+  it('is readable inside annotation elements', () => {
+    const doc = parseSeq(
+      wrap(
+        '<skam:kun yomi="まな"><skam:t>學問</skam:t></skam:kun>' +
+          '<skam:span type="emphasis"><skam:t>而</skam:t></skam:span>' +
+          '<skam:yomigana value="ア"><skam:t>時</skam:t>習</skam:yomigana>' +
+          '<skam:okimoji><skam:t>之</skam:t></skam:okimoji>' +
+          '<skam:soegana value="を"><skam:t>不</skam:t></skam:soegana>' +
+          '<skam:saidoku><skam:base><skam:t>未</skam:t></skam:base><skam:kunform yomi="いま"/></skam:saidoku>'
+      )
+    );
+    expect(doc.tokens.map((t) => t.text)).toEqual(['學問', '而', '時', '習', '之', '不', '未']);
+    expect(doc.marks.find((m) => m.type === 'yomigana' && m.value === 'まな')).toMatchObject({
+      anchor: { from: 'b#1#1', to: 'b#1#1' },
+    });
+    expect(doc.marks.find((m) => m.type === 'yomigana' && m.value === 'ア')).toMatchObject({
+      anchor: { from: 'b#1#3', to: 'b#1#4' },
+    });
+  });
+
+  it('mixes plain text and <skam:t> inside kun', () => {
+    const doc = parseSeq(wrap('<skam:kun yomi="x">學<skam:t>問 </skam:t>而</skam:kun>'));
+    expect(doc.tokens.map((t) => t.text)).toEqual(['學', '問 ', '而']);
+    expect(doc.marks[0]).toMatchObject({ anchor: { from: 'b#1#1', to: 'b#1#3' } });
+  });
+
+  it('keeps positions of the tokens around it', () => {
+    const xml = wrap('甲<skam:t>學問</skam:t>乙');
+    const doc = parseSeq(xml, { trackPositions: true });
+    const columns = doc.tokens.map(
+      (t) => (t.ext!['position'] as { start: { column: number } }).start.column
+    );
+    expect(columns[0]).toBe(xml.indexOf('甲') + 1);
+    expect(columns[2]).toBe(xml.indexOf('乙') + 1);
+  });
+});

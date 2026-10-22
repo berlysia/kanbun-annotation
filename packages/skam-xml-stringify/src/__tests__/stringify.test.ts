@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { stringify } from '../index.js';
+import { stringify as stringifyDocument, type StringifyOptions } from '../index.js';
+import { convertHandIdsToAuto, isHandId } from '@kanbun-skam/skam';
 import type {
   SKAMDocument,
   KaeriMark,
@@ -16,6 +17,20 @@ import type {
   HighlightMark,
   RefMark,
 } from '@kanbun-skam/skam';
+
+/**
+ * 手書きの id (`t1` など) の字は `<skam:t xml:id>` で書かれる。このファイルの検査は注記の書き方なので、
+ * 字に手書きの id を使う文書は、ブロックと注記の id を残して字の id だけを位置から決まる形にしてから書く。
+ * 字の手書きの id の書き方は graphemes.test.ts が検査する
+ */
+function stringify(doc: SKAMDocument, options?: StringifyOptions): string {
+  if (!doc.tokens.some((token) => isHandId(token.id))) return stringifyDocument(doc, options);
+  const keep = new Set([
+    ...doc.blocks.map((block) => block.id),
+    ...doc.marks.flatMap((mark) => (mark.id === undefined ? [] : [mark.id])),
+  ]);
+  return stringifyDocument(convertHandIdsToAuto(doc, keep), options);
+}
 
 // ============================================================================
 // Basic Stringify Tests
@@ -1135,5 +1150,178 @@ describe('stringify - ids', () => {
     ]);
     const xml = stringify(d, { lossy: true });
     expect(xml).not.toContain('xml:id');
+  });
+});
+
+// ============================================================================
+// ext / custom / placementHint と、文字の書き方 (文字参照)
+// ============================================================================
+
+describe('stringify - ext, custom, placementHint attributes', () => {
+  const autoDoc = (over: Partial<SKAMDocument> = {}): SKAMDocument => ({
+    format: 'skam@0.1',
+    readings: [],
+    tokens: [
+      { id: 'b#1#1', text: '甲' },
+      { id: 'b#1#2', text: '乙' },
+    ],
+    blocks: [{ id: 'b#1', tokenIds: ['b#1#1', 'b#1#2'] }],
+    marks: [],
+    ...over,
+  });
+  const anchor = (from: number, to = from) => ({ from: `b#1#${from}`, to: `b#1#${to}` });
+  const lossesOf = (d: SKAMDocument, options: StringifyOptions = {}) => {
+    const seen: string[] = [];
+    stringifyDocument(d, { ...options, lossy: true, onLoss: (l) => seen.push(l.code) });
+    return seen;
+  };
+
+  it('writes the ext of an undeclared document on the root, and custom on a block, in JSON', () => {
+    const d = autoDoc({
+      ext: { a: 1 },
+      blocks: [
+        {
+          id: 'b#1',
+          tokenIds: ['b#1#1', 'b#1#2'],
+          custom: { x: String.fromCharCode(0xffff), y: '\u0001' },
+        },
+      ],
+    });
+    expect(lossesOf(d)).toEqual([]);
+    const xml = stringify(d);
+    expect(xml).toContain('<skam:doc xmlns:skam="urn:skam:1" skam:ext="{&quot;a&quot;:1}">');
+    expect(xml).toContain(
+      '<skam:block skam:custom="{&quot;x&quot;:&quot;\\uffff&quot;,&quot;y&quot;:&quot;\\u0001&quot;}">'
+    );
+    expect(xml).not.toContain(String.fromCharCode(0xffff));
+    expect(xml).not.toContain('\u0001');
+  });
+
+  it('escapes U+FFFE and U+FFFF in JSON as \\u escapes', () => {
+    const d = autoDoc({
+      custom: { s: `${String.fromCharCode(0xfffe)}${String.fromCharCode(0xffff)}` },
+    });
+    const xml = stringify(d);
+    expect(xml).toContain('\\ufffe\\uffff');
+    // formatter が正規表現の U+FFFE の escape を実際の文字に書き換えるので、文字列から組み立てる
+    expect(xml).not.toMatch(new RegExp('[\\uFFFE\\uFFFF]'));
+  });
+
+  it('writes the ext of a declared extension without a notation under the name key in skam:ext', () => {
+    const d = autoDoc({
+      extensions: ['zzz'],
+      marks: [{ type: 'okimoji', anchor: anchor(1), ext: { zzz: { n: 1 } } }],
+    });
+    const options = { extensions: [{ name: 'zzz', uri: 'urn:x:zzz', required: false }] };
+    expect(lossesOf(d, options)).toEqual([]);
+    expect(stringify(d, options)).toContain(
+      '<skam:okimoji skam:ext="{&quot;zzz&quot;:{&quot;n&quot;:1}}">'
+    );
+  });
+
+  it('writes an edu value as a namespaced attribute and custom as skam:custom on the same element', () => {
+    const d = autoDoc({
+      extensions: ['edu'],
+      extensionsRequired: ['edu'],
+      marks: [
+        {
+          type: 'okimoji',
+          anchor: anchor(1),
+          ext: { edu: { quiz: 'q1' } },
+          custom: { k: 1 },
+        },
+      ],
+    });
+    expect(lossesOf(d)).toEqual([]);
+    expect(stringify(d)).toContain('<skam:okimoji edu:quiz="q1" skam:custom="{&quot;k&quot;:1}">');
+  });
+
+  it('writes placementHint as placement-hint and custom on an emphasis span', () => {
+    const d = autoDoc({
+      marks: [
+        { type: 'okimoji', anchor: anchor(1), placementHint: 'left' },
+        { type: 'emphasis', anchor: anchor(1, 2), custom: { c: true } },
+      ],
+    });
+    expect(lossesOf(d)).toEqual([]);
+    const xml = stringify(d);
+    expect(xml).toContain('<skam:okimoji placement-hint="left">');
+    expect(xml).toContain('<skam:span type="emphasis" skam:custom="{&quot;c&quot;:true}">');
+  });
+
+  it('writes the three attributes on highlight, ref and br', () => {
+    const d = autoDoc({
+      marks: [
+        {
+          id: 'm#1',
+          type: 'highlight',
+          anchor: anchor(1, 2),
+          custom: { h: 1 },
+          placementHint: 'p',
+        },
+        {
+          id: 'r',
+          type: 'ref',
+          label: 'a',
+          position: { blockId: 'b#1', after: 'b#1#1' },
+          ext: { e: 1 },
+        },
+        {
+          id: 'm#3',
+          type: 'linebreak',
+          position: { blockId: 'b#1', after: 'b#1#1' },
+          placementHint: 'q',
+        },
+      ],
+    });
+    expect(lossesOf(d)).toEqual([]);
+    const xml = stringify(d);
+    expect(xml).toContain('type="highlight" skam:custom="{&quot;h&quot;:1}" placement-hint="p"');
+    expect(xml).toContain('<skam:ref xml:id="r" label="a" skam:ext="{&quot;e&quot;:1}"/>');
+    expect(xml).toContain('<skam:br placement-hint="q"/>');
+  });
+
+  it('writes yomigana custom and okurigana placementHint on one skam:kun with the prefixes', () => {
+    const d = autoDoc({
+      marks: [
+        { type: 'yomigana', anchor: anchor(1), value: 'まな', custom: { y: 1 } },
+        { type: 'okurigana', anchor: anchor(1), value: 'ブ', placementHint: 'right' },
+        { type: 'soegana', anchor: anchor(1), value: 'を', ext: { s: 1 } },
+      ],
+    });
+    expect(lossesOf(d)).toEqual([]);
+    expect(stringify(d)).toContain(
+      '<skam:kun yomi="まな" okuri="ブ" soe="を" skam:custom="{&quot;y&quot;:1}" okuri-placement-hint="right" skam:soe-ext="{&quot;s&quot;:1}">甲</skam:kun>'
+    );
+  });
+
+  it('writes ext and custom of a reading, and xml:space="preserve" when the text has surrounding whitespace', () => {
+    const d = autoDoc({
+      readings: [
+        { kind: 'kundoku', text: ' 学 ', custom: { r: 1 } },
+        { kind: 'yomiage', text: '学', ext: { e: 1 } },
+      ],
+    });
+    expect(lossesOf(d)).toEqual([]);
+    const xml = stringify(d);
+    expect(xml).toContain(
+      '<skam:reading kind="kundoku" xml:space="preserve" skam:custom="{&quot;r&quot;:1}"> 学 </skam:reading>'
+    );
+    expect(xml).toContain(
+      '<skam:reading kind="yomiage" skam:ext="{&quot;e&quot;:1}">学</skam:reading>'
+    );
+  });
+
+  it('writes CR in text as a character reference, and TAB, LF and CR in an attribute value', () => {
+    const d = autoDoc({
+      tokens: [
+        { id: 'b#1#1', text: '甲\r' },
+        { id: 'b#1#2', text: '乙' },
+      ],
+      marks: [{ type: 'yomigana', anchor: anchor(2), value: 'a\tb\nc\rd' }],
+    });
+    const xml = stringify(d);
+    expect(xml).toContain('<skam:t>甲&#13;</skam:t>');
+    expect(xml).toContain('yomi="a&#9;b&#10;c&#13;d"');
   });
 });

@@ -193,3 +193,103 @@ describe('parse: extension definitions', () => {
     expect(fetchSpy).not.toHaveBeenCalled();
   });
 });
+
+describe('parse: skam:ext / skam:custom / placement-hint', () => {
+  const NS = 'xmlns:skam="urn:skam:1" xmlns:edu="urn:skam:edu:1"';
+  const doc = (rootAttrs: string, block: string, blockAttrs = '', readings = '') =>
+    `<skam:doc ${NS}${rootAttrs}><skam:body><skam:block xml:id="b1"${blockAttrs}>${block}</skam:block></skam:body>${readings}</skam:doc>`;
+
+  it('reads custom and ext on the root and on skam:block', () => {
+    const result = parse(
+      doc(
+        ` skam:custom='{"a":1}' skam:ext='{"x":{"y":2}}'`,
+        '學',
+        ` skam:custom='{"b":[1,2]}' skam:ext='{"z":true}'`
+      )
+    );
+    expect(result.custom).toEqual({ a: 1 });
+    expect(result.ext).toEqual({ x: { y: 2 } });
+    expect(result.blocks[0]).toMatchObject({ custom: { b: [1, 2] }, ext: { z: true } });
+  });
+
+  it('reads custom and ext on <skam:t>, and on skam:reading', () => {
+    const result = parse(
+      doc(
+        '',
+        `<skam:t skam:custom='{"c":1}' skam:ext='{"e":2}'>學</skam:t>`,
+        '',
+        `<skam:readings><skam:reading kind="kundoku" skam:custom='{"r":1}' skam:ext='{"s":2}'>まなぶ</skam:reading></skam:readings>`
+      )
+    );
+    expect(result.tokens[0]).toMatchObject({ custom: { c: 1 }, ext: { e: 2 } });
+    expect(result.readings[0]).toMatchObject({ custom: { r: 1 }, ext: { s: 2 } });
+  });
+
+  it('reads the three attributes on an annotation element', () => {
+    const result = parse(
+      doc(
+        '',
+        `<skam:okimoji skam:custom='{"c":1}' skam:ext='{"e":2}' placement-hint="left">學</skam:okimoji>` +
+          `學<skam:kaeri kind="re" placement-hint="top" skam:custom='{"k":1}'/>`
+      )
+    );
+    expect(result.marks.find((m) => m.type === 'okimoji')).toMatchObject({
+      custom: { c: 1 },
+      ext: { e: 2 },
+      placementHint: 'left',
+    });
+    expect(result.marks.find((m) => m.type === 'kaeri')).toMatchObject({
+      custom: { k: 1 },
+      placementHint: 'top',
+    });
+  });
+
+  it('keeps a namespaced attribute value of a declared extension next to skam:custom', () => {
+    const meta = EDU_DECL;
+    const result = parse(
+      `<skam:doc ${NS}>${meta}<skam:body><skam:block xml:id="b1">學<skam:kaeri kind="ichi" edu:quiz="q1" skam:custom='{"k":1}'/></skam:block></skam:body></skam:doc>`
+    );
+    expect(result.marks[0]).toMatchObject({ ext: { edu: { quiz: 'q1' } }, custom: { k: 1 } });
+  });
+
+  it('reads skam:kun parts by prefix: yomi without a prefix, okuri-* and soe-*', () => {
+    const result = parse(
+      doc(
+        '',
+        '<skam:kun yomi="まな" okuri="ブ" soe="を" ' +
+          `skam:custom='{"y":1}' placement-hint="top" ` +
+          `skam:okuri-custom='{"o":1}' skam:okuri-ext='{"oe":1}' okuri-placement-hint="right" ` +
+          `skam:soe-ext='{"se":1}' soe-placement-hint="left">學</skam:kun>`
+      )
+    );
+    const byType = (type: string) => result.marks.find((m) => m.type === type)!;
+    expect(byType('yomigana')).toMatchObject({ custom: { y: 1 }, placementHint: 'top' });
+    expect(byType('yomigana').ext).toBeUndefined();
+    expect(byType('okurigana')).toMatchObject({
+      custom: { o: 1 },
+      ext: { oe: 1 },
+      placementHint: 'right',
+    });
+    expect(byType('soegana')).toMatchObject({ ext: { se: 1 }, placementHint: 'left' });
+  });
+
+  it('sets the okurigana placementHint from okuri-placement-hint', () => {
+    const result = parse(
+      doc('', '<skam:kun yomi="まな" okuri="ブ" okuri-placement-hint="right">學</skam:kun>')
+    );
+    expect(result.marks.find((m) => m.type === 'okurigana')!.placementHint).toBe('right');
+  });
+
+  it('ignores attributes of an unregistered namespace', () => {
+    const result = parse(
+      `<skam:doc xmlns:skam="urn:skam:1" xmlns:foo="urn:foo" foo:ext='{"a":1}' foo:placement-hint="x"><skam:body><skam:block>學</skam:block></skam:body></skam:doc>`
+    );
+    expect(result.ext).toBeUndefined();
+  });
+
+  it('keeps the parsed objects own keys, not inherited ones', () => {
+    const result = parse(doc(` skam:custom='{"constructor":1}'`, '學'), { validate: false });
+    expect(Object.hasOwn(result.custom!, 'constructor')).toBe(true);
+    expect(Object.getPrototypeOf(result.custom)).toBe(Object.prototype);
+  });
+});

@@ -23,6 +23,8 @@
 import type {
   SKAMDocument,
   Token,
+  Block,
+  Reading,
   Mark,
   Position,
   KaeriMark,
@@ -43,7 +45,7 @@ import type {
 import {
   isAnchorBasedMark,
   KAERI,
-  splitGraphemes,
+  tokenizePlainText,
   SKAM_ML_CONTENT_MODEL,
   SKAM_ML_NESTING_ORDER,
   isHandId,
@@ -161,17 +163,6 @@ interface StringifyContext {
 
 const UNPLACED = Number.MAX_SAFE_INTEGER;
 
-/** SKAM-ML §6.2 が無視する空白 (U+0009 / U+000A / U+0020) と U+000D だけからなる文字列 */
-const IGNORED_WHITESPACE_ONLY = /^[\t\n\r ]+$/;
-function isIgnoredWhitespaceText(text: string): boolean {
-  return IGNORED_WHITESPACE_ONLY.test(text);
-}
-
-// UTF-16 の 1 単位は必ず 1 書記素なので、Segmenter を呼ぶのは 2 単位以上のときだけにする
-function hasMultipleGraphemes(text: string): boolean {
-  return text.length > 1 && splitGraphemes(text).length > 1;
-}
-
 // Token に付随する mark 情報（単一トークン用）
 interface TokenAnnotation {
   /** 読み仮名 */
@@ -234,6 +225,9 @@ interface TextNode {
   tokenId: string;
   text: string;
   annotation: TokenAnnotation;
+  token: Token;
+  /** 字を `<skam:t>` で書く (decideTokenElements が決める)。false なら平文で書く */
+  asElement: boolean;
 }
 
 interface ElementNode {
@@ -246,13 +240,23 @@ interface ElementNode {
 // Helper Functions
 // ============================================================================
 
-function escapeXml(text: string): string {
+/**
+ * 本文の文字を書く。CR は parser (XML の改行の正規化) が LF に変えてしまうので、文字参照 `&#13;` にする。
+ * LF と TAB は本文ではそのまま残る
+ */
+function escapeText(text: string): string {
   return text
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
-    .replace(/'/g, '&apos;');
+    .replace(/'/g, '&apos;')
+    .replace(/\r/g, '&#13;');
+}
+
+/** 属性値を書く。XML の属性値の正規化で TAB・LF・CR は空白に変わるので、文字参照にする */
+function escapeXml(text: string): string {
+  return escapeText(text).replace(/\t/g, '&#9;').replace(/\n/g, '&#10;');
 }
 
 /** 手書きの id だけを `xml:id` に書く。自動の id (`#` を含む) は parser が位置から計算するので書かない */
@@ -274,10 +278,11 @@ const EXTENSION_ATTRIBUTE_NAME = /^[A-Za-z_][A-Za-z0-9._-]*$/;
 function extensionAttributes(
   ctx: StringifyContext,
   element: string,
-  marks: XmlElementMarks['marks']
+  marks: XmlElementMarks['marks'],
+  namespaced = true
 ): string {
   let xml = '';
-  for (const [name, definition] of ctx.extension.writers) {
+  for (const [name, definition] of namespaced ? ctx.extension.writers : []) {
     const carriers = marks.filter(({ mark }) => hasOwnExtension(mark, name));
     if (carriers.length === 0) continue;
     const written = definition.writeXmlAttributes!({ element, marks });
@@ -293,7 +298,103 @@ function extensionAttributes(
       ctx.extension.consumed.set(mark, names);
     }
   }
+  for (const { part, mark } of marks) xml += markFreeDataAttributes(ctx, mark, part);
   return xml;
+}
+
+/**
+ * 名前空間の属性に書けなかった ext の値、custom、placementHint の属性。
+ * `skam:kun` は 1 つの要素に最大 3 つの注記が付くので、読み仮名は接頭辞なし、送り仮名は `okuri-`、添え仮名は `soe-` で書く。
+ * JSON の値を持つ属性 (ext、custom) は `skam:` 名前空間、placement-hint は SKAM の要素自身の属性なので接頭辞なし
+ */
+const FREE_DATA_ATTRIBUTE_NAMES = {
+  self: { ext: 'skam:ext', custom: 'skam:custom', hint: 'placement-hint' },
+  yomi: { ext: 'skam:ext', custom: 'skam:custom', hint: 'placement-hint' },
+  okuri: { ext: 'skam:okuri-ext', custom: 'skam:okuri-custom', hint: 'okuri-placement-hint' },
+  soe: { ext: 'skam:soe-ext', custom: 'skam:soe-custom', hint: 'soe-placement-hint' },
+} as const;
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * JSON の値を属性に書く。`JSON.stringify` は U+FFFE と U+FFFF を `\u` にしないので、JSON として同じ値の
+ * 6 文字の列 (バックスラッシュ、`u`、16 進の 4 桁 `fffe` / `ffff`) に置き換える。
+ * U+0000〜U+001F と対の無いサロゲートは `JSON.stringify` が `\u` で書くので、属性に生の制御文字は入らない
+ */
+function jsonAttribute(name: string, value: unknown): string {
+  const json = JSON.stringify(value)
+    .replace(new RegExp('\\uFFFE', 'g'), '\\ufffe')
+    .replace(new RegExp('\\uFFFF', 'g'), '\\uffff');
+  return ` ${name}="${escapeXml(json)}"`;
+}
+
+/**
+ * ext のうち属性として書くキーのオブジェクト。`__proto__` のキーでも持ち主の prototype を書き換えないよう、
+ * `defineProperty` で自分のキーとして足す。値が undefined のキーは JSON に出ないので数えない
+ */
+function extToWrite(
+  ext: unknown,
+  written: ReadonlySet<string> | undefined
+): Record<string, unknown> | undefined {
+  if (!isRecord(ext)) return undefined;
+  const rest: Record<string, unknown> = {};
+  let found = false;
+  for (const [key, value] of Object.entries(ext)) {
+    if (value === undefined || written?.has(key)) continue;
+    Object.defineProperty(rest, key, {
+      value,
+      enumerable: true,
+      writable: true,
+      configurable: true,
+    });
+    found = true;
+  }
+  return found ? rest : undefined;
+}
+
+function markFreeDataAttributes(
+  ctx: StringifyContext,
+  mark: Mark,
+  part: 'self' | 'yomi' | 'okuri' | 'soe'
+): string {
+  const names = FREE_DATA_ATTRIBUTE_NAMES[part];
+  let xml = '';
+  const consumed = ctx.extension.consumed.get(mark);
+  const ext = extToWrite(mark.ext, consumed);
+  if (ext) {
+    xml += jsonAttribute(names.ext, ext);
+    const written = consumed ?? new Set<string>();
+    for (const key of Object.keys(ext)) written.add(key);
+    ctx.extension.consumed.set(mark, written);
+  }
+  if (isRecord(mark.custom) && hasKeys(mark.custom)) {
+    xml += jsonAttribute(names.custom, mark.custom);
+  }
+  if (typeof mark.placementHint === 'string') {
+    xml += ` ${names.hint}="${escapeXml(mark.placementHint)}"`;
+  }
+  return xml;
+}
+
+/** 注記でない持ち主 (文書、ブロック、字、reading) の `skam:ext` / `skam:custom` */
+function ownerDataAttributes(owner: {
+  ext?: Record<string, unknown>;
+  custom?: Record<string, unknown>;
+}): string {
+  let xml = '';
+  const ext = extToWrite(owner.ext, undefined);
+  if (ext) xml += jsonAttribute(FREE_DATA_ATTRIBUTE_NAMES.self.ext, ext);
+  if (isRecord(owner.custom) && hasKeys(owner.custom)) {
+    xml += jsonAttribute(FREE_DATA_ATTRIBUTE_NAMES.self.custom, owner.custom);
+  }
+  return xml;
+}
+
+/** `<skam:t>` の属性。空なら、字は平文で書ける */
+function tokenElementAttributes(token: Token): string {
+  return idAttribute(token.id) + ownerDataAttributes(token);
 }
 
 function hasOwnExtension(mark: Mark, name: string): boolean {
@@ -989,6 +1090,8 @@ function buildContentTree(
       tokenId: token.id,
       text: token.text,
       annotation: annotations.get(token.id) ?? {},
+      token,
+      asElement: false,
     };
 
     // 最も内側のアクティブ範囲に追加
@@ -1026,7 +1129,104 @@ function buildContentTree(
     }
   }
 
+  decideTokenElements(result);
   return result;
+}
+
+// ============================================================================
+// Which tokens need <skam:t>
+// ============================================================================
+
+/**
+ * 平文で続けて書いた字の並び (同じテキストノードになる) が、parser の `tokenizePlainText` で
+ * 元の text の並びに戻るか
+ */
+function isReadBackAs(texts: readonly string[]): boolean {
+  const pieces = tokenizePlainText(texts.join(''));
+  return pieces.length === texts.length && pieces.every((piece, i) => piece.text === texts[i]);
+}
+
+/**
+ * 同じテキストノードに平文で続けて書く字の並びのうち、`<skam:t>` で書く字の添字。
+ * 1 字で戻らない字 (2 書記素以上、空白だけ、空白で始まる) と、前の字と結合する字 (結合する組は後ろの字) を
+ * 左から順に選ぶ。`<skam:t>` は要素なのでテキストノードを区切り、その次の字から並びが新しくなる。
+ * 選んだ後に並びごとに全体を確かめ、前の字との組だけでは見つからない結合 (まれ) は 1 字ずつ伸ばして探す
+ */
+function findTextsNeedingElement(texts: readonly string[]): Set<number> {
+  const needed = new Set<number>();
+  let runStart = 0;
+  texts.forEach((text, i) => {
+    const unreadable =
+      !isReadBackAs([text]) || (i > runStart && !isReadBackAs([texts[i - 1]!, text]));
+    if (unreadable) {
+      needed.add(i);
+      runStart = i + 1;
+    }
+  });
+
+  let start = 0;
+  for (let end = 0; end <= texts.length; end++) {
+    if (end < texts.length && !needed.has(end)) continue;
+    if (end > start && !isReadBackAs(texts.slice(start, end))) {
+      let from = start;
+      for (let j = start + 1; j < end; j++) {
+        if (!isReadBackAs(texts.slice(from, j + 1))) {
+          needed.add(j);
+          from = j + 1;
+        }
+      }
+    }
+    start = end + 1;
+  }
+  return needed;
+}
+
+/** 字が平文のまま書かれる (kun や包む要素の中に入らない) */
+function isBareTextNode(node: TextNode): boolean {
+  const { annotation } = node;
+  return !(annotation.yomi || annotation.okuri || annotation.soe) && !annotation.wrappers?.length;
+}
+
+function hasTrailingMarks(annotation: TokenAnnotation): boolean {
+  return Boolean(
+    annotation.kaeriAfter ||
+    annotation.kutotenAfter ||
+    annotation.refAfter ||
+    annotation.linebreakAfter
+  );
+}
+
+/**
+ * 木の兄弟の並びごとに、`<skam:t>` で書く字を決める (`asElement`)。
+ * 平文のまま隣り合う字は 1 つのテキストノードになり、parser が 1 回の `tokenizePlainText` で分ける。
+ * 要素の開閉タグ、位置の注記の要素、`<skam:t>`、kun と包む要素の中の字はテキストノードを区切るので、
+ * 並びは兄弟のうち平文の字が続く範囲になる。手書きの id、ext、custom を持つ字は常に `<skam:t>` で書く
+ */
+function decideTokenElements(nodes: ContentNode[]): void {
+  let run: TextNode[] = [];
+  const flush = (): void => {
+    const needed = findTextsNeedingElement(run.map((node) => node.text));
+    run.forEach((node, i) => {
+      if (needed.has(i)) node.asElement = true;
+    });
+    run = [];
+  };
+  for (const node of nodes) {
+    if (node.type === 'element') {
+      flush();
+      decideTokenElements(node.children);
+    } else if (tokenElementAttributes(node.token) !== '') {
+      flush();
+      node.asElement = true;
+    } else if (!isBareTextNode(node)) {
+      flush();
+      node.asElement = !isReadBackAs([node.text]);
+    } else {
+      run.push(node);
+      if (hasTrailingMarks(node.annotation)) flush();
+    }
+  }
+  flush();
 }
 
 // ============================================================================
@@ -1069,9 +1269,12 @@ function kunIdAttribute(sources: readonly Mark[]): string {
 /**
  * 単一トークンのベース XML を生成（テキスト + kun 属性のみ、trailing marks なし）
  */
-function tokenBaseToXml(text: string, annotation: TokenAnnotation, ctx: StringifyContext): string {
-  // パーサーが無視する空白だけの token は出力しても読み戻せない (損失は recordFieldLosses で記録済み)
-  if (isIgnoredWhitespaceText(text)) return '';
+function tokenBaseToXml(node: TextNode, ctx: StringifyContext): string {
+  const { annotation } = node;
+  // 平文で読み戻せない字 (decideTokenElements) は `<skam:t>` で書く。内容は書記素に分けず、空白も捨てない
+  const text = node.asElement
+    ? `<skam:t${tokenElementAttributes(node.token)}>${escapeText(node.text)}</skam:t>`
+    : escapeText(node.text);
   const { yomi, okuri, soe } = annotation;
   const hasKunAttrs = yomi || okuri || soe;
 
@@ -1090,10 +1293,10 @@ function tokenBaseToXml(text: string, annotation: TokenAnnotation, ctx: Stringif
     const parts = kunParts(annotation);
     const extension =
       kunIdAttribute(parts.map(({ mark }) => mark)) + extensionAttributes(ctx, 'skam:kun', parts);
-    return `<skam:kun ${attrs.join(' ')}${extension}>${escapeXml(text)}</skam:kun>`;
+    return `<skam:kun ${attrs.join(' ')}${extension}>${text}</skam:kun>`;
   }
 
-  return escapeXml(text);
+  return text;
 }
 
 /**
@@ -1126,14 +1329,15 @@ function tokenTrailingToXml(annotation: TokenAnnotation, ctx: StringifyContext):
   if (refAfter) {
     for (const ref of refAfter) {
       // id のない ref の content は notes に出せないので、インラインに出力する
-      xml += refMarkToXml(ref, !(ref.content && !isHandId(ref.id ?? '')));
+      xml += refMarkToXml(ref, !(ref.content && !isHandId(ref.id ?? '')), ctx);
     }
   }
 
   // linebreak は未知のフィールドを書かない。位置の正しさは検査しない (validator の役目)
   if (linebreakAfter) {
     for (const linebreak of linebreakAfter) {
-      xml += `<skam:br${idAttribute(linebreak.id)}/>`;
+      const attrs = extensionAttributes(ctx, 'skam:br', [{ part: 'self', mark: linebreak }], false);
+      xml += `<skam:br${idAttribute(linebreak.id)}${attrs}/>`;
     }
   }
 
@@ -1143,12 +1347,8 @@ function tokenTrailingToXml(annotation: TokenAnnotation, ctx: StringifyContext):
 /**
  * 単一トークンの XML を生成（wrapper なし、annotation のみ）
  */
-function tokenContentToXml(
-  text: string,
-  annotation: TokenAnnotation,
-  ctx: StringifyContext
-): string {
-  return tokenBaseToXml(text, annotation, ctx) + tokenTrailingToXml(annotation, ctx);
+function tokenContentToXml(node: TextNode, ctx: StringifyContext): string {
+  return tokenBaseToXml(node, ctx) + tokenTrailingToXml(node.annotation, ctx);
 }
 
 /** 字を包む要素の開始タグと終了タグ。単字 (applyWrappers) と範囲 (renderRangeElement) で共有する */
@@ -1208,7 +1408,7 @@ function applyWrappers(
 /**
  * ref マークを XML に変換
  */
-function refMarkToXml(ref: RefMark, isEmpty: boolean): string {
+function refMarkToXml(ref: RefMark, isEmpty: boolean, ctx: StringifyContext): string {
   let attrs = idAttribute(ref.id);
 
   if (ref.label) {
@@ -1216,11 +1416,12 @@ function refMarkToXml(ref: RefMark, isEmpty: boolean): string {
   } else if (ref.format) {
     attrs += ` format="${escapeXml(ref.format)}"`;
   }
+  attrs += extensionAttributes(ctx, 'skam:ref', [{ part: 'self', mark: ref }], false);
 
   if (isEmpty || !ref.content) {
     return `<skam:ref${attrs}/>`;
   } else {
-    return `<skam:ref${attrs}>${escapeXml(ref.content)}</skam:ref>`;
+    return `<skam:ref${attrs}>${escapeText(ref.content)}</skam:ref>`;
   }
 }
 
@@ -1237,6 +1438,8 @@ function highlightAttributes(hl: HighlightMark, ctx: StringifyContext): string {
   if (hl.ref !== undefined && ctx.handRefIds.has(hl.ref)) {
     attrs += ` ref="${escapeXml(hl.ref)}"`;
   }
+  // 拡張の名前空間の属性は parser が span の上で受けないので、ext は skam:ext に書く
+  attrs += extensionAttributes(ctx, 'skam:span', [{ part: 'self', mark: hl }], false);
   return attrs;
 }
 
@@ -1278,6 +1481,7 @@ function renderRangeElement(
         attrs += ` style="${escapeXml(emp.style)}"`;
       }
       attrs += idAttribute(emp.id);
+      attrs += extensionAttributes(ctx, 'skam:span', [{ part: 'self', mark: emp }], false);
       return `<skam:span ${attrs}>${childrenXml}</skam:span>`;
     }
     case 'tateten': {
@@ -1301,7 +1505,7 @@ function renderRangeElement(
       return open + childrenXml + close;
     }
     case 'ref':
-      return refMarkToXml(mark as RefMark, false);
+      return refMarkToXml(mark as RefMark, false, ctx);
     default:
       return childrenXml;
   }
@@ -1347,11 +1551,11 @@ function contentNodeToXml(node: ContentNode, ctx: StringifyContext): string {
   if (node.type === 'text') {
     // wrapper がある場合、trailing marks を wrapper の外に配置
     if (node.annotation.wrappers?.length) {
-      const baseXml = tokenBaseToXml(node.text, node.annotation, ctx);
+      const baseXml = tokenBaseToXml(node, ctx);
       const trailingXml = tokenTrailingToXml(node.annotation, ctx);
       return applyWrappers(baseXml, node.annotation.wrappers, ctx) + trailingXml;
     }
-    const innerXml = tokenContentToXml(node.text, node.annotation, ctx);
+    const innerXml = tokenContentToXml(node, ctx);
     return applyWrappers(innerXml, node.annotation.wrappers, ctx);
   }
 
@@ -1369,7 +1573,7 @@ function contentNodeToXml(node: ContentNode, ctx: StringifyContext): string {
  * ブロックの XML を生成
  */
 function blockToXml(
-  blockId: string,
+  block: Block,
   blockTokens: Token[],
   annotations: Map<string, TokenAnnotation>,
   rangeMarks: RangeMark[],
@@ -1397,10 +1601,18 @@ function blockToXml(
     (startMarks ? tokenTrailingToXml(startMarks, ctx) : '') +
     contentTree.map((node) => contentNodeToXml(node, ctx)).join('');
 
+  const attrs = idAttribute(block.id) + ownerDataAttributes(block);
   if (content === '') {
-    return `${ind}<skam:block${idAttribute(blockId)}/>`;
+    return `${ind}<skam:block${attrs}/>`;
   }
-  return `${ind}<skam:block${idAttribute(blockId)}>${content}</skam:block>`;
+  return `${ind}<skam:block${attrs}>${content}</skam:block>`;
+}
+
+function readingToXml(reading: Reading, indentSize: number): string {
+  // parser は xml:space="preserve" が無いと前後の空白を削るので、空白がある text にはこの印を書く
+  const space = reading.text === reading.text.trim() ? '' : ' xml:space="preserve"';
+  const attrs = ` kind="${escapeXml(reading.kind)}"${space}${ownerDataAttributes(reading)}`;
+  return `${indentStr(2, indentSize)}<skam:reading${attrs}>${escapeText(reading.text)}</skam:reading>`;
 }
 
 /**
@@ -1422,7 +1634,7 @@ function stringifyNotes(marks: Mark[], indentSize: number): string[] {
   for (const ref of notesRefs) {
     if (ref.content && ref.id && isHandId(ref.id)) {
       lines.push(
-        `${indentStr(2, indentSize)}<skam:note ref="${escapeXml(ref.id)}">${escapeXml(ref.content)}</skam:note>`
+        `${indentStr(2, indentSize)}<skam:note ref="${escapeXml(ref.id)}">${escapeText(ref.content)}</skam:note>`
       );
     }
   }
@@ -1488,132 +1700,20 @@ function hasKeys(value: Record<string, unknown> | undefined): value is Record<st
 }
 
 /**
- * XML に書き場所のないフィールド (ext / derivations / placementHint) の欠落を記録する。
- * これらは変換経路のどこにも出力されないので、ここで一括して積む
+ * XML に書き場所のない derivations の欠落を記録する (SKAM-ML-draft §4.2)。
+ * ext / custom / placementHint は持ち主の要素の属性に書くので、ここでは扱わない
  */
-function recordFieldLosses(doc: SKAMDocument, ctx: StringifyContext, declared: boolean): void {
-  const extLoss = (path: string): StringifyLoss => ({
-    category: 'unsupported',
-    code: 'EXT',
-    path,
-    message: `SKAM-ML has no notation for ext (${path})`,
-  });
-
-  const customLoss = (path: string): StringifyLoss => ({
-    category: 'unsupported',
-    code: 'EXT',
-    path,
-    message: `SKAM-ML has no notation for custom (${path})`,
-  });
-
-  // 宣言のある文書の ext は、書けたかどうかが描いた後に分かるので recordExtensionLosses が記録する
-  if (!declared && hasKeys(doc.ext)) {
-    ctx.collector.add(extLoss('/ext'), {
-      blockIndex: -1,
-      tokenIndex: -1,
-      markIndex: -1,
-      fieldOrder: 0,
-    });
-  }
-  if (hasKeys(doc.custom)) {
-    ctx.collector.add(customLoss('/custom'), {
-      blockIndex: -1,
-      tokenIndex: -1,
-      markIndex: -1,
-      fieldOrder: 0,
-    });
-  }
-  if (doc.derivations && doc.derivations.length > 0) {
-    ctx.collector.add(
-      {
-        category: 'unrepresentable',
-        code: 'DERIVATIONS',
-        path: '/derivations',
-        message: 'SKAM-ML does not describe derivations (SKAM-ML §4.2)',
-      },
-      { blockIndex: -1, tokenIndex: -1, markIndex: -1, fieldOrder: 1 }
-    );
-  }
-  doc.readings.forEach((reading, i) => {
-    const key: LossSortKey = {
-      blockIndex: UNPLACED,
-      tokenIndex: UNPLACED,
-      markIndex: i,
-      fieldOrder: 0,
-    };
-    if (!declared && hasKeys(reading.ext)) ctx.collector.add(extLoss(`/readings/${i}/ext`), key);
-    if (hasKeys(reading.custom)) ctx.collector.add(customLoss(`/readings/${i}/custom`), key);
-  });
-  doc.blocks.forEach((block, blockIndex) => {
-    const key: LossSortKey = { blockIndex, tokenIndex: -1, markIndex: -1, fieldOrder: 0 };
-    if (!declared && hasKeys(block.ext))
-      ctx.collector.add(extLoss(`/blocks/${blockIndex}/ext`), key);
-    if (hasKeys(block.custom)) ctx.collector.add(customLoss(`/blocks/${blockIndex}/custom`), key);
-  });
-  doc.tokens.forEach((token, i) => {
-    const pos = ctx.tokenPosition.get(token.id);
-    const key: LossSortKey = {
-      blockIndex: pos?.blockIndex ?? UNPLACED,
-      tokenIndex: pos?.tokenIndex ?? UNPLACED,
-      markIndex: -1,
-      fieldOrder: 0,
-    };
-    if (isIgnoredWhitespaceText(token.text)) {
-      ctx.collector.add(
-        {
-          category: 'unrepresentable',
-          code: 'ASCII_WHITESPACE_TOKEN',
-          path: `/tokens/${i}`,
-          message: `Token ${JSON.stringify(token.text)} consists only of whitespace that SKAM-ML ignores`,
-        },
-        key
-      );
-    } else if (hasMultipleGraphemes(token.text)) {
-      // message に token の本文を入れない (他の損失と同じく値を出さない)
-      ctx.collector.add(
-        {
-          category: 'unrepresentable',
-          code: 'MULTI_GRAPHEME_TOKEN',
-          path: `/tokens/${i}`,
-          message:
-            'Token consists of two or more grapheme clusters; reading the XML again would split it into several tokens',
-        },
-        key
-      );
-    }
-    if (!declared && hasKeys(token.ext)) ctx.collector.add(extLoss(`/tokens/${i}/ext`), key);
-    if (hasKeys(token.custom)) ctx.collector.add(customLoss(`/tokens/${i}/custom`), key);
-  });
-  for (const mark of doc.marks) {
-    if (hasKeys(mark.custom)) {
-      addMarkLoss(
-        ctx,
-        mark,
-        { category: 'unsupported', code: 'EXT', message: 'SKAM-ML has no notation for custom' },
-        'custom'
-      );
-    }
-    if (!declared && hasKeys(mark.ext)) {
-      addMarkLoss(
-        ctx,
-        mark,
-        { category: 'unsupported', code: 'EXT', message: 'SKAM-ML has no notation for ext' },
-        'ext'
-      );
-    }
-    if (mark.placementHint !== undefined) {
-      addMarkLoss(
-        ctx,
-        mark,
-        {
-          category: 'unsupported',
-          code: 'PLACEMENT_HINT',
-          message: 'SKAM-ML has no notation for placementHint',
-        },
-        'placementHint'
-      );
-    }
-  }
+function recordDerivationsLoss(doc: SKAMDocument, ctx: StringifyContext): void {
+  if (!doc.derivations || doc.derivations.length === 0) return;
+  ctx.collector.add(
+    {
+      category: 'unrepresentable',
+      code: 'DERIVATIONS',
+      path: '/derivations',
+      message: 'SKAM-ML does not describe derivations (SKAM-ML §4.2)',
+    },
+    { blockIndex: -1, tokenIndex: -1, markIndex: -1, fieldOrder: 1 }
+  );
 }
 
 /**
@@ -1672,91 +1772,6 @@ function recordIdAndCharLosses(doc: SKAMDocument, ctx: StringifyContext): void {
       code: 'XML_UNWRITABLE_CHAR',
       message: 'This string contains a character that XML 1.0 cannot represent',
     });
-  }
-}
-
-/** JSON Pointer (RFC 6901) の参照トークンにする */
-function pointerToken(key: string): string {
-  return key.replace(/~/g, '~0').replace(/\//g, '~1');
-}
-
-/**
- * 宣言のある文書の拡張の値のうち、SKAM-ML に書けなかったものを損失にする。
- * 描いた後に呼ぶ (属性として書いた注記を `consumed` から知るため)。
- * 書き方 (`writeXmlAttributes`) を知らない宣言済みの拡張は `UNKNOWN_EXTENSION`、
- * 書き方を知っていても書く場所の無い値と、宣言に無い名前は `EXT` にする
- */
-function recordExtensionLosses(
-  doc: SKAMDocument,
-  ctx: StringifyContext,
-  definitions: ReadonlyMap<string, SKAMExtensionDefinition>
-): void {
-  const declared = new Set(declaredExtensionNames(doc));
-  const lossFor = (key: string, path: string): StringifyLoss => {
-    if (declared.has(key) && !ctx.extension.writers.has(key)) {
-      return {
-        category: 'unsupported',
-        code: 'UNKNOWN_EXTENSION',
-        path,
-        message: definitions.has(key)
-          ? `Extension "${key}" does not define how to write SKAM-ML (${path})`
-          : `Extension "${key}" is not known, so its value cannot be written (${path})`,
-      };
-    }
-    return {
-      category: 'unsupported',
-      code: 'EXT',
-      path,
-      message: `SKAM-ML has no notation for this ext value (${path})`,
-    };
-  };
-
-  const document: LossSortKey = { blockIndex: -1, tokenIndex: -1, markIndex: -1, fieldOrder: 0 };
-  for (const key of Object.keys(doc.ext ?? {})) {
-    ctx.collector.add(lossFor(key, `/ext/${pointerToken(key)}`), document);
-  }
-  doc.readings.forEach((reading, i) => {
-    for (const key of Object.keys(reading.ext ?? {})) {
-      ctx.collector.add(lossFor(key, `/readings/${i}/ext/${pointerToken(key)}`), {
-        blockIndex: UNPLACED,
-        tokenIndex: UNPLACED,
-        markIndex: i,
-        fieldOrder: 0,
-      });
-    }
-  });
-  doc.blocks.forEach((block, blockIndex) => {
-    for (const key of Object.keys(block.ext ?? {})) {
-      ctx.collector.add(lossFor(key, `/blocks/${blockIndex}/ext/${pointerToken(key)}`), {
-        blockIndex,
-        tokenIndex: -1,
-        markIndex: -1,
-        fieldOrder: 0,
-      });
-    }
-  });
-  doc.tokens.forEach((token, i) => {
-    const pos = ctx.tokenPosition.get(token.id);
-    for (const key of Object.keys(token.ext ?? {})) {
-      ctx.collector.add(lossFor(key, `/tokens/${i}/ext/${pointerToken(key)}`), {
-        blockIndex: pos?.blockIndex ?? UNPLACED,
-        tokenIndex: pos?.tokenIndex ?? UNPLACED,
-        markIndex: -1,
-        fieldOrder: 0,
-      });
-    }
-  });
-  for (const mark of doc.marks) {
-    for (const key of Object.keys(mark.ext ?? {})) {
-      if (ctx.extension.consumed.get(mark)?.has(key)) continue;
-      const loss = lossFor(key, '');
-      addMarkLoss(
-        ctx,
-        mark,
-        { category: loss.category, code: loss.code, message: loss.message },
-        `ext/${pointerToken(key)}`
-      );
-    }
   }
 }
 
@@ -1832,8 +1847,7 @@ export function stringify(doc: SKAMDocument, options: StringifyOptions = {}): st
 
   const definitions = resolveExtensions(options.extensions);
   const ctx = createContext(doc, definitions);
-  const declared = Array.isArray(doc.extensions);
-  recordFieldLosses(doc, ctx, declared);
+  recordDerivationsLoss(doc, ctx);
   recordIdAndCharLosses(doc, ctx);
 
   // トークンID → Token のマップを構築
@@ -1873,7 +1887,9 @@ export function stringify(doc: SKAMDocument, options: StringifyOptions = {}): st
   const namespaces = declarations
     .map(({ name, uri }) => ` xmlns:${name}="${escapeXml(uri)}"`)
     .join('');
-  lines.push(`<skam:doc xmlns:skam="${SKAM_NS}"${namespaces}${langAttribute(doc)}>`);
+  lines.push(
+    `<skam:doc xmlns:skam="${SKAM_NS}"${namespaces}${langAttribute(doc)}${ownerDataAttributes(doc)}>`
+  );
 
   // meta 要素（常に char tokenization）
   lines.push(...metaLines(declarations, indentSize));
@@ -1894,7 +1910,7 @@ export function stringify(doc: SKAMDocument, options: StringifyOptions = {}): st
 
     lines.push(
       blockToXml(
-        block.id,
+        block,
         blockTokens,
         annotations,
         rangeMarks,
@@ -1910,8 +1926,6 @@ export function stringify(doc: SKAMDocument, options: StringifyOptions = {}): st
 
   lines.push(`${indentStr(1, indentSize)}</skam:body>`);
 
-  if (declared) recordExtensionLosses(doc, ctx, definitions);
-
   // notes 要素（分離定義の注釈がある場合）
   const notesLines = stringifyNotes(doc.marks, indentSize);
   if (notesLines.length > 0) {
@@ -1923,11 +1937,7 @@ export function stringify(doc: SKAMDocument, options: StringifyOptions = {}): st
   if (doc.readings.length > 0) {
     lines.push('');
     lines.push(`${indentStr(1, indentSize)}<skam:readings>`);
-    for (const reading of doc.readings) {
-      lines.push(
-        `${indentStr(2, indentSize)}<skam:reading kind="${escapeXml(reading.kind)}">${escapeXml(reading.text)}</skam:reading>`
-      );
-    }
+    for (const reading of doc.readings) lines.push(readingToXml(reading, indentSize));
     lines.push(`${indentStr(1, indentSize)}</skam:readings>`);
   }
 

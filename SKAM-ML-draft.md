@@ -59,6 +59,7 @@ xmlns:skam="urn:skam:1"
 - ルートの `xml:lang` は、JSON の文書の `lang`（本文の言語）と往復する（任意）。値の形は SKAM-draft §3 の `lang` と同じ。
 - 空の値（`xml:lang=""`）は、言語の情報が無いことを表す。JSON では `lang` を持たない文書になる。
 - ルート以外の要素の `xml:lang` は読まない。
+- 文書の `ext` と `custom` は、ルートの `skam:ext` と `skam:custom` に書く（§10.3）。
 
 ### 3.3 埋め込み時のメディアタイプ（規範）
 
@@ -151,9 +152,11 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 
 #### 属性
 
-| 属性     | 必須 | 説明                                                      |
-| -------- | ---- | --------------------------------------------------------- |
-| `xml:id` | 任意 | ブロックの手書きの id（§7.1.1）。省略時は自動の id になる |
+| 属性          | 必須 | 説明                                                      |
+| ------------- | ---- | --------------------------------------------------------- |
+| `xml:id`      | 任意 | ブロックの手書きの id（§7.1.1）。省略時は自動の id になる |
+| `skam:ext`    | 任意 | ブロックの `ext`（§10.3）                                 |
+| `skam:custom` | 任意 | ブロックの `custom`（§10.3）                              |
 
 - 改行・段落の意味は **構造情報としてのみ**扱う
 - 見た目の段落とは無関係
@@ -165,15 +168,14 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 
 - 既定：`tokenization="char"`
 - `skam:block` 内のテキストから token 列を生成
-- SKAM-ML/XML では token を明示しない
-  → **token は常にコンパイル生成物**
+- 平文の文字は 1 字ずつの token になる。1 字ずつに分けると元に戻らない token（2 字以上、空白、前の字と結合する字）と、id・`ext`・`custom` を持つ token は、`skam:t` で明示する（§7.14）
 
 ### 6.1 Tokenization アルゴリズム（char mode）
 
 1. `skam:body` 内の全 `skam:block` を文書順で走査
 2. 各 `skam:block` 内の全子ノードを深さ優先走査
 3. テキストノードごとに、拡張書記素クラスタ（Unicode の extended grapheme cluster）単位で分割する。テキストノードをまたいだクラスタは作らない（要素の境界で切れる）
-4. 要素の内容も含めて、文書順序で token 列を構築
+4. 要素の内容も含めて、文書順序で token 列を構築。`skam:t` の内容は分けずに 1 つの token にする
 5. token index は `skam:body` 全体で通し番号（0-based）
    - `skam:block` の境界で index はリセット**されない**
 
@@ -184,7 +186,8 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 
 - 改行（U+000A）、タブ（U+0009）、半角スペース（U+0020）、キャリッジリターン（U+000D）の連続は tokenization 時に**無視される**。書記素クラスタの先頭にあるこれらの字は取り除き、残りが無ければそのクラスタは token にしない
   - U+000D は XML の改行正規化により通常は U+000A に置き換わるため、`&#13;` と書いた場合にのみ残る
-- 意図的な空白が必要な場合は全角スペース（U+3000）等を使用
+- `skam:t` の内容の空白は無視しない（§7.14）
+- 意図的な空白が必要な場合は全角スペース（U+3000）か `skam:t` を使用
 
 ### 6.3 例
 
@@ -205,13 +208,14 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 
 各要素が子に持てるものの正本である。§7.3 以降の各節は、この表を参照する。
 
-| 親要素                                                                   | 子に持てるもの                                                            |
-| ------------------------------------------------------------------------ | ------------------------------------------------------------------------- |
-| `skam:block`、`skam:span`、`skam:tateten`                                | テキスト、§7 のすべての注記要素、位置マーク（kaeri / kutoten / ref / br） |
-| `skam:yomigana`                                                          | テキスト、`skam:kun`                                                      |
-| `skam:okimoji`、`skam:joji`、`skam:okototen`、`skam:base`（saidokuの中） | テキスト、`skam:kun`、`skam:okimoji`、`skam:joji`、`skam:okototen`        |
-| `skam:kun`、`skam:soegana`                                               | テキストのみ                                                              |
-| `skam:saidoku`                                                           | `skam:base`、`skam:kunform`                                               |
+| 親要素                                                                   | 子に持てるもの                                                                      |
+| ------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| `skam:block`、`skam:span`、`skam:tateten`                                | テキスト、`skam:t`、§7 のすべての注記要素、位置マーク（kaeri / kutoten / ref / br） |
+| `skam:yomigana`                                                          | テキスト、`skam:t`、`skam:kun`                                                      |
+| `skam:okimoji`、`skam:joji`、`skam:okototen`、`skam:base`（saidokuの中） | テキスト、`skam:t`、`skam:kun`、`skam:okimoji`、`skam:joji`、`skam:okototen`        |
+| `skam:kun`、`skam:soegana`                                               | テキスト、`skam:t`                                                                  |
+| `skam:t`                                                                 | テキストのみ                                                                        |
+| `skam:saidoku`                                                           | `skam:base`、`skam:kunform`                                                         |
 
 - **位置マーク**: kaeri / kutoten / ref / br は、`skam:block` / `skam:span` / `skam:tateten` の子にだけ置ける。
 - **入れ子の意味**: 内側の要素の範囲は、外側の範囲に含まれる。
@@ -224,6 +228,7 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
   6. `skam:yomigana`
   7. `skam:kun`
 - `skam:yomigana` と、字を包む要素（`skam:okimoji` / `skam:joji` / `skam:okototen` / `skam:base`）とは、互いを入れ子にできない。
+- **共通の属性**: すべての注記の要素は `skam:ext`、`skam:custom`、`placement-hint` を持てる（§10.3。`skam:kun` は部分ごとの名前）。
 - **parser の扱い**: 表にない既知の子要素は誤りである。未知の `skam:*` は無視し、通知してよい（§10）。
 
 ### 7.1 アンカー規則（規範）
@@ -252,6 +257,7 @@ position は `{ blockId, after: tokenId }` または `{ blockId }`（ブロッ�
 #### 7.1.1 id（規範）
 
 - `skam:block` と、すべての注記の要素（包囲要素と空要素）は `xml:id` を持てる。値は手書きの id（SKAM-draft §3.1）で、XML の NCName でなければならない。NCName でない値は誤り。`xml:id` が無ければ `id` 属性を読む（両方あれば `xml:id`）。文書の中で同じ値が 2 つあれば誤り
+- token の手書きの id は `skam:t` の `xml:id` に書く（§7.14）
 - `xml:id` の無いブロックの id は `b#<文書の中のブロックの 1 始まりの順>`、token の id は `<ブロックの id>#<ブロックの中の 1 始まりの順>`、注記の id は `m#<出力の marks 配列の 1 始まりの順>` になる（自動の id）
 - 自動の id は書かない。書けば NCName でないので誤りになる
 - `skam:kun` の `xml:id` は、その要素から作る最初の注記（読み仮名、送り仮名、添え仮名の順）の id になる。残りの注記は自動の id になる
@@ -331,6 +337,14 @@ position は `{ blockId, after: tokenId }` または `{ blockId }`（ブロッ�
 | `soe`   | 任意 | 添え仮名（テニヲハ等の助詞） |
 
 ※ 全て省略可。少なくとも一方を指定することを推奨。
+
+部分ごとの `ext`、`custom`、`placementHint`（§10.3）は、属性名で部分を分ける。対応する部分の属性が無いのに付けると誤り（`okuri` が無い `okuri-placement-hint` など）。
+
+| 部分                     | 属性                                                          |
+| ------------------------ | ------------------------------------------------------------- |
+| `yomi` が作る yomigana   | `skam:ext`、`skam:custom`、`placement-hint`                   |
+| `okuri` が作る okurigana | `skam:okuri-ext`、`skam:okuri-custom`、`okuri-placement-hint` |
+| `soe` が作る soegana     | `skam:soe-ext`、`skam:soe-custom`、`soe-placement-hint`       |
 
 #### 正規化
 
@@ -749,6 +763,44 @@ SKAM-ML で内容を持つ ref は、SKAM JSON では位置マーカー + conten
 
 ---
 
+### 7.14 `skam:t`（token）
+
+token 1 つを明示する。内容の文字をそのまま 1 つの token の `text` にする。書記素に分けず、空白も捨てない。
+
+```xml
+<skam:block>
+  <skam:t>學問</skam:t>而<skam:kaeri kind="re"/>時<skam:t xml:id="cite-1">習</skam:t>之
+</skam:block>
+```
+
+→ token は `學問`、`而`、`時`、`習`（id `cite-1`）、`之`。
+
+平文で書けない token と、平文では持てない情報を持つ token に使う。
+
+- 2 字以上の token（`學問`）
+- 空白の token、空白で始まる token（`<skam:t> </skam:t>`）
+- 前の字と同じテキストノードに書くと結合する字（`e` の後ろの U+0301 を別の token にするとき）
+- 手書きの id、`ext`、`custom` を持つ token
+
+#### 属性
+
+| 属性          | 必須 | 説明                                                    |
+| ------------- | ---- | ------------------------------------------------------- |
+| `xml:id`      | 任意 | token の手書きの id（§7.1.1）。省略時は自動の id になる |
+| `skam:ext`    | 任意 | token の `ext`（§10.3）                                 |
+| `skam:custom` | 任意 | token の `custom`（§10.3）                              |
+
+#### 内容モデル
+
+§7.0 を参照（テキストのみ）。内容が空、または子の要素がある（コメントは除く）と誤り。
+
+#### 正規化
+
+- `skam:t` 1 つが token 1 つになる。注記は作らない
+- token の順は、平文の字と同じく文書の順。位置マーク（kaeri など）の直前の token には `skam:t` の token も数える
+
+---
+
 ### 7.15 `skam:note`（注釈本文・分離定義）
 
 長い注釈テキストを `skam:notes` セクションに分離して定義する。
@@ -785,7 +837,8 @@ SKAM-ML で内容を持つ ref は、SKAM JSON では位置マーカー + conten
 ```
 
 - `kind` は必須
-- 内容は全文テキスト
+- 内容は全文テキスト。前後の空白は削る。`xml:space="preserve"` があれば削らない
+- `skam:ext` と `skam:custom` は、その reading の `ext` と `custom`（§10.3）
 - token/mark との対応付けは v0.1 では行わない
 
 ---
@@ -835,7 +888,7 @@ skam:note (content を提供)
 ## 10. 拡張性
 
 - SKAM 以外の名前空間の要素は誤りである（MUST NOT）。パーサーはエラーとして扱う
-- 未知の `skam:*` 要素・属性は **無視してよい**。無視した場合は、要素名と位置を利用者に通知してよい
+- 未知の `skam:*` 要素・属性は **無視してよい**。無視した場合は、要素名と位置を利用者に通知してよい。`skam:ext` と `skam:custom` は既知の属性である（§10.3）
 - round-trip を行う処理系は **保持して再出力してよい**
 - 将来の拡張は **後方互換**で行う
 
@@ -887,6 +940,31 @@ skam:note (content を提供)
   <skam:meta><skam:extension name="edu" uri="urn:skam:edu:1" required="true"/></skam:meta>
   <skam:body>
     <skam:block><skam:kun yomi="まな" okuri="ブ" edu:okuri-quiz="問1">學</skam:kun>而</skam:block>
+  </skam:body>
+</skam:doc>
+```
+
+### 10.3 `ext`、`custom`、`placementHint` の属性（規範）
+
+| 属性             | 値                  | SKAM JSON                 |
+| ---------------- | ------------------- | ------------------------- |
+| `skam:ext`       | JSON のオブジェクト | `ext`（キーは拡張の名前） |
+| `skam:custom`    | JSON のオブジェクト | `custom`                  |
+| `placement-hint` | 文字列              | 注記の `placementHint`    |
+
+- 置ける要素: `skam:ext` と `skam:custom` は、ルート、`skam:block`、`skam:t`、`skam:reading`、すべての注記の要素。`placement-hint` は注記の要素だけ（ほかの要素では読まない）。`skam:kun` は部分ごとの名前を使う（§7.3）
+- 属性名: JSON の値を持つ属性は `skam:` 名前空間、ほかは SKAM の属性（`yomi` など）と同じく接頭辞なし
+- `skam:ext` は、属性での書き方（§10.1）を定めない拡張の値と、宣言の無い文書の `ext` を書く。属性での書き方を定める拡張の値はその属性で書く。同じ拡張の値を両方に書くと誤り
+- 次は誤り: JSON として読めない値、オブジェクトでない値、1,000,000 文字を超える値
+- 値の中身の上限と禁止のキー（`__proto__` など）は SKAM-draft §11.3 による
+- derivations の `ext` と `custom` は書かない（§4.2）
+
+属性値の TAB、LF、CR は文字参照（`&#9;`、`&#10;`、`&#13;`）で書く。生のまま書くと、XML の属性値の正規化で空白に変わる。本文の CR も `&#13;` で書く（§6.2）。JSON の文字列の中の U+FFFE と U+FFFF は、XML に書けないので JSON の `\u` のエスケープで書く。
+
+```xml
+<skam:doc xmlns:skam="urn:skam:1" skam:custom='{"source":"論語"}'>
+  <skam:body>
+    <skam:block><skam:okimoji placement-hint="left">而</skam:okimoji></skam:block>
   </skam:body>
 </skam:doc>
 ```
@@ -1049,7 +1127,9 @@ SKAM-ML/XMLはHTMLに依存しない純XML語彙とし、本文構造は`skam:bl
 | `skam:extension`（`skam:meta` の子）  | `extensions` と `extensionsRequired`    |
 | 拡張の名前空間の属性（例 `edu:quiz`） | `ext.<拡張の名前>`（例 `ext.edu.quiz`） |
 
-※ `derivations`（読み順等）はコンパイル時に生成される。
+- `skam:t` は注記ではなく token 1 つになる（§7.14）。
+- `skam:ext`、`skam:custom`、`placement-hint` は、持ち主の `ext`、`custom`、`placementHint` になる（§10.3）。
+- `derivations`（読み順等）はコンパイル時に生成される。
 
 ---
 
@@ -1071,3 +1151,6 @@ SKAM-ML/XMLはHTMLに依存しない純XML語彙とし、本文構造は`skam:bl
 - 互換性の注意: 0.1.x の parser は、字を包む要素の中の `skam:kun` と、入れ子になった包む要素を黙って捨てる。この改訂以降の出力は、改訂以降の parser で読むこと
 - §7.1.1: id の規則を新設した。すべての注記の要素が `xml:id` を持て、値は NCName に限る。省略したときの id は位置から決まる自動の id（`b#1`、`b#1#1`、`m#1`）になる
 - §7.10: highlight と ref は `ref` 属性でだけ結ぶ。`ref` 属性の無い highlight は、中の `skam:ref` と結ばなくなった。`ref` 属性は後ろの ref も指せる
+- §7.14: token を明示する `skam:t` を新設した。§6 と §7.0 を合わせて直した
+- §10.3: `skam:ext`、`skam:custom`、`placement-hint` を新設した（§3.2、§5.2、§7.3、§8 も）。`skam:reading` の `xml:space="preserve"` を読む。属性値の TAB、LF、CR は文字参照で書く
+- 互換性の注意: この改訂より前の parser は、`skam:t` を未知の要素として中の字ごと捨て、新しい属性を無視する

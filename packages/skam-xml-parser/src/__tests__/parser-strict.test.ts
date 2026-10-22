@@ -243,7 +243,7 @@ describe('SKAM-ML content model (§7.0) — hand-written representative cases', 
   });
   it('exports the same table from Node and browser entry points', () => {
     expect(browser.SKAM_ML_CONTENT_MODEL).toEqual(SKAM_ML_CONTENT_MODEL);
-    expect(SKAM_ML_CONTENT_MODEL.kun).toEqual(['#text']);
+    expect(SKAM_ML_CONTENT_MODEL.kun).toEqual(['#text', 't']);
   });
 });
 

@@ -11,17 +11,18 @@
  */
 export const SKAM_ML_CONTENT_MODEL: Readonly<
   Record<
-    'yomigana' | 'okimoji' | 'joji' | 'okototen' | 'base' | 'kun' | 'soegana',
+    'yomigana' | 'okimoji' | 'joji' | 'okototen' | 'base' | 'kun' | 'soegana' | 't',
     readonly string[]
   >
 > = {
-  yomigana: ['#text', 'kun'],
-  okimoji: ['#text', 'kun', 'okimoji', 'joji', 'okototen'],
-  joji: ['#text', 'kun', 'okimoji', 'joji', 'okototen'],
-  okototen: ['#text', 'kun', 'okimoji', 'joji', 'okototen'],
-  base: ['#text', 'kun', 'okimoji', 'joji', 'okototen'],
-  kun: ['#text'],
-  soegana: ['#text'],
+  yomigana: ['#text', 't', 'kun'],
+  okimoji: ['#text', 't', 'kun', 'okimoji', 'joji', 'okototen'],
+  joji: ['#text', 't', 'kun', 'okimoji', 'joji', 'okototen'],
+  okototen: ['#text', 't', 'kun', 'okimoji', 'joji', 'okototen'],
+  base: ['#text', 't', 'kun', 'okimoji', 'joji', 'okototen'],
+  kun: ['#text', 't'],
+  soegana: ['#text', 't'],
+  t: ['#text'],
 };
 
 /** @experimental SKAM-ML-draft §7.0 の入れ子順 (外側から)。同じ範囲の要素どうしの並びを決める */

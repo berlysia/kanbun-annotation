@@ -9,7 +9,12 @@ import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
 import type { SKAMExtensionDefinition } from '@kanbun-skam/skam/extensions';
 import { parse } from '@kanbun-skam/skam-xml-parser';
-import { stringify, type StringifyLoss } from '@kanbun-skam/skam-xml-stringify';
+import {
+  stringify as stringifyDocument,
+  type StringifyLoss,
+  type StringifyOptions,
+} from '@kanbun-skam/skam-xml-stringify';
+import { convertHandIdsToAuto, isHandId } from '@kanbun-skam/skam';
 import type {
   SKAMDocument,
   KaeriMark,
@@ -27,6 +32,20 @@ import type {
   RefMark,
   Mark,
 } from '@kanbun-skam/skam';
+
+/**
+ * 手書きの id (`t1` など) の字は `<skam:t xml:id>` で書かれる。このファイルの多くの検査は注記の書き方なので、
+ * 字に手書きの id を使う文書は、ブロックと注記の id を残して字の id だけを位置から決まる形にしてから書く。
+ * 字の手書きの id の往復は、末尾の describe と roundtrip-strict.test.ts が検査する
+ */
+function stringify(doc: SKAMDocument, options?: StringifyOptions): string {
+  if (!doc.tokens.some((token) => isHandId(token.id))) return stringifyDocument(doc, options);
+  const keep = new Set([
+    ...doc.blocks.map((block) => block.id),
+    ...doc.marks.flatMap((mark) => (mark.id === undefined ? [] : [mark.id])),
+  ]);
+  return stringifyDocument(convertHandIdsToAuto(doc, keep), options);
+}
 
 // ============================================================================
 // Basic Round-trip Tests
@@ -1267,25 +1286,23 @@ describe('round-trip - extensions', () => {
     expect(xml).toContain('<skam:meta tokenization="char"/>');
   });
 
-  it('知らない拡張の値は書けない: 例外、lossy なら UNKNOWN_EXTENSION、custom と宣言の無い ext は EXT', () => {
+  it('書き方を知らない拡張の値、custom、宣言の無い ext は skam:ext / skam:custom に書き、損失なしで往復する', () => {
+    // 書き方 (writeXmlAttributes) の無い宣言済みの拡張。名前空間の URI だけを持つ
+    const zzz: SKAMExtensionDefinition = { name: 'zzz', uri: 'urn:test:zzz', required: false };
     const unknown = declared(
       ['學'],
       [{ type: 'okimoji', anchor, ext: { zzz: { a: 1 } } } as OkimojiMark],
       { extensions: ['edu', 'zzz'] }
     );
-    expect(() => stringify(unknown)).toThrow();
-    const losses: StringifyLoss[] = [];
-    stringify(unknown, { lossy: true, onLoss: (l) => losses.push(l) });
-    expect(losses.map((l) => l.code)).toContain('UNKNOWN_EXTENSION');
-    expect(losses.find((l) => l.path === '/marks/0/ext/zzz')?.code).toBe('UNKNOWN_EXTENSION');
+    const xml = stringify(unknown, { extensions: [zzz] });
+    expect(xml).toContain('skam:ext="{&quot;zzz&quot;:{&quot;a&quot;:1}}"');
+    expect(withoutIds(parse(xml, { extensions: [zzz] }))).toEqual(withoutIds(unknown));
 
     const withCustom = declared(
       ['學'],
       [{ type: 'okimoji', anchor, custom: { a: 1 } } as OkimojiMark]
     );
-    const customLosses: StringifyLoss[] = [];
-    stringify(withCustom, { lossy: true, onLoss: (l) => customLosses.push(l) });
-    expect(customLosses).toMatchObject([{ code: 'EXT', path: '/marks/0/custom' }]);
+    expect(withoutIds(roundTrip(withCustom))).toEqual(withoutIds(withCustom));
 
     const undeclared: SKAMDocument = declared(
       ['學'],
@@ -1293,19 +1310,27 @@ describe('round-trip - extensions', () => {
     );
     delete undeclared.extensions;
     delete undeclared.extensionsRequired;
-    const extLosses: StringifyLoss[] = [];
-    stringify(undeclared, { lossy: true, onLoss: (l) => extLosses.push(l) });
-    expect(extLosses).toMatchObject([{ code: 'EXT', path: '/marks/0/ext' }]);
+    expect(withoutIds(roundTrip(undeclared))).toEqual(withoutIds(undeclared));
   });
 
-  it('宣言した拡張の値でも書く場所が無ければ損失になる', () => {
+  it('URI の分からない拡張は、宣言そのものが書けないので損失になる', () => {
+    const unknown = declared(['學'], [], { extensions: ['edu', 'zzz'] });
+    const losses: StringifyLoss[] = [];
+    stringify(unknown, { lossy: true, onLoss: (l) => losses.push(l) });
+    expect(losses).toMatchObject([{ code: 'UNKNOWN_EXTENSION', path: '/extensions/1' }]);
+  });
+
+  it('edu の値を名前空間の属性で書けない要素 (emphasis) では skam:ext に書く。validator は edu をここに置く文書を誤りにする', () => {
     const doc = declared(
       ['學'],
       [{ type: 'emphasis', anchor, ext: quizExt('問1') } as EmphasisMark]
     );
     const losses: StringifyLoss[] = [];
-    stringify(doc, { lossy: true, onLoss: (l) => losses.push(l) });
-    expect(losses).toMatchObject([{ code: 'EXT', path: '/marks/0/ext/edu' }]);
+    const xml = stringify(doc, { lossy: true, onLoss: (l) => losses.push(l) });
+    expect(losses).toEqual([]);
+    expect(xml).toContain('skam:ext="{&quot;edu&quot;:{&quot;quiz&quot;:&quot;問1&quot;}}"');
+    expect(() => parse(xml)).toThrow(/ext\.edu is not allowed on emphasis/);
+    expect(withoutIds(parse(xml, { validate: false }))).toEqual(withoutIds(doc));
   });
 
   it('渡した定義の属性が往復で同じ値に戻る', () => {

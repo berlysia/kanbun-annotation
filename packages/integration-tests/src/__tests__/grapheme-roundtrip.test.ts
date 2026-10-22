@@ -16,8 +16,9 @@ const texts = (doc: SKAMDocument) => doc.tokens.map((t) => t.text);
 const docOf = (...tokenTexts: string[]): SKAMDocument => ({
   format: 'skam@0.1',
   readings: [],
-  tokens: tokenTexts.map((text, i) => ({ id: `t${i + 1}`, text })),
-  blocks: [{ id: 'b1', tokenIds: tokenTexts.map((_, i) => `t${i + 1}`) }],
+  // 字の id は位置から決まる自動の形にする (手書きの id の字は常に `<skam:t>` で書かれる)
+  tokens: tokenTexts.map((text, i) => ({ id: `b#1#${i + 1}`, text })),
+  blocks: [{ id: 'b#1', tokenIds: tokenTexts.map((_, i) => `b#1#${i + 1}`) }],
   marks: [],
 });
 
@@ -44,7 +45,7 @@ describe('grapheme round-trip', () => {
     expect(texts(second)).toEqual(['葛', IVS]);
   });
 
-  describe('accepted limits (not reported as losses)', () => {
+  describe('tokens that plain text cannot read back are written as <skam:t> (no loss)', () => {
     const losses: StringifyLoss[] = [];
     const strOk = (d: SKAMDocument) => {
       losses.length = 0;
@@ -53,12 +54,23 @@ describe('grapheme round-trip', () => {
       return xml;
     };
 
-    it('(a) a leading ignored space is dropped when read again', () => {
-      expect(texts(parseSeq(strOk(docOf(' ́'))))).toEqual(['́']);
+    it('(a) a token that starts with an ignored space keeps the space', () => {
+      const xml = strOk(docOf(' ́'));
+      expect(xml).toContain('<skam:t> ́</skam:t>');
+      expect(texts(parseSeq(xml))).toEqual([' ́']);
     });
 
-    it('(b) a combining token after a base token merges when read again', () => {
-      expect(texts(parseSeq(strOk(docOf('葛', IVS))))).toEqual(['葛' + IVS]);
+    it('(b) a combining token after a base token stays a separate token', () => {
+      const xml = strOk(docOf('葛', IVS));
+      expect(xml).toContain(`葛<skam:t>${IVS}</skam:t>`);
+      expect(texts(parseSeq(xml))).toEqual(['葛', IVS]);
+    });
+
+    it('(c) multi-grapheme, whitespace-only and CRLF tokens read back as they were', () => {
+      const tokenTexts = ['學問', ' ', '\r\n', '\t', '甲', ' \n乙'];
+      const xml = strOk(docOf(...tokenTexts));
+      expect(texts(parseSeq(xml))).toEqual(tokenTexts);
+      expect(stringify(parseSeq(xml))).toBe(xml);
     });
   });
 });

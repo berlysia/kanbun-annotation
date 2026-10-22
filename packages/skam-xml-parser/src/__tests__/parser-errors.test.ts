@@ -238,3 +238,84 @@ describe('parse - error positions (K7 a)', () => {
     expect(positionOf(doc('<skam:saidoku><skam:kunform yomi="a"/></skam:saidoku>')).line).toBe(3);
   });
 });
+
+describe('parse - <skam:t> and free-data attribute errors', () => {
+  const wrap = (body: string, rootAttrs = '') =>
+    `<skam:doc xmlns:skam="urn:skam:1" xmlns:edu="urn:skam:edu:1"${rootAttrs}><skam:body><skam:block>${body}</skam:block></skam:body></skam:doc>`;
+  const positionedError = (xml: string): SKAMXMLParseError => {
+    try {
+      parse(xml);
+    } catch (e) {
+      expect(e).toBeInstanceOf(SKAMXMLParseError);
+      expect(typeof (e as SKAMXMLParseError).line).toBe('number');
+      return e as SKAMXMLParseError;
+    }
+    throw new Error('expected parse to throw');
+  };
+
+  it('rejects an empty <skam:t> and one with a child element, with a position', () => {
+    positionedError(wrap('<skam:t></skam:t>'));
+    positionedError(wrap('<skam:t/>'));
+    positionedError(wrap('<skam:t><skam:kun yomi="x">學</skam:kun></skam:t>'));
+    positionedError(wrap('<skam:t>學<skam:unknown/></skam:t>'));
+  });
+
+  it('accepts a comment inside <skam:t> and ignores it', () => {
+    expect(parse(wrap('<skam:t>學<!-- c -->問</skam:t>')).tokens[0]!.text).toBe('學問');
+  });
+
+  it('rejects <skam:t> inside <skam:t>', () => {
+    positionedError(wrap('<skam:t><skam:t>學</skam:t></skam:t>'));
+  });
+
+  it.each([['{'], ['[1]'], ['1'], ['null'], ['"a"']])(
+    'rejects skam:custom=%j that is not a JSON object',
+    (value) => {
+      positionedError(wrap('學', ` skam:custom='${value.replaceAll('"', '&quot;')}'`));
+    }
+  );
+
+  it('rejects skam:ext that is not a JSON object', () => {
+    positionedError(wrap('學', ` skam:ext="1"`));
+  });
+
+  it('rejects a JSON nested too deep to parse', () => {
+    positionedError(wrap('學', ` skam:custom="${'['.repeat(200000)}"`));
+  });
+
+  it('rejects an attribute value longer than 1,000,000 characters, and accepts exactly that long', () => {
+    const json = (length: number) => `{&quot;a&quot;:&quot;${'x'.repeat(length - 8)}&quot;}`;
+    const raw = (length: number) => `{"a":"${'x'.repeat(length - 8)}"}`;
+    expect(raw(1_000_000)).toHaveLength(1_000_000);
+    const accepted = parse(wrap('學', ` skam:custom="${json(1_000_000)}"`), { validate: false });
+    expect(accepted.custom).toBeDefined();
+    positionedError(wrap('學', ` skam:custom="${json(1_000_001)}"`));
+  });
+
+  it('does not pollute Object.prototype with __proto__ in skam:custom or skam:ext, and the validator rejects it', () => {
+    const xml = wrap('學', ` skam:custom='{"__proto__":{"x":1}}'`);
+    expect(() => parse(xml)).toThrow();
+    const unvalidated = parse(xml, { validate: false });
+    expect(({} as Record<string, unknown>)['x']).toBeUndefined();
+    expect(Object.hasOwn(unvalidated.custom!, '__proto__')).toBe(true);
+    const ext = parse(wrap('學', ` skam:ext='{"__proto__":{"x":1}}'`), { validate: false });
+    expect(({} as Record<string, unknown>)['x']).toBeUndefined();
+    expect(Object.hasOwn(ext.ext!, '__proto__')).toBe(true);
+  });
+
+  it('rejects the same extension given as a namespaced attribute and in skam:ext', () => {
+    const meta = '<skam:meta><skam:extension name="edu" uri="urn:skam:edu:1"/></skam:meta>';
+    const xml =
+      `<skam:doc xmlns:skam="urn:skam:1" xmlns:edu="urn:skam:edu:1">${meta}<skam:body><skam:block>` +
+      `學<skam:kaeri kind="ichi" edu:quiz="q1" skam:ext='{"edu":{"quiz":"q2"}}'/></skam:block></skam:body></skam:doc>`;
+    positionedError(xml);
+  });
+
+  it('rejects okuri-* and soe-* attributes without the matching annotation', () => {
+    positionedError(wrap('<skam:kun yomi="まな" okuri-placement-hint="right">學</skam:kun>'));
+    positionedError(wrap('<skam:kun yomi="まな" soe-placement-hint="right">學</skam:kun>'));
+    positionedError(wrap(`<skam:kun yomi="まな" skam:okuri-custom='{"a":1}'>學</skam:kun>`));
+    positionedError(wrap(`<skam:kun okuri="ブ" skam:custom='{"a":1}'>學</skam:kun>`));
+    positionedError(wrap(`<skam:kun yomi="まな" skam:soe-ext='{"a":1}'>學</skam:kun>`));
+  });
+});

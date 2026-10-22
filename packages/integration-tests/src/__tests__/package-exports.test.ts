@@ -65,6 +65,7 @@ describe('core exports (id rules and SKAM-ML content model)', () => {
       'isAutoId',
       'findIdFormIssues',
       'findXmlUnwritableChars',
+      'tokenizePlainText',
       // @internal: stringify と findIdFormIssues が使う。公開 API としては案内しない
       'groupKanaMarksByAnchor',
       'renumberAutoIds',

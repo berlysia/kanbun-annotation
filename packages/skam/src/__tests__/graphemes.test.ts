@@ -1,5 +1,48 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { splitGraphemes } from '../graphemes.js';
+import { splitGraphemes, tokenizePlainText } from '../graphemes.js';
+import { SKAM_ML_CONTENT_MODEL } from '../skam-ml-content-model.js';
+
+describe('tokenizePlainText', () => {
+  const texts = (text: string) => tokenizePlainText(text).map((t) => t.text);
+
+  it('splits into graphemes', () => {
+    expect(texts('學問')).toEqual(['學', '問']);
+  });
+
+  it('drops leading ASCII whitespace of a grapheme and drops empty ones', () => {
+    expect(texts(' 學')).toEqual(['學']);
+    expect(texts('\r\n')).toEqual([]);
+    expect(texts('\t\n\r ')).toEqual([]);
+  });
+
+  it('keeps a combining mark with its base', () => {
+    expect(texts('é')).toEqual(['é']);
+  });
+
+  it('keeps U+3000 as a token', () => {
+    expect(texts('　')).toEqual(['　']);
+  });
+
+  it('keeps the combining mark of a whitespace + combining mark grapheme', () => {
+    expect(texts(' ́')).toEqual(['́']);
+  });
+
+  it('returns the UTF-16 offsets of the grapheme before stripping', () => {
+    expect(tokenizePlainText('a ́\u{20BB7}')).toEqual([
+      { text: 'a', start: 0, end: 1 },
+      { text: '́', start: 1, end: 3 },
+      { text: '\u{20BB7}', start: 3, end: 5 },
+    ]);
+  });
+});
+
+describe('SKAM_ML_CONTENT_MODEL: skam:t', () => {
+  it('lets every element that takes text take skam:t, and skam:t takes only text', () => {
+    const owners = ['yomigana', 'okimoji', 'joji', 'okototen', 'base', 'kun', 'soegana'] as const;
+    for (const owner of owners) expect(SKAM_ML_CONTENT_MODEL[owner]).toContain('t');
+    expect(SKAM_ML_CONTENT_MODEL.t).toEqual(['#text']);
+  });
+});
 
 describe('splitGraphemes', () => {
   it('keeps an IVS and a combining mark with their base character', () => {

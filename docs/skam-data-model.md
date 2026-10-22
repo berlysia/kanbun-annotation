@@ -54,6 +54,14 @@ anchor ベースと position ベースは共通基底 `MarkBase` から対等に
 
 型ガード: `isAnchorBasedMark(mark)` / `isPositionBasedMark(mark)` で判定可能
 
+## id
+
+- 手書きの id（XML の NCName）と、`#` を含む自動の id（ブロック `b#n`、字 `<ブロックの id>#n`、注記 `m#n`）に分かれる（SKAM-draft §3.1）。判定、付け直し、`ID_FORM` と書けない文字の判定は `packages/skam/src/auto-ids.ts` の 1 か所にあり、validator、parser、stringify が使う
+- highlight と ref は `highlight.ref`（SKAM-ML の `ref` 属性）の名前でだけ結ぶ。`highlight.ref` は手書きの id の ref を指す。lint の `HIGHLIGHT_REF_UNLINKED` は、`ref` の無い highlight の範囲に ref がちょうど 1 つある形を知らせる
+- parser は `xml:id` の無いブロックと字に位置の値を、注記に出力の順の `m#n` を付ける。stringify は手書きの id だけを `xml:id` で書く
+- 形に反する id は validator の警告 `ID_FORM`、XML に書けない文字は `XML_UNWRITABLE_CHAR`（0.3 は警告、0.4.0 で誤り）。stringify は同じ所を同じコードの損失にする
+- §7.0 の内容モデルの表（`SKAM_ML_CONTENT_MODEL`、`SKAM_ML_NESTING_ORDER`）は `packages/skam/src/skam-ml-content-model.ts` にあり、parser と stringify が使う
+
 ## 拡張（`ext`、`custom`、`extensions`）
 
 - 文書、readings、ブロック、token、注記のどれにも `ext`（拡張の値）と `custom`（自由なデータ）を置ける。型は `Record<string, unknown>`

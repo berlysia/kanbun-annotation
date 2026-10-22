@@ -44,7 +44,7 @@ describe('stringify loss contract (K1)', () => {
   it('lossy:true returns XML and calls onLoss in order', () => {
     const seen: StringifyLoss[] = [];
     const xml = stringify(partial, { lossy: true, onLoss: (l) => seen.push(l) });
-    expect(xml).toContain('<skam:span type="emphasis">');
+    expect(xml).toContain('<skam:span type="emphasis" xml:id="e1">');
     expect(seen.map((l) => l.code)).toEqual(['PARTIAL_OVERLAP']);
   });
   it('does not call onLoss when lossy is false', () => {
@@ -433,5 +433,113 @@ describe('content model in stringify (K2b)', () => {
       expect(lossCodes(d)).toEqual([]);
       expect(stringify(d)).toMatch(/<skam:okototen [^>]*x="1"[^>]*><skam:okototen [^>]*x="2"/);
     }
+  });
+});
+
+describe('ID_FORM と XML_UNWRITABLE_CHAR', () => {
+  const autoDoc = (over: Partial<SKAMDocument> = {}): SKAMDocument =>
+    doc({
+      tokens: [
+        { id: 'b#1#1', text: '甲' },
+        { id: 'b#1#2', text: '乙' },
+        { id: 'b#1#3', text: '丙' },
+      ],
+      blocks: [{ id: 'b#1', tokenIds: ['b#1#1', 'b#1#2', 'b#1#3'] }],
+      ...over,
+    });
+
+  it('字の text の U+0001 は XML_UNWRITABLE_CHAR', () => {
+    const d = autoDoc();
+    d.tokens[0]!.text = '\u0001';
+    expect(lossCodes(d)).toEqual(['unrepresentable:XML_UNWRITABLE_CHAR@/tokens/0/text']);
+  });
+
+  it('yomigana の value の U+FFFF は XML_UNWRITABLE_CHAR', () => {
+    const d = autoDoc({
+      marks: [
+        {
+          id: 'm#1',
+          type: 'yomigana',
+          anchor: { from: 'b#1#1', to: 'b#1#1' },
+          value: String.fromCharCode(0xffff),
+        },
+      ],
+    });
+    expect(lossCodes(d)).toEqual(['unrepresentable:XML_UNWRITABLE_CHAR@/marks/0/value']);
+  });
+
+  it('注記の id が NCName でなければ ID_FORM', () => {
+    const d = autoDoc({
+      marks: [{ id: '1a', type: 'tateten', anchor: { from: 'b#1#1', to: 'b#1#2' } }],
+    });
+    expect(lossCodes(d)).toEqual(['unrepresentable:ID_FORM@/marks/0/id']);
+  });
+
+  it('2 番目のブロックの id が b#1 なら ID_FORM', () => {
+    const d = autoDoc({
+      blocks: [
+        { id: 'b#1', tokenIds: ['b#1#1'] },
+        { id: 'b#1', tokenIds: ['b#1#2', 'b#1#3'] },
+      ],
+    });
+    expect(lossCodes(d)).toContain('unrepresentable:ID_FORM@/blocks/1/id');
+  });
+
+  it('空文字の highlight.ref は ID_FORM', () => {
+    const d = autoDoc({
+      marks: [{ id: 'm#1', type: 'highlight', anchor: { from: 'b#1#1', to: 'b#1#2' }, ref: '' }],
+    });
+    expect(lossCodes(d)).toEqual(['unrepresentable:ID_FORM@/marks/0/ref']);
+  });
+
+  it('どの ref も指さない手書きの形の highlight.ref は ID_FORM', () => {
+    const d = autoDoc({
+      marks: [
+        { id: 'm#1', type: 'highlight', anchor: { from: 'b#1#1', to: 'b#1#2' }, ref: 'nowhere' },
+      ],
+    });
+    expect(lossCodes(d)).toEqual(['unrepresentable:ID_FORM@/marks/0/ref']);
+  });
+
+  it('手書きの id の ref を指す highlight は損失なし (範囲の外でもよい)', () => {
+    const d = autoDoc({
+      marks: [
+        { id: 'm#1', type: 'highlight', anchor: { from: 'b#1#1', to: 'b#1#2' }, ref: 'r1' },
+        { id: 'r1', type: 'ref', position: { blockId: 'b#1', after: 'b#1#3' }, label: 'a' },
+      ],
+    });
+    expect(lossCodes(d)).toEqual([]);
+  });
+
+  it('同じ字の okurigana o1 と soegana s1 (yomigana なし) は soegana が ID_FORM', () => {
+    const d = autoDoc({
+      marks: [
+        { id: 'o1', type: 'okurigana', anchor: { from: 'b#1#1', to: 'b#1#1' }, value: 'a' },
+        { id: 's1', type: 'soegana', anchor: { from: 'b#1#1', to: 'b#1#1' }, value: 'b' },
+      ],
+    });
+    expect(lossCodes(d)).toEqual(['unrepresentable:ID_FORM@/marks/1/id']);
+    expect(stringify(d, { lossy: true })).toContain('xml:id="o1"');
+  });
+
+  it('範囲の外の自動の id の ref を指す highlight は ID_FORM', () => {
+    const d = autoDoc({
+      marks: [
+        { id: 'm#1', type: 'highlight', anchor: { from: 'b#1#1', to: 'b#1#2' }, ref: 'm#2' },
+        { id: 'm#2', type: 'ref', position: { blockId: 'b#1', after: 'b#1#3' }, label: 'a' },
+      ],
+    });
+    expect(lossCodes(d)).toEqual(['unrepresentable:ID_FORM@/marks/0/ref']);
+  });
+
+  it('kun にまとめる注記の 2 つ目以降の手書きの id は書けない', () => {
+    const d = autoDoc({
+      marks: [
+        { id: 'y', type: 'yomigana', anchor: { from: 'b#1#1', to: 'b#1#1' }, value: 'a' },
+        { id: 'o', type: 'okurigana', anchor: { from: 'b#1#1', to: 'b#1#1' }, value: 'b' },
+      ],
+    });
+    expect(lossCodes(d)).toEqual(['unrepresentable:ID_FORM@/marks/1/id']);
+    expect(stringify(d, { lossy: true })).toContain('xml:id="y"');
   });
 });

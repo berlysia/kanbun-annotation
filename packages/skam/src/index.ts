@@ -517,6 +517,8 @@ export {
   KAERI_MULTI_CHARACTER,
   LEGACY_EXT,
   LEGACY_EXT_REGISTERED_NAME,
+  ID_FORM,
+  XML_UNWRITABLE_CHAR,
   SKAMValidationError,
   createValidationError,
   BLOCK_START_KAERI_HINT,
@@ -531,6 +533,7 @@ export {
   TATETEN_SINGLE_TOKEN,
   KAERI_UNCLOSED,
   HIGHLIGHT_REF_MISSING,
+  HIGHLIGHT_REF_UNLINKED,
   lintSKAMDocument,
 } from './lint.js';
 
@@ -553,6 +556,27 @@ export {
 // ============================================================================
 
 export { splitMultiCharacterKaeri } from './kaeri-migration.js';
+
+// ============================================================================
+// ID rules (hand-written / auto ids)
+// ============================================================================
+
+export {
+  isHandId,
+  isAutoId,
+  findIdFormIssues,
+  /** @internal stringify が `<skam:kun>` の `xml:id` を決めるのに使う。公開 API として案内しない */
+  groupKanaMarksByAnchor,
+  findXmlUnwritableChars,
+  renumberAutoIds,
+  convertHandIdsToAuto,
+} from './auto-ids.js';
+
+// ============================================================================
+// SKAM-ML content model (§7.0)
+// ============================================================================
+
+export { SKAM_ML_CONTENT_MODEL, SKAM_ML_NESTING_ORDER } from './skam-ml-content-model.js';
 
 // ============================================================================
 // Line Units

@@ -229,11 +229,11 @@ JSON の `extensions` と `extensionsRequired`、注記の `ext.edu.quiz` にな
 
 ## 往復変換と ID
 
-XML には token と mark の ID を書かない。`parse` はこれらの ID を毎回生成し直すので、JSON → XML → JSON と往復すると、token と mark の ID は元の値と一致しない。token や mark の ID を使った外部の参照は、往復で失われる。block、ref、`skam:br` の `xml:id` は XML に書かれ、`parse` はそれを読む（`xml:id` がなければ生成する）。
+ブロック、token、注記の ID は、手書きの ID と自動の ID に分かれる（SKAM-draft §3.1）。
 
-決定的な出力が要るとき（スナップショットテストなど）は、`idGenerator: createSequentialIdGenerator()` を渡す。`createSequentialIdGenerator` は `@kanbun-skam/skam` から import する。
-
-`parse` は、生成器が返した ID が本文（`skam:body`）の block、ref、`skam:br` に明示された `xml:id`（または `id`）と同じ値なら、その値を捨てて生成器を呼び直す。連番の生成器が `<skam:block xml:id="b2">` と同じ `b2` を振って重複を起こさないための扱いで、利用者が渡した生成器にも同じに働く。このため、衝突したときは `generate` が余分に呼ばれ、捨てた値は使われない。知らない `skam:*` 要素の中に明示した ID があっても避けるので、連番に欠番ができることがある。呼び直しは 1 回の生成につき、明示した ID の数 + 1 回までで、それでも衝突し続けると `SKAMXMLParseError` を投げる（message に ID の値は入らない）。
+- 手書きの ID は、要素の `xml:id`（無ければ `id` 属性）に書いた値で、XML の NCName に限る。`parse` はその値をそのまま使い、往復でも変わらない。ほかの文書から箇所を指すときは手書きの ID を使う
+- `xml:id` の無いブロックは `b#1`、`b#2`…、token は `b#1#1`（ブロックの ID と、ブロックの中の順）、注記は `m#1`、`m#2`… になる。自動の ID は位置から決まるので、同じ XML からはいつも同じ値になる。本文を直すと変わる
+- NCName でない `xml:id`（`1a`、`b#1` など）や、同じ値の `xml:id` が 2 つある XML は `SKAMXMLParseError` になる
 
 ## IVS と結合文字
 

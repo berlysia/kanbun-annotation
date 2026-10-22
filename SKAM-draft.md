@@ -82,6 +82,24 @@ SKAM は JSON 形式で表現される。
 - `ext` は拡張の値の置き場（任意。§11.2）
 - `custom` は SKAM が解釈しない自由なデータの置き場（任意。§11.3）
 
+### 3.1 id
+
+ブロック、token、mark の `id` は、文書全体（blocks・tokens・marks）で 1 つの名前の集まりをなし、一意でなければならない（MUST）。id には次の 2 種類がある。
+
+- **手書きの id**: XML の NCName（Namespaces in XML 1.0 の NCName。`:` を含まない XML の名前）。`#` を含まない。値は編集しても変わらず、ほかの文書から箇所を指すのに使える
+- **自動の id**: `#` を含む id。位置から決まり、編集や XML の読み直しで変わる。外から指すのには使えない
+  - ブロック: `b#<blocks 配列の 1 始まりの順>`（例 `b#2`）
+  - token: `<属するブロックの id>#<そのブロックの tokenIds の 1 始まりの順>`（例 `b#2#5`、`p1#3`）。ブロックの id が `#` を含むときも、最後の `#` で分ける
+  - mark: `m#<正の整数>`（例 `m#3`）。番号は位置と結びつかない
+
+自動の形の id は、その位置の値に一致しなければならない（ブロックと token）。`highlight.ref` は、文書にある手書きの id の ref mark を指さなければならない（SKAM-ML は自動の id を書かず、highlight と ref を `ref` 属性の名前でだけ結ぶため。SKAM-ML-draft §7.10）。1 つの ref を複数の highlight が指してよい。同じ anchor の yomigana・okurigana・soegana のうち、手書きの id を持てるのは最初の 1 つ（yomigana、okurigana、soegana の順）だけである（SKAM-ML では 1 つの `skam:kun` にまとめて書き、`xml:id` が 1 つしかないため）。
+
+これらに反する id は、0.3 では検証が警告（`ID_FORM`）を返し、0.4.0 で誤りになる。
+
+### 3.2 XML に書けない文字
+
+token の `text`、reading の `text`、mark の文字列の値と属性（`id`、`ext`、`custom` を除く）、`placementHint` に、XML 1.0 で書けない文字（U+0009・U+000A・U+000D を除く U+0000〜U+001F、U+FFFE、U+FFFF、対の無いサロゲート）を含めてはならない。0.3 では検証が警告（`XML_UNWRITABLE_CHAR`）を返し、0.4.0 で誤りになる。
+
 ---
 
 ## 4. Blocks（ブロック）

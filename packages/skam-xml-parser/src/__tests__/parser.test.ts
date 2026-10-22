@@ -5,7 +5,7 @@ import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse, SKAMXMLParseError } from '../index.js';
 import type { ParseOptions } from '../index.js';
-import { validateSKAMDocument, createSequentialIdGenerator, KAERI } from '@kanbun-skam/skam';
+import { validateSKAMDocument, KAERI } from '@kanbun-skam/skam';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const VALID_FIXTURES = join(__dirname, 'fixtures', 'valid');
@@ -16,9 +16,9 @@ function readFixture(category: 'valid' | 'invalid', name: string): string {
   return readFileSync(join(dir, name), 'utf-8');
 }
 
-/** Sequential ID generator で parse（t1, t2, b1, m1 等の連番IDを生成） */
+/** 位置から決まる自動の id (b#1, b#1#1, m#1 等) で parse */
 function parseSeq(xml: string, opts: Partial<ParseOptions> = {}) {
-  return parse(xml, { ...opts, idGenerator: createSequentialIdGenerator() });
+  return parse(xml, opts);
 }
 
 // ============================================================================
@@ -33,10 +33,10 @@ describe('parse - valid fixtures', () => {
 
       expect(doc.format).toBe('skam@0.1');
       expect(doc.tokens).toHaveLength(1);
-      expect(doc.tokens[0]).toMatchObject({ id: 't1', text: '學' });
+      expect(doc.tokens[0]).toMatchObject({ id: 'b#1#1', text: '學' });
       // blockId is now managed via blocks array, not token.ext
       expect(doc.blocks).toHaveLength(1);
-      expect(doc.blocks[0]).toMatchObject({ id: 'b1', tokenIds: ['t1'] });
+      expect(doc.blocks[0]).toMatchObject({ id: 'b#1', tokenIds: ['b#1#1'] });
       expect(doc.marks).toHaveLength(0);
       expect(doc.readings).toHaveLength(0);
       expect(validateSKAMDocument(doc).valid).toBe(true);
@@ -55,8 +55,8 @@ describe('parse - valid fixtures', () => {
       expect(kaeri.type).toBe('kaeri');
       if (kaeri.type === 'kaeri') {
         expect(kaeri.value).toBe(KAERI.RE);
-        expect(kaeri.position.blockId).toBe('b1');
-        expect(kaeri.position.after).toBe('t2'); // 而
+        expect(kaeri.position.blockId).toBe('b#1');
+        expect(kaeri.position.after).toBe('b#1#2'); // 而
       }
     });
   });
@@ -481,97 +481,8 @@ describe('parse - valid fixtures', () => {
 
       // ref at block start should have blockId but no after property
       const position = (ref as { position?: { blockId?: string; after?: string } }).position;
-      expect(position).toEqual({ blockId: 'b1' }); // blockId only, no after = block start
+      expect(position).toEqual({ blockId: 'b#1' }); // blockId only, no after = block start
       expect(position?.after).toBeUndefined();
-    });
-  });
-
-  describe('implicit ref-highlight association', () => {
-    it('should implicitly associate ref with highlight when both have no id/ref', () => {
-      const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
-  <skam:body>
-    <skam:block>
-      <skam:span type="highlight"><skam:ref format="alpha-upper"/>學而</skam:span>
-    </skam:block>
-  </skam:body>
-</skam:doc>`;
-      const doc = parseSeq(xml);
-
-      const highlights = doc.marks.filter((m) => m.type === 'highlight');
-      const refs = doc.marks.filter((m) => m.type === 'ref');
-
-      expect(highlights).toHaveLength(1);
-      expect(refs).toHaveLength(1);
-
-      const highlight = highlights[0] as { ref?: string };
-      const ref = refs[0] as { id?: string };
-
-      // Should be implicitly associated
-      expect(highlight.ref).toBeDefined();
-      expect(highlight.ref).toBe(ref.id);
-    });
-
-    it('should throw error when highlight.ref exists but ref.id does not', () => {
-      const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
-  <skam:body>
-    <skam:block>
-      <skam:span type="highlight" ref="note-1"><skam:ref format="alpha-upper"/>學而</skam:span>
-    </skam:block>
-  </skam:body>
-</skam:doc>`;
-      // highlight.ref が指定されているが、対応するidを持つrefがない場合はエラー
-      expect(() => parse(xml)).toThrow(SKAMXMLParseError);
-      expect(() => parse(xml)).toThrow('does not exist');
-    });
-
-    it('should NOT associate when ref has explicit id but highlight has no ref', () => {
-      const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
-  <skam:body>
-    <skam:block>
-      <skam:span type="highlight"><skam:ref xml:id="my-ref" format="alpha-upper"/>學而</skam:span>
-    </skam:block>
-  </skam:body>
-</skam:doc>`;
-      const doc = parseSeq(xml);
-
-      const highlights = doc.marks.filter((m) => m.type === 'highlight');
-      const refs = doc.marks.filter((m) => m.type === 'ref');
-
-      expect(highlights).toHaveLength(1);
-      expect(refs).toHaveLength(1);
-
-      const highlight = highlights[0] as { ref?: string };
-      const ref = refs[0] as { id?: string };
-
-      // Single ref with explicit id - should be associated
-      expect(ref.id).toBe('my-ref');
-      expect(highlight.ref).toBe('my-ref');
-    });
-
-    it('should NOT associate when multiple refs exist in highlight', () => {
-      const xml = `<?xml version="1.0" encoding="UTF-8"?>
-<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
-  <skam:body>
-    <skam:block>
-      <skam:span type="highlight"><skam:ref format="alpha-upper"/>學<skam:ref format="numeric-bracket"/>而</skam:span>
-    </skam:block>
-  </skam:body>
-</skam:doc>`;
-      const doc = parseSeq(xml);
-
-      const highlights = doc.marks.filter((m) => m.type === 'highlight');
-      const refs = doc.marks.filter((m) => m.type === 'ref');
-
-      expect(highlights).toHaveLength(1);
-      expect(refs).toHaveLength(2);
-
-      const highlight = highlights[0] as { ref?: string };
-
-      // Multiple refs - should NOT be associated
-      expect(highlight.ref).toBeUndefined();
     });
   });
 
@@ -888,7 +799,7 @@ describe('parse - position tracking', () => {
     const token = doc.tokens[0]!;
     // blockId is now managed via blocks array, not token.ext
     expect(doc.blocks).toHaveLength(1);
-    expect(doc.blocks[0]).toMatchObject({ id: 'b1', tokenIds: ['t1'] });
+    expect(doc.blocks[0]).toMatchObject({ id: 'b#1', tokenIds: ['b#1#1'] });
     expect(token.ext?.['position']).toBeDefined();
   });
 });
@@ -897,124 +808,102 @@ describe('parse - position tracking', () => {
 // Sequential ID generator vs explicit ids
 // ============================================================================
 
-describe('parse - generated ids avoid explicit ids', () => {
+describe('parse - ids (hand-written and automatic)', () => {
   const wrap = (body: string) => `<?xml version="1.0" encoding="UTF-8"?>
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>${body}</skam:body>
 </skam:doc>`;
   const markIds = (doc: ReturnType<typeof parseSeq>) => doc.marks.map((m) => m.id);
 
-  it('skips an explicit block id that comes after id-less blocks', () => {
+  it('gives id-less blocks and tokens the ids that follow from their position', () => {
+    const doc = parseSeq(wrap('<skam:block>學而</skam:block><skam:block>時習</skam:block>'));
+    expect(doc.blocks.map((b) => b.id)).toEqual(['b#1', 'b#2']);
+    expect(doc.tokens.map((t) => t.id)).toEqual(['b#1#1', 'b#1#2', 'b#2#1', 'b#2#2']);
+  });
+
+  it('builds token ids from a hand-written block id', () => {
+    const doc = parseSeq(wrap('<skam:block xml:id="p1">學</skam:block>'));
+    expect(doc.tokens.map((t) => t.id)).toEqual(['p1#1']);
+  });
+
+  it('reads xml:id on a mark element', () => {
+    const doc = parseSeq(
+      wrap('<skam:block><skam:span type="emphasis" xml:id="e1">學</skam:span></skam:block>')
+    );
+    expect(doc.marks[0]?.id).toBe('e1');
+  });
+
+  it('reads xml:id on every kind of mark element', () => {
     const doc = parseSeq(
       wrap(
-        '<skam:block>一</skam:block>' +
-          '<skam:block>二</skam:block>' +
-          '<skam:block xml:id="b2">三</skam:block>'
+        '<skam:block xml:id="p1">' +
+          '<skam:tateten xml:id="tt">學</skam:tateten>' +
+          '<skam:okimoji xml:id="oki">而</skam:okimoji>' +
+          '<skam:joji id="jo">時</skam:joji>' +
+          '<skam:yomigana value="a" xml:id="yo">習</skam:yomigana>' +
+          '<skam:kaeri kind="re" xml:id="ka"/>' +
+          '<skam:kutoten value="、" xml:id="ku"/>' +
+          '<skam:kun yomi="x" okuri="y" xml:id="kn">之</skam:kun>' +
+          '</skam:block>'
       )
     );
-    expect(doc.blocks.map((b) => b.id)).toEqual(['b1', 'b3', 'b2']);
+    expect(
+      markIds(doc)
+        .filter((id) => !id?.startsWith('m#'))
+        .sort()
+    ).toEqual(['jo', 'ka', 'kn', 'ku', 'oki', 'tt', 'yo'].sort());
+    // kun の xml:id は最初に作る注記 (yomigana) に付き、okurigana は自動の id
+    expect(doc.marks.find((m) => m.type === 'yomigana' && m.value === 'x')?.id).toBe('kn');
+    expect(doc.marks.find((m) => m.type === 'okurigana')?.id).toMatch(/^m#\d+$/);
   });
 
-  it('skips an explicit block id that comes first', () => {
-    const doc = parseSeq(
-      wrap('<skam:block xml:id="b1">一</skam:block>' + '<skam:block>二</skam:block>')
-    );
-    expect(doc.blocks.map((b) => b.id)).toEqual(['b1', 'b2']);
+  it('prefers xml:id over id on the same element', () => {
+    const doc = parseSeq(wrap('<skam:block xml:id="a" id="b">學</skam:block>'));
+    expect(doc.blocks[0]?.id).toBe('a');
   });
 
-  it('skips an explicit ref xml:id', () => {
+  it('numbers id-less marks by their order in marks[]', () => {
     const doc = parseSeq(
       wrap(
-        '<skam:block><skam:kun yomi="まな">學</skam:kun><skam:ref xml:id="m1" label="A"/></skam:block>'
+        '<skam:block><skam:span type="emphasis">學</skam:span>' +
+          '<skam:span type="emphasis">而</skam:span><skam:span type="emphasis">時</skam:span></skam:block>'
       )
     );
-    expect(markIds(doc).filter((id) => id === 'm1')).toHaveLength(1);
-    expect(doc.marks.find((m) => m.type === 'ref')?.id).toBe('m1');
+    expect(markIds(doc)).toEqual(['m#1', 'm#2', 'm#3']);
   });
 
-  it('skips an explicit ref id attribute', () => {
+  it('numbers around a hand-written mark id by position', () => {
     const doc = parseSeq(
       wrap(
-        '<skam:block><skam:kun yomi="まな">學</skam:kun><skam:ref id="m1" label="A"/></skam:block>'
+        '<skam:block><skam:span type="emphasis" xml:id="n1">學</skam:span>' +
+          '<skam:span type="emphasis">而</skam:span><skam:span type="emphasis">時</skam:span></skam:block>'
       )
     );
-    expect(markIds(doc).filter((id) => id === 'm1')).toHaveLength(1);
+    expect(markIds(doc)).toEqual(['n1', 'm#2', 'm#3']);
   });
 
-  it('skips an explicit skam:br id', () => {
-    const doc = parseSeq(
-      wrap(
-        '<skam:block><skam:kun yomi="まな">學</skam:kun><skam:kun yomi="じ">而</skam:kun>' +
-          '<skam:br xml:id="m2"/><skam:kun yomi="あ">亜</skam:kun></skam:block>'
-      )
-    );
-    const ids = markIds(doc);
-    expect(new Set(ids).size).toBe(ids.length);
-    expect(doc.marks.find((m) => m.type === 'linebreak')?.id).toBe('m2');
-    expect(ids.filter((id) => id === 'm2')).toHaveLength(1);
-  });
+  it.each(['b#1', '1a', ' a', 'a b', 'a:b', 'x#1'])(
+    'rejects the id %j with a positioned error',
+    (id) => {
+      const xml = wrap(`<skam:block xml:id="${id}">學</skam:block>`);
+      expect(() => parseSeq(xml)).toThrow(SKAMXMLParseError);
+      try {
+        parseSeq(xml);
+      } catch (e) {
+        expect((e as SKAMXMLParseError).line).toBeDefined();
+      }
+    }
+  );
 
-  it('skips a token id equal to an explicit block id (one set across prefixes)', () => {
-    const doc = parseSeq(wrap('<skam:block xml:id="t1"><skam:p>一二</skam:p></skam:block>'));
-    expect(doc.tokens.map((t) => t.id)).not.toContain('t1');
-  });
-
-  it('treats an explicit ref id as explicit even when it equals a skipped generated id', () => {
-    const doc = parseSeq(
-      wrap(
-        '<skam:block><skam:kun yomi="まな">學</skam:kun>' +
-          '<skam:span type="highlight" ref="other"><skam:ref xml:id="m1" label="A"/>而</skam:span></skam:block>'
-      )
-    );
-    const highlight = doc.marks.find((m) => m.type === 'highlight') as { ref?: string };
-    expect(highlight.ref).toBe('other');
-  });
-
-  it('also skips explicit ids inside subtrees the parser does not read', () => {
-    const doc = parseSeq(
-      wrap('<skam:future><skam:block xml:id="b1"/></skam:future>' + '<skam:block>一</skam:block>')
-    );
-    expect(doc.blocks.map((b) => b.id)).toEqual(['b2']);
+  it('rejects an invalid id attribute on a mark element', () => {
+    expect(() =>
+      parseSeq(wrap('<skam:block><skam:span type="emphasis" id="1a">學</skam:span></skam:block>'))
+    ).toThrow(SKAMXMLParseError);
   });
 
   it('treats an empty xml:id as absent', () => {
     const doc = parseSeq(wrap('<skam:block xml:id="">一</skam:block>'));
-    expect(doc.blocks.map((b) => b.id)).toEqual(['b1']);
-  });
-
-  // 単独では 150ms ほどだが、全パッケージを並列で流すと 7 秒かかって既定の 5 秒を超えたことがあるので、時間を明示する
-  it('calls the generator in proportion to the number of explicit ids', { timeout: 30_000 }, () => {
-    const explicit = Array.from(
-      { length: 10000 },
-      (_, i) => `<skam:block xml:id="b${i + 1}"/>`
-    ).join('');
-    const base = createSequentialIdGenerator();
-    const calls: Record<string, number> = {};
-    const doc = parse(wrap(`${explicit}<skam:block>一</skam:block>`), {
-      idGenerator: {
-        generate(prefix) {
-          calls[prefix] = (calls[prefix] ?? 0) + 1;
-          return base.generate(prefix);
-        },
-      },
-    });
-    expect(doc.blocks[doc.blocks.length - 1]?.id).toBe('b10001');
-    expect(calls['b']).toBe(10001);
-  });
-
-  it('throws SKAMXMLParseError without the id value when the generator keeps colliding', () => {
-    const xml = wrap('<skam:block xml:id="b1"/><skam:block>一</skam:block>');
-    const parseWithStuck = () => parse(xml, { idGenerator: { generate: () => 'b1' } });
-    expect(parseWithStuck).toThrow(SKAMXMLParseError);
-    expect(parseWithStuck).not.toThrow(/b1/);
-  });
-
-  it('uses the next value when the generator collides only once', () => {
-    const values = ['b1', 'b9'];
-    const doc = parse(wrap('<skam:block xml:id="b1"/><skam:block>一</skam:block>'), {
-      idGenerator: { generate: (prefix) => values.shift() ?? `${prefix}x${values.length}` },
-    });
-    expect(doc.blocks[1]?.id).toBe('b9');
+    expect(doc.blocks.map((b) => b.id)).toEqual(['b#1']);
   });
 
   it('still reports DUPLICATE_ID for two identical explicit ids', () => {
@@ -1022,18 +911,101 @@ describe('parse - generated ids avoid explicit ids', () => {
       '<skam:block xml:id="b1">一</skam:block>' + '<skam:block xml:id="b1">二</skam:block>'
     );
     expect(() => parseSeq(xml)).toThrow(/Duplicate block ID/);
+    const marks = wrap(
+      '<skam:block><skam:span type="emphasis" xml:id="x">一</skam:span><skam:span type="emphasis" xml:id="x">二</skam:span></skam:block>'
+    );
+    expect(() => parseSeq(marks)).toThrow(/Duplicate/);
+  });
+});
+
+describe('parse - highlight and ref linking (by name only)', () => {
+  const body = (inner: string) =>
+    `<skam:doc xmlns:skam="urn:skam:1"><skam:body><skam:block>${inner}</skam:block></skam:body></skam:doc>`;
+  const highlights = (doc: ReturnType<typeof parseSeq>) =>
+    doc.marks.filter((m): m is Extract<typeof m, { type: 'highlight' }> => m.type === 'highlight');
+
+  it('does not link a ref inside a highlight without a ref attribute', () => {
+    const doc = parseSeq(
+      body('<skam:span type="highlight">學<skam:ref label="ア"/>而</skam:span>')
+    );
+    expect(highlights(doc)[0]?.ref).toBeUndefined();
+    expect(doc.marks.filter((m) => m.type === 'ref')).toHaveLength(1);
+    const result = validateSKAMDocument(doc);
+    expect(result.valid && result.warnings).toBeFalsy();
   });
 
-  it('keeps the usual ids when no explicit id exists', () => {
-    const doc = parseSeq(wrap('<skam:block><skam:kun yomi="まな">學</skam:kun>而</skam:block>'));
-    expect(doc.blocks[0]?.id).toBe('b1');
-    expect(doc.tokens.map((t) => t.id)).toEqual(['t1', 't2']);
-    expect(doc.marks[0]?.id).toBe('m1');
+  it('treats ref="" as no attribute', () => {
+    const doc = parseSeq(
+      body('<skam:span type="highlight" ref="">學<skam:ref label="ア"/>而</skam:span>')
+    );
+    expect(highlights(doc)[0]?.ref).toBeUndefined();
+    expect(doc.marks.filter((m) => m.type === 'ref')).toHaveLength(1);
   });
 
-  it('keeps the shape of random ids with the default generator', () => {
-    const doc = parse(wrap('<skam:block>一</skam:block>'));
-    expect(doc.blocks[0]?.id).toMatch(/^b-[0-9a-f]{8}$/);
-    expect(doc.tokens[0]?.id).toMatch(/^t-[0-9a-f]{8}$/);
+  it('links by the ref attribute to a hand-written ref id inside the span', () => {
+    const doc = parseSeq(
+      body(
+        '<skam:span type="highlight" ref="r1">學<skam:ref xml:id="r1" label="ア"/>而</skam:span>'
+      )
+    );
+    expect(highlights(doc)[0]?.ref).toBe('r1');
+    const result = validateSKAMDocument(doc);
+    expect(result.valid && result.warnings).toBeFalsy();
+  });
+
+  it('does not link a hand-written ref id without a ref attribute', () => {
+    const doc = parseSeq(
+      body('<skam:span type="highlight">學<skam:ref xml:id="r1" label="ア"/>而</skam:span>')
+    );
+    expect(highlights(doc)[0]?.ref).toBeUndefined();
+  });
+
+  it.each(['nonexistent', '__proto__', 'constructor', 'toString'])(
+    'throws a positioned error for ref="%s" that points to no ref',
+    (name) => {
+      const xml = body(`<skam:span type="highlight" ref="${name}">學</skam:span>`);
+      expect(() => parseSeq(xml)).toThrow(SKAMXMLParseError);
+      try {
+        parseSeq(xml);
+      } catch (e) {
+        expect((e as SKAMXMLParseError).line).toBeDefined();
+      }
+    }
+  );
+
+  it('throws when the ref attribute names a block xml:id', () => {
+    const xml = `<skam:doc xmlns:skam="urn:skam:1"><skam:body><skam:block xml:id="p1">學<skam:span type="highlight" ref="p1">而</skam:span></skam:block></skam:body></skam:doc>`;
+    expect(() => parseSeq(xml)).toThrow(SKAMXMLParseError);
+  });
+
+  it('throws when the ref attribute names a non-ref mark id', () => {
+    const doc = body(
+      '<skam:span type="emphasis" xml:id="e1">學</skam:span><skam:span type="highlight" ref="e1">而</skam:span>'
+    );
+    expect(() => parseSeq(doc)).toThrow(SKAMXMLParseError);
+  });
+
+  it('resolves a ref attribute that points to a ref after the highlight', () => {
+    const doc = parseSeq(
+      body(
+        '<skam:span type="highlight" ref="r1">學而</skam:span>之<skam:ref xml:id="r1" label="ア"/>'
+      )
+    );
+    expect(highlights(doc)[0]?.ref).toBe('r1');
+  });
+
+  it('lets highlights in different blocks share one ref by name', () => {
+    const xml = `<skam:doc xmlns:skam="urn:skam:1"><skam:body><skam:block>學<skam:ref xml:id="r1" label="ア"/></skam:block><skam:block><skam:span type="highlight" ref="r1">而</skam:span></skam:block><skam:block><skam:span type="highlight" ref="r1">時</skam:span></skam:block></skam:body></skam:doc>`;
+    const doc = parseSeq(xml);
+    expect(highlights(doc).map((h) => h.ref)).toEqual(['r1', 'r1']);
+  });
+
+  it('does not link a ref that comes before the first character or outside the span', () => {
+    const doc = parseSeq(
+      body(
+        '<skam:span type="highlight"><skam:ref label="ア"/>學而</skam:span><skam:ref label="イ"/>'
+      )
+    );
+    expect(highlights(doc)[0]?.ref).toBeUndefined();
   });
 });

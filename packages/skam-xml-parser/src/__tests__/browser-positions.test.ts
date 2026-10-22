@@ -1,7 +1,6 @@
 /// <reference types="node" />
 import { readdirSync, readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { createSequentialIdGenerator } from '@kanbun-skam/skam';
 import { parse, SKAMValidationError } from '../index.js';
 import {
   parseFromDocument,
@@ -261,13 +260,9 @@ function stripPositions(doc: Document): Document {
 }
 
 const parseWithoutPositions = (xml: string, options: ParseOptions = {}) =>
-  parseWith((source) => stripPositions(parseXMLWithLocator(source)), xml, {
-    idGenerator: createSequentialIdGenerator(),
-    ...options,
-  });
+  parseWith((source) => stripPositions(parseXMLWithLocator(source)), xml, options);
 
-const parseOnNode = (xml: string, options: ParseOptions = {}) =>
-  parse(xml, { idGenerator: createSequentialIdGenerator(), ...options });
+const parseOnNode = (xml: string, options: ParseOptions = {}) => parse(xml, options);
 
 function caught(fn: () => unknown): unknown {
   try {
@@ -420,22 +415,18 @@ describe('element positions without xmldom positions', () => {
 
   it('keeps the positions of two documents apart when one is parsed inside the other', () => {
     const inner = `<skam:doc ${NS}><skam:body><skam:block>\n\n  ${BAD}</skam:block></skam:body></skam:doc>`;
-    const outer = `<skam:doc ${NS}>\n<skam:body><skam:block>甲\n\n\n    ${BAD}</skam:block></skam:body></skam:doc>`;
+    const outer = `<skam:doc ${NS}>\n<skam:body><skam:block><skam:future/>甲\n\n\n    ${BAD}</skam:block></skam:body></skam:doc>`;
     let innerError: unknown;
-    const base = createSequentialIdGenerator();
     let nested = false;
-    const idGenerator = {
-      ...base,
-      generate: (...args: Parameters<typeof base.generate>) => {
-        if (!nested) {
-          nested = true;
-          innerError = caught(() => parseWithoutPositions(inner));
-        }
-        return base.generate(...args);
-      },
+    // 未知の要素の通知は parse の途中で呼ばれるので、入れ子の parse の足場にする
+    const onWarning = () => {
+      if (!nested) {
+        nested = true;
+        innerError = caught(() => parseWithoutPositions(inner));
+      }
     };
     const outerError = caught(() =>
-      parseWithoutPositions(outer, { idGenerator: idGenerator as typeof base })
+      parseWithoutPositions(outer, { onWarning })
     ) as SKAMXMLParseError;
     expect((innerError as SKAMXMLParseError).line).toBe(3);
     expect((innerError as SKAMXMLParseError).column).toBe(3);
@@ -444,24 +435,17 @@ describe('element positions without xmldom positions', () => {
   });
 
   it('keeps the outer registration when the same Document is parsed again inside the parse', () => {
-    const xml = `<skam:doc ${NS}>\n<skam:body><skam:block>甲\n\n${BAD}</skam:block></skam:body></skam:doc>`;
+    const xml = `<skam:doc ${NS}>\n<skam:body><skam:block><skam:future/>甲\n\n${BAD}</skam:block></skam:body></skam:doc>`;
     const doc = stripPositions(parseXMLWithLocator(xml));
-    const base = createSequentialIdGenerator();
     let nested = false;
-    const idGenerator = {
-      ...base,
-      generate: (...args: Parameters<typeof base.generate>) => {
-        if (!nested) {
-          nested = true;
-          // Re-enter on the same Document with the same source; it fails at the same element.
-          caught(() => parseFromDocument(doc, {}, xml));
-        }
-        return base.generate(...args);
-      },
+    const onWarning = () => {
+      if (!nested) {
+        nested = true;
+        // Re-enter on the same Document with the same source; it fails at the same element.
+        caught(() => parseFromDocument(doc, {}, xml));
+      }
     };
-    const error = caught(() =>
-      parseFromDocument(doc, { idGenerator: idGenerator as typeof base }, xml)
-    ) as SKAMXMLParseError;
+    const error = caught(() => parseFromDocument(doc, { onWarning }, xml)) as SKAMXMLParseError;
     expect(error.line).toBe(4);
     expect(error.column).toBe(1);
   });

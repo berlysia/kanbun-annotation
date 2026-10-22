@@ -18,6 +18,8 @@ export type StringifyLossCode =
   | 'EXT'
   | 'UNKNOWN_EXTENSION'
   | 'PLACEMENT_HINT'
+  | 'ID_FORM'
+  | 'XML_UNWRITABLE_CHAR'
   // Codes may be added later, so exhaustive switches need a default branch.
   | (string & {});
 

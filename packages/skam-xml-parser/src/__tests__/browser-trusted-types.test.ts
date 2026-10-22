@@ -1,6 +1,5 @@
 import { DOMParser as XmldomParser } from '@xmldom/xmldom';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { createSequentialIdGenerator } from '@kanbun-skam/skam';
 import { parse as parseOnBrowser } from '../index.browser.js';
 import { parse as parseOnNode } from '../index.js';
 import { SKAMXMLParseError } from '../parse-error.js';
@@ -59,9 +58,6 @@ function interpret(xml: string): Document {
   return Object.assign(doc, { querySelector: () => null }) as unknown as Document;
 }
 
-const withIds = { idGenerator: createSequentialIdGenerator() };
-const freshIds = () => ({ idGenerator: createSequentialIdGenerator() });
-
 function caught(fn: () => unknown): unknown {
   try {
     fn();
@@ -79,16 +75,16 @@ describe('browser build: trustedTypesPolicy', () => {
   it('calls createHTML once with the original XML and gives the same document as without a policy', () => {
     stubDomParser({ requireTrusted: false });
     const policy = { createHTML: vi.fn((input: string) => input) };
-    const withPolicy = parseOnBrowser(VALID, { ...freshIds(), trustedTypesPolicy: policy });
+    const withPolicy = parseOnBrowser(VALID, { trustedTypesPolicy: policy });
     expect(policy.createHTML).toHaveBeenCalledTimes(1);
     expect(policy.createHTML).toHaveBeenCalledWith(VALID);
-    expect(withPolicy).toEqual(parseOnBrowser(VALID, freshIds()));
+    expect(withPolicy).toEqual(parseOnBrowser(VALID));
   });
 
   it('passes the value createHTML returned to parseFromString as-is', () => {
     const calls = stubDomParser({ requireTrusted: true, sources: new Map([[TRUSTED, VALID]]) });
     const policy = { createHTML: vi.fn(() => TRUSTED) };
-    parseOnBrowser(VALID, { ...withIds, trustedTypesPolicy: policy });
+    parseOnBrowser(VALID, { trustedTypesPolicy: policy });
     expect(calls).toHaveLength(1);
     expect(calls[0]!.input).toBe(TRUSTED);
   });
@@ -96,11 +92,10 @@ describe('browser build: trustedTypesPolicy', () => {
   it('parses on a page that requires Trusted Types only when a policy is given', () => {
     stubDomParser({ requireTrusted: true, sources: new Map([[TRUSTED, VALID]]) });
     const doc = parseOnBrowser(VALID, {
-      ...freshIds(),
       trustedTypesPolicy: { createHTML: () => TRUSTED },
     });
     expect(doc.tokens.map((t) => t.text).join('')).toBe('學而時習之');
-    expect(() => parseOnBrowser(VALID, freshIds())).toThrow(TypeError);
+    expect(() => parseOnBrowser(VALID)).toThrow(TypeError);
   });
 
   it('rethrows what createHTML threw without wrapping', () => {
@@ -148,8 +143,8 @@ describe('browser build: trustedTypesPolicy', () => {
 describe('Node build: trustedTypesPolicy', () => {
   it('ignores the policy: createHTML is not called and the result is the same', () => {
     const policy = { createHTML: vi.fn((input: string) => input) };
-    const withPolicy = parseOnNode(VALID, { ...freshIds(), trustedTypesPolicy: policy });
+    const withPolicy = parseOnNode(VALID, { trustedTypesPolicy: policy });
     expect(policy.createHTML).not.toHaveBeenCalled();
-    expect(withPolicy).toEqual(parseOnNode(VALID, freshIds()));
+    expect(withPolicy).toEqual(parseOnNode(VALID));
   });
 });

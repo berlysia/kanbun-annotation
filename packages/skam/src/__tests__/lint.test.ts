@@ -9,6 +9,7 @@ import {
   TATETEN_SINGLE_TOKEN,
   KAERI_UNCLOSED,
   HIGHLIGHT_REF_MISSING,
+  HIGHLIGHT_REF_UNLINKED,
 } from '../lint.js';
 import { KAERI } from '../index.js';
 import { buildAnnotationIR } from '../rendering/build-annotation-ir.js';
@@ -254,6 +255,47 @@ describe('lintSKAMDocument', () => {
       );
       expect(lintSKAMDocument(doc)).toEqual([]);
     });
+
+    describe('HIGHLIGHT_REF_UNLINKED', () => {
+      const highlight: Mark = {
+        type: 'highlight',
+        id: 'h1',
+        anchor: { from: 't1', to: 't2' },
+      };
+      const refAfter = (after: string, id = 'r1'): Mark => ({
+        type: 'ref',
+        id,
+        position: { blockId: 'b1', after },
+        label: 'A',
+      });
+
+      it('ref の無い傍線の範囲の字の後ろに ref が 1 つあれば診断 (path は傍線)', () => {
+        const doc = valid(docWithMarks([highlight, refAfter('t1')]));
+        expect(lintSKAMDocument(doc)).toEqual([
+          expect.objectContaining({ code: HIGHLIGHT_REF_UNLINKED, path: 'marks[0]' }),
+        ]);
+      });
+
+      it('範囲の最後の字の後ろの ref も診断', () => {
+        const doc = valid(docWithMarks([highlight, refAfter('t2')]));
+        expect(lintSKAMDocument(doc).map((d) => d.code)).toEqual([HIGHLIGHT_REF_UNLINKED]);
+      });
+
+      it('ref が 2 つなら診断なし', () => {
+        const doc = valid(docWithMarks([highlight, refAfter('t1'), refAfter('t2', 'r2')]));
+        expect(lintSKAMDocument(doc)).toEqual([]);
+      });
+
+      it('ref が範囲の外なら診断なし', () => {
+        const doc = valid(docWithMarks([highlight, refAfter('t3')]));
+        expect(lintSKAMDocument(doc)).toEqual([]);
+      });
+
+      it('傍線に ref があれば診断なし', () => {
+        const doc = valid(docWithMarks([{ ...highlight, ref: 'r1' }, refAfter('t1')]));
+        expect(lintSKAMDocument(doc)).toEqual([]);
+      });
+    });
   });
 
   describe('返り点', () => {
@@ -405,6 +447,13 @@ describe('lintSKAMDocument', () => {
         [{ type: 'kaeri', id: MARKER, position: { blockId: 'b1', after: 't1' }, value: KAERI.NI }],
       ],
       [HIGHLIGHT_REF_MISSING, [{ type: 'highlight', id: MARKER, anchor, ref: MARKER }]],
+      [
+        HIGHLIGHT_REF_UNLINKED,
+        [
+          { type: 'highlight', id: MARKER, anchor },
+          { type: 'ref', id: 'r1', position: { blockId: 'b1', after: 't1' }, label: MARKER },
+        ],
+      ],
     ];
 
     it.each(cases)('%s', (code, marks) => {

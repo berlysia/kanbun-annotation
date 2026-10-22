@@ -113,9 +113,7 @@ describe('操作連鎖', () => {
     assertValidDocument(doc);
     const ids = doc.marks.map((m) => m.id);
     expect(ids).toHaveLength(3);
-    for (const id of ids) {
-      expect(id).toMatch(/^m-[0-9a-f]{8}$/);
-    }
+    expect(ids).toEqual(['m#1', 'm#2', 'm#3']);
 
     doc = removeMark(doc, ids[2]!);
     doc = removeMark(doc, ids[1]!);

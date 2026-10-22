@@ -170,7 +170,22 @@ import { KAERI } from '@kanbun-skam/skam';
 ```typescript
 import { createRandomIdGenerator, createSequentialIdGenerator } from '@kanbun-skam/skam';
 import { generateId, generateMarkId } from '@kanbun-skam/skam';
+import {
+  isHandId,
+  isAutoId,
+  findXmlUnwritableChars,
+  findIdFormIssues,
+  renumberAutoIds,
+  convertHandIdsToAuto,
+} from '@kanbun-skam/skam';
 ```
+
+id は手書きの id（XML の NCName）と、`#` を含む自動の id に分かれる（SKAM-draft §3.1）。
+
+- `generateMarkId(doc)` は、文書のどの id とも重ならない最小の `m#<正の整数>` を返す。`addMark` などが id の無い注記に付けるのはこの値。`generateId(doc, prefix)` は `{prefix}-{8 桁の 16 進}` を返す
+- `renumberAutoIds(doc)` は、自動の形の id を今の位置の値（ブロック `b#n`、字 `<ブロックの id>#n`、注記 `m#n`）に付け直し、それを指す参照（`tokenIds`、anchor、position、`highlight.ref`、derivations の `result`）を一緒に付け替えた新しい文書を返す。`ext` と `custom` の中は見ない
+- `convertHandIdsToAuto(doc, keep)` は、`keep` に無い手書きの id を自動の id に変える。乱数の id で作った文書を、外から指す id だけ残して XML に書くときに使う。自動の id にすると `ID_FORM` になる ref の id は残す
+- `findIdFormIssues(doc)` は `ID_FORM` に当たる所の path を返す。`findXmlUnwritableChars(doc)` は `XML_UNWRITABLE_CHAR` に当たる所の path を返す（どちらも validator の警告と同じ）
 
 ### CRUD 操作
 

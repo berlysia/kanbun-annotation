@@ -3,13 +3,12 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { createSequentialIdGenerator } from '@kanbun-skam/skam';
 import type { SKAMDocument } from '@kanbun-skam/skam';
 import { parse } from '@kanbun-skam/skam-xml-parser';
 import { stringify, type StringifyLoss } from '@kanbun-skam/skam-xml-stringify';
 
 const IVS = '\u{E0100}';
-const parseSeq = (xml: string) => parse(xml, { idGenerator: createSequentialIdGenerator() });
+const parseSeq = (xml: string) => parse(xml);
 const wrap = (body: string) =>
   `<skam:doc xmlns:skam="urn:skam:1"><skam:body><skam:block>${body}</skam:block></skam:body></skam:doc>`;
 const texts = (doc: SKAMDocument) => doc.tokens.map((t) => t.text);

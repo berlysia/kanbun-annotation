@@ -1773,7 +1773,7 @@ describe('CRUD operations preserve validity', () => {
       value: '㆑',
     });
     assertValidDocument(newDoc);
-    expect(markId).toMatch(/^m-[0-9a-f]{8}$/);
+    expect(markId).toMatch(/^m#[1-9][0-9]*$/);
     expect(newDoc.marks).toHaveLength(2);
   });
 });

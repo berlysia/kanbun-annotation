@@ -17,6 +17,7 @@ import type {
   SoeganaMark,
   KutotenMark,
 } from '../index.js';
+import { collectDocumentIds, issueAutoMarkId } from '../auto-ids.js';
 
 // ============================================================================
 // Internal Utilities
@@ -218,10 +219,12 @@ export function generateId(doc: SKAMDocument, prefix = 'm'): string {
 /**
  * 新しいmarkIdを生成
  *
- * generateId(doc, 'm') のエイリアス。
+ * 文書の id (ブロック、字、注記) のどれとも重ならない最小の `m#<正の整数>` を返す。
+ * 自動の形なので、SKAM-ML に書くときに `xml:id` が増えない。
+ * 乱数の形 (`{prefix}-{8hex}`) が要るときは `generateId` を使う。
  */
 export function generateMarkId(doc: SKAMDocument): string {
-  return generateId(doc, 'm');
+  return issueAutoMarkId(collectDocumentIds(doc));
 }
 
 // ============================================================================

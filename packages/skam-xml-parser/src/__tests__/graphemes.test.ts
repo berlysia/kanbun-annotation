@@ -1,10 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { parse, SKAMXMLParseError } from '../index.js';
 import type { ParseOptions } from '../index.js';
-import { createSequentialIdGenerator } from '@kanbun-skam/skam';
 
-const parseSeq = (xml: string, opts: Partial<ParseOptions> = {}) =>
-  parse(xml, { ...opts, idGenerator: createSequentialIdGenerator() });
+const parseSeq = (xml: string, opts: Partial<ParseOptions> = {}) => parse(xml, opts);
 
 const wrap = (body: string) =>
   `<skam:doc xmlns:skam="urn:skam:1"><skam:body><skam:block>${body}</skam:block></skam:body></skam:doc>`;

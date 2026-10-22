@@ -86,6 +86,21 @@ describe('splitMultiCharacterKaeri', () => {
     expect(splitMultiCharacterKaeri(once)).toEqual(once);
   });
 
+  it('生成器を渡さなければ、新しい id は使われていない最小の m#n', () => {
+    const doc = docWithMarks([{ type: 'kaeri', id: 'm#1', position, value: '㆒㆑㆑' }]);
+    const result = splitMultiCharacterKaeri(doc);
+    expect(result.marks.map((m) => m.id)).toEqual(['m#1', 'm#2', 'm#3']);
+  });
+
+  it('生成器を渡さないとき、既存の m#n を飛ばす', () => {
+    const doc = docWithMarks([
+      { type: 'kaeri', id: 'm#1', position, value: '㆒㆑' },
+      { type: 'kutoten', id: 'm#2', position, value: '。' } as Mark,
+    ]);
+    const result = splitMultiCharacterKaeri(doc);
+    expect(result.marks.map((m) => m.id)).toEqual(['m#1', 'm#3', 'm#2']);
+  });
+
   it('既存の id と重なった id は振り直す', () => {
     const doc = docWithMarks([
       { type: 'kaeri', id: 'm1', position, value: '㆒㆑' },

@@ -29,7 +29,7 @@ describe('addMark', () => {
     assertValidDocument(result);
 
     expect(result.marks).toHaveLength(1);
-    expect(result.marks[0]?.id).toMatch(/^m-[0-9a-f]{8}$/);
+    expect(result.marks[0]?.id).toBe('m#1');
     expect(result.marks[0]).toMatchObject({
       type: 'okurigana',
       anchor: { from: 't1', to: 't1' },
@@ -70,7 +70,7 @@ describe('addMark', () => {
 
     expect(result.marks).toHaveLength(2);
     expect(result.marks[0]).toEqual(existingMark);
-    expect(result.marks[1]?.id).toMatch(/^m-[0-9a-f]{8}$/);
+    expect(result.marks[1]?.id).toMatch(/^m#[1-9][0-9]*$/);
   });
 
   it('2.4: 渡されたmarkにidがあっても新しいidで上書きされる', () => {
@@ -84,7 +84,7 @@ describe('addMark', () => {
 
     const result = addMark(doc, newMark);
 
-    expect(result.marks[0]?.id).toMatch(/^m-[0-9a-f]{8}$/);
+    expect(result.marks[0]?.id).toBe('m#1');
     expect(result.marks[0]?.id).not.toBe('old-id');
   });
 
@@ -186,7 +186,7 @@ describe('addMarkWithResult', () => {
     const result = addMarkWithResult(doc, newMark);
     assertValidDocument(result.doc);
 
-    expect(result.markId).toMatch(/^m-[0-9a-f]{8}$/);
+    expect(result.markId).toBe('m#1');
     expect(result.doc.marks).toHaveLength(1);
     expect(result.doc.marks[0]?.id).toBe(result.markId);
   });
@@ -236,7 +236,7 @@ describe('addMarkWithResult', () => {
       value: 'ク',
     });
 
-    expect(result.markId).toMatch(/^m-[0-9a-f]{8}$/);
+    expect(result.markId).toMatch(/^m#[1-9][0-9]*$/);
     expect(result.doc.marks).toHaveLength(2);
   });
 });

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { validateSKAMDocument } from '../validator.js';
-import { KAERI_MULTI_CHARACTER } from '../errors.js';
+import { KAERI_MULTI_CHARACTER, ID_FORM, XML_UNWRITABLE_CHAR } from '../errors.js';
 import type { SKAMDocument, Mark } from '../index.js';
 
 function docWithMarks(marks: Mark[]): SKAMDocument {
@@ -74,6 +74,209 @@ describe('validateSKAMDocument warnings (kaeri)', () => {
     expect(result.valid).toBe(false);
     if (result.valid) return;
     expect(result.errors[0]?.kind).toBe('INVALID_VALUE');
+    expect(result).not.toHaveProperty('warnings');
+  });
+});
+
+/** 自動の id の 1 ブロック 3 字の文書 */
+function autoDoc(marks: Mark[]): SKAMDocument {
+  return {
+    format: 'skam@0.1',
+    tokens: [
+      { id: 'b#1#1', text: '學' },
+      { id: 'b#1#2', text: '而' },
+      { id: 'b#1#3', text: '時' },
+    ],
+    blocks: [{ id: 'b#1', tokenIds: ['b#1#1', 'b#1#2', 'b#1#3'] }],
+    marks,
+    readings: [],
+  };
+}
+
+function warningsOf(doc: unknown, kind: string): { path: string; message: string }[] {
+  const result = validateSKAMDocument(doc);
+  expect(result.valid).toBe(true);
+  if (!result.valid) return [];
+  return (result.warnings ?? []).filter((w) => w.kind === kind);
+}
+
+describe('validateSKAMDocument warnings (ID_FORM)', () => {
+  it('位置の値に合う自動の id は警告なし', () => {
+    const result = validateSKAMDocument(autoDoc([]));
+    expect(result.valid).toBe(true);
+    expect(result).not.toHaveProperty('warnings');
+  });
+
+  it('字の id が NCName でない (1a) と ID_FORM、valid: true のまま', () => {
+    const d = autoDoc([]);
+    d.tokens[0]!.id = '1a';
+    d.blocks[0]!.tokenIds[0] = '1a';
+    const found = warningsOf(d, ID_FORM);
+    expect(found.map((w) => w.path)).toEqual(['tokens[0].id']);
+    expect(found[0]!.message).not.toContain('1a');
+  });
+
+  it('1 番目の字の id が b#1#2 だと ID_FORM', () => {
+    const d = autoDoc([]);
+    d.tokens[0]!.id = 'b#1#2';
+    d.tokens[1]!.id = 'b#1#1';
+    d.blocks[0]!.tokenIds = ['b#1#2', 'b#1#1', 'b#1#3'];
+    expect(warningsOf(d, ID_FORM).map((w) => w.path)).toEqual(['tokens[0].id', 'tokens[1].id']);
+  });
+
+  it('2 番目のブロックの id が b#1 だと ID_FORM', () => {
+    const d: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 'b#1#1', text: '學' },
+        { id: 'b#1#2', text: '而' },
+      ],
+      blocks: [
+        { id: 'b#2', tokenIds: ['b#1#1'] },
+        { id: 'b#1', tokenIds: ['b#1#2'] },
+      ],
+      marks: [],
+      readings: [],
+    };
+    // b#2 は 1 番目のブロック、b#1 は 2 番目のブロックなので、両方当たる。字の id も当たる
+    expect(warningsOf(d, ID_FORM).map((w) => w.path)).toContain('blocks[1].id');
+  });
+
+  it('注記の id は m#3 なら警告なし、m#0 と m#01 は ID_FORM', () => {
+    const mk = (id: string): Mark => ({
+      type: 'tateten',
+      id,
+      anchor: { from: 'b#1#1', to: 'b#1#2' },
+    });
+    expect(warningsOf(autoDoc([mk('m#3')]), ID_FORM)).toEqual([]);
+    expect(warningsOf(autoDoc([mk('m#0')]), ID_FORM).map((w) => w.path)).toEqual(['marks[0].id']);
+    expect(warningsOf(autoDoc([mk('m#01')]), ID_FORM).map((w) => w.path)).toEqual(['marks[0].id']);
+  });
+
+  const highlight = (ref: string): Mark => ({
+    type: 'highlight',
+    id: 'h1',
+    anchor: { from: 'b#1#1', to: 'b#1#2' },
+    ref,
+  });
+  const refAfter = (id: string, after: string): Mark => ({
+    type: 'ref',
+    id,
+    position: { blockId: 'b#1', after },
+    label: 'a',
+  });
+
+  it('手書きの id の ref を指す highlight.ref は警告なし (範囲の外でもよい)', () => {
+    expect(warningsOf(autoDoc([highlight('ref-1'), refAfter('ref-1', 'b#1#3')]), ID_FORM)).toEqual(
+      []
+    );
+  });
+
+  it('自動の id の ref を指す highlight.ref は ID_FORM', () => {
+    const found = warningsOf(autoDoc([highlight('m#2'), refAfter('m#2', 'b#1#1')]), ID_FORM);
+    expect(found.map((w) => w.path)).toEqual(['marks[0].ref']);
+  });
+
+  it('空文字の highlight.ref は ID_FORM', () => {
+    const found = warningsOf(autoDoc([highlight('')]), ID_FORM);
+    expect(found.map((w) => w.path)).toEqual(['marks[0].ref']);
+  });
+
+  it('同じ anchor の yomigana y1 と okurigana o1 は okurigana の id が ID_FORM', () => {
+    const kana = (type: 'yomigana' | 'okurigana', id: string): Mark => ({
+      type,
+      id,
+      anchor: { from: 'b#1#1', to: 'b#1#1' },
+      value: 'あ',
+    });
+    const found = warningsOf(autoDoc([kana('yomigana', 'y1'), kana('okurigana', 'o1')]), ID_FORM);
+    expect(found.map((w) => w.path)).toEqual(['marks[1].id']);
+  });
+
+  it('同じ anchor の okurigana o1 と soegana s1 (yomigana なし) は soegana の id が ID_FORM', () => {
+    const kana = (type: 'soegana' | 'okurigana', id: string): Mark => ({
+      type,
+      id,
+      anchor: { from: 'b#1#1', to: 'b#1#1' },
+      value: 'あ',
+    });
+    const found = warningsOf(autoDoc([kana('okurigana', 'o1'), kana('soegana', 's1')]), ID_FORM);
+    expect(found.map((w) => w.path)).toEqual(['marks[1].id']);
+  });
+});
+
+describe('validateSKAMDocument warnings (XML_UNWRITABLE_CHAR)', () => {
+  it('字の text の U+0001 は XML_UNWRITABLE_CHAR', () => {
+    const d = autoDoc([]);
+    d.tokens[0]!.text = 'a\u0001';
+    const found = warningsOf(d, XML_UNWRITABLE_CHAR);
+    expect(found.map((w) => w.path)).toEqual(['tokens[0].text']);
+    expect(found[0]!.message).not.toContain('\u0001');
+  });
+
+  it('reading の text、yomigana の value、placementHint の U+FFFE / U+FFFF / 対の無いサロゲート', () => {
+    const d = autoDoc([
+      {
+        type: 'yomigana',
+        id: 'y1',
+        anchor: { from: 'b#1#1', to: 'b#1#1' },
+        value: 'a' + String.fromCharCode(0xffff),
+        placementHint: 'x\uD800',
+      },
+    ]);
+    d.readings = [{ kind: 'kakikudashi', text: 'a' + String.fromCharCode(0xfffe) }];
+    const paths = warningsOf(d, XML_UNWRITABLE_CHAR).map((w) => w.path);
+    expect(paths).toEqual(
+      expect.arrayContaining(['readings[0].text', 'marks[0].value', 'marks[0].placementHint'])
+    );
+    expect(paths).toHaveLength(3);
+  });
+
+  it('1 つの欄につき 1 件', () => {
+    const d = autoDoc([]);
+    d.tokens[0]!.text = '\u0001\u0002';
+    expect(warningsOf(d, XML_UNWRITABLE_CHAR)).toHaveLength(1);
+  });
+
+  it('対の無い下位サロゲートも当たる', () => {
+    const d = autoDoc([]);
+    d.tokens[0]!.text = '\uDC00';
+    expect(warningsOf(d, XML_UNWRITABLE_CHAR)).toHaveLength(1);
+  });
+
+  it('対のサロゲート、タブ、改行は当たらない', () => {
+    for (const text of ['𠀀', '\t', '\n']) {
+      const d = autoDoc([]);
+      d.tokens[0]!.text = text;
+      expect(warningsOf(d, XML_UNWRITABLE_CHAR)).toEqual([]);
+    }
+  });
+
+  it('saidoku の語形の文字列にも当たる', () => {
+    const d = autoDoc([
+      {
+        type: 'saidoku',
+        id: 's1',
+        anchor: { from: 'b#1#1', to: 'b#1#1' },
+        forms: [{ yomi: 'ま\u0001' }],
+      },
+    ]);
+    expect(warningsOf(d, XML_UNWRITABLE_CHAR).map((w) => w.path)).toEqual([
+      'marks[0].forms[0].yomi',
+    ]);
+  });
+
+  it('custom の中は対象にしない', () => {
+    const d = autoDoc([
+      {
+        type: 'tateten',
+        id: 'x1',
+        anchor: { from: 'b#1#1', to: 'b#1#2' },
+        custom: { note: '\u0001' },
+      },
+    ]);
+    const result = validateSKAMDocument(d);
+    expect(result.valid).toBe(true);
     expect(result).not.toHaveProperty('warnings');
   });
 });

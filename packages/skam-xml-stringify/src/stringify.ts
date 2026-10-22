@@ -40,7 +40,16 @@ import type {
   RefMark,
   TatetenMark,
 } from '@kanbun-skam/skam';
-import { isAnchorBasedMark, KAERI, splitGraphemes } from '@kanbun-skam/skam';
+import {
+  isAnchorBasedMark,
+  KAERI,
+  splitGraphemes,
+  SKAM_ML_CONTENT_MODEL,
+  SKAM_ML_NESTING_ORDER,
+  isHandId,
+  findIdFormIssues,
+  findXmlUnwritableChars,
+} from '@kanbun-skam/skam';
 import {
   extensionRegistry,
   isExtensionName,
@@ -60,39 +69,6 @@ import {
 // ============================================================================
 
 const SKAM_NS = 'urn:skam:1';
-
-/**
- * SKAM-ML-draft §7.0 の内容モデル表のうち、子に制約がある行を字句どおりに転記したもの。
- * キーのない親 (block / span / tateten) は子の制約なし。saidoku は base/kunform の構造として個別に検査する。
- * キー base は「saidoku の中の skam:base」を表す。
- * @experimental 仕様の改訂に合わせて変わる。0.x の間は minor で変わりうる。同じ fixed group の同じ版どうしでのみ一致を保証する。
- */
-export const SKAM_ML_CONTENT_MODEL: Readonly<
-  Record<
-    'yomigana' | 'okimoji' | 'joji' | 'okototen' | 'base' | 'kun' | 'soegana',
-    readonly string[]
-  >
-> = {
-  yomigana: ['#text', 'kun'],
-  okimoji: ['#text', 'kun', 'okimoji', 'joji', 'okototen'],
-  joji: ['#text', 'kun', 'okimoji', 'joji', 'okototen'],
-  okototen: ['#text', 'kun', 'okimoji', 'joji', 'okototen'],
-  base: ['#text', 'kun', 'okimoji', 'joji', 'okototen'],
-  kun: ['#text'],
-  soegana: ['#text'],
-};
-
-/** @experimental SKAM-ML-draft §7.0 の入れ子順 (外側から)。同じ範囲の要素どうしの並びを決める */
-export const SKAM_ML_NESTING_ORDER = [
-  'span',
-  'tateten',
-  'saidoku',
-  'okimoji',
-  'joji',
-  'okototen',
-  'yomigana',
-  'kun',
-] as const;
 
 type ContentModelKey = keyof typeof SKAM_ML_CONTENT_MODEL;
 
@@ -179,6 +155,8 @@ interface StringifyContext {
   /** Block ID → block index (for position marks at a block start) */
   blockIndexById: Map<string, number>;
   extension: ExtensionOutput;
+  /** 手書きの id を持つ ref 注記の id。`highlight.ref` がこの中の値を指すときだけ `ref` 属性に書く */
+  handRefIds: ReadonlySet<string>;
 }
 
 const UNPLACED = Number.MAX_SAFE_INTEGER;
@@ -275,6 +253,11 @@ function escapeXml(text: string): string {
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&apos;');
+}
+
+/** 手書きの id だけを `xml:id` に書く。自動の id (`#` を含む) は parser が位置から計算するので書かない */
+function idAttribute(id: string | undefined): string {
+  return id !== undefined && isHandId(id) ? ` xml:id="${escapeXml(id)}"` : '';
 }
 
 function indentStr(level: number, size: number): string {
@@ -1065,6 +1048,24 @@ function kunParts(annotation: TokenAnnotation): XmlElementMarks['marks'] {
   return parts;
 }
 
+const KUN_ID_ORDER: ReadonlyMap<string, number> = new Map([
+  ['yomigana', 0],
+  ['okurigana', 1],
+  ['soegana', 2],
+]);
+
+/**
+ * `<skam:kun>` は yomigana / okurigana / soegana を 1 つの要素にまとめて書くので、`xml:id` は 1 つしか書けない。
+ * parser は `xml:id` を yomigana、okurigana、soegana の順で最初に作る注記に付けるので、書くのも同じ順で最初の注記の id。
+ * 2 つ目以降の手書きの id は `ID_FORM` の損失 (`findIdFormIssues`) で報告するので、ここでは書かない
+ */
+function kunIdAttribute(sources: readonly Mark[]): string {
+  const ordered = [...sources].sort(
+    (a, b) => (KUN_ID_ORDER.get(a.type) ?? 0) - (KUN_ID_ORDER.get(b.type) ?? 0)
+  );
+  return idAttribute(ordered[0]?.id);
+}
+
 /**
  * 単一トークンのベース XML を生成（テキスト + kun 属性のみ、trailing marks なし）
  */
@@ -1086,7 +1087,9 @@ function tokenBaseToXml(text: string, annotation: TokenAnnotation, ctx: Stringif
       attrs.push(`soe="${escapeXml(soe)}"`);
     }
 
-    const extension = extensionAttributes(ctx, 'skam:kun', kunParts(annotation));
+    const parts = kunParts(annotation);
+    const extension =
+      kunIdAttribute(parts.map(({ mark }) => mark)) + extensionAttributes(ctx, 'skam:kun', parts);
     return `<skam:kun ${attrs.join(' ')}${extension}>${escapeXml(text)}</skam:kun>`;
   }
 
@@ -1104,7 +1107,7 @@ function tokenTrailingToXml(annotation: TokenAnnotation, ctx: StringifyContext):
     for (const kaeri of kaeriAfter) {
       const kind = kaeriValueToKind(kaeri.value);
       const extension = extensionAttributes(ctx, 'skam:kaeri', [{ part: 'self', mark: kaeri }]);
-      xml += `<skam:kaeri kind="${escapeXml(kind)}"${extension}/>`;
+      xml += `<skam:kaeri kind="${escapeXml(kind)}"${idAttribute(kaeri.id)}${extension}/>`;
     }
   }
 
@@ -1114,6 +1117,7 @@ function tokenTrailingToXml(annotation: TokenAnnotation, ctx: StringifyContext):
       if (kutoten.kind) {
         attrs += ` kind="${kutoten.kind}"`;
       }
+      attrs += idAttribute(kutoten.id);
       attrs += extensionAttributes(ctx, 'skam:kutoten', [{ part: 'self', mark: kutoten }]);
       xml += `<skam:kutoten ${attrs}/>`;
     }
@@ -1122,14 +1126,14 @@ function tokenTrailingToXml(annotation: TokenAnnotation, ctx: StringifyContext):
   if (refAfter) {
     for (const ref of refAfter) {
       // id のない ref の content は notes に出せないので、インラインに出力する
-      xml += refMarkToXml(ref, !(ref.content && !ref.id));
+      xml += refMarkToXml(ref, !(ref.content && !isHandId(ref.id ?? '')));
     }
   }
 
   // linebreak は未知のフィールドを書かない。位置の正しさは検査しない (validator の役目)
   if (linebreakAfter) {
     for (const linebreak of linebreakAfter) {
-      xml += linebreak.id ? `<skam:br xml:id="${escapeXml(linebreak.id)}"/>` : '<skam:br/>';
+      xml += `<skam:br${idAttribute(linebreak.id)}/>`;
     }
   }
 
@@ -1155,7 +1159,8 @@ function wrapperTags(
   open: string;
   close: string;
 } {
-  const extension = extensionAttributes(ctx, `skam:${mark.type}`, [{ part: 'self', mark }]);
+  const extension =
+    idAttribute(mark.id) + extensionAttributes(ctx, `skam:${mark.type}`, [{ part: 'self', mark }]);
   switch (mark.type) {
     case 'okimoji':
       return { open: `<skam:okimoji${extension}>`, close: '</skam:okimoji>' };
@@ -1204,11 +1209,7 @@ function applyWrappers(
  * ref マークを XML に変換
  */
 function refMarkToXml(ref: RefMark, isEmpty: boolean): string {
-  let attrs = '';
-
-  if (ref.id) {
-    attrs += ` xml:id="${escapeXml(ref.id)}"`;
-  }
+  let attrs = idAttribute(ref.id);
 
   if (ref.label) {
     attrs += ` label="${escapeXml(ref.label)}"`;
@@ -1221,6 +1222,22 @@ function refMarkToXml(ref: RefMark, isEmpty: boolean): string {
   } else {
     return `<skam:ref${attrs}>${escapeXml(ref.content)}</skam:ref>`;
   }
+}
+
+/**
+ * highlight の要素の属性。parser は `ref` 属性だけで ref と結ぶので、`highlight.ref` がある highlight にだけ書く。
+ * 手書きの id の ref を指さない `highlight.ref` は書けない (ID_FORM の損失)
+ */
+function highlightAttributes(hl: HighlightMark, ctx: StringifyContext): string {
+  let attrs = 'type="highlight"';
+  if (hl.style) {
+    attrs += ` style="${hl.style}"`;
+  }
+  attrs += idAttribute(hl.id);
+  if (hl.ref !== undefined && ctx.handRefIds.has(hl.ref)) {
+    attrs += ` ref="${escapeXml(hl.ref)}"`;
+  }
+  return attrs;
 }
 
 /**
@@ -1242,14 +1259,15 @@ function renderRangeElement(
         const part = KUN_PART_OF_TYPE.get(source.type);
         return part === undefined ? [] : [{ part, mark: source }];
       });
-      const extension = extensionAttributes(ctx, 'skam:kun', parts);
+      const extension = kunIdAttribute(kun.sources) + extensionAttributes(ctx, 'skam:kun', parts);
       return `<skam:kun ${attrs.join(' ')}${extension}>${childrenXml}</skam:kun>`;
     }
     case '__yomigana_range': {
       const yomigana = mark as KunRangeSyntheticMark;
       const source = yomigana.sources.find((candidate) => candidate.type === 'yomigana');
       const extension = source
-        ? extensionAttributes(ctx, 'skam:yomigana', [{ part: 'self', mark: source }])
+        ? idAttribute(source.id) +
+          extensionAttributes(ctx, 'skam:yomigana', [{ part: 'self', mark: source }])
         : '';
       return `<skam:yomigana value="${escapeXml(yomigana.yomi ?? '')}"${extension}>${childrenXml}</skam:yomigana>`;
     }
@@ -1259,23 +1277,17 @@ function renderRangeElement(
       if (emp.style) {
         attrs += ` style="${escapeXml(emp.style)}"`;
       }
+      attrs += idAttribute(emp.id);
       return `<skam:span ${attrs}>${childrenXml}</skam:span>`;
     }
     case 'tateten': {
-      const extension = extensionAttributes(ctx, 'skam:tateten', [
-        { part: 'self', mark: mark as TatetenMark },
-      ]);
+      const extension =
+        idAttribute(mark.id) +
+        extensionAttributes(ctx, 'skam:tateten', [{ part: 'self', mark: mark as TatetenMark }]);
       return `<skam:tateten${extension}>${childrenXml}</skam:tateten>`;
     }
     case 'highlight': {
-      const hl = mark as HighlightMark;
-      let attrs = 'type="highlight"';
-      if (hl.style) {
-        attrs += ` style="${hl.style}"`;
-      }
-      if (hl.ref) {
-        attrs += ` ref="${escapeXml(hl.ref)}"`;
-      }
+      const attrs = highlightAttributes(mark as HighlightMark, ctx);
       return `<skam:span ${attrs}>${childrenXml}</skam:span>`;
     }
     case 'okimoji':
@@ -1302,7 +1314,7 @@ function findTrailingLeaf(node: ElementNode): TextNode | undefined {
   return current;
 }
 
-/** annotation から後置の位置マークを取り外して返す */
+/** annotation から後置の位置マークをすべて取り外して返す */
 function takeTrailing(annotation: TokenAnnotation): TokenAnnotation {
   const taken: TokenAnnotation = {};
   if (annotation.kaeriAfter) taken.kaeriAfter = annotation.kaeriAfter;
@@ -1314,6 +1326,18 @@ function takeTrailing(annotation: TokenAnnotation): TokenAnnotation {
   delete annotation.refAfter;
   delete annotation.linebreakAfter;
   return taken;
+}
+
+/** takeTrailing の前の後置の位置マークに戻す */
+function restoreTrailing(annotation: TokenAnnotation, original: TokenAnnotation): void {
+  delete annotation.kaeriAfter;
+  delete annotation.kutotenAfter;
+  delete annotation.refAfter;
+  delete annotation.linebreakAfter;
+  if (original.kaeriAfter) annotation.kaeriAfter = original.kaeriAfter;
+  if (original.kutotenAfter) annotation.kutotenAfter = original.kutotenAfter;
+  if (original.refAfter) annotation.refAfter = original.refAfter;
+  if (original.linebreakAfter) annotation.linebreakAfter = original.linebreakAfter;
 }
 
 /**
@@ -1333,13 +1357,11 @@ function contentNodeToXml(node: ContentNode, ctx: StringifyContext): string {
 
   // 要素ノード：最後の字の位置マークを、同じ字で終わる範囲の連鎖のうち最も外側の後ろへ出す (§7.0)
   const leaf = findTrailingLeaf(node);
+  const original = leaf ? { ...leaf.annotation } : undefined;
   const trailing = leaf ? takeTrailing(leaf.annotation) : {};
-  const elementXml = renderRangeElement(
-    node.mark,
-    node.children.map((child) => contentNodeToXml(child, ctx)).join(''),
-    ctx
-  );
-  if (leaf) Object.assign(leaf.annotation, trailing);
+  const childrenXml = node.children.map((child) => contentNodeToXml(child, ctx)).join('');
+  const elementXml = renderRangeElement(node.mark, childrenXml, ctx);
+  if (leaf && original) restoreTrailing(leaf.annotation, original);
   return elementXml + tokenTrailingToXml(trailing, ctx);
 }
 
@@ -1376,9 +1398,9 @@ function blockToXml(
     contentTree.map((node) => contentNodeToXml(node, ctx)).join('');
 
   if (content === '') {
-    return `${ind}<skam:block xml:id="${escapeXml(blockId)}"/>`;
+    return `${ind}<skam:block${idAttribute(blockId)}/>`;
   }
-  return `${ind}<skam:block xml:id="${escapeXml(blockId)}">${content}</skam:block>`;
+  return `${ind}<skam:block${idAttribute(blockId)}>${content}</skam:block>`;
 }
 
 /**
@@ -1387,7 +1409,7 @@ function blockToXml(
 function stringifyNotes(marks: Mark[], indentSize: number): string[] {
   // content を持つ ref マークを収集
   const notesRefs = marks.filter(
-    (m) => m.type === 'ref' && (m as RefMark).content && (m as RefMark).id
+    (m) => m.type === 'ref' && (m as RefMark).content && isHandId((m as RefMark).id ?? '')
   ) as RefMark[];
 
   if (notesRefs.length === 0) {
@@ -1398,7 +1420,7 @@ function stringifyNotes(marks: Mark[], indentSize: number): string[] {
   lines.push(`${indentStr(1, indentSize)}<skam:notes>`);
 
   for (const ref of notesRefs) {
-    if (ref.content && ref.id) {
+    if (ref.content && ref.id && isHandId(ref.id)) {
       lines.push(
         `${indentStr(2, indentSize)}<skam:note ref="${escapeXml(ref.id)}">${escapeXml(ref.content)}</skam:note>`
       );
@@ -1446,12 +1468,18 @@ function createContext(
     if (definition?.writeXmlAttributes) writers.set(name, definition);
   }
 
+  const handRefIds = new Set<string>();
+  for (const mark of doc.marks) {
+    if (mark.type === 'ref' && mark.id !== undefined && isHandId(mark.id)) handRefIds.add(mark.id);
+  }
+
   return {
     collector: new LossCollector(),
     markIndexMap,
     tokenPosition,
     blockIndexById,
     extension: { writers, consumed: new Map() },
+    handRefIds,
   };
 }
 
@@ -1585,6 +1613,65 @@ function recordFieldLosses(doc: SKAMDocument, ctx: StringifyContext, declared: b
         'placementHint'
       );
     }
+  }
+}
+
+/**
+ * validator の警告の path (`tokens[0].text`) を JSON Pointer (`/tokens/0/text`) にして、損失として記録する。
+ * 警告と同じ所を指すので、判定は `findIdFormIssues` と `findXmlUnwritableChars` の結果だけを使う
+ */
+function recordPathLoss(
+  doc: SKAMDocument,
+  ctx: StringifyContext,
+  warningPath: string,
+  loss: Pick<StringifyLoss, 'category' | 'code' | 'message'>
+): void {
+  const head = /^(blocks|tokens|marks|readings)\[(\d+)\]/.exec(warningPath);
+  const path = warningPath.replace(/\[(\d+)\]/g, '/$1').replace(/\./g, '/');
+  const entry: StringifyLoss = { ...loss, path: path.startsWith('/') ? path : `/${path}` };
+  const index = head ? Number(head[2]) : -1;
+  let key: LossSortKey = {
+    blockIndex: UNPLACED,
+    tokenIndex: UNPLACED,
+    markIndex: index,
+    fieldOrder: 0,
+  };
+  if (head?.[1] === 'blocks') {
+    key = { blockIndex: index, tokenIndex: -1, markIndex: -1, fieldOrder: 0 };
+  } else if (head?.[1] === 'tokens') {
+    const pos = ctx.tokenPosition.get(doc.tokens[index]?.id ?? '');
+    key = {
+      blockIndex: pos?.blockIndex ?? UNPLACED,
+      tokenIndex: pos?.tokenIndex ?? UNPLACED,
+      markIndex: -1,
+      fieldOrder: 0,
+    };
+  } else if (head?.[1] === 'marks') {
+    const mark = doc.marks[index];
+    if (mark) {
+      key = markSortKey(ctx, mark);
+      if (mark.id) entry.markId = mark.id;
+    }
+  }
+  ctx.collector.add(entry, key);
+}
+
+/** id の形が合わない所 (`ID_FORM`) と、XML に書けない文字 (`XML_UNWRITABLE_CHAR`) を損失にする */
+function recordIdAndCharLosses(doc: SKAMDocument, ctx: StringifyContext): void {
+  for (const issue of findIdFormIssues(doc)) {
+    recordPathLoss(doc, ctx, issue.path, {
+      category: 'unrepresentable',
+      code: 'ID_FORM',
+      message:
+        'This id or reference cannot be written to SKAM-ML: an id is neither an XML NCName nor the automatic form for its position, a highlight ref does not point to a ref mark with a hand-written id, or a hand-written id is on the second or later of the yomigana, okurigana and soegana marks on one anchor',
+    });
+  }
+  for (const issue of findXmlUnwritableChars(doc)) {
+    recordPathLoss(doc, ctx, issue.path, {
+      category: 'unrepresentable',
+      code: 'XML_UNWRITABLE_CHAR',
+      message: 'This string contains a character that XML 1.0 cannot represent',
+    });
   }
 }
 
@@ -1747,6 +1834,7 @@ export function stringify(doc: SKAMDocument, options: StringifyOptions = {}): st
   const ctx = createContext(doc, definitions);
   const declared = Array.isArray(doc.extensions);
   recordFieldLosses(doc, ctx, declared);
+  recordIdAndCharLosses(doc, ctx);
 
   // トークンID → Token のマップを構築
   const tokenMap = new Map<string, Token>();

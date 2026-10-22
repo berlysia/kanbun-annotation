@@ -42,6 +42,8 @@ import { getLinebreakPlacementIssues } from '@kanbun-skam/skam';
 - `KAERI_MULTI_CHARACTER`: 1 つの kaeri の `value` が複数の字。0.4.0 で同じコードの誤りになる。`path` は `marks[i].value`
 - `LEGACY_EXT`: `extensions` を持たない文書の、オブジェクトの `ext`（文書、readings、ブロック、token、注記、derivations。空のオブジェクトも含む）。`ext` 1 つにつき 1 件。0.4.0 で同じコードの誤りになる。`path` は `marks[i].ext` など
 - `LEGACY_EXT_REGISTERED_NAME`: `LEGACY_EXT` のうち、`ext` のキーが登録済みの拡張の名前と同じもの。宣言の書き忘れの疑い。`path` は `marks[i].ext.edu` など。0.4.0 では無くなる（`LEGACY_EXT` の誤りが同じ所を指す）
+- `ID_FORM`: id の形が SKAM-draft §3.1 に合わない。手書きの id（NCName）でも位置に合う自動の id でもないブロック・字・注記の id、手書きの id の ref を指さない `highlight.ref`、同じ anchor の読み仮名・送り仮名・添え仮名の 2 つ目以降の手書きの id。0.4.0 で同じコードの誤りになる。`path` は `blocks[i].id`、`tokens[i].id`、`marks[i].id`、`marks[i].ref`
+- `XML_UNWRITABLE_CHAR`: 字の text、reading の text、注記の文字列、placementHint に、XML 1.0 で書けない文字がある（SKAM-draft §3.2）。1 つの欄につき 1 件。0.4.0 で同じコードの誤りになる。`path` は `tokens[i].text` など
 - `ValidationWarningKind` に値を足すのは minor の変更
 
 ### 未完成の検査
@@ -53,14 +55,15 @@ import type { LintDiagnostic, LintCode } from '@kanbun-skam/skam';
 
 `lintSKAMDocument(doc)` は、構造として正しい文書のうち、作業が終わっていないように見える内容を `LintDiagnostic[]`（`{ code, path, message }`）で返す。診断はどれも誤りではない。中で検証しないので、`validateSKAMDocument` か `parse` を通した文書を渡す。検証を通っていない文書でも例外は出さないが、診断が正しいとは限らない。結果は `marks[]` の添字の順で、`message` は固定の文、`path` は添字だけを含む（入力の値を含まない）。
 
-| コード                   | 指摘する内容                                    | `path`              |
-| ------------------------ | ----------------------------------------------- | ------------------- |
-| `SAIDOKU_SINGLE_READING` | 再読文字の `forms` が 1 つ                      | `marks[i].forms`    |
-| `SAIDOKU_EMPTY_FORM`     | 再読文字の `forms` の要素に読みも送り仮名も無い | `marks[i].forms[j]` |
-| `EMPTY_KANA`             | 読み仮名、送り仮名、添え仮名が空か空白だけ      | `marks[i].value`    |
-| `TATETEN_SINGLE_TOKEN`   | 竪点が 1 字                                     | `marks[i].anchor`   |
-| `KAERI_UNCLOSED`         | 閉じていない返り点（SKAM-draft §14.1）          | `marks[i]`          |
-| `HIGHLIGHT_REF_MISSING`  | 傍線の `ref` が ref 注記の `id` に当たらない    | `marks[i].ref`      |
+| コード                   | 指摘する内容                                     | `path`              |
+| ------------------------ | ------------------------------------------------ | ------------------- |
+| `SAIDOKU_SINGLE_READING` | 再読文字の `forms` が 1 つ                       | `marks[i].forms`    |
+| `SAIDOKU_EMPTY_FORM`     | 再読文字の `forms` の要素に読みも送り仮名も無い  | `marks[i].forms[j]` |
+| `EMPTY_KANA`             | 読み仮名、送り仮名、添え仮名が空か空白だけ       | `marks[i].value`    |
+| `TATETEN_SINGLE_TOKEN`   | 竪点が 1 字                                      | `marks[i].anchor`   |
+| `KAERI_UNCLOSED`         | 閉じていない返り点（SKAM-draft §14.1）           | `marks[i]`          |
+| `HIGHLIGHT_REF_MISSING`  | 傍線の `ref` が ref 注記の `id` に当たらない     | `marks[i].ref`      |
+| `HIGHLIGHT_REF_UNLINKED` | `ref` の無い傍線の範囲に ref 注記がちょうど 1 つ | `marks[i]`          |
 
 コードは同じ名前の定数でも export する。`LintCode` に値を足すのは minor の変更。`validateSKAMDocument` の `warnings`（後の版で誤りになる書き方の知らせ）とは別のもので、診断はどの版でも誤りにならない。
 
@@ -170,7 +173,22 @@ import { KAERI } from '@kanbun-skam/skam';
 ```typescript
 import { createRandomIdGenerator, createSequentialIdGenerator } from '@kanbun-skam/skam';
 import { generateId, generateMarkId } from '@kanbun-skam/skam';
+import {
+  isHandId,
+  isAutoId,
+  findXmlUnwritableChars,
+  findIdFormIssues,
+  renumberAutoIds,
+  convertHandIdsToAuto,
+} from '@kanbun-skam/skam';
 ```
+
+id は手書きの id（XML の NCName）と、`#` を含む自動の id に分かれる（SKAM-draft §3.1）。
+
+- `generateMarkId(doc)` は、文書のどの id とも重ならない最小の `m#<正の整数>` を返す。`addMark` などが id の無い注記に付けるのはこの値。`generateId(doc, prefix)` は `{prefix}-{8 桁の 16 進}` を返す
+- `renumberAutoIds(doc)` は、自動の形の id を今の位置の値（ブロック `b#n`、字 `<ブロックの id>#n`、注記 `m#n`）に付け直し、それを指す参照（`tokenIds`、anchor、position、`highlight.ref`、derivations の `result`）を一緒に付け替えた新しい文書を返す。`ext` と `custom` の中は見ない
+- `convertHandIdsToAuto(doc, keep)` は、`keep` に無い手書きの id を自動の id に変える。乱数の id で作った文書を、外から指す id だけ残して XML に書くときに使う。自動の id にすると `ID_FORM` になる ref の id は残す
+- `findIdFormIssues(doc)` は `ID_FORM` に当たる所の path を返す。`findXmlUnwritableChars(doc)` は `XML_UNWRITABLE_CHAR` に当たる所の path を返す（どちらも validator の警告と同じ）
 
 ### CRUD 操作
 

@@ -20,6 +20,8 @@ export const TATETEN_SINGLE_TOKEN = 'TATETEN_SINGLE_TOKEN';
 export const KAERI_UNCLOSED = 'KAERI_UNCLOSED';
 /** 傍線の `ref` が、どの ref 注記の `id` とも等しくない */
 export const HIGHLIGHT_REF_MISSING = 'HIGHLIGHT_REF_MISSING';
+/** `ref` を持たない傍線の範囲の字の後ろに、ref 注記がちょうど 1 つある。SKAM-ML は名前でだけ結ぶので、XML に書くと結ばれない */
+export const HIGHLIGHT_REF_UNLINKED = 'HIGHLIGHT_REF_UNLINKED';
 
 /** 未完成の診断のコード。値を足すのは minor の変更として扱う */
 export type LintCode =
@@ -28,7 +30,8 @@ export type LintCode =
   | typeof EMPTY_KANA
   | typeof TATETEN_SINGLE_TOKEN
   | typeof KAERI_UNCLOSED
-  | typeof HIGHLIGHT_REF_MISSING;
+  | typeof HIGHLIGHT_REF_MISSING
+  | typeof HIGHLIGHT_REF_UNLINKED;
 
 export interface LintDiagnostic {
   code: LintCode;
@@ -46,6 +49,8 @@ const MESSAGES: Record<LintCode, string> = {
   TATETEN_SINGLE_TOKEN: 'A tateten mark covers a single token.',
   KAERI_UNCLOSED: 'A kaeri mark is not paired with the marks that close its series.',
   HIGHLIGHT_REF_MISSING: 'A highlight refers to a ref mark that does not exist.',
+  HIGHLIGHT_REF_UNLINKED:
+    'A highlight has no ref but exactly one ref mark follows a token in its range; SKAM-ML links them only by name.',
 };
 
 /**
@@ -180,6 +185,65 @@ function findUnclosedKaeri(
 }
 
 /**
+ * `ref` を持たない傍線のうち、範囲の字の後ろ (最後の字の後ろを含む) にある ref 注記がちょうど 1 つのものの添字。
+ * `ref` 属性の無い XML の傍線は中の ref と結ばないので、結んでいた形の文書をここで知らせる
+ */
+function findUnlinkedHighlights(
+  marks: readonly unknown[],
+  blocks: readonly unknown[]
+): ReadonlySet<number> {
+  // 字の id → 属するブロックの id とブロックの中の位置。重複した id は先のものを使う
+  const tokenPlaces = new Map<string, { blockId: string; place: number }>();
+  const seenBlocks = new Set<string>();
+  for (const block of blocks) {
+    if (!isRecord(block) || typeof block['id'] !== 'string' || !Array.isArray(block['tokenIds'])) {
+      continue;
+    }
+    const blockId = block['id'];
+    if (seenBlocks.has(blockId)) continue;
+    seenBlocks.add(blockId);
+    const tokenIds: unknown[] = block['tokenIds'];
+    tokenIds.forEach((tokenId, place) => {
+      if (typeof tokenId === 'string' && !tokenPlaces.has(tokenId)) {
+        tokenPlaces.set(tokenId, { blockId, place });
+      }
+    });
+  }
+
+  // ブロックの id → そのブロックの ref 注記の位置 (after の位置)
+  const refPlacesByBlock = new Map<string, number[]>();
+  for (const mark of marks) {
+    if (!isRecord(mark) || mark['type'] !== 'ref') continue;
+    const position = mark['position'];
+    if (!isRecord(position)) continue;
+    const { blockId, after } = position;
+    if (typeof blockId !== 'string' || typeof after !== 'string') continue;
+    const found = tokenPlaces.get(after);
+    if (found === undefined || found.blockId !== blockId) continue;
+    const places = refPlacesByBlock.get(blockId);
+    if (places) places.push(found.place);
+    else refPlacesByBlock.set(blockId, [found.place]);
+  }
+
+  const unlinked = new Set<number>();
+  marks.forEach((mark, index) => {
+    if (!isRecord(mark) || mark['type'] !== 'highlight' || mark['ref'] !== undefined) return;
+    const anchor = mark['anchor'];
+    if (!isRecord(anchor)) return;
+    const { from, to } = anchor;
+    if (typeof from !== 'string' || typeof to !== 'string') return;
+    const start = tokenPlaces.get(from);
+    const end = tokenPlaces.get(to);
+    if (start === undefined || end === undefined || start.blockId !== end.blockId) return;
+    const inSpan = (refPlacesByBlock.get(start.blockId) ?? []).filter(
+      (place) => place >= start.place && place <= end.place
+    );
+    if (inSpan.length === 1) unlinked.add(index);
+  });
+  return unlinked;
+}
+
+/**
  * 構造は正しいが未完成に見える内容を知らせる。診断が無ければ空の配列。
  *
  * 検証はしない (`parse` や `validateSKAMDocument` の後に呼ぶ想定で、同じ検証を 2 回しないため)。
@@ -200,6 +264,7 @@ export function lintSKAMDocument(doc: unknown): LintDiagnostic[] {
   }
 
   const unclosedKaeri = findUnclosedKaeri(marks, blocks);
+  const unlinkedHighlights = findUnlinkedHighlights(marks, blocks);
 
   const found: { markIndex: number; code: LintCode; path: string }[] = [];
   marks.forEach((mark, i) => {
@@ -242,6 +307,7 @@ export function lintSKAMDocument(doc: unknown): LintDiagnostic[] {
         const ref = mark['ref'];
         if (typeof ref === 'string' && !refIds.has(ref))
           add(HIGHLIGHT_REF_MISSING, `marks[${i}].ref`);
+        if (unlinkedHighlights.has(i)) add(HIGHLIGHT_REF_UNLINKED, `marks[${i}]`);
         break;
       }
     }

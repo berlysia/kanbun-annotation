@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { createSequentialIdGenerator, validateSKAMDocument } from '@kanbun-skam/skam';
+import { validateSKAMDocument } from '@kanbun-skam/skam';
 import { parse, SKAMXMLParseError } from '../index.js';
 import type { ParseWarning } from '../index.js';
 
@@ -13,7 +13,7 @@ function docOf(blockXml: string): string {
 }
 
 function parseSeq(blockXml: string, options: Parameters<typeof parse>[1] = {}) {
-  return parse(docOf(blockXml), { idGenerator: createSequentialIdGenerator(), ...options });
+  return parse(docOf(blockXml), options);
 }
 
 function linebreaks(doc: ReturnType<typeof parse>) {
@@ -23,16 +23,16 @@ function linebreaks(doc: ReturnType<typeof parse>) {
 describe('parse - skam:br', () => {
   it('字の後ろの位置の linebreak になる', () => {
     const doc = parseSeq('學<skam:br/>而');
-    expect(doc.tokens.map((t) => t.id)).toEqual(['t1', 't2']);
+    expect(doc.tokens.map((t) => t.id)).toEqual(['b1#1', 'b1#2']);
     expect(linebreaks(doc)).toEqual([
-      { type: 'linebreak', id: expect.any(String), position: { blockId: 'b1', after: 't1' } },
+      { type: 'linebreak', id: expect.any(String), position: { blockId: 'b1', after: 'b1#1' } },
     ]);
   });
 
   it('tateten の最後の子の br と tateten の直後の br は同じ注記になる', () => {
     const inside = parseSeq('<skam:tateten>學而<skam:br/></skam:tateten>時');
     const outside = parseSeq('<skam:tateten>學而</skam:tateten><skam:br/>時');
-    const position = { blockId: 'b1', after: 't2' };
+    const position = { blockId: 'b1', after: 'b1#2' };
     expect(linebreaks(inside).map((m) => (m as { position: unknown }).position)).toEqual([
       position,
     ]);
@@ -45,14 +45,14 @@ describe('parse - skam:br', () => {
     // 竪点の中は validator が inside-unit で拒否するので、位置の読みだけを見る
     const doc = parseSeq('<skam:tateten>學<skam:br/>而</skam:tateten>', { validate: false });
     expect(linebreaks(doc).map((m) => (m as { position: unknown }).position)).toEqual([
-      { blockId: 'b1', after: 't1' },
+      { blockId: 'b1', after: 'b1#1' },
     ]);
   });
 
   it('span の中の br も直前の字の後ろ', () => {
     const doc = parseSeq('<skam:span type="highlight">學<skam:br/>而</skam:span>');
     expect(linebreaks(doc).map((m) => (m as { position: unknown }).position)).toEqual([
-      { blockId: 'b1', after: 't1' },
+      { blockId: 'b1', after: 'b1#1' },
     ]);
   });
 

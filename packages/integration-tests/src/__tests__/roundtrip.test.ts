@@ -7,7 +7,6 @@
 
 import { readFileSync } from 'node:fs';
 import { describe, it, expect } from 'vitest';
-import { createSequentialIdGenerator } from '@kanbun-skam/skam';
 import type { SKAMExtensionDefinition } from '@kanbun-skam/skam/extensions';
 import { parse } from '@kanbun-skam/skam-xml-parser';
 import { stringify, type StringifyLoss } from '@kanbun-skam/skam-xml-stringify';
@@ -61,7 +60,7 @@ describe('round-trip - basic', () => {
       marks: [
         {
           type: 'kaeri',
-          id: 'm1',
+          id: 'm#1',
           position: { blockId: 'b1', after: 't2' },
           value: '㆑',
         } as KaeriMark,
@@ -91,13 +90,13 @@ describe('round-trip - basic', () => {
         // 互換: 複数の字の kaeri は 0.3 では読めるが非推奨 (0.4.0 で誤り)。この値を読めることを確かめる
         {
           type: 'kaeri',
-          id: 'm1',
+          id: 'm#1',
           position: { blockId: 'b1', after: 't1' },
           value: '㆒㆑',
         } as KaeriMark,
         {
           type: 'kaeri',
-          id: 'm2',
+          id: 'm#2',
           position: { blockId: 'b1', after: 't3' },
           value: '㆑',
         } as KaeriMark,
@@ -126,13 +125,13 @@ describe('round-trip - basic', () => {
       marks: [
         {
           type: 'yomigana',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
           value: 'まな',
         } as YomiganaMark,
         {
           type: 'okurigana',
-          id: 'm2',
+          id: 'm#2',
           anchor: { from: 't1', to: 't1' },
           value: 'びて',
         } as OkuriganaMark,
@@ -167,7 +166,7 @@ describe('round-trip - ref', () => {
       marks: [
         {
           type: 'yomigana',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
           value: 'まな',
         } as YomiganaMark,
@@ -207,7 +206,7 @@ describe('round-trip - new marks', () => {
       marks: [
         {
           type: 'kutoten',
-          id: 'm1',
+          id: 'm#1',
           position: { blockId: 'b1', after: 't1' },
           value: '。',
         } as KutotenMark,
@@ -235,7 +234,7 @@ describe('round-trip - new marks', () => {
       marks: [
         {
           type: 'emphasis',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't2' },
         } as EmphasisMark,
       ],
@@ -261,7 +260,7 @@ describe('round-trip - new marks', () => {
       marks: [
         {
           type: 'highlight',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't2' },
           style: 'solid',
         } as HighlightMark,
@@ -288,7 +287,7 @@ describe('round-trip - new marks', () => {
       marks: [
         {
           type: 'tateten',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't2' },
         } as TatetenMark,
       ],
@@ -310,7 +309,7 @@ describe('round-trip - new marks', () => {
       marks: [
         {
           type: 'okimoji',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
         } as OkimojiMark,
       ],
@@ -332,7 +331,7 @@ describe('round-trip - new marks', () => {
       marks: [
         {
           type: 'joji',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
         } as JojiMark,
       ],
@@ -354,7 +353,7 @@ describe('round-trip - new marks', () => {
       marks: [
         {
           type: 'saidoku',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
           forms: [
             { n: 1, yomi: 'まさ', okuri: 'に' },
@@ -381,7 +380,7 @@ describe('round-trip - new marks', () => {
       marks: [
         {
           type: 'okototen',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
           position: { system: 'glyph-grid', grid: '5x5', x: 4, y: 4 },
           shape: 'dot',
@@ -420,7 +419,7 @@ describe('round-trip - multi-token', () => {
       marks: [
         {
           type: 'soegana',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't3', to: 't4' },
           value: 'ノ',
         } as SoeganaMark,
@@ -454,7 +453,7 @@ describe('round-trip - multi-token', () => {
       marks: [
         {
           type: 'yomigana',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't2' },
           value: 'ふうう',
         } as YomiganaMark,
@@ -486,7 +485,7 @@ describe('round-trip - multi-token', () => {
       marks: [
         {
           type: 'okurigana',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't2' },
           value: 'の',
         } as OkuriganaMark,
@@ -514,13 +513,13 @@ describe('round-trip - multi-token', () => {
       marks: [
         {
           type: 'yomigana',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't2' },
           value: 'ふうう',
         } as YomiganaMark,
         {
           type: 'soegana',
-          id: 'm2',
+          id: 'm#2',
           anchor: { from: 't1', to: 't2' },
           value: 'ノ',
         } as SoeganaMark,
@@ -554,13 +553,13 @@ describe('round-trip - multi-token', () => {
       marks: [
         {
           type: 'emphasis',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't2' },
           style: 'filled dot',
         } as EmphasisMark,
         {
           type: 'okurigana',
-          id: 'm2',
+          id: 'm#2',
           anchor: { from: 't1', to: 't1' },
           value: 'びて',
         } as OkuriganaMark,
@@ -590,12 +589,12 @@ describe('round-trip - multi-token', () => {
       marks: [
         {
           type: 'tateten',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't2' },
         } as TatetenMark,
         {
           type: 'kaeri',
-          id: 'm2',
+          id: 'm#2',
           position: { blockId: 'b1', after: 't1' },
           value: '㆑',
         } as KaeriMark,
@@ -625,7 +624,7 @@ describe('round-trip - multi-token', () => {
       marks: [
         {
           type: 'highlight',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't3' },
           style: 'wavy',
         } as HighlightMark,
@@ -659,37 +658,37 @@ describe('round-trip - multi-token', () => {
       marks: [
         {
           type: 'yomigana',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't3', to: 't3' },
           value: 'き',
         } as YomiganaMark,
         {
           type: 'okurigana',
-          id: 'm2',
+          id: 'm#2',
           anchor: { from: 't3', to: 't3' },
           value: 'ク',
         } as OkuriganaMark,
         {
           type: 'kaeri',
-          id: 'm3',
+          id: 'm#3',
           position: { blockId: 'b1', after: 't3' },
           value: '㆓',
         } as KaeriMark,
         {
           type: 'yomigana',
-          id: 'm4',
+          id: 'm#4',
           anchor: { from: 't4', to: 't5' },
           value: 'ていてう',
         } as YomiganaMark,
         {
           type: 'soegana',
-          id: 'm5',
+          id: 'm#5',
           anchor: { from: 't4', to: 't5' },
           value: 'ヲ',
         } as SoeganaMark,
         {
           type: 'kaeri',
-          id: 'm6',
+          id: 'm#6',
           position: { blockId: 'b1', after: 't5' },
           value: '㆒',
         } as KaeriMark,
@@ -724,12 +723,12 @@ describe('round-trip - multi-token', () => {
       marks: [
         {
           type: 'tateten',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't2' },
         } as TatetenMark,
         {
           type: 'kaeri',
-          id: 'm2',
+          id: 'm#2',
           position: { blockId: 'b1', after: 't1' },
           value: '㆑',
         } as KaeriMark,
@@ -754,12 +753,12 @@ describe('round-trip - multi-token', () => {
       marks: [
         {
           type: 'emphasis',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't3' },
         } as EmphasisMark,
         {
           type: 'soegana',
-          id: 'm2',
+          id: 'm#2',
           anchor: { from: 't1', to: 't2' },
           value: 'ノ',
         } as SoeganaMark,
@@ -794,7 +793,7 @@ describe('round-trip - saidoku with trailing marks', () => {
       marks: [
         {
           type: 'saidoku',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
           forms: [
             { n: 1, yomi: 'まさ', okuri: 'に' },
@@ -803,7 +802,7 @@ describe('round-trip - saidoku with trailing marks', () => {
         } as SaidokuMark,
         {
           type: 'kaeri',
-          id: 'm2',
+          id: 'm#2',
           position: { blockId: 'b1', after: 't1' },
           value: '㆑',
         } as KaeriMark,
@@ -841,12 +840,12 @@ describe('round-trip - joji with trailing marks', () => {
       marks: [
         {
           type: 'joji',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
         } as JojiMark,
         {
           type: 'kutoten',
-          id: 'm2',
+          id: 'm#2',
           position: { blockId: 'b1', after: 't1' },
           value: '。',
         } as KutotenMark,
@@ -880,12 +879,12 @@ describe('round-trip - joji with trailing marks', () => {
       marks: [
         {
           type: 'joji',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
         } as JojiMark,
         {
           type: 'kaeri',
-          id: 'm2',
+          id: 'm#2',
           position: { blockId: 'b1', after: 't1' },
           value: '㆑',
         } as KaeriMark,
@@ -918,12 +917,12 @@ describe('round-trip - okimoji with trailing marks', () => {
       marks: [
         {
           type: 'okimoji',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
         } as OkimojiMark,
         {
           type: 'kutoten',
-          id: 'm2',
+          id: 'm#2',
           position: { blockId: 'b1', after: 't1' },
           value: '。',
         } as KutotenMark,
@@ -1141,7 +1140,7 @@ describe('round-trip - extensions', () => {
     marks: Mark[],
     extra: Partial<SKAMDocument> = {}
   ): SKAMDocument {
-    const ids = tokens.map((_, i) => `t${i + 1}`);
+    const ids = tokens.map((_, i) => `b1#${i + 1}`);
     return {
       format: 'skam@0.1',
       ...EDU,
@@ -1153,9 +1152,9 @@ describe('round-trip - extensions', () => {
     };
   }
 
-  /** XML → JSON の往復。id は stringify が書かないので、連番の生成器で読み直し、mark の id を外して比べる */
+  /** XML → JSON の往復。自動の id (`b1#1` など) は stringify が書かず、parse が位置から計算し直す */
   function roundTrip(doc: SKAMDocument): SKAMDocument {
-    return parse(stringify(doc), { idGenerator: createSequentialIdGenerator() });
+    return parse(stringify(doc));
   }
   function withoutIds(doc: SKAMDocument) {
     return {
@@ -1167,8 +1166,8 @@ describe('round-trip - extensions', () => {
     };
   }
 
-  const anchor = { from: 't1', to: 't1' };
-  const after = { blockId: 'b1', after: 't1' };
+  const anchor = { from: 'b1#1', to: 'b1#1' };
+  const after = { blockId: 'b1', after: 'b1#1' };
   const TEN_TYPES: [string, Mark][] = [
     ['kaeri', { type: 'kaeri', position: after, value: '㆒', ext: quizExt('問1') } as KaeriMark],
     [
@@ -1208,7 +1207,7 @@ describe('round-trip - extensions', () => {
   });
 
   it('範囲の yomigana と範囲の okurigana が同じ範囲で quiz が違っても保たれる', () => {
-    const range = { from: 't1', to: 't2' };
+    const range = { from: 'b1#1', to: 'b1#2' };
     const original = declared(
       ['學', '而'],
       [
@@ -1225,11 +1224,11 @@ describe('round-trip - extensions', () => {
       [
         {
           type: 'yomigana',
-          anchor: { from: 't1', to: 't3' },
+          anchor: { from: 'b1#1', to: 'b1#3' },
           value: 'がくじ',
           ext: quizExt('甲'),
         } as YomiganaMark,
-        { type: 'okurigana', anchor: { from: 't2', to: 't2' }, value: 'ず' } as OkuriganaMark,
+        { type: 'okurigana', anchor: { from: 'b1#2', to: 'b1#2' }, value: 'ず' } as OkuriganaMark,
       ]
     );
     // 入れ子の内側の注記が先に読まれるので、注記の並びは種類で揃えて比べる
@@ -1249,9 +1248,7 @@ describe('round-trip - extensions', () => {
     );
     const xml = stringify(original);
     expect(xml).not.toContain('a"<');
-    expect(withoutIds(parse(xml, { idGenerator: createSequentialIdGenerator() }))).toEqual(
-      withoutIds(original)
-    );
+    expect(withoutIds(parse(xml))).toEqual(withoutIds(original));
   });
 
   it('宣言のある文書は skam:extension とルートの名前空間を書く', () => {
@@ -1335,10 +1332,7 @@ describe('round-trip - extensions', () => {
     delete original.extensionsRequired;
     const xml = stringify(original, { extensions: [test1] });
     expect(xml).toContain('test1:n="3"');
-    const back = parse(xml, {
-      extensions: [test1],
-      idGenerator: createSequentialIdGenerator(),
-    });
+    const back = parse(xml, { extensions: [test1] });
     expect(withoutIds(back)).toEqual(withoutIds(original));
   });
 

@@ -1,5 +1,4 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { createSequentialIdGenerator } from '@kanbun-skam/skam';
 import type { SKAMExtensionDefinition } from '@kanbun-skam/skam/extensions';
 import { parse } from '../index.js';
 
@@ -11,7 +10,7 @@ function docOf(block: string, meta = EDU_DECL, extraNs = ' xmlns:edu="urn:skam:e
 }
 
 function parseSeq(xml: string, options: Parameters<typeof parse>[1] = {}) {
-  return parse(xml, { idGenerator: createSequentialIdGenerator(), ...options });
+  return parse(xml, options);
 }
 
 afterEach(() => vi.unstubAllGlobals());
@@ -112,7 +111,7 @@ describe('parse: edu attributes', () => {
     const doc = parseSeq(docOf('<skam:kun yomi="まな" edu:yomi-quiz="甲">學而</skam:kun>'));
     const yomigana = doc.marks.find((m) => m.type === 'yomigana')!;
     expect(yomigana).toMatchObject({
-      anchor: { from: 't1', to: 't2' },
+      anchor: { from: 'b1#1', to: 'b1#2' },
       ext: { edu: { quiz: '甲' } },
     });
   });

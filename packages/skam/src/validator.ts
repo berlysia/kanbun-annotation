@@ -27,6 +27,8 @@ import {
   type ValidationError,
   type ValidationWarning,
   KAERI_MULTI_CHARACTER,
+  ID_FORM,
+  XML_UNWRITABLE_CHAR,
   type ValidationResult,
   createValidationError,
   SKAMValidationError,
@@ -37,6 +39,7 @@ import { getLinebreakPlacementIssues } from './line-units.js';
 import { resolveExtensions } from './extensions/index.js';
 import type { SKAMExtensionDefinition } from './extensions/types.js';
 import { validateExtensionData } from './extension-validation.js';
+import { findIdFormIssues, findXmlUnwritableChars } from './auto-ids.js';
 
 const VALID_FORMAT: SKAMVersion = 'skam@0.1';
 
@@ -1613,6 +1616,33 @@ function validateDocumentFields(
   }
 }
 
+const ID_FORM_MESSAGE =
+  'This id or reference cannot be written to SKAM-ML: an id is neither an XML NCName nor the automatic form for its position, a highlight ref does not point to a ref mark with a hand-written id, or a hand-written id is on the second or later of the yomigana, okurigana and soegana marks on one anchor. It becomes an error in 0.4.0.';
+
+const XML_UNWRITABLE_CHAR_MESSAGE =
+  'This string contains a character that XML 1.0 cannot represent (a control character other than tab, line feed and carriage return, U+FFFE, U+FFFF, or an unpaired surrogate). It becomes an error in 0.4.0.';
+
+/**
+ * 構造の検証を通った文書の警告 (`ID_FORM`、`XML_UNWRITABLE_CHAR`) を集める。
+ * 字の text、reading の text、注記の文字列の値と属性、placementHint が対象で、1 つの欄につき 1 件。
+ */
+function collectIdAndCharWarnings(doc: SKAMDocument): ValidationWarning[] {
+  const warnings: ValidationWarning[] = [];
+
+  for (const issue of findIdFormIssues(doc)) {
+    warnings.push({ kind: ID_FORM, path: issue.path, message: ID_FORM_MESSAGE });
+  }
+
+  for (const issue of findXmlUnwritableChars(doc)) {
+    warnings.push({
+      kind: XML_UNWRITABLE_CHAR,
+      path: issue.path,
+      message: XML_UNWRITABLE_CHAR_MESSAGE,
+    });
+  }
+  return warnings;
+}
+
 /** 検証の選択肢 */
 export interface ValidateOptions {
   /** 既定の束に足す拡張の定義。名前が束と重なれば TypeError */
@@ -1709,6 +1739,8 @@ export function validateSKAMDocument(
   if (input['custom'] !== undefined) {
     document.custom = input['custom'] as Record<string, unknown>;
   }
+
+  warnings.push(...collectIdAndCharWarnings(document));
 
   return warnings.length > 0 ? { valid: true, document, warnings } : { valid: true, document };
 }

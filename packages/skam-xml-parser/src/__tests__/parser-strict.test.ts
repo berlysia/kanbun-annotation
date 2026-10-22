@@ -2,16 +2,12 @@ import { describe, it, expect } from 'vitest';
 import { parse, SKAMXMLParseError, SKAMValidationError, SKAM_ML_CONTENT_MODEL } from '../index.js';
 import * as browser from '../index.browser.js';
 import { SKAMValidationError as CoreError } from '@kanbun-skam/skam';
-import {
-  createSequentialIdGenerator,
-  BLOCK_START_KAERI_HINT,
-  validateSKAMDocument,
-} from '@kanbun-skam/skam';
+import { BLOCK_START_KAERI_HINT, validateSKAMDocument } from '@kanbun-skam/skam';
 
 const wrap = (inner: string, ns = 'urn:skam:1') =>
   `<skam:doc xmlns:skam="${ns}"><skam:body>${inner}</skam:body></skam:doc>`;
 const blockTexts = (xml: string, opts = {}) => {
-  const d = parse(xml, { idGenerator: createSequentialIdGenerator(), ...opts });
+  const d = parse(xml, opts);
   return d.blocks.map((b) =>
     b.tokenIds.map((id) => d.tokens.find((t) => t.id === id)!.text).join('|')
   );
@@ -121,8 +117,7 @@ describe('namespace and content model (K2)', () => {
   ] as const) {
     it(`parses kun nested inside ${open} (inner ⊆ outer)`, () => {
       const d = parse(
-        wrap(`<skam:block>${open}<skam:kun okuri="y">a</skam:kun>b${close}</skam:block>`),
-        { idGenerator: createSequentialIdGenerator() }
+        wrap(`<skam:block>${open}<skam:kun okuri="y">a</skam:kun>b${close}</skam:block>`)
       );
       const [ta, tb] = d.blocks[0]!.tokenIds;
       expect(d.marks).toEqual(
@@ -168,10 +163,7 @@ describe('validate option (K2)', () => {
 });
 
 describe('SKAM-ML content model (§7.0) — hand-written representative cases', () => {
-  const seqParse = (inner: string) =>
-    parse(wrap(`<skam:block>${inner}</skam:block>`), {
-      idGenerator: createSequentialIdGenerator(),
-    });
+  const seqParse = (inner: string) => parse(wrap(`<skam:block>${inner}</skam:block>`));
   const types = (inner: string) =>
     seqParse(inner)
       .marks.map((m) => m.type)
@@ -260,7 +252,7 @@ describe('validation error positions (K7 b)', () => {
     `<skam:doc xmlns:skam="urn:skam:1">\n<skam:body>\n${rows.join('\n')}\n</skam:body>\n</skam:doc>`;
   const validationErrors = (xml: string, opts = {}) => {
     try {
-      parse(xml, { idGenerator: createSequentialIdGenerator(), ...opts });
+      parse(xml, opts);
     } catch (e) {
       expect(e).toBeInstanceOf(SKAMValidationError);
       return (e as SKAMValidationError).errors;
@@ -303,7 +295,10 @@ describe('validation error positions (K7 b)', () => {
         '<skam:block xml:id="dup">丙</skam:block>'
       )
     );
-    const duplicates = errors.filter((e) => e.kind === 'DUPLICATE_ID');
+    // 字の id は <ブロックの id>#<順> なので、同じ id のブロックの字も重なる。ここではブロックだけを見る
+    const duplicates = errors.filter(
+      (e) => e.kind === 'DUPLICATE_ID' && e.path.startsWith('blocks[')
+    );
     expect(duplicates).toHaveLength(1);
     expect(duplicates[0]!.path).toBe('blocks[2].id');
     expect(duplicates[0]!.line).toBe(5);

@@ -2127,12 +2127,12 @@ describe('XML to HTML integration - highlight with ref', () => {
     expect(htmlContent).not.toContain('<sup class="skam-ref');
   });
 
-  it('should render ref inside highlight from parsed XML (implicit association)', () => {
+  it('should render ref inside highlight from parsed XML (name-based association, ref in the middle)', () => {
     const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
   <skam:body>
     <skam:block>
-      <skam:span type="highlight"><skam:ref format="alpha-upper"/>學而</skam:span>
+      <skam:span type="highlight" ref="r1">學<skam:ref xml:id="r1" format="alpha-upper"/>而</skam:span>
     </skam:block>
   </skam:body>
 </skam:doc>`;

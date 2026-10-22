@@ -151,9 +151,9 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 
 #### 属性
 
-| 属性     | 必須 | 説明                                                 |
-| -------- | ---- | ---------------------------------------------------- |
-| `xml:id` | 任意 | ブロックの一意識別子。省略時はパーサーが自動生成する |
+| 属性     | 必須 | 説明                                                      |
+| -------- | ---- | --------------------------------------------------------- |
+| `xml:id` | 任意 | ブロックの手書きの id（§7.1.1）。省略時は自動の id になる |
 
 - 改行・段落の意味は **構造情報としてのみ**扱う
 - 見た目の段落とは無関係
@@ -195,7 +195,7 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 </skam:body>
 ```
 
-→ tokens: `[{id:"t0", text:"學"}, {id:"t1", text:"而"}, {id:"t2", text:"時"}, {id:"t3", text:"習"}, {id:"t4", text:"之"}]`
+→ blocks: `b#1`、`b#2`。tokens: `[{id:"b#1#1", text:"學"}, {id:"b#1#2", text:"而"}, {id:"b#2#1", text:"時"}, {id:"b#2#2", text:"習"}, {id:"b#2#3", text:"之"}]`
 
 ---
 
@@ -248,6 +248,13 @@ SKAM-ML/XML では `derivations`（読み順等の導出情報）を**直接記�
 | `skam:br`      | 直前 token の後（`{ blockId, after: tokenId }`）、先頭なら `{ blockId }` |
 
 position は `{ blockId, after: tokenId }` または `{ blockId }`（ブロック先頭）の形式。`blockId` は常に必須で、要素が属する `skam:block` の ID が設定される。
+
+#### 7.1.1 id（規範）
+
+- `skam:block` と、すべての注記の要素（包囲要素と空要素）は `xml:id` を持てる。値は手書きの id（SKAM-draft §3.1）で、XML の NCName でなければならない。NCName でない値は誤り。`xml:id` が無ければ `id` 属性を読む（両方あれば `xml:id`）。文書の中で同じ値が 2 つあれば誤り
+- `xml:id` の無いブロックの id は `b#<文書の中のブロックの 1 始まりの順>`、token の id は `<ブロックの id>#<ブロックの中の 1 始まりの順>`、注記の id は `m#<出力の marks 配列の 1 始まりの順>` になる（自動の id）
+- 自動の id は書かない。書けば NCName でないので誤りになる
+- `skam:kun` の `xml:id` は、その要素から作る最初の注記（読み仮名、送り仮名、添え仮名の順）の id になる。残りの注記は自動の id になる
 
 ---
 
@@ -586,6 +593,8 @@ SKAM-ML/XML の `skam:kun` は、JSON 側では `yomigana`、`okurigana`、`soeg
 - `type="highlight"`: `marks.type = "highlight"`, `style`, `ref` を保持
 - `anchor = 内容のtoken範囲`
 - `ref` 属性は `type="highlight"` の場合のみ有効。`type="emphasis"` では無視される。
+- highlight と ref は `ref` 属性の名前でだけ結ぶ。`ref` 属性は、文書の中のどこにある `skam:ref` の `xml:id` でも指せる（後ろにあってもよく、別のブロックの highlight と共有してもよい）。指す `skam:ref` が無い、または `skam:ref` でない要素の `xml:id` なら誤り
+- `ref` 属性の無い highlight（空の `ref=""` も同じ）は、要素の中に `skam:ref` があっても、それと結ばない。傍線のラベルにする ref には `xml:id` を付け、highlight に `ref` を書く
 
 ---
 
@@ -1060,3 +1069,5 @@ SKAM-ML/XMLはHTMLに依存しない純XML語彙とし、本文構造は`skam:bl
 - SKAM-draft §6.1: 同じ anchor に同じ種類の注記を 2 つ以上置くことを禁じた（yomigana / okurigana / soegana / okimoji / joji / saidoku）
 - §4.1.1 / §10.1 / §10.2: 拡張の宣言 `skam:extension`、拡張の名前空間の属性、学習・教育用拡張 `edu` の属性と対応表を足した。`skam:meta` に子の要素を許した
 - 互換性の注意: 0.1.x の parser は、字を包む要素の中の `skam:kun` と、入れ子になった包む要素を黙って捨てる。この改訂以降の出力は、改訂以降の parser で読むこと
+- §7.1.1: id の規則を新設した。すべての注記の要素が `xml:id` を持て、値は NCName に限る。省略したときの id は位置から決まる自動の id（`b#1`、`b#1#1`、`m#1`）になる
+- §7.10: highlight と ref は `ref` 属性でだけ結ぶ。`ref` 属性の無い highlight は、中の `skam:ref` と結ばなくなった。`ref` 属性は後ろの ref も指せる

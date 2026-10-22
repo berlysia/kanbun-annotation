@@ -69,11 +69,26 @@ export const LEGACY_EXT = 'LEGACY_EXT';
  */
 export const LEGACY_EXT_REGISTERED_NAME = 'LEGACY_EXT_REGISTERED_NAME';
 
+/**
+ * id が NCName でも、位置に合う自動の形でもない、という警告のコード。
+ * 0.3 では警告、0.4.0 では同じコードの誤りにする。
+ * `highlight.ref` が、SKAM-ML に書けない自動の id の ref を指すときにも使う
+ */
+export const ID_FORM = 'ID_FORM';
+
+/**
+ * XML 1.0 で書けない文字 (U+0009、U+000A、U+000D を除く U+0000〜U+001F、U+FFFE、U+FFFF、対の無いサロゲート) が、
+ * SKAM-ML の本文か属性値に書く文字列にある、という警告のコード。0.3 では警告、0.4.0 では同じコードの誤りにする
+ */
+export const XML_UNWRITABLE_CHAR = 'XML_UNWRITABLE_CHAR';
+
 /** 検証の警告の種別。値を足すのは minor の変更として扱う */
 export type ValidationWarningKind =
   | typeof KAERI_MULTI_CHARACTER
   | typeof LEGACY_EXT
-  | typeof LEGACY_EXT_REGISTERED_NAME;
+  | typeof LEGACY_EXT_REGISTERED_NAME
+  | typeof ID_FORM
+  | typeof XML_UNWRITABLE_CHAR;
 
 /** 検証の警告。文書は有効だが、将来の版で誤りになる書き方を指す */
 export interface ValidationWarning {

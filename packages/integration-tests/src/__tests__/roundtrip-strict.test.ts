@@ -11,9 +11,11 @@ import {
 } from '@kanbun-skam/skam-xml-stringify';
 import { SKAM_ML_CONTENT_MODEL as PARSER_MODEL } from '@kanbun-skam/skam-xml-parser';
 import {
-  createSequentialIdGenerator,
   validateSKAMDocument,
   SKAMValidationError,
+  isAutoId,
+  isHandId,
+  renumberAutoIds,
   type SKAMDocument,
   type Mark,
 } from '@kanbun-skam/skam';
@@ -25,27 +27,49 @@ const fixtureDir = join(
   dirname(fileURLToPath(import.meta.url)),
   '../../../skam-xml-parser/src/__tests__/fixtures/valid'
 );
-const seq = () => ({ idGenerator: createSequentialIdGenerator() });
-const normalize = (d: SKAMDocument) => {
+/**
+ * spec K1 の「同じ文書」。`basis` は往復の前の文書 (往復の後の文書 `d` を比べる相手)。
+ * - ブロックの id は値まで比べる
+ * - 字の id は、basis の字の id が自動の形なら値まで比べ、手書きの形は比べない (手書きの字の id を書くのは plan-2)
+ * - 注記は、手書きの id は値まで、自動の id は値を比べない。highlight.ref は指す注記で比べる
+ */
+const normalize = (d: SKAMDocument, basis: SKAMDocument = d) => {
   const order = d.blocks.flatMap((b) => b.tokenIds);
   const pos = (id: string | undefined) => (id === undefined ? 'start' : order.indexOf(id));
   const text = (id: string) => d.tokens.find((t) => t.id === id)!.text;
-  const mark = (m: Mark) => {
-    const { id: _id, ...rest } = m as Mark & { id?: string };
+  const handId = (id: string | undefined) => (id !== undefined && isHandId(id) ? id : undefined);
+  const markKey = (m: Mark, resolveRef: boolean): string => {
+    const { id, ...rest } = m as Mark & { id?: string; ref?: string };
     const anchor = 'anchor' in m ? [pos(m.anchor.from), pos(m.anchor.to)] : undefined;
     const position =
       'position' in m && 'blockId' in (m.position as object)
         ? pos((m.position as { after?: string }).after)
         : undefined;
+    const ref = 'ref' in rest ? (rest as { ref?: string }).ref : undefined;
+    delete (rest as { ref?: string }).ref;
+    const linked =
+      resolveRef && ref !== undefined
+        ? (() => {
+            const target = d.marks.find((x) => x.id === ref);
+            return target ? markKey(target, false) : `unresolved:${ref}`;
+          })()
+        : undefined;
     // Key order depends on which side built the object, so sort keys before comparing.
-    const entries = Object.entries({ ...rest, anchor, position }).sort(([x], [y]) =>
-      x < y ? -1 : 1
+    const entries = Object.entries({ ...rest, anchor, position, handId: handId(id), linked }).sort(
+      ([x], [y]) => (x < y ? -1 : 1)
     );
     return JSON.stringify(entries);
   };
   return {
-    blocks: d.blocks.map((b) => b.tokenIds.map(text).join('')),
-    marks: d.marks.map(mark).sort(),
+    blocks: d.blocks.map((b, bi) => ({
+      id: b.id,
+      text: b.tokenIds.map(text).join(''),
+      tokenIds: b.tokenIds.map((id, i) => {
+        const original = basis.blocks[bi]?.tokenIds[i] ?? id;
+        return isAutoId(original) ? id : 'hand';
+      }),
+    })),
+    marks: d.marks.map((m) => markKey(m, true)).sort(),
     readings: d.readings,
     lang: d.lang,
   };
@@ -57,17 +81,15 @@ describe('strict round-trip over all valid fixtures', () => {
   it('finds fixtures', () => expect(files.length).toBeGreaterThanOrEqual(31));
   for (const name of files) {
     it(`${name}: parse → stringify (no loss) → parse preserves semantics`, () => {
-      const a = parse(readFileSync(join(fixtureDir, name), 'utf8'), seq());
-      const b = parse(stringify(a), seq());
+      const a = parse(readFileSync(join(fixtureDir, name), 'utf8'));
+      const b = parse(stringify(a));
       expect(normalize(b)).toEqual(normalize(a));
     });
     it(`${name}: root xml:lang survives XML → JSON → XML`, () => {
       const source = readFileSync(join(fixtureDir, name), 'utf8');
       const expected = rootXmlLang(source);
       // 空の xml:lang は「言語の情報が無い」の意味で、lang を持たない文書になる
-      expect(rootXmlLang(stringify(parse(source, seq())))).toBe(
-        expected === '' ? undefined : expected
-      );
+      expect(rootXmlLang(stringify(parse(source)))).toBe(expected === '' ? undefined : expected);
     });
   }
   it('finds a fixture whose root has xml:lang', () => {
@@ -83,15 +105,15 @@ describe('strict round-trip over all valid fixtures', () => {
       marks: [],
     };
     for (const lang of ['lzh', 'zh-Hant']) {
-      expect(parse(stringify({ ...base, lang }), seq()).lang).toBe(lang);
+      expect(parse(stringify({ ...base, lang })).lang).toBe(lang);
     }
     const hostile = { ...base, lang: 'a"b<c&' } as SKAMDocument;
-    expect(parse(stringify(hostile), { ...seq(), validate: false }).lang).toBe('a"b<c&');
+    expect(parse(stringify(hostile), { validate: false }).lang).toBe('a"b<c&');
   });
   it('U+3000 and CDATA survive', () => {
     const src =
       '<skam:doc xmlns:skam="urn:skam:1"><skam:body><skam:block>甲　<![CDATA[乙]]></skam:block></skam:body></skam:doc>';
-    expect(normalize(parse(stringify(parse(src)))).blocks).toEqual(['甲　乙']);
+    expect(normalize(parse(stringify(parse(src)))).blocks.map((b) => b.text)).toEqual(['甲　乙']);
   });
   it('block-start kutoten/ref and content-only ref round-trip', () => {
     const d: SKAMDocument = {
@@ -113,7 +135,7 @@ describe('strict round-trip over all valid fixtures', () => {
         },
       ],
     };
-    expect(normalize(parse(stringify(d), seq()))).toEqual(normalize(d));
+    expect(normalize(parse(stringify(d)), d)).toEqual(normalize(d));
   });
   it('yomigana range with inner kun round-trips', () => {
     const d: SKAMDocument = {
@@ -129,12 +151,12 @@ describe('strict round-trip over all valid fixtures', () => {
         { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'y' },
       ],
     };
-    expect(normalize(parse(stringify(d), seq()))).toEqual(normalize(d));
+    expect(normalize(parse(stringify(d)), d)).toEqual(normalize(d));
   });
 });
 
 it('parser and stringify share the same SKAM-ML content model table', () => {
-  expect(STRINGIFY_MODEL).toEqual(PARSER_MODEL);
+  expect(STRINGIFY_MODEL).toBe(PARSER_MODEL);
 });
 
 // draft §7.0 の Markdown の表を読み取り、定数と突き合わせる (spec K2a: 表と定数のずれを機械的に止める)
@@ -191,11 +213,11 @@ const ANCHORED = [
   'highlight',
   'tateten',
 ] as const;
-const randomMark = (r: () => number, n: number) => {
+const randomMark = (r: () => number, n: number, blockId: string) => {
   const a = Math.floor(r() * n);
   const b = Math.min(n - 1, a + Math.floor(r() * 3));
   const type = ANCHORED[Math.floor(r() * ANCHORED.length)]!;
-  const anchor = { from: `t${a + 1}`, to: `t${b + 1}` };
+  const anchor = { from: `${blockId}#${a + 1}`, to: `${blockId}#${b + 1}` };
   switch (type) {
     case 'yomigana':
     case 'okurigana':
@@ -214,11 +236,20 @@ const randomMark = (r: () => number, n: number) => {
       return { type, anchor };
   }
 };
-const randomPositionMark = (r: () => number, n: number) => {
-  const after = `t${1 + Math.floor(r() * n)}`;
+// 注記の id は、なし / 自動の形 / 手書きの形をばらまく。kun にまとめて書く 3 種は、
+// xml:id を 1 つしか書けないので手書きの id を付けない
+const KUN_TYPES: ReadonlySet<string> = new Set(['yomigana', 'okurigana', 'soegana']);
+const withMarkId = <T extends { type: string }>(r: () => number, mark: T, k: number): T => {
+  const roll = r();
+  if (roll < 1 / 3) return mark;
+  if (roll < 2 / 3) return { ...mark, id: `m#${k + 1}` };
+  return KUN_TYPES.has(mark.type) ? mark : { ...mark, id: `n${k + 1}` };
+};
+const randomPositionMark = (r: () => number, n: number, blockId: string) => {
+  const after = `${blockId}#${1 + Math.floor(r() * n)}`;
   return r() < 0.5
-    ? { type: 'kutoten', kind: 'ten', value: '、', position: { blockId: 'b1', after } }
-    : { type: 'kaeri', value: '㆑', position: { blockId: 'b1', after } };
+    ? { type: 'kutoten', kind: 'ten', value: '、', position: { blockId, after } }
+    : { type: 'kaeri', value: '㆑', position: { blockId, after } };
 };
 
 // 性質 (a)(b): validator を通るランダムな文書は、lossy stringify の後に strict parse を通る。
@@ -228,19 +259,22 @@ describe('property (a)(b): validator-valid documents survive lossy stringify →
   let checked = 0;
   for (let n = 0; n < 400; n++) {
     const len = 2 + Math.floor(r() * 4);
+    // ブロックの id は自動の形と手書きの形の両方。字の id は自動の形だけ (手書きの字の id を書くのは plan-2)
+    const blockId = r() < 0.5 ? 'b#1' : 'p1';
     const tokens = Array.from({ length: len }, (_, i) => ({
-      id: `t${i + 1}`,
+      id: `${blockId}#${i + 1}`,
       text: '甲乙丙丁戊'[i]!,
     }));
+    const rawMarks = [
+      ...Array.from({ length: 1 + Math.floor(r() * 4) }, () => randomMark(r, len, blockId)),
+      ...Array.from({ length: Math.floor(r() * 2) }, () => randomPositionMark(r, len, blockId)),
+    ];
     const doc = {
       format: 'skam@0.1' as const,
       readings: [],
       tokens,
-      blocks: [{ id: 'b1', tokenIds: tokens.map((t) => t.id) }],
-      marks: [
-        ...Array.from({ length: 1 + Math.floor(r() * 4) }, () => randomMark(r, len)),
-        ...Array.from({ length: Math.floor(r() * 2) }, () => randomPositionMark(r, len)),
-      ],
+      blocks: [{ id: blockId, tokenIds: tokens.map((t) => t.id) }],
+      marks: rawMarks.map((mark, k) => withMarkId(r, mark, k)),
     };
     if (!validateSKAMDocument(doc).valid) continue;
     checked++;
@@ -250,13 +284,13 @@ describe('property (a)(b): validator-valid documents survive lossy stringify →
         lossy: true,
         onLoss: (l) => losses.push(l),
       });
-      const back = parse(xml, seq());
+      const back = parse(xml);
       const lost = new Set(losses.map((l) => l.path));
       const kept = {
         ...doc,
         marks: doc.marks.filter((_, i) => !lost.has(`/marks/${i}`)),
       } as unknown as SKAMDocument;
-      expect(normalize(back)).toEqual(normalize(kept));
+      expect(normalize(back, kept)).toEqual(normalize(kept));
     });
   }
   it('generated enough valid cases', () => expect(checked).toBeGreaterThanOrEqual(100));
@@ -309,7 +343,7 @@ describe('property (c): content-model-generated SKAM-ML round-trips with zero lo
     const xml = genXml(r);
     let first: SKAMDocument;
     try {
-      first = parse(xml, seq());
+      first = parse(xml);
     } catch (e) {
       if (e instanceof SKAMValidationError) continue; // 同型の重複・saidoku と kun の衝突など validator の制約だけを飛ばす
       throw e; // 表どおりの XML を parser が拒否したら、それ自体が不具合
@@ -319,8 +353,180 @@ describe('property (c): content-model-generated SKAM-ML round-trips with zero lo
       const losses: StringifyLoss[] = [];
       const out = stringify(first, { lossy: true, onLoss: (l) => losses.push(l) });
       expect(losses).toEqual([]);
-      expect(normalize(parse(out, seq()))).toEqual(normalize(first));
+      expect(normalize(parse(out))).toEqual(normalize(first));
     });
   }
   it('generated enough cases', () => expect(checked).toBeGreaterThanOrEqual(100));
+});
+
+// ============================================================================
+// id の体系 (spec K2): 手書きの id は値まで往復し、自動の id は位置から計算し直す
+// ============================================================================
+
+describe('ids: hand-written ids round-trip, automatic ids are recomputed', () => {
+  const fixtureFiles = readdirSync(fixtureDir).filter((f) => f.endsWith('.xml'));
+  const wrapBody = (inner: string) =>
+    `<skam:doc xmlns:skam="urn:skam:1"><skam:body><skam:block>${inner}</skam:block></skam:body></skam:doc>`;
+  const highlightRefs = (doc: SKAMDocument) =>
+    doc.marks.flatMap((m) => (m.type === 'highlight' ? [m.ref] : []));
+
+  for (const name of fixtureFiles) {
+    it(`${name}: parsed ids are a fixed point of renumberAutoIds, with no id warnings`, () => {
+      const doc = parse(readFileSync(join(fixtureDir, name), 'utf8'));
+      const once = renumberAutoIds(doc);
+      expect(once).toEqual(doc);
+      expect(renumberAutoIds(once)).toEqual(once);
+      const result = validateSKAMDocument(doc);
+      const idWarnings = (result.valid ? (result.warnings ?? []) : []).filter(
+        (w) => w.kind === 'ID_FORM' || w.kind === 'XML_UNWRITABLE_CHAR'
+      );
+      expect(idWarnings).toEqual([]);
+    });
+    it(`${name}: stringify never writes an automatic id`, () => {
+      const xml = stringify(parse(readFileSync(join(fixtureDir, name), 'utf8')));
+      expect(xml).not.toMatch(/xml:id="[^"]*#/);
+    });
+  }
+
+  it('a document that mixes hand-written and automatic mark ids keeps the hand-written values', () => {
+    const d: SKAMDocument = {
+      format: 'skam@0.1',
+      readings: [],
+      tokens: [
+        { id: 'b#1#1', text: '甲' },
+        { id: 'b#1#2', text: '乙' },
+        { id: 'b#1#3', text: '丙' },
+      ],
+      blocks: [{ id: 'b#1', tokenIds: ['b#1#1', 'b#1#2', 'b#1#3'] }],
+      marks: [
+        { type: 'emphasis', id: 'm#1', anchor: { from: 'b#1#1', to: 'b#1#1' } },
+        { type: 'tateten', id: 'cite-1', anchor: { from: 'b#1#2', to: 'b#1#3' } },
+        {
+          type: 'kutoten',
+          id: 'm#3',
+          kind: 'ku',
+          value: '。',
+          position: { blockId: 'b#1', after: 'b#1#3' },
+        },
+        { type: 'ref', id: 'ref-1', label: 'a', position: { blockId: 'b#1', after: 'b#1#1' } },
+      ],
+    };
+    const xml = stringify(d);
+    expect(xml).toContain('xml:id="cite-1"');
+    expect(xml).toContain('xml:id="ref-1"');
+    expect(xml).not.toContain('#');
+    const back = parse(xml);
+    expect(back.marks.map((m) => m.id).filter((id) => !id?.startsWith('m#'))).toEqual(
+      expect.arrayContaining(['cite-1', 'ref-1'])
+    );
+    expect(normalize(back, d)).toEqual(normalize(d));
+  });
+
+  it('hand-written block ids round-trip and give the tokens ids built from them', () => {
+    const d = parse(
+      '<skam:doc xmlns:skam="urn:skam:1"><skam:body><skam:block xml:id="p1">甲乙</skam:block><skam:block>丙</skam:block></skam:body></skam:doc>'
+    );
+    const back = parse(stringify(d));
+    expect(back.blocks.map((b) => b.id)).toEqual(['p1', 'b#2']);
+    expect(back.tokens.map((t) => t.id)).toEqual(['p1#1', 'p1#2', 'b#2#1']);
+  });
+
+  describe('highlight and ref linking round-trips (by name only)', () => {
+    const cases: [string, string][] = [
+      [
+        'a ref attribute naming a ref after the first character',
+        '<skam:span type="highlight" ref="r1">甲<skam:ref xml:id="r1" label="a"/>乙</skam:span>',
+      ],
+      [
+        'a ref attribute naming a ref after the last character',
+        '<skam:span type="highlight" ref="r1">甲乙<skam:ref xml:id="r1" label="a"/></skam:span>',
+      ],
+      [
+        'a ref attribute naming a later ref, with an unrelated ref inside',
+        '<skam:span type="highlight" ref="r1">甲<skam:ref label="a"/>乙</skam:span>丙<skam:ref xml:id="r1" label="b"/>',
+      ],
+      [
+        'a ref attribute naming a ref before the highlight',
+        '<skam:ref xml:id="r1" label="a"/><skam:span type="highlight" ref="r1">甲乙</skam:span>',
+      ],
+      [
+        'nested highlights naming the same ref',
+        '<skam:span type="highlight" ref="r1"><skam:span type="highlight" ref="r1">甲<skam:ref xml:id="r1" label="a"/>乙</skam:span>丙</skam:span>',
+      ],
+      [
+        'a linked ref after the last character under an emphasis, with a kutoten',
+        '<skam:span type="emphasis">甲<skam:span type="highlight" ref="r1">乙丙<skam:ref xml:id="r1" label="a"/></skam:span></skam:span><skam:kutoten value="、"/>',
+      ],
+      [
+        'a ref inside a highlight without a ref attribute stays unlinked',
+        '<skam:span type="highlight">甲<skam:ref label="a"/>乙</skam:span>',
+      ],
+      [
+        'a hand-written ref inside a highlight without a ref attribute stays unlinked',
+        '<skam:span type="highlight">甲<skam:ref xml:id="r1" label="a"/>乙</skam:span>',
+      ],
+      [
+        'a ref after the last character of a highlight without a ref attribute',
+        '<skam:span type="highlight">甲乙<skam:ref label="a"/></skam:span>',
+      ],
+      [
+        'a ref after the highlight and one inside, both unlinked',
+        '<skam:span type="highlight">甲<skam:ref label="a"/></skam:span><skam:ref label="b"/>',
+      ],
+      [
+        'ref="" with a ref inside is the same as no attribute',
+        '<skam:span type="highlight" ref="">甲<skam:ref label="a"/>乙</skam:span>',
+      ],
+    ];
+    for (const [title, inner] of cases) {
+      it(`${title}: parse → stringify → parse keeps the links and reaches a fixed point`, () => {
+        const first = parse(wrapBody(inner));
+        const result = validateSKAMDocument(first);
+        expect(result.valid && result.warnings).toBeFalsy();
+        const xml = stringify(first);
+        expect(xml).not.toContain('ref=""');
+        const second = parse(xml);
+        expect(normalize(second, first)).toEqual(normalize(first));
+        expect(highlightRefs(second)).toEqual(highlightRefs(first));
+        // 種類の違う注記どうしの順は問わない。ref どうしの順は保つ
+        const refLabels = (doc: SKAMDocument) =>
+          doc.marks.flatMap((m) => (m.type === 'ref' ? [m.label] : []));
+        expect(refLabels(second)).toEqual(refLabels(first));
+        expect(stringify(second)).toBe(xml);
+      });
+    }
+
+    it('two highlights in different blocks share one ref by name', () => {
+      const xml =
+        '<skam:doc xmlns:skam="urn:skam:1"><skam:body>' +
+        '<skam:block>甲<skam:ref xml:id="r1" label="a"/></skam:block>' +
+        '<skam:block><skam:span type="highlight" ref="r1">乙</skam:span></skam:block>' +
+        '<skam:block><skam:span type="highlight" ref="r1">丙</skam:span></skam:block>' +
+        '</skam:body></skam:doc>';
+      const first = parse(xml);
+      expect(highlightRefs(first)).toEqual(['r1', 'r1']);
+      const second = parse(stringify(first));
+      expect(highlightRefs(second)).toEqual(['r1', 'r1']);
+      expect(normalize(second, first)).toEqual(normalize(first));
+    });
+
+    it('a highlight without ref, with one ref inside, is written without a ref attribute and stays unlinked', () => {
+      const d: SKAMDocument = {
+        format: 'skam@0.1',
+        readings: [],
+        tokens: [
+          { id: 'b#1#1', text: '甲' },
+          { id: 'b#1#2', text: '乙' },
+        ],
+        blocks: [{ id: 'b#1', tokenIds: ['b#1#1', 'b#1#2'] }],
+        marks: [
+          { type: 'highlight', id: 'm#1', anchor: { from: 'b#1#1', to: 'b#1#2' } },
+          { type: 'ref', id: 'm#2', label: 'a', position: { blockId: 'b#1', after: 'b#1#1' } },
+        ],
+      };
+      const xml = stringify(d);
+      expect(xml).not.toContain('ref="');
+      expect(highlightRefs(parse(xml))).toEqual([undefined]);
+    });
+  });
 });

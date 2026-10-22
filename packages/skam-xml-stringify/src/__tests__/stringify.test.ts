@@ -87,7 +87,7 @@ describe('stringify - kaeri', () => {
       marks: [
         {
           type: 'kaeri',
-          id: 'm1',
+          id: 'm#1',
           position: { blockId: 'b1', after: 't2' },
           value: '㆑',
         } as KaeriMark,
@@ -112,19 +112,19 @@ describe('stringify - kaeri', () => {
       marks: [
         {
           type: 'kaeri',
-          id: 'm1',
+          id: 'm#1',
           position: { blockId: 'b1', after: 't1' },
           value: '㆒',
         } as KaeriMark,
         {
           type: 'kaeri',
-          id: 'm2',
+          id: 'm#2',
           position: { blockId: 'b1', after: 't2' },
           value: '㆓',
         } as KaeriMark,
         {
           type: 'kaeri',
-          id: 'm3',
+          id: 'm#3',
           position: { blockId: 'b1', after: 't3' },
           value: '㆖',
         } as KaeriMark,
@@ -156,7 +156,7 @@ describe('stringify - okurigana', () => {
       marks: [
         {
           type: 'okurigana',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
           value: 'びて',
         } as OkuriganaMark,
@@ -183,7 +183,7 @@ describe('stringify - yomigana', () => {
       marks: [
         {
           type: 'yomigana',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
           value: 'まな',
         } as YomiganaMark,
@@ -210,7 +210,7 @@ describe('stringify - soegana', () => {
       marks: [
         {
           type: 'soegana',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
           value: 'を',
         } as SoeganaMark,
@@ -237,13 +237,13 @@ describe('stringify - combined attributes', () => {
       marks: [
         {
           type: 'yomigana',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
           value: 'まな',
         } as YomiganaMark,
         {
           type: 'okurigana',
-          id: 'm2',
+          id: 'm#2',
           anchor: { from: 't1', to: 't1' },
           value: 'びて',
         } as OkuriganaMark,
@@ -266,19 +266,19 @@ describe('stringify - combined attributes', () => {
       marks: [
         {
           type: 'yomigana',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
           value: 'まな',
         } as YomiganaMark,
         {
           type: 'okurigana',
-          id: 'm2',
+          id: 'm#2',
           anchor: { from: 't1', to: 't1' },
           value: 'び',
         } as OkuriganaMark,
         {
           type: 'soegana',
-          id: 'm3',
+          id: 'm#3',
           anchor: { from: 't1', to: 't1' },
           value: 'を',
         } as SoeganaMark,
@@ -339,7 +339,7 @@ describe('stringify - kutoten', () => {
       marks: [
         {
           type: 'kutoten',
-          id: 'm1',
+          id: 'm#1',
           position: { blockId: 'b1', after: 't2' },
           value: '。',
         } as KutotenMark,
@@ -360,7 +360,7 @@ describe('stringify - kutoten', () => {
       marks: [
         {
           type: 'kutoten',
-          id: 'm1',
+          id: 'm#1',
           position: { blockId: 'b1', after: 't1' },
           value: '、',
           kind: 'ten',
@@ -392,7 +392,7 @@ describe('stringify - okimoji', () => {
       marks: [
         {
           type: 'okimoji',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't2', to: 't2' },
         } as OkimojiMark,
       ],
@@ -421,7 +421,7 @@ describe('stringify - joji', () => {
       marks: [
         {
           type: 'joji',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't2', to: 't2' },
         } as JojiMark,
       ],
@@ -447,7 +447,7 @@ describe('stringify - okototen', () => {
       marks: [
         {
           type: 'okototen',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
           position: { system: 'glyph-grid', grid: '5x5', x: 4, y: 4 },
           shape: 'dot',
@@ -482,7 +482,7 @@ describe('stringify - saidoku', () => {
       marks: [
         {
           type: 'saidoku',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
           forms: [
             { n: 1, yomi: 'まさ', okuri: 'に' },
@@ -513,7 +513,7 @@ describe('stringify - saidoku', () => {
       marks: [
         {
           type: 'saidoku',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
           forms: [
             { n: 1, yomi: 'まさ', okuri: 'に' },
@@ -522,7 +522,7 @@ describe('stringify - saidoku', () => {
         } as SaidokuMark,
         {
           type: 'kaeri',
-          id: 'm2',
+          id: 'm#2',
           position: { blockId: 'b1', after: 't1' },
           value: '㆑',
         } as KaeriMark,
@@ -544,7 +544,7 @@ describe('stringify - saidoku', () => {
       marks: [
         {
           type: 'saidoku',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
           forms: [
             { n: 1, yomi: 'まさ', okuri: 'に' },
@@ -553,7 +553,7 @@ describe('stringify - saidoku', () => {
         } as SaidokuMark,
         {
           type: 'kutoten',
-          id: 'm2',
+          id: 'm#2',
           position: { blockId: 'b1', after: 't1' },
           value: '。',
         } as KutotenMark,
@@ -584,7 +584,7 @@ describe('stringify - emphasis', () => {
       marks: [
         {
           type: 'emphasis',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
         } as EmphasisMark,
       ],
@@ -608,7 +608,7 @@ describe('stringify - emphasis', () => {
       marks: [
         {
           type: 'emphasis',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't2' },
         } as EmphasisMark,
       ],
@@ -628,7 +628,7 @@ describe('stringify - emphasis', () => {
       marks: [
         {
           type: 'emphasis',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
           style: 'dot',
         } as EmphasisMark,
@@ -660,7 +660,7 @@ describe('stringify - tateten', () => {
       marks: [
         {
           type: 'tateten',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't2' },
         } as TatetenMark,
       ],
@@ -690,7 +690,7 @@ describe('stringify - highlight', () => {
       marks: [
         {
           type: 'highlight',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't2' },
           style: 'solid',
         } as HighlightMark,
@@ -714,11 +714,12 @@ describe('stringify - highlight', () => {
       marks: [
         {
           type: 'highlight',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't2' },
           style: 'solid',
           ref: 'ref-1',
         } as HighlightMark,
+        { type: 'ref', id: 'ref-1', position: { blockId: 'b1', after: 't2' }, label: 'a' },
       ],
       readings: [],
     };
@@ -786,7 +787,7 @@ describe('stringify - ref', () => {
       marks: [
         {
           type: 'yomigana',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
           value: 'まな',
         } as YomiganaMark,
@@ -817,7 +818,7 @@ describe('stringify - ref', () => {
       marks: [
         {
           type: 'okurigana',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
           value: 'びて',
         } as OkuriganaMark,
@@ -845,7 +846,7 @@ describe('stringify - ref', () => {
       marks: [
         {
           type: 'kaeri',
-          id: 'm1',
+          id: 'm#1',
           position: { blockId: 'b1', after: 't1' },
           value: '㆑',
         } as KaeriMark,
@@ -883,12 +884,12 @@ describe('stringify - nested range marks', () => {
       marks: [
         {
           type: 'emphasis',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't3' },
         } as EmphasisMark,
         {
           type: 'tateten',
-          id: 'm2',
+          id: 'm#2',
           anchor: { from: 't1', to: 't2' },
         } as TatetenMark,
       ],
@@ -931,7 +932,7 @@ describe('stringify - XML escaping', () => {
       marks: [
         {
           type: 'yomigana',
-          id: 'm1',
+          id: 'm#1',
           anchor: { from: 't1', to: 't1' },
           value: '<test>',
         } as YomiganaMark,
@@ -985,5 +986,154 @@ describe('stringify - readings', () => {
     const xml = stringify(doc);
 
     expect(xml).not.toContain('<skam:readings>');
+  });
+});
+
+// ============================================================================
+// id の書き方 (手書きの id だけを xml:id に書く) と highlight の結び
+// ============================================================================
+
+describe('stringify - ids', () => {
+  const autoDoc = (marks: SKAMDocument['marks'], count = 3): SKAMDocument => {
+    const ids = Array.from({ length: count }, (_, i) => `b#1#${i + 1}`);
+    return {
+      format: 'skam@0.1',
+      tokens: ids.map((id, i) => ({ id, text: '學而時之'[i]! })),
+      blocks: [{ id: 'b#1', tokenIds: ids }],
+      marks,
+      readings: [],
+    };
+  };
+  const ref = (after: string | undefined, id: string, extra: Partial<RefMark> = {}): RefMark => ({
+    type: 'ref',
+    id,
+    position: after === undefined ? { blockId: 'b#1' } : { blockId: 'b#1', after },
+    label: 'a',
+    ...extra,
+  });
+  const highlight = (
+    from: string,
+    to: string,
+    extra: Partial<HighlightMark> = {}
+  ): HighlightMark => ({
+    type: 'highlight',
+    id: 'm#9',
+    anchor: { from, to },
+    ...extra,
+  });
+
+  it('自動の id だけの文書には xml:id が出ない', () => {
+    const xml = stringify(
+      autoDoc([
+        { type: 'emphasis', id: 'm#1', anchor: { from: 'b#1#1', to: 'b#1#2' } },
+        { type: 'kutoten', id: 'm#2', position: { blockId: 'b#1', after: 'b#1#3' }, value: '。' },
+      ])
+    );
+    expect(xml).not.toContain('xml:id');
+  });
+
+  it('手書きの id の注記は xml:id に書く', () => {
+    const xml = stringify(
+      autoDoc([{ type: 'emphasis', id: 'note-1', anchor: { from: 'b#1#1', to: 'b#1#2' } }])
+    );
+    expect(xml).toContain('<skam:span type="emphasis" xml:id="note-1">');
+  });
+
+  it('すべての種類の注記の要素に手書きの id を書く', () => {
+    const d = autoDoc(
+      [
+        { type: 'kaeri', id: 'k', position: { blockId: 'b#1', after: 'b#1#1' }, value: 'レ' },
+        { type: 'kutoten', id: 'u', position: { blockId: 'b#1', after: 'b#1#2' }, value: '、' },
+        { type: 'tateten', id: 'tt', anchor: { from: 'b#1#1', to: 'b#1#2' } },
+        { type: 'okimoji', id: 'oki', anchor: { from: 'b#1#3', to: 'b#1#3' } },
+        { type: 'yomigana', id: 'yo', anchor: { from: 'b#1#1', to: 'b#1#1' }, value: 'a' },
+      ] as SKAMDocument['marks'],
+      3
+    );
+    const xml = stringify(d);
+    for (const id of ['k', 'u', 'tt', 'oki', 'yo']) expect(xml).toContain(`xml:id="${id}"`);
+  });
+
+  it('手書きの id のブロックは xml:id に書く', () => {
+    const d = autoDoc([]);
+    d.blocks[0]!.id = 'p1';
+    d.blocks[0]!.tokenIds = ['p1#1', 'p1#2', 'p1#3'];
+    d.tokens.forEach((token, i) => (token.id = `p1#${i + 1}`));
+    expect(stringify(d)).toContain('<skam:block xml:id="p1">');
+  });
+
+  it('手書きの id の ref を指す highlight は ref 属性で書く', () => {
+    const d: SKAMDocument = {
+      format: 'skam@0.1',
+      tokens: [
+        { id: 'b#1#1', text: '學' },
+        { id: 'b#2#1', text: '而' },
+        { id: 'b#2#2', text: '時' },
+      ],
+      blocks: [
+        { id: 'b#1', tokenIds: ['b#1#1'] },
+        { id: 'b#2', tokenIds: ['b#2#1', 'b#2#2'] },
+      ],
+      marks: [
+        { type: 'ref', id: 'ref-1', position: { blockId: 'b#1', after: 'b#1#1' }, label: 'a' },
+        highlight('b#2#1', 'b#2#1', { id: 'h1', ref: 'ref-1' }),
+        highlight('b#2#2', 'b#2#2', { id: 'h2', ref: 'ref-1' }),
+      ],
+      readings: [],
+    };
+    const xml = stringify(d);
+    expect(xml.match(/ref="ref-1"/g)).toHaveLength(2);
+  });
+
+  it('highlight.ref の無い highlight は ref 属性を書かず、ref は今の位置に書く', () => {
+    const xml = stringify(autoDoc([highlight('b#1#1', 'b#1#2'), ref('b#1#1', 'm#2')]));
+    expect(xml).not.toContain('ref="');
+    expect(xml).toContain('<skam:span type="highlight">學<skam:ref label="a"/>而</skam:span>');
+  });
+
+  it('最後の字の後ろの ref も、highlight.ref の無い highlight の外に書く', () => {
+    const xml = stringify(autoDoc([highlight('b#1#1', 'b#1#2'), ref('b#1#2', 'm#2')]));
+    expect(xml).toContain('<skam:span type="highlight">學而</skam:span><skam:ref label="a"/>');
+  });
+
+  it('範囲の外の手書きの id の ref も ref 属性で指せる', () => {
+    const xml = stringify(
+      autoDoc([highlight('b#1#1', 'b#1#2', { ref: 'r1' }), ref('b#1#3', 'r1')])
+    );
+    expect(xml).toContain('<skam:span type="highlight" ref="r1">');
+    expect(xml).not.toContain('ref=""');
+  });
+
+  it('自動の id の ref を指す highlight.ref は ref 属性にできないので書かない', () => {
+    const xml = stringify(
+      autoDoc([highlight('b#1#1', 'b#1#2', { ref: 'm#2' }), ref('b#1#3', 'm#2')]),
+      { lossy: true }
+    );
+    expect(xml).not.toContain(' ref="m#');
+    expect(xml).not.toContain('ref=""');
+  });
+
+  it('highlight.ref が空文字でも ref="" は書かない', () => {
+    const xml = stringify(autoDoc([highlight('b#1#1', 'b#1#2', { ref: '' })]), { lossy: true });
+    expect(xml).not.toContain('ref=""');
+  });
+
+  it('同じ字の yomigana (手書きの id) と okurigana (自動の id) は kun の xml:id に yomigana の id を書く', () => {
+    const xml = stringify(
+      autoDoc([
+        { type: 'yomigana', id: 'y1', anchor: { from: 'b#1#1', to: 'b#1#1' }, value: 'あ' },
+        { type: 'okurigana', id: 'm#2', anchor: { from: 'b#1#1', to: 'b#1#1' }, value: 'イ' },
+      ])
+    );
+    expect(xml).toContain('<skam:kun yomi="あ" okuri="イ" xml:id="y1">');
+  });
+
+  it('同じ字の yomigana (自動の id) と okurigana (手書きの id) は、kun の xml:id に書かない (parser が yomigana に付けてしまうため)', () => {
+    const d = autoDoc([
+      { type: 'yomigana', id: 'm#1', anchor: { from: 'b#1#1', to: 'b#1#1' }, value: 'あ' },
+      { type: 'okurigana', id: 'o1', anchor: { from: 'b#1#1', to: 'b#1#1' }, value: 'イ' },
+    ]);
+    const xml = stringify(d, { lossy: true });
+    expect(xml).not.toContain('xml:id');
   });
 });

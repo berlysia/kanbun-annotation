@@ -56,3 +56,28 @@ describe('package exports (K8)', () => {
     });
   }
 });
+
+describe('core exports (id rules and SKAM-ML content model)', () => {
+  it('skam exports the id functions and the §7.0 tables; parser and stringify re-export the same tables', async () => {
+    const core = await import('@kanbun-skam/skam');
+    for (const name of [
+      'isHandId',
+      'isAutoId',
+      'findIdFormIssues',
+      'findXmlUnwritableChars',
+      // @internal: stringify と findIdFormIssues が使う。公開 API としては案内しない
+      'groupKanaMarksByAnchor',
+      'renumberAutoIds',
+      'convertHandIdsToAuto',
+    ] as const) {
+      expect(typeof core[name]).toBe('function');
+    }
+    const parser = await import('@kanbun-skam/skam-xml-parser');
+    const stringify = await import('@kanbun-skam/skam-xml-stringify');
+    expect(parser.SKAM_ML_CONTENT_MODEL).toBe(core.SKAM_ML_CONTENT_MODEL);
+    expect(stringify.SKAM_ML_CONTENT_MODEL).toBe(core.SKAM_ML_CONTENT_MODEL);
+    expect(stringify.SKAM_ML_NESTING_ORDER).toBe(core.SKAM_ML_NESTING_ORDER);
+    expect('SKAM_ML_NESTING_ORDER' in parser).toBe(false);
+    // 3 つのパッケージを動的に import するので、全パッケージのテストを並べて流すと 5 秒を超えうる
+  }, 30_000);
+});

@@ -922,6 +922,11 @@ function generateWritingModeStyles(
   const annotationRowH = `calc(var(--${vp}-ruby-ratio) * 1em)`;
   // Horizontal
   const highlightRowGap = '0.5em';
+  // 傍線の段 1 つ分のずれ。段が違う線どうしが重ならず、離れて見えるよう、
+  // 最も広い線 (wavy の SVG の幅 4px) に、今の傍線と字との空きのうち最小の値 (highlightLineDistanceNoKana) を足す。
+  // canvas の同じ値は draw-marks.ts の highlightLanePitch。段の数は --${prefix}-highlight-lane (AIR の lane)
+  const highlightLanePitch = `(4px + ${highlightLineDistanceNoKana})`;
+  const lane = `var(--${prefix}-highlight-lane, 0)`;
 
   if (isVertical) {
     return css`
@@ -956,6 +961,16 @@ function generateWritingModeStyles(
 
       :where(.${prefix}-highlight:not([data-has-kana])) > :where(.${prefix}-highlight-content) {
         padding-right: ${highlightLineDistanceNoKana};
+      }
+
+      /* 傍線の段 (lane): 重なる傍線は字から離れる向き (右) に段 × 間隔だけ線をずらす。
+       * ラベルは highlight の右端が基準なので、padding と一緒に動く */
+      :where(.${prefix}-highlight[data-lane]) > :where(.${prefix}-highlight-content) {
+        padding-right: calc(${highlightLineDistance} + ${lane} * ${highlightLanePitch});
+      }
+
+      :where(.${prefix}-highlight[data-lane]:not([data-has-kana])) > :where(.${prefix}-highlight-content) {
+        padding-right: calc(${highlightLineDistanceNoKana} + ${lane} * ${highlightLanePitch});
       }
 
       /* 傍線スタイル共通: background-image + background-position で描画。
@@ -1153,6 +1168,16 @@ function generateWritingModeStyles(
       /* Highlight (傍線) - 横書き: 下側に表示 */
       :where(.${prefix}-highlight) {
         padding-bottom: ${highlightRowGap};
+      }
+
+      /* 傍線の段 (lane): 重なる傍線は字から離れる向き (下) に段 × 間隔だけ線をずらす。
+       * ラベルは highlight の下端が基準なので、highlight の padding も同じだけ広げる */
+      :where(.${prefix}-highlight[data-lane]) {
+        padding-bottom: calc(${highlightRowGap} + ${lane} * ${highlightLanePitch});
+      }
+
+      :where(.${prefix}-highlight[data-lane]) > :where(.${prefix}-highlight-content) {
+        padding-bottom: calc(${lane} * ${highlightLanePitch});
       }
 
       :where(.${prefix}-highlight-content) {

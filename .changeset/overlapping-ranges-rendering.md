@@ -17,6 +17,7 @@ Overlapping range annotations are drawn as their ranges, and every character is 
   - Ranges that cross each other are drawn as their ranges: a range reading inside a tateten that starts after the tateten's first character is drawn (it was dropped), an okurigana range crossing a yomigana range is drawn, overlapping tateten and highlight marks are all drawn, and okimoji, joji and emphasis marks stay on their own characters.
   - A non-レ kaeri on a one-character tateten is kept on the character (it was dropped), and two kaeri marks that wanted the same tateten separator are both drawn.
   - When readings of the same type overlap (`READING_OVERLAP`), the first one in `marks` is drawn and later ones that share a character are not. Several yomigana, okurigana or soegana on the same anchor (`MARK_CONFLICT`) are no longer concatenated; the first one is drawn.
+  - Highlights that share a character are drawn in separate lanes, each further from the characters (`AIRHighlightGroupNode.lane`, set from 1; all fragments of a highlight share its lane). Documents without such highlights render as before.
   - Only the first emphasis mark of a character is drawn.
   - Limits for documents that do not pass validation: per block, up to 1,024 tateten and highlight marks, up to 8 fragments per mark and a range nesting depth of 56 are drawn; further marks are not drawn, and characters are always drawn.
 - `skam-html-renderer`:

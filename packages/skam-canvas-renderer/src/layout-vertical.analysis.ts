@@ -56,6 +56,7 @@ export function analyzeDocument(
     hasEmphasis: tree.hasEmphasis,
     hasHighlight: tree.hasHighlight,
     hasRefLabel: tree.hasRefLabel,
+    ...(tree.maxHighlightLane ? { maxHighlightLane: tree.maxHighlightLane } : {}),
   };
 
   let documentMaxRubyWidth = 0;

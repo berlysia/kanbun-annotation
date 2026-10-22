@@ -30,6 +30,7 @@ import type {
   OkototenLayout,
 } from './types.js';
 import { shouldApplyTateChuYoko } from './draw-text.js';
+import { highlightLanePitch } from './draw-marks.js';
 
 /** ruby の範囲 (rubySpan) を配置している間の状態 */
 interface RubyRun {
@@ -502,7 +503,8 @@ function flatten(
       } else if (!effectiveFlags.hasSuffix && effectiveMaxRubyWidth > 0 && !groupHasRightColumn) {
         rightAdjust = effectiveMaxRubyWidth;
       }
-      const lineX = highlightLineX - rightAdjust;
+      const lineX =
+        highlightLineX - rightAdjust + (node.lane ?? 0) * highlightLanePitch(highlightGap);
       ops.push({ kind: 'highlight-enter' });
       // ADR-015: emphasis+highlight 共存時、emphasis を highlight line の外側（右）に配置
       flatten(

@@ -3,6 +3,7 @@ import type { Mark, SKAMDocument } from '@kanbun-skam/skam';
 import { buildAnnotationIR, RENDER_PROFILES } from '@kanbun-skam/skam/rendering';
 import type { AIRBlockChild } from '@kanbun-skam/skam/rendering';
 import { render, type RenderOptions } from '../index.js';
+import { expectCSSContains } from './helpers/css-contract.js';
 
 /**
  * 重なる範囲 (ruby・竪点・傍線の部分交差) の html の描画。
@@ -354,4 +355,40 @@ describe('同じ位置の注記は 1 つずつ別の要素に描く', () => {
       expect(kutoten.map((el) => el.textContent)).toEqual(['：', '。']);
     });
   }
+});
+
+describe('html: highlights that share a character (lane)', () => {
+  const lanesOf = (doc: SKAMDocument, options: RenderOptions = {}) =>
+    [...dom(doc, options).querySelectorAll('.skam-highlight')].map((el) => ({
+      lane: el.getAttribute('data-lane'),
+      style: el.getAttribute('style'),
+    }));
+
+  for (const { label, options } of VARIANTS) {
+    it(`puts data-lane and the CSS variable on the inner highlight only (${label})`, () => {
+      expect(lanesOf(docOf(5, [highlight(1, 5), highlight(3, 5)]), options)).toEqual([
+        { lane: null, style: null },
+        { lane: '1', style: '--skam-highlight-lane: 1' },
+      ]);
+    });
+
+    it(`gives every fragment of one highlight the same lane (${label})`, () => {
+      const lanes = lanesOf(docOf(6, [highlight(1, 4), highlight(3, 6), yomi(2, 5)]), options);
+      expect(lanes.filter((l) => l.lane === '1').length).toBeGreaterThanOrEqual(1);
+      expect(lanes.every((l) => l.lane === null || l.lane === '1')).toBe(true);
+    });
+
+    it(`adds no lane markup when highlights do not overlap (${label})`, () => {
+      const root = dom(docOf(6, [highlight(1, 2), highlight(4, 6)]), options);
+      expect(root.querySelector('[data-lane]')).toBeNull();
+      expect(root.innerHTML).not.toContain('--skam-highlight-lane');
+    });
+  }
+
+  it('shifts the line by lane x pitch in both writing modes', () => {
+    for (const writingMode of ['vertical', 'horizontal'] as const) {
+      const { css } = render(docOf(3, [highlight(1, 3), highlight(2, 3)]), { writingMode });
+      expectCSSContains(css, 'var(--skam-highlight-lane, 0) * (4px + 0.1em)');
+    }
+  });
 });

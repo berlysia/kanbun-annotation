@@ -89,6 +89,7 @@ function convertHighlightGroup(airGroup: AIRHighlightGroupNode): CanvasHighlight
     highlightStyle: airGroup.highlightStyle,
     ...(airGroup.highlightMark.ref ? { highlightRef: airGroup.highlightMark.ref } : {}),
     ...(airGroup.refLabel ? { refLabel: airGroup.refLabel } : {}),
+    ...(airGroup.lane ? { lane: airGroup.lane } : {}),
     children: convertChildren(airGroup.children),
     ...(airGroup.continuesBefore ? { continuesBefore: true as const } : {}),
     ...(airGroup.continuesAfter ? { continuesAfter: true as const } : {}),
@@ -186,6 +187,7 @@ function mergeFlags(nodes: readonly CanvasGroupChild[], flags: BlockLayoutFlags)
     } else if (node.type === 'highlight-group') {
       flags.hasHighlight = true;
       if (node.refLabel) flags.hasRefLabel = true;
+      if (node.lane) flags.maxHighlightLane = Math.max(flags.maxHighlightLane ?? 0, node.lane);
       mergeFlags(node.children, flags);
     }
   }
@@ -236,6 +238,7 @@ export function convertAIRToCanvasRenderTree(air: AIRDocument): CanvasRenderTree
   let hasEmphasis = false;
   let hasHighlight = false;
   let hasRefLabel = false;
+  let maxHighlightLane = 0;
   for (const block of blockNodes) {
     if (block.flags.hasSuffix) hasSuffix = true;
     if (block.flags.hasSaidoku) hasSaidoku = true;
@@ -243,6 +246,7 @@ export function convertAIRToCanvasRenderTree(air: AIRDocument): CanvasRenderTree
     if (block.flags.hasEmphasis) hasEmphasis = true;
     if (block.flags.hasHighlight) hasHighlight = true;
     if (block.flags.hasRefLabel) hasRefLabel = true;
+    maxHighlightLane = Math.max(maxHighlightLane, block.flags.maxHighlightLane ?? 0);
   }
 
   return {
@@ -253,6 +257,7 @@ export function convertAIRToCanvasRenderTree(air: AIRDocument): CanvasRenderTree
     hasEmphasis,
     hasHighlight,
     hasRefLabel,
+    ...(maxHighlightLane > 0 ? { maxHighlightLane } : {}),
   };
 }
 

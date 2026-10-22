@@ -13,6 +13,7 @@ import type {
   TatetenSeparatorLayout,
   TokenLayout,
 } from '../types.js';
+import { highlightLanePitch } from '../draw-marks.js';
 import { RecordingCanvas, RecordingContext } from './recording-context.js';
 
 /**
@@ -245,6 +246,38 @@ describe('canvas: overlapping ranges', () => {
       for (let i = 0; i + 1 < lines.length; i++) {
         expect(lines[i]!.yEnd).toBeGreaterThanOrEqual(lines[i + 1]!.yStart);
       }
+    });
+  });
+
+  describe('highlights that share a character (lane)', () => {
+    const lineXs = (doc: SKAMDocument) =>
+      layoutOf(doc)
+        .columns[0]!.highlightLines!.map((l) => l.x)
+        .sort((a, b) => a - b);
+
+    it('draws a nested highlight one lane pitch outside the outer one', () => {
+      const [outer, inner] = lineXs(docOf(5, [highlight(1, 5), highlight(3, 5)]));
+      expect(inner! - outer!).toBe(highlightLanePitch(2));
+    });
+
+    it('draws three highlights on lanes 0, 1 and 2, and the fragments of one highlight on one x', () => {
+      const doc = docOf(6, [highlight(1, 4), highlight(2, 6), highlight(3, 5)]);
+      const xs = [...new Set(lineXs(doc))];
+      expect(xs).toHaveLength(3);
+      expect(xs[1]! - xs[0]!).toBe(highlightLanePitch(2));
+      expect(xs[2]! - xs[1]!).toBe(highlightLanePitch(2));
+    });
+
+    it('keeps lane 0 where it was: a document without overlap draws every line on one x', () => {
+      const doc = docOf(6, [highlight(1, 2), highlight(4, 6)]);
+      expect(new Set(lineXs(doc)).size).toBe(1);
+      expect(treeOf(doc).maxHighlightLane).toBeUndefined();
+    });
+
+    it('widens the column by the lanes so the shifted line stays in the column', () => {
+      const plain = layoutOf(docOf(5, [highlight(1, 5)]));
+      const laned = layoutOf(docOf(5, [highlight(1, 5), highlight(3, 5)]));
+      expect(laned.width - plain.width).toBe(highlightLanePitch(2));
     });
   });
 

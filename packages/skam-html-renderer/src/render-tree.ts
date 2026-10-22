@@ -390,7 +390,12 @@ function renderHighlightGroup(
   const kanaAttr = node.hasKana ? ' data-has-kana' : '';
   const emphasisAttr = node.hasEmphasis ? ' data-has-emphasis' : '';
   const refAttr = node.refLabel ? ' data-has-ref' : '';
-  const attributes = `data-style="${style}"${kanaAttr}${emphasisAttr}${refAttr}${continuesAttributes(node)}`;
+  // 段は AIR の整数 (1 以上)。数値だけを属性と CSS 変数に出す
+  const laneAttr =
+    node.lane !== undefined && Number.isSafeInteger(node.lane) && node.lane >= 1
+      ? ` data-lane="${node.lane}" style="--${prefix}-highlight-lane: ${node.lane}"`
+      : '';
+  const attributes = `data-style="${style}"${kanaAttr}${emphasisAttr}${refAttr}${continuesAttributes(node)}${laneAttr}`;
   const refHtml = highlightRefHtml(node.refLabel, prefix);
   const wrap = (content: string): string =>
     `<span class="${prefix}-highlight${styleClass}" ${attributes}><span class="${contentClass}">${refHtml}${content}</span></span>`;

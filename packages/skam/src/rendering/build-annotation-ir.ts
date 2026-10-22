@@ -257,6 +257,8 @@ interface Interval {
   fragmentCount: number;
   ruby?: DrawnReading;
   mark?: TatetenMark | HighlightMark;
+  /** 傍線の段 (0 から)。同じ傍線の断片はどれも同じ値 */
+  lane?: number;
 }
 
 interface RangeCandidate<M extends TatetenMark | HighlightMark> {
@@ -433,6 +435,24 @@ function placeAnnotation(
   return fragments;
 }
 
+/**
+ * 傍線の段: 置いた順 (始まりの昇順、終わりの降順、marks[] の順) に、元の範囲が 1 字でも重なる
+ * すでに段の決まった傍線が使っていない最小の段 (0 から)。断片に分かれても元の範囲で決めるので、
+ * 同じ傍線の断片はどれも同じ段になる。置いた傍線は 1,024 個までなので、全部と見比べても上限で抑えられる。
+ */
+function assignHighlightLane(
+  placed: readonly { start: number; end: number; lane: number }[],
+  candidate: RangeCandidate<HighlightMark>
+): number {
+  const used = new Set<number>();
+  for (const other of placed) {
+    if (other.start <= candidate.end && candidate.start <= other.end) used.add(other.lane);
+  }
+  let lane = 0;
+  while (used.has(lane)) lane++;
+  return lane;
+}
+
 /** ブロックの字の並びに収まる、始まりが終わりより後でない範囲の注記。置く順 (始まりの昇順、終わりの降順、marks[] の順) */
 function collectRangeCandidates<M extends TatetenMark | HighlightMark>(
   marks: readonly Mark[],
@@ -493,8 +513,13 @@ function placeIntervals(
     }
   }
   if (profile.highlight) {
+    const placedHighlights: { start: number; end: number; lane: number }[] = [];
     for (const candidate of collectRangeCandidates<HighlightMark>(marks, 'highlight', positions)) {
-      placeAnnotation(placement, 'highlight', candidate);
+      const fragments = placeAnnotation(placement, 'highlight', candidate);
+      if (!fragments) continue;
+      const lane = assignHighlightLane(placedHighlights, candidate);
+      placedHighlights.push({ start: candidate.start, end: candidate.end, lane });
+      for (const fragment of fragments) fragment.lane = lane;
     }
   }
   return {
@@ -580,6 +605,7 @@ function openNode(interval: Interval, context: TreeContext): OpenInterval {
     highlightMark,
     highlightStyle: highlightMark.style ?? 'solid',
     ...(refLabel !== undefined ? { refLabel } : {}),
+    ...(interval.lane !== undefined && interval.lane >= 1 ? { lane: interval.lane } : {}),
     children: [],
     ...continuity,
     hasKana: false,

@@ -464,6 +464,37 @@ describe('documents without errors or warnings: AIR', () => {
     }
   });
 
+  it('gives two highlights that share a token different lanes, and all fragments of one highlight the same lane', () => {
+    let sharingPairs = 0;
+    for (const sample of CLEAN) {
+      const { doc } = sample;
+      const air = buildAnnotationIR(doc, RENDER_PROFILES.full);
+      air.blocks.forEach((block, blockIndex) => {
+        const lanesOf = new Map<unknown, Set<number>>();
+        walk(block.children, (n) => {
+          if (n.type !== 'highlight-group') return;
+          const lanes = lanesOf.get(n.highlightMark) ?? new Set<number>();
+          lanes.add(n.lane ?? 0);
+          lanesOf.set(n.highlightMark, lanes);
+        });
+        const drawn = rangesIn(doc, 'highlight').filter(
+          (h) => h.block === blockIndex && lanesOf.has(h.mark)
+        );
+        for (const h of drawn) agree(sample, 'fragment lanes', lanesOf.get(h.mark)!.size, 1);
+        for (let i = 0; i < drawn.length; i++) {
+          for (let j = i + 1; j < drawn.length; j++) {
+            if (!shares(drawn[i]!.range, drawn[j]!.range)) continue;
+            sharingPairs++;
+            const laneI = [...lanesOf.get(drawn[i]!.mark)!][0];
+            const laneJ = [...lanesOf.get(drawn[j]!.mark)!][0];
+            agree(sample, 'lanes of highlights sharing a token', laneI !== laneJ, true);
+          }
+        }
+      });
+    }
+    expect(sharingPairs).toBeGreaterThanOrEqual(20);
+  });
+
   it('puts one separator between each adjacent pair inside a tateten, and only there', () => {
     for (const sample of CLEAN) {
       const { doc } = sample;

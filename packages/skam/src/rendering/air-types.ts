@@ -201,6 +201,11 @@ export interface AIRHighlightGroupNode {
   highlightStyle: HighlightStyle;
   /** highlight が参照する ref の解決済みラベル（例: "(1)"）。断片に分かれたときは最後の断片だけに付く */
   refLabel?: string;
+  /**
+   * 傍線の段。同じ字を共有する傍線は別の段になり、アダプタは段が大きいほど字から離して描く。
+   * 1 以上のときだけ付く (段 0 はキーごと無い)。断片はどれも同じ値
+   */
+  lane?: number;
   /** 範囲に含まれる同じ種類の傍線 (傍線 t1-t4 の中の t2-t3) も子になる */
   children: (
     | AIRTokenNode

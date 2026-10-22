@@ -168,6 +168,8 @@ export interface CanvasHighlightGroupNode {
   highlightRef?: string;
   refLabel?: string;
   children: CanvasGroupChild[];
+  /** 傍線の段 (AIR の `lane`。1 以上のときだけ付く)。段 × 間隔だけ右へずらして線を引く */
+  lane?: number;
   /**
    * 前 / 後ろに同じ傍線の断片がある (AIR の `continuesBefore` / `continuesAfter`)。
    * 付かないときはキーごと無い。続きの側の端は、同じ列の隣の断片の端まで線をつなぐ
@@ -189,6 +191,8 @@ export interface BlockLayoutFlags {
   hasHighlight: boolean;
   /** highlight-group に refLabel を持つものが存在 → 列右側に追加幅が必要 */
   hasRefLabel: boolean;
+  /** 傍線の段の最大 (1 以上のときだけ付く)。段の数だけ列右側に追加幅が必要 */
+  maxHighlightLane?: number;
 }
 
 export interface CanvasBlockNode {
@@ -213,6 +217,8 @@ export interface CanvasRenderTree {
   hasHighlight: boolean;
   /** highlight-group に refLabel を持つものが存在 → 列右側に追加幅が必要 */
   hasRefLabel: boolean;
+  /** 傍線の段の最大 (1 以上のときだけ付く) */
+  maxHighlightLane?: number;
 }
 
 // ============================================================================

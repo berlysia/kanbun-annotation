@@ -247,6 +247,23 @@ export const FIXTURE_READING_CHAIN: SKAMDocument = {
   readings: [],
 };
 
+/**
+ * Case 9: overlap-highlights — 同じ字に傍線が 2 本以上かかり、段 (lane) で外側へずらして並ぶ文書。
+ * 字は 天御中主神高 の 6 字。傍線 t1-t5 (solid、段 0)、t3-t5 (dotted、段 1)、t4-t6 (dashed、段 2) が
+ * 互いに字を共有する。
+ */
+export const FIXTURE_OVERLAP_HIGHLIGHTS: SKAMDocument = {
+  format: 'skam@0.1',
+  tokens: [...'天御中主神高'].map((text, i) => ({ id: `t${i + 1}`, text })),
+  blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3', 't4', 't5', 't6'] }],
+  marks: [
+    { type: 'highlight', anchor: { from: 't1', to: 't5' }, style: 'solid' },
+    { type: 'highlight', anchor: { from: 't3', to: 't5' }, style: 'dotted' },
+    { type: 'highlight', anchor: { from: 't4', to: 't6' }, style: 'dashed' },
+  ],
+  readings: [],
+};
+
 /** All fixtures keyed by case_id (for iteration) */
 export const FIXTURES = {
   'ruby-range-core': FIXTURE_RANGE_RUBY,
@@ -257,4 +274,5 @@ export const FIXTURES = {
   'ref-source-order': FIXTURE_REF_SOURCE_ORDER,
   'overlap-crossing': FIXTURE_OVERLAP_CROSSING,
   'reading-chain-kaeri': FIXTURE_READING_CHAIN,
+  'overlap-highlights': FIXTURE_OVERLAP_HIGHLIGHTS,
 } as const;

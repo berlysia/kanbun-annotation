@@ -840,3 +840,57 @@ describe('buildAnnotationIR: 傍点の style (slots.emphasisStyle)', () => {
     expect(emphasisStyleOf('dot', { ...FULL, emphasis: false }).emphasisStyle).toBeUndefined();
   });
 });
+
+describe('buildAnnotationIR: 傍線の段 (lane)', () => {
+  /** 傍線ごとの段 (marks[] の順)。断片の段はどれも同じであることも確かめる */
+  function lanesOf(marks: Mark[], count = 8): (number | undefined)[] {
+    const air = build(docOf(count, marks));
+    return marks.map((mark) => {
+      const groups = groupNodes(air, 'highlight-group').filter((g) => g.highlightMark === mark);
+      expect(groups.length).toBeGreaterThan(0);
+      expect(new Set(groups.map((g) => g.lane)).size).toBe(1);
+      return groups[0]!.lane;
+    });
+  }
+
+  it('重なりの無い傍線は段 0 (lane のキーごと無い)', () => {
+    const air = build(docOf(6, [highlight(1, 2), highlight(3, 4), highlight(5, 6)]));
+    for (const group of groupNodes(air, 'highlight-group')) {
+      expect('lane' in group).toBe(false);
+    }
+  });
+
+  it('入れ子は外が段 0、内が段 1', () => {
+    expect(lanesOf([highlight(1, 5), highlight(3, 5)])).toEqual([undefined, 1]);
+  });
+
+  it('範囲が同じ傍線は marks[] の順に段 0、1', () => {
+    expect(lanesOf([highlight(2, 4), highlight(2, 4)])).toEqual([undefined, 1]);
+  });
+
+  it('部分交差は段 0、1 で、後の傍線が断片に分かれても断片はどれも段 1', () => {
+    const marks = [highlight(1, 4), highlight(3, 6)];
+    expect(lanesOf(marks)).toEqual([undefined, 1]);
+    const air = build(docOf(8, marks));
+    expect(groupNodes(air, 'highlight-group').filter((g) => g.lane === 1).length).toBeGreaterThan(
+      0
+    );
+  });
+
+  it('3 本が 1 字を共有すると段 0、1、2', () => {
+    expect(lanesOf([highlight(1, 5), highlight(2, 6), highlight(3, 4)])).toEqual([undefined, 1, 2]);
+  });
+
+  it('離れた傍線は段 0 に戻る (空いた段を使う)', () => {
+    // a(1-3) と b(2-6) は段 0、1。c(5-7) は a と離れ b と共有するので段 0
+    expect(lanesOf([highlight(1, 3), highlight(2, 6), highlight(5, 7)])).toEqual([
+      undefined,
+      1,
+      undefined,
+    ]);
+  });
+
+  it('始まりの昇順で決める: marks[] で後ろにあっても、先に始まる傍線が段 0', () => {
+    expect(lanesOf([highlight(3, 5), highlight(1, 5)])).toEqual([1, undefined]);
+  });
+});

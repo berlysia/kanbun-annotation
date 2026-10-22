@@ -125,7 +125,7 @@ JSON の `extensions` と `extensionsRequired`、注記の `ext.edu.quiz` にな
 
 ### 訓読注記（インライン）
 
-<!-- doctest:xml block -->
+<!-- doctest:xml body -->
 
 ```xml
 <skam:block>
@@ -270,7 +270,7 @@ XML の構文の誤り（タグの食い違いなど）では、ブラウザ版�
 
 ## 実験的な API
 
-`SKAM_ML_CONTENT_MODEL` は `@experimental`。仕様の改訂に合わせて変わりうる。同じ fixed group の同じ版どうしでだけ、内容の一致を保証する。
+`SKAM_ML_CONTENT_MODEL` は `@experimental`。仕様の改訂に合わせて変わりうる。同じ fixed group の同じ版どうしでだけ、内容の一致を保証する。キーはテキストを持てるすべての親要素（`block`、`span`、`tateten`、`yomigana`、`kun`、`soegana`、`okimoji`、`joji`、`okototen`、`base`、`t`）。キーが無い親を「制約なし」とは読まない。
 
 ブロック先頭の返り点（`skam:kaeri`）は誤りとして扱う。同じ位置の複数の kaeri は正しい書き方として許す。
 

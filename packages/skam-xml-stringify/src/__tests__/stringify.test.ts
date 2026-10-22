@@ -1325,3 +1325,251 @@ describe('stringify - ext, custom, placementHint attributes', () => {
     expect(xml).toContain('yomi="a&#9;b&#10;c&#13;d"');
   });
 });
+
+// ============================================================================
+// 入れ子にできない範囲は空要素の対で書く (plan-3 T3)
+// ============================================================================
+
+describe('stringify - nested ranges and empty-element pairs', () => {
+  const TEXTS = '甲乙丙丁戊己庚辛';
+  const autoDoc = (
+    marks: SKAMDocument['marks'],
+    count = 3,
+    over: Partial<SKAMDocument> = {}
+  ): SKAMDocument => {
+    const ids = Array.from({ length: count }, (_, i) => `b#1#${i + 1}`);
+    return {
+      format: 'skam@0.1',
+      tokens: ids.map((id, i) => ({ id, text: TEXTS[i] ?? '字' })),
+      blocks: [{ id: 'b#1', tokenIds: ids }],
+      marks,
+      readings: [],
+      ...over,
+    };
+  };
+  const a = (from: number, to = from) => ({ from: `b#1#${from}`, to: `b#1#${to}` });
+  const lossCodesOf = (d: SKAMDocument): string[] => {
+    const seen: string[] = [];
+    stringifyDocument(d, { lossy: true, onLoss: (l) => seen.push(l.code) });
+    return seen;
+  };
+  const inner = (d: SKAMDocument): string => {
+    const xml = stringifyDocument(d);
+    return /<skam:block[^>]*>(.*)<\/skam:block>/s.exec(xml)![1]!;
+  };
+  const position = (after?: number) =>
+    after === undefined ? { blockId: 'b#1' } : { blockId: 'b#1', after: `b#1#${after}` };
+
+  it('writes the crossing highlight as a pair and the emphasis as nested, without loss', () => {
+    const d = autoDoc([
+      { type: 'emphasis', anchor: a(1, 2) },
+      { type: 'highlight', anchor: a(2, 3) },
+    ]);
+    expect(lossCodesOf(d)).toEqual([]);
+    expect(inner(d)).toBe(
+      '<skam:span type="emphasis">甲<skam:span type="highlight" sID="r1"/>乙</skam:span>丙<skam:span eID="r1"/>'
+    );
+  });
+
+  it('writes a range that crosses a nested one as a pair, and one inside it that crosses another too', () => {
+    const d = autoDoc(
+      [
+        { type: 'emphasis', anchor: a(1, 4) },
+        { type: 'highlight', anchor: a(2, 5) },
+        { type: 'emphasis', anchor: a(4, 5) },
+      ],
+      5
+    );
+    expect(lossCodesOf(d)).toEqual([]);
+    expect(inner(d)).toBe(
+      '<skam:span type="emphasis">甲<skam:span type="highlight" sID="r1"/>乙丙' +
+        '<skam:span type="emphasis" sID="r2"/>丁</skam:span>戊<skam:span eID="r2"/><skam:span eID="r1"/>'
+    );
+  });
+
+  it('writes the tenshō form: a yomigana range with an okimoji inside', () => {
+    const d = autoDoc([
+      { type: 'yomigana', anchor: a(1, 2), value: 'てん' },
+      { type: 'okimoji', anchor: a(2) },
+    ]);
+    expect(lossCodesOf(d)).toEqual([]);
+    expect(inner(d)).toBe(
+      '<skam:yomigana value="てん">甲<skam:okimoji>乙</skam:okimoji></skam:yomigana>丙'
+    );
+  });
+
+  it('writes a position mark between two characters inside the range element', () => {
+    const d = autoDoc([
+      { type: 'okimoji', anchor: a(1, 2) },
+      { type: 'kaeri', value: '㆑', position: position(1) },
+    ]);
+    expect(lossCodesOf(d)).toEqual([]);
+    expect(inner(d)).toBe('<skam:okimoji>甲<skam:kaeri kind="re"/>乙</skam:okimoji>丙');
+  });
+
+  it('writes the end element before the position mark that follows the last character', () => {
+    const d = autoDoc([
+      { type: 'emphasis', anchor: a(1, 2) },
+      { type: 'okimoji', anchor: a(2, 3) },
+      { type: 'kaeri', value: '㆑', position: position(3) },
+    ]);
+    expect(inner(d)).toBe(
+      '<skam:span type="emphasis">甲<skam:okimoji sID="r1"/>乙</skam:span>丙<skam:okimoji eID="r1"/><skam:kaeri kind="re"/>'
+    );
+  });
+
+  it('writes block-start position marks, then the start element, then the opening tags', () => {
+    const d = autoDoc([
+      { type: 'soegana', anchor: a(1, 2), value: 'ヲ' },
+      { type: 'saidoku', anchor: a(2), forms: [{ yomi: 'いま' }] },
+      { type: 'kutoten', kind: 'ku', value: '。', position: position() },
+    ]);
+    expect(inner(d)).toBe(
+      '<skam:kutoten value="。" kind="ku"/><skam:kun soe="ヲ" sID="r1"/>甲' +
+        '<skam:saidoku><skam:base>乙</skam:base><skam:kunform yomi="いま"/></skam:saidoku><skam:kun eID="r1"/>丙'
+    );
+  });
+
+  it('writes yomigana and okurigana of one anchor as a single <skam:kun> pair', () => {
+    const d = autoDoc([
+      { type: 'emphasis', anchor: a(1, 2) },
+      { type: 'yomigana', anchor: a(2, 3), value: 'あ' },
+      { type: 'okurigana', anchor: a(2, 3), value: 'て' },
+    ]);
+    expect(lossCodesOf(d)).toEqual([]);
+    expect(inner(d)).toBe(
+      '<skam:span type="emphasis">甲<skam:kun yomi="あ" okuri="て" sID="r1"/>乙</skam:span>丙<skam:kun eID="r1"/>'
+    );
+  });
+
+  it('puts the hand-written id of a paired yomigana on the start element only', () => {
+    const d = autoDoc(
+      [
+        { type: 'emphasis', anchor: a(1, 2) },
+        { id: 'y1', type: 'yomigana', anchor: a(2, 4), value: 'あ' },
+        { type: 'okurigana', anchor: a(3), value: 'て' },
+      ],
+      4
+    );
+    expect(lossCodesOf(d)).toEqual([]);
+    const xml = inner(d);
+    expect(xml).toContain('<skam:kun yomi="あ" xml:id="y1" sID="r1"/>');
+    expect(xml.match(/xml:id="y1"/g)).toHaveLength(1);
+    expect(xml).toContain('<skam:kun okuri="て">丙</skam:kun>');
+  });
+
+  it('writes a soegana range that contains a saidoku character as a pair and the saidoku as nested', () => {
+    const d = autoDoc([
+      { type: 'soegana', anchor: a(2, 3), value: 'ヲ' },
+      { type: 'saidoku', anchor: a(2), forms: [{ yomi: 'いま' }] },
+    ]);
+    expect(lossCodesOf(d)).toEqual([]);
+    expect(inner(d)).toBe(
+      '甲<skam:kun soe="ヲ" sID="r1"/><skam:saidoku><skam:base>乙</skam:base><skam:kunform yomi="いま"/></skam:saidoku>丙<skam:kun eID="r1"/>'
+    );
+  });
+
+  it('writes two soegana ranges that contain one saidoku character as two pairs', () => {
+    const d = autoDoc([
+      { type: 'soegana', anchor: a(1, 3), value: 'ヲ' },
+      { type: 'soegana', anchor: a(2, 3), value: 'ニ' },
+      { type: 'saidoku', anchor: a(3), forms: [{ yomi: 'いま' }] },
+    ]);
+    expect(lossCodesOf(d)).toEqual([]);
+    expect(inner(d)).toBe(
+      '<skam:kun soe="ヲ" sID="r1"/>甲<skam:kun soe="ニ" sID="r2"/>乙' +
+        '<skam:saidoku><skam:base>丙</skam:base><skam:kunform yomi="いま"/></skam:saidoku><skam:kun eID="r2"/><skam:kun eID="r1"/>'
+    );
+  });
+
+  it('keeps a soegana on the same character as a saidoku nested inside the saidoku base', () => {
+    const d = autoDoc([
+      { type: 'soegana', anchor: a(2), value: 'ヲ' },
+      { type: 'saidoku', anchor: a(2), forms: [{ yomi: 'いま' }] },
+    ]);
+    expect(lossCodesOf(d)).toEqual([]);
+    expect(inner(d)).toBe(
+      '甲<skam:saidoku><skam:base><skam:kun soe="ヲ">乙</skam:kun></skam:base><skam:kunform yomi="いま"/></skam:saidoku>丙'
+    );
+  });
+
+  it('writes the two ranges of a document that has a SAIDOKU_READING_OVERLAP as a loss', () => {
+    const d = autoDoc([
+      { type: 'yomigana', anchor: a(1, 2), value: 'あ' },
+      { type: 'saidoku', anchor: a(2), forms: [{ yomi: 'いま' }] },
+    ]);
+    expect(lossCodesOf(d)).toEqual(['UNNESTABLE_OVERLAP']);
+  });
+
+  it('writes a partially overlapping multi-character saidoku as a loss, not as a pair', () => {
+    const d = autoDoc([
+      { type: 'emphasis', anchor: a(1, 2) },
+      { type: 'saidoku', anchor: a(2, 3), forms: [{ yomi: 'いま' }] },
+    ]);
+    expect(lossCodesOf(d)).toEqual(['UNNESTABLE_OVERLAP']);
+  });
+
+  it('writes 56 emphasis marks on one range as nested and 57 as pairs', () => {
+    const marks = (n: number): SKAMDocument['marks'] =>
+      Array.from({ length: n }, () => ({ type: 'emphasis' as const, anchor: a(1, 2) }));
+    const nested = inner(autoDoc(marks(56)));
+    expect(nested.match(/<skam:span type="emphasis">/g)).toHaveLength(56);
+    expect(nested).not.toContain('sID');
+    const paired = inner(autoDoc(marks(57)));
+    expect(paired.match(/sID="r\d+"/g)).toHaveLength(57);
+    expect(paired).not.toContain('<skam:span type="emphasis">');
+  });
+
+  it('writes all of a group as pairs when it exceeds the remaining depth by one', () => {
+    const outer = { type: 'okimoji' as const, anchor: a(1, 3) };
+    const emphasis = (n: number): SKAMDocument['marks'] =>
+      Array.from({ length: n }, () => ({ type: 'emphasis' as const, anchor: a(1, 2) }));
+    expect(
+      inner(autoDoc([outer, ...emphasis(55)])).match(/<skam:span type="emphasis">/g)
+    ).toHaveLength(55);
+    const exceeded = inner(autoDoc([outer, ...emphasis(56)]));
+    expect(exceeded.match(/sID="r\d+"/g)).toHaveLength(56);
+    expect(exceeded).toContain('<skam:okimoji>');
+  });
+
+  it('counts a kun group as one level: depth exactly 56 is all nested', () => {
+    const marks: SKAMDocument['marks'] = [
+      ...Array.from({ length: 54 }, () => ({ type: 'emphasis' as const, anchor: a(1, 2) })),
+      { type: 'okimoji', anchor: a(1, 2) },
+      { type: 'yomigana', anchor: a(1, 2), value: 'あ' },
+      { type: 'okurigana', anchor: a(1, 2), value: 'て' },
+      { type: 'soegana', anchor: a(1, 2), value: 'ヲ' },
+    ];
+    const xml = inner(autoDoc(marks));
+    expect(xml).not.toContain('sID');
+    expect(xml).toContain('<skam:kun yomi="あ" okuri="て" soe="ヲ">甲乙</skam:kun>');
+  });
+
+  it('does not write <skam:t> for a character that follows a pair start element directly', () => {
+    const d = autoDoc(
+      [
+        { type: 'emphasis', anchor: a(1, 2) },
+        { type: 'highlight', anchor: a(2, 3) },
+      ],
+      3,
+      {
+        tokens: [
+          { id: 'b#1#1', text: '甲' },
+          { id: 'b#1#2', text: '́' },
+          { id: 'b#1#3', text: '丙' },
+        ],
+      }
+    );
+    const xml = inner(d);
+    expect(xml).not.toContain('<skam:t>');
+    expect(xml).toContain('sID="r1"/>́');
+  });
+
+  it('writes <skam:extension name> without uri for an unknown extension, with no loss', () => {
+    const d = autoDoc([], 3, { extensions: ['zzz'], ext: { zzz: { a: 1 } } });
+    expect(lossCodesOf(d)).toEqual([]);
+    const xml = stringifyDocument(d);
+    expect(xml).toContain('<skam:extension name="zzz"/>');
+    expect(xml).toContain('skam:ext="{&quot;zzz&quot;:{&quot;a&quot;:1}}"');
+  });
+});

@@ -120,17 +120,18 @@ console.log(xml, losses[0].path); // path: "/derivations"
 
 型 `StringifyLossCode` が正本。コードは今後増えうるので、`switch` には `default` を置く。
 
-| code                    | 分類              | 内容                                                                  |
-| ----------------------- | ----------------- | --------------------------------------------------------------------- |
-| `DERIVATIONS`           | `unrepresentable` | `derivations` は SKAM-ML に書けない（コンパイル時に生成される）       |
-| `BLOCK_START_KAERI`     | `unrepresentable` | ブロック先頭の返り点（直前の token がない）                           |
-| `BLOCK_START_LINEBREAK` | `unrepresentable` | ブロック先頭の改行（直前の token がない）                             |
-| `DANGLING_REFERENCE`    | `unrepresentable` | 存在しない token / block、またはどのブロックにも属さない token を指す |
-| `CROSS_BLOCK_ANCHOR`    | `unrepresentable` | 複数のブロックにまたがる anchor                                       |
-| `PARTIAL_OVERLAP`       | `unsupported`     | 範囲が部分的に重なり、入れ子にできない                                |
-| `UNNESTABLE_OVERLAP`    | `unsupported`     | 内容モデル（SKAM-ML §7.0）上、入れ子にできない範囲                    |
-| `CONFLICTING_MARKS`     | `unrepresentable` | 同じ anchor に同じ種類の注記が 2 つ以上ある                           |
-| `UNKNOWN_EXTENSION`     | `unsupported`     | 名前空間の URI が分からない拡張の宣言                                 |
+| code                    | 分類              | 内容                                                                                                           |
+| ----------------------- | ----------------- | -------------------------------------------------------------------------------------------------------------- |
+| `DERIVATIONS`           | `unrepresentable` | `derivations` は SKAM-ML に書けない（コンパイル時に生成される）                                                |
+| `BLOCK_START_KAERI`     | `unrepresentable` | ブロック先頭の返り点（直前の token がない）                                                                    |
+| `BLOCK_START_LINEBREAK` | `unrepresentable` | ブロック先頭の改行（直前の token がない）                                                                      |
+| `DANGLING_REFERENCE`    | `unrepresentable` | 存在しない token / block、またはどのブロックにも属さない token を指す                                          |
+| `CROSS_BLOCK_ANCHOR`    | `unrepresentable` | 複数のブロックにまたがる anchor                                                                                |
+| `UNNESTABLE_OVERLAP`    | `unsupported`     | 再読文字を入れ子にできない範囲（検証の警告 `SAIDOKU_READING_OVERLAP` か `SAIDOKU_MULTI_TOKEN` のある文書だけ） |
+| `CONFLICTING_MARKS`     | `unrepresentable` | 同じ anchor に同じ種類の注記が 2 つ以上ある（検証が `MARK_CONFLICT` にする文書だけ）                           |
+| `UNKNOWN_EXTENSION`     | `unsupported`     | 拡張の名前の形でない名前、または知らない拡張を必須で宣言した文書                                               |
+
+範囲が部分的に重なる注記は、空要素の対（SKAM-ML §7.16）で書くので損失にならない。`PARTIAL_OVERLAP` は型に残るが出さない。
 
 ### token と書記素
 

@@ -79,6 +79,28 @@ describe('core exports (id rules and SKAM-ML content model)', () => {
     expect(stringify.SKAM_ML_CONTENT_MODEL).toBe(core.SKAM_ML_CONTENT_MODEL);
     expect(stringify.SKAM_ML_NESTING_ORDER).toBe(core.SKAM_ML_NESTING_ORDER);
     expect('SKAM_ML_NESTING_ORDER' in parser).toBe(false);
+    // @internal の定数: core の export に入り、parser と stringify の export には入らない
+    expect(core.SKAM_ML_RANGE_DEPTH_ELEMENTS).toEqual([
+      'span',
+      'tateten',
+      'okimoji',
+      'joji',
+      'okototen',
+      'yomigana',
+      'kun',
+      'soegana',
+    ]);
+    expect(core.SKAM_ML_PAIRABLE_ELEMENTS).toEqual(core.SKAM_ML_RANGE_DEPTH_ELEMENTS);
+    expect(core.SKAM_ML_PAIRABLE_ELEMENTS).not.toContain('saidoku');
+    expect(core.SKAM_ML_MAX_RANGE_DEPTH).toBe(56);
+    for (const name of [
+      'SKAM_ML_RANGE_DEPTH_ELEMENTS',
+      'SKAM_ML_PAIRABLE_ELEMENTS',
+      'SKAM_ML_MAX_RANGE_DEPTH',
+    ]) {
+      expect(name in parser).toBe(false);
+      expect(name in stringify).toBe(false);
+    }
     // 3 つのパッケージを動的に import するので、全パッケージのテストを並べて流すと 5 秒を超えうる
   }, 30_000);
 });

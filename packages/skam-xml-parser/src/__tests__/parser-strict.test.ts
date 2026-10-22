@@ -96,11 +96,11 @@ describe('namespace and content model (K2)', () => {
       parse(wrap('<skam:block>甲<skam:future>乙</skam:future></skam:block>'))
     ).not.toThrow();
   });
-  it('rejects known skam:* inside kun', () => {
+  it('rejects saidoku inside kun (the other known skam:* are allowed since §7.0 was relaxed)', () => {
     expect(() =>
       parse(
         wrap(
-          '<skam:block><skam:kun yomi="x"><skam:kun okuri="y">a</skam:kun>b</skam:kun></skam:block>'
+          '<skam:block><skam:kun yomi="x"><skam:saidoku><skam:base>a</skam:base><skam:kunform yomi="y"/></skam:saidoku>b</skam:kun></skam:block>'
         )
       )
     ).toThrow(/kun/);
@@ -194,12 +194,17 @@ describe('SKAM-ML content model (§7.0) — hand-written representative cases', 
       )
     ).toEqual(['saidoku', 'soegana']);
   });
-  it('yomigana accepts kun only', () => {
+  it('yomigana accepts everything but saidoku', () => {
     expect(
       types('<skam:yomigana value="x"><skam:kun okuri="y">a</skam:kun>b</skam:yomigana>')
     ).toEqual(['okurigana', 'yomigana']);
+    expect(
+      types('<skam:yomigana value="x"><skam:okimoji>甲</skam:okimoji>乙</skam:yomigana>')
+    ).toEqual(['okimoji', 'yomigana']);
     expect(() =>
-      seqParse('<skam:yomigana value="x"><skam:okimoji>甲</skam:okimoji></skam:yomigana>')
+      seqParse(
+        '<skam:yomigana value="x"><skam:saidoku><skam:base>甲</skam:base><skam:kunform n="1" yomi="a"/></skam:saidoku></skam:yomigana>'
+      )
     ).toThrow(/yomigana/);
   });
   it('multi-token wrapper keeps inner ⊆ outer', () => {
@@ -212,38 +217,47 @@ describe('SKAM-ML content model (§7.0) — hand-written representative cases', 
       ])
     );
   });
-  it('rejects disallowed children: span/kaeri/saidoku/yomigana in wrappers, anything in kun and soegana', () => {
-    expect(() =>
-      seqParse('<skam:okimoji><skam:span type="emphasis">甲</skam:span></skam:okimoji>')
-    ).toThrow(/okimoji/);
-    expect(() =>
-      seqParse(
+  it('accepts what §7.0 allows in wrappers, kun and soegana now that the model is relaxed', () => {
+    expect(types('<skam:okimoji><skam:span type="emphasis">甲</skam:span></skam:okimoji>')).toEqual(
+      ['emphasis', 'okimoji']
+    );
+    expect(
+      types(
         '<skam:okototen grid="5x5" x="0" y="0" shape="dot">甲<skam:kaeri kind="re"/></skam:okototen>'
       )
-    ).toThrow(/okototen/);
-    expect(() =>
-      seqParse(
+    ).toEqual(['kaeri', 'okototen']);
+    expect(
+      types(
         '<skam:okimoji><skam:saidoku><skam:base>甲</skam:base><skam:kunform n="1" yomi="a"/></skam:saidoku></skam:okimoji>'
       )
-    ).toThrow(/okimoji/);
-    expect(() =>
-      seqParse('<skam:joji><skam:yomigana value="x">甲</skam:yomigana></skam:joji>')
-    ).toThrow(/joji/);
+    ).toEqual(['okimoji', 'saidoku']);
+    expect(types('<skam:joji><skam:yomigana value="x">甲</skam:yomigana></skam:joji>')).toEqual([
+      'joji',
+      'yomigana',
+    ]);
+    expect(types('<skam:kun okuri="a"><skam:okimoji>甲</skam:okimoji></skam:kun>')).toEqual([
+      'okimoji',
+      'okurigana',
+    ]);
+    expect(
+      types('甲<skam:soegana value="ヲ"><skam:okimoji>乙</skam:okimoji></skam:soegana>')
+    ).toEqual(['okimoji', 'soegana']);
+  });
+  it('rejects saidoku inside base, kun and yomigana, and anything but text in skam:t', () => {
+    const saidoku =
+      '<skam:saidoku><skam:base>將</skam:base><skam:kunform n="1" yomi="a"/></skam:saidoku>';
     expect(() =>
       seqParse(
-        '<skam:saidoku><skam:base><skam:span type="emphasis">將</skam:span></skam:base><skam:kunform n="1" yomi="a"/></skam:saidoku>'
+        `<skam:saidoku><skam:base>${saidoku}</skam:base><skam:kunform n="1" yomi="a"/></skam:saidoku>`
       )
     ).toThrow(/base/);
-    expect(() =>
-      seqParse('<skam:kun okuri="a"><skam:okimoji>甲</skam:okimoji></skam:kun>')
-    ).toThrow(/kun/);
-    expect(() =>
-      seqParse('甲<skam:soegana value="ヲ"><skam:okimoji>乙</skam:okimoji></skam:soegana>')
-    ).toThrow(/soegana/);
+    expect(() => seqParse(`<skam:kun okuri="a">${saidoku}</skam:kun>`)).toThrow(/kun/);
+    expect(() => seqParse('<skam:t><skam:kun okuri="a">甲</skam:kun></skam:t>')).toThrow(/skam:t/);
   });
   it('exports the same table from Node and browser entry points', () => {
     expect(browser.SKAM_ML_CONTENT_MODEL).toEqual(SKAM_ML_CONTENT_MODEL);
-    expect(SKAM_ML_CONTENT_MODEL.kun).toEqual(['#text', 't']);
+    expect(SKAM_ML_CONTENT_MODEL.kun).toContain('okimoji');
+    expect(SKAM_ML_CONTENT_MODEL.kun).not.toContain('saidoku');
   });
 });
 

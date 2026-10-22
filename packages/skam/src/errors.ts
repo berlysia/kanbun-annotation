@@ -82,13 +82,28 @@ export const ID_FORM = 'ID_FORM';
  */
 export const XML_UNWRITABLE_CHAR = 'XML_UNWRITABLE_CHAR';
 
+/**
+ * yomigana か okurigana の範囲が saidoku の字を含み、anchor が完全に同じではない、という警告のコード。
+ * saidoku は読みと送り仮名を `forms` に内包するため、その字を含む読みは矛盾する
+ * (anchor が完全に同じ組は `MARK_CONFLICT`)。0.3 では警告、0.4.0 では同じコードの誤りにする
+ */
+export const SAIDOKU_READING_OVERLAP = 'SAIDOKU_READING_OVERLAP';
+
+/**
+ * saidoku の anchor が 2 字以上、という警告のコード。再読文字は 1 つの文字を複数回読むもの
+ * (SKAM-draft §6.7) なので、2 字以上の saidoku は意味を持たない。0.3 では警告、0.4.0 では同じコードの誤りにする
+ */
+export const SAIDOKU_MULTI_TOKEN = 'SAIDOKU_MULTI_TOKEN';
+
 /** 検証の警告の種別。値を足すのは minor の変更として扱う */
 export type ValidationWarningKind =
   | typeof KAERI_MULTI_CHARACTER
   | typeof LEGACY_EXT
   | typeof LEGACY_EXT_REGISTERED_NAME
   | typeof ID_FORM
-  | typeof XML_UNWRITABLE_CHAR;
+  | typeof XML_UNWRITABLE_CHAR
+  | typeof SAIDOKU_READING_OVERLAP
+  | typeof SAIDOKU_MULTI_TOKEN;
 
 /** 検証の警告。文書は有効だが、将来の版で誤りになる書き方を指す */
 export interface ValidationWarning {

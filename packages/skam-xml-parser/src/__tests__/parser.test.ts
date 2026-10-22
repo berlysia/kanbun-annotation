@@ -1022,3 +1022,156 @@ describe('parse - skam:reading whitespace', () => {
     expect(parseSeq(withReading(' xml:space="preserve"', ' 学 ')).readings[0]!.text).toBe(' 学 ');
   });
 });
+
+// ============================================================================
+// 緩めた入れ子と空要素の対 (plan-3 T2)
+// ============================================================================
+
+describe('parse - relaxed nesting and empty-element pairs', () => {
+  const wrapBlock = (inner: string, ns = ''): string =>
+    `<skam:doc xmlns:skam="urn:skam:1"${ns}><skam:body><skam:block>${inner}</skam:block></skam:body></skam:doc>`;
+
+  /** 種類と、字の通し番号 (1 始まり) で表した範囲 */
+  const summarize = (xml: string): string[] => {
+    const doc = parse(xml);
+    const order = new Map(doc.blocks.flatMap((b) => b.tokenIds).map((id, i) => [id, i + 1]));
+    return doc.marks.map((m) =>
+      'anchor' in m
+        ? `${m.type} t${order.get(m.anchor.from)}-t${order.get(m.anchor.to)}`
+        : `${m.type} after ${m.position.after ? `t${order.get(m.position.after)}` : '-'}`
+    );
+  };
+
+  it('reads an okimoji inside a yomigana', () => {
+    expect(
+      summarize(
+        wrapBlock('<skam:yomigana value="あ">甲<skam:okimoji>乙</skam:okimoji></skam:yomigana>')
+      )
+    ).toEqual(['yomigana t1-t2', 'okimoji t2-t2']);
+  });
+
+  it('reads a kun inside a kun in the order yomigana, okurigana', () => {
+    expect(
+      summarize(wrapBlock('<skam:kun yomi="あ">甲<skam:kun okuri="て">乙</skam:kun></skam:kun>'))
+    ).toEqual(['yomigana t1-t2', 'okurigana t2-t2']);
+  });
+
+  it('keeps the characters of a span inside a kun', () => {
+    const xml = wrapBlock(
+      '<skam:kun okuri="て">甲<skam:span type="emphasis">乙</skam:span></skam:kun>'
+    );
+    expect(parse(xml).blocks[0]!.tokenIds).toHaveLength(2);
+    expect(summarize(xml)).toEqual(['okurigana t1-t2', 'emphasis t2-t2']);
+  });
+
+  it('takes the preceding token of a kaeri inside an okimoji from the block', () => {
+    expect(
+      summarize(wrapBlock('<skam:okimoji>甲<skam:kaeri kind="re"/>乙</skam:okimoji>丙'))
+    ).toEqual(['okimoji t1-t2', 'kaeri after t1']);
+  });
+
+  it('takes the preceding token of a kutoten at the start of a span from the block', () => {
+    expect(
+      summarize(wrapBlock('甲<skam:span type="emphasis"><skam:kutoten value="、"/>乙</skam:span>'))
+    ).toEqual(['emphasis t2-t2', 'kutoten after t1']);
+  });
+
+  it('leaves out after for a kutoten at the start of the block', () => {
+    const doc = parse(
+      wrapBlock('<skam:span type="emphasis"><skam:kutoten value="、"/>甲</skam:span>')
+    );
+    const kutoten = doc.marks.find((m) => m.type === 'kutoten')!;
+    expect('after' in (kutoten as { position: object }).position).toBe(false);
+  });
+
+  it('reads okimoji and span in either nesting order as the same JSON', () => {
+    const a = parse(
+      wrapBlock('<skam:okimoji><skam:span type="emphasis">甲</skam:span></skam:okimoji>')
+    );
+    const b = parse(
+      wrapBlock('<skam:span type="emphasis"><skam:okimoji>甲</skam:okimoji></skam:span>')
+    );
+    const key = (d: typeof a): string[] =>
+      d.marks
+        .map((m) => `${m.type} ${'anchor' in m ? `${m.anchor.from}-${m.anchor.to}` : ''}`)
+        .sort();
+    expect(key(a)).toEqual(key(b));
+  });
+
+  it('reads a pair that is not nested with the next range', () => {
+    expect(
+      summarize(
+        wrapBlock(
+          '甲<skam:span type="emphasis" sID="r1"/>乙丙<skam:span type="highlight">丁<skam:span eID="r1"/>戊</skam:span>'
+        )
+      )
+    ).toEqual(['emphasis t2-t4', 'highlight t4-t5']);
+  });
+
+  it('reads a kun pair as yomigana and okurigana in this order', () => {
+    expect(
+      summarize(wrapBlock('<skam:kun sID="r1" yomi="あ" okuri="て"/>甲乙<skam:kun eID="r1"/>'))
+    ).toEqual(['yomigana t1-t2', 'okurigana t1-t2']);
+  });
+
+  it('orders marks by the opening tag (the start element of a pair)', () => {
+    const doc = parse(
+      wrapBlock(
+        '<skam:span type="emphasis" sID="r1"/><skam:span type="highlight" sID="r2"/>' +
+          '<skam:span type="emphasis">甲乙</skam:span><skam:span eID="r1"/><skam:span eID="r2"/>'
+      )
+    );
+    expect(doc.marks.map((m) => m.type)).toEqual(['emphasis', 'highlight', 'emphasis']);
+    expect(doc.marks.map((m) => m.id)).toEqual(['m#1', 'm#2', 'm#3']);
+  });
+
+  it('puts a hand-written id on the mark and reports validation errors at the start element', () => {
+    const lines = (ref: string): string =>
+      '<skam:doc xmlns:skam="urn:skam:1">\n<skam:body><skam:block>\n' +
+      `<skam:span type="highlight" xml:id="e1" sID="r1"${ref}/>\n甲乙\n丙\n` +
+      '<skam:span eID="r1"/>\n</skam:block></skam:body></skam:doc>';
+    expect(parse(lines('')).marks[0]!.id).toBe('e1');
+    try {
+      parse(lines(' ref="nothing"'));
+      expect.unreachable();
+    } catch (e) {
+      expect((e as SKAMXMLParseError).line).toBe(3);
+    }
+  });
+
+  it('reads a pair whose start element is inside a kun and whose end element is outside', () => {
+    expect(
+      summarize(
+        wrapBlock(
+          '<skam:kun yomi="あ">甲<skam:span type="emphasis" sID="r1"/>乙</skam:kun>丙<skam:span eID="r1"/>'
+        )
+      )
+    ).toEqual(['yomigana t1-t2', 'emphasis t2-t3']);
+  });
+
+  it('reads sID and eID values that are names on Object.prototype', () => {
+    for (const name of ['__proto__', 'constructor', 'toString']) {
+      const doc = parse(
+        wrapBlock(`<skam:span type="emphasis" sID="${name}"/>甲<skam:span eID="${name}"/>`)
+      );
+      expect(doc.marks).toHaveLength(1);
+    }
+    expect(Object.getPrototypeOf({})).toBe(Object.prototype);
+    expect(Object.keys(Object.prototype)).toEqual([]);
+  });
+
+  it('reads a pair element that holds only whitespace and comments', () => {
+    const doc = parse(
+      wrapBlock(
+        '<skam:span type="emphasis" sID="r1"> <!-- c --> </skam:span>甲<skam:span eID="r1"><!-- c --></skam:span>'
+      )
+    );
+    expect(doc.marks).toHaveLength(1);
+  });
+
+  it('reads 56 nested range elements', () => {
+    const open = '<skam:span type="emphasis">'.repeat(56);
+    const close = '</skam:span>'.repeat(56);
+    expect(parse(wrapBlock(`${open}甲${close}`)).marks).toHaveLength(56);
+  });
+});

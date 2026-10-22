@@ -101,8 +101,11 @@ describe('parse - skam:br', () => {
     expect(linebreaks(doc)[0]).not.toHaveProperty('foo');
   });
 
-  it('yomigana の中の br は内容モデル違反', () => {
+  it('yomigana の中の br は読めるが、不可分単位の中の改行として検証の誤りになる', () => {
     expect(() => parseSeq('<skam:yomigana value="x">學<skam:br/>而</skam:yomigana>')).toThrow(
+      /INVALID_LINEBREAK|linebreak/i
+    );
+    expect(() => parseSeq('<skam:yomigana value="x">學<skam:br/>而</skam:yomigana>')).not.toThrow(
       SKAMXMLParseError
     );
   });

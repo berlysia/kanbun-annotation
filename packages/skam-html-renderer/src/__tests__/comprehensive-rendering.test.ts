@@ -202,7 +202,9 @@ describe('Multi-token range rendering', () => {
         { type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'と' },
       ]);
       const root = renderDom(doc);
-      expect(partText(root, '自然', 'okuri')).toBe('と');
+      // 送り仮名の範囲は区間にならず、範囲の最後の字の slot に入る
+      expect(partText(root, '然', 'okuri')).toBe('と');
+      expect(partText(root, '自', 'okuri')).toBeNull();
     });
 
     it('multi-char okurigana on single token', () => {
@@ -220,7 +222,9 @@ describe('Multi-token range rendering', () => {
         { type: 'soegana', anchor: { from: 't1', to: 't2' }, value: 'をば' },
       ]);
       const root = renderDom(doc);
-      expect(partText(root, '天下', 'soe')).toBe('をば');
+      // 添え仮名の範囲は区間にならず、範囲の最後の字の slot に入る
+      expect(partText(root, '下', 'soe')).toBe('をば');
+      expect(partText(root, '天', 'soe')).toBeNull();
     });
   });
 
@@ -599,10 +603,10 @@ describe('Mark combination rendering', () => {
       { type: 'okimoji', anchor: { from: 't2', to: 't2' } },
     ]);
     const root = renderDom(doc);
-    const range = tokensInRange(doc, 't1', 't3').join('');
-    expect(partText(root, range, 'okuri')).toBe('ニ');
-    // okimoji on the middle token should still be reflected
-    expect(parts(root, range, 'okimoji')).toHaveLength(1);
+    // 送り仮名は範囲の最後の字の slot、置字は中の字自身の slot
+    expect(partText(root, '乎', 'okuri')).toBe('ニ');
+    expect(parts(root, '是', 'okimoji')).toHaveLength(1);
+    expect(count(root, 'okimoji')).toBe(1);
   });
 });
 

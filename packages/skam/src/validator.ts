@@ -30,6 +30,7 @@ import {
   ID_FORM,
   XML_UNWRITABLE_CHAR,
   SAIDOKU_READING_OVERLAP,
+  READING_OVERLAP,
   SAIDOKU_MULTI_TOKEN,
   type ValidationResult,
   createValidationError,
@@ -1627,6 +1628,9 @@ const XML_UNWRITABLE_CHAR_MESSAGE =
 const SAIDOKU_READING_OVERLAP_MESSAGE =
   'A yomigana or okurigana range contains a character of a saidoku, but the two anchors are not the same. A saidoku already holds readings and suffixes in forms. It becomes an error in 0.4.0.';
 
+const READING_OVERLAP_MESSAGE =
+  'The range of this yomigana, okurigana or soegana shares a character with another one of the same type, and the anchors are not the same. Two readings of one type cannot sit on one character. The renderers draw the first one and skip the later one. It becomes an error in 0.4.0.';
+
 const SAIDOKU_MULTI_TOKEN_MESSAGE =
   'A saidoku anchor spans more than one token. A saidoku reads one character more than once. It becomes an error in 0.4.0.';
 
@@ -1677,6 +1681,52 @@ function collectSaidokuWarnings(doc: SKAMDocument): ValidationWarning[] {
     }
   });
   return warnings;
+}
+
+/**
+ * 読みの重なりの警告 (`READING_OVERLAP`) を集める。
+ * 種類 (yomigana、okurigana、soegana) ごとに、anchor が同じ範囲を 1 つにまとめた後、
+ * ほかの範囲と 1 字でも共有する範囲の注記それぞれに 1 件 (まとめた範囲は最初の注記)。
+ * 範囲を始まりで並べ、前までの終わりの最大以下から始まる範囲と、次の範囲が自分の終わり以下から始まる範囲を
+ * 重なりありとする (n log n)。anchor が完全に同じ組は `MARK_CONFLICT` なのでここでは数えない。
+ */
+function collectReadingOverlapWarnings(doc: SKAMDocument): ValidationWarning[] {
+  const indexMap = buildTokenIndexMap(doc);
+  const byType = new Map<string, { from: number; to: number; markIndex: number }[]>();
+  const seen = new Set<string>();
+  doc.marks.forEach((mark, markIndex) => {
+    if (isPositionBasedMark(mark)) return;
+    if (mark.type !== 'yomigana' && mark.type !== 'okurigana' && mark.type !== 'soegana') return;
+    const from = indexMap.get(mark.anchor.from);
+    const to = indexMap.get(mark.anchor.to);
+    if (from === undefined || to === undefined || from > to) return;
+    const key = `${mark.type}:${from}:${to}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const list = byType.get(mark.type);
+    if (list) list.push({ from, to, markIndex });
+    else byType.set(mark.type, [{ from, to, markIndex }]);
+  });
+
+  const flagged: number[] = [];
+  for (const ranges of byType.values()) {
+    ranges.sort((a, b) => a.from - b.from || a.to - b.to);
+    let maxEnd = -1;
+    ranges.forEach((range, i) => {
+      const next = ranges[i + 1];
+      if (range.from <= maxEnd || (next !== undefined && next.from <= range.to)) {
+        flagged.push(range.markIndex);
+      }
+      maxEnd = Math.max(maxEnd, range.to);
+    });
+  }
+  return flagged
+    .sort((a, b) => a - b)
+    .map((markIndex) => ({
+      kind: READING_OVERLAP,
+      path: `marks[${markIndex}]`,
+      message: READING_OVERLAP_MESSAGE,
+    }));
 }
 
 /**
@@ -1799,6 +1849,7 @@ export function validateSKAMDocument(
 
   warnings.push(...collectIdAndCharWarnings(document));
   warnings.push(...collectSaidokuWarnings(document));
+  warnings.push(...collectReadingOverlapWarnings(document));
 
   return warnings.length > 0 ? { valid: true, document, warnings } : { valid: true, document };
 }

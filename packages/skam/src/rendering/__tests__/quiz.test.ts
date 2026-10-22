@@ -8,6 +8,7 @@ import type {
   AIRBlockChild,
   AIRDocument,
   AIRRenderProfile,
+  AIRRubyGroupNode,
   AIRTatetenGroupNode,
   AIRTokenNode,
 } from '../air-types.js';
@@ -48,10 +49,7 @@ function tokenNode(air: AIRDocument, id: string): AIRTokenNode {
 function findToken(children: readonly AIRBlockChild[], id: string): AIRTokenNode | undefined {
   for (const child of children) {
     if (child.type === 'token' && child.token.id === id) return child;
-    if (child.type === 'tateten-group') {
-      for (const c of child.children) if (c.type === 'token' && c.token.id === id) return c;
-    }
-    if (child.type === 'highlight-group') {
+    if ('children' in child) {
       const inner = findToken(child.children, id);
       if (inner) return inner;
     }
@@ -177,10 +175,12 @@ describe('buildAnnotationIR: quiz hiding', () => {
         },
         { type: 'kutoten', position: { blockId: 'b1', after: 't2' }, value: '、' },
       ];
-      const info = tokenNode(build(doc(marks), true), 't1').rangeInfo!;
-      expect(info.yomigana?.hidden).toBe(true);
+      const ruby = build(doc(marks), true).blocks[0]!.children[0] as AIRRubyGroupNode;
+      expect(ruby.yomigana.hidden).toBe(true);
+      // kutoten は範囲の最後の字の slot に残り、印のある kutoten が隠される
+      expect(tokenNode(build(doc(marks), true), 't2').hiddenSlots).toEqual(['kutoten']);
       const air = build(doc(marks.slice(0, 1)), true);
-      expect(tokenNode(air, 't1').rangeInfo?.trailingMarks ?? []).toEqual([]);
+      expect(tokenNode(air, 't2').slots.kutoten).toBeUndefined();
 
       const trailing = build(
         doc([
@@ -194,9 +194,9 @@ describe('buildAnnotationIR: quiz hiding', () => {
         ]),
         true
       );
-      const marksOut = tokenNode(trailing, 't1').rangeInfo!.trailingMarks;
-      expect(marksOut).toHaveLength(1);
-      expect(marksOut[0]!.hidden).toBe(true);
+      expect(tokenNode(trailing, 't2').slots.kutoten).toBe('。');
+      expect(tokenNode(trailing, 't2').hiddenSlots).toEqual(['kutoten']);
+      expect(tokenNode(trailing, 't1')).not.toHaveProperty('hiddenSlots');
     });
 
     it('ブロック先頭の kutoten', () => {

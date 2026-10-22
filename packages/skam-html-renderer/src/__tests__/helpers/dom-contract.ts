@@ -90,12 +90,16 @@ export const SLOT_PARTS: Record<keyof AIRTokenSlots, readonly PartName[]> = {
   soegana: ['soe'],
   kaeri: ['kaeri'],
   kutoten: ['kutoten'],
+  kutotenValues: ['kutoten'],
   isOkimoji: ['okimoji'],
   isJoji: ['joji'],
   emphasis: ['emphasis', 'emphasisRow'],
+  emphasisStyle: [],
+  saidoku: ['saidoku'],
   saidokuUnder: ['saidokuUnder'],
   saidokuOkuri2: ['saidokuOkuri2'],
   ref: ['ref'],
+  refLabels: ['ref'],
   okototen: ['okototen', 'hasOkototen'],
 };
 

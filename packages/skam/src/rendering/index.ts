@@ -21,11 +21,10 @@ export type { RangeMarkGroup } from './types.js';
 // AIR 型定義
 export type {
   AIRRenderProfile,
-  AIRTrailingMark,
-  AIRRangeInfo,
   AIRTokenSlots,
   AIRHiddenSlot,
   AIRTokenNode,
+  AIRRubyGroupNode,
   AIRTatetenSeparator,
   AIRTatetenGroupNode,
   AIRHighlightGroupNode,

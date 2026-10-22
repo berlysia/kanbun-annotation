@@ -6,6 +6,7 @@ import {
   XML_UNWRITABLE_CHAR,
   SAIDOKU_READING_OVERLAP,
   SAIDOKU_MULTI_TOKEN,
+  READING_OVERLAP,
 } from '../errors.js';
 import type { SKAMDocument, Mark } from '../index.js';
 
@@ -385,5 +386,125 @@ describe('validateSKAMDocument warnings (saidoku)', () => {
     const result = validateSKAMDocument(autoDoc([yomigana('y1', t1, t2), saidoku('s1', t3, t3)]));
     expect(result.valid).toBe(true);
     expect(result).not.toHaveProperty('warnings');
+  });
+});
+
+describe('validateSKAMDocument warnings (READING_OVERLAP)', () => {
+  const ids = [1, 2, 3, 4, 5, 6].map((n) => `b#1#${n}`);
+  const t = (n: number): string => ids[n - 1]!;
+  const docOfSix = (marks: Mark[]): SKAMDocument => ({
+    format: 'skam@0.1',
+    tokens: ids.map((id) => ({ id, text: '學' })),
+    blocks: [{ id: 'b#1', tokenIds: ids }],
+    marks,
+    readings: [],
+  });
+  type ReadingType = 'yomigana' | 'okurigana' | 'soegana';
+  const reading = (type: ReadingType, id: string, from: number, to: number): Mark => ({
+    type,
+    id,
+    anchor: { from: t(from), to: t(to) },
+    value: 'あ',
+  });
+  const overlapPaths = (marks: Mark[]): string[] => {
+    const result = validateSKAMDocument(docOfSix(marks));
+    expect(result.valid).toBe(true);
+    if (!result.valid) return [];
+    return (result.warnings ?? []).filter((w) => w.kind === READING_OVERLAP).map((w) => w.path);
+  };
+
+  it('yomigana t1-t2 と t2-t3 は 2 件 (marks[0]、marks[1])、valid: true', () => {
+    expect(
+      overlapPaths([reading('yomigana', 'y1', 1, 2), reading('yomigana', 'y2', 2, 3)])
+    ).toEqual(['marks[0]', 'marks[1]']);
+  });
+
+  it('yomigana t1-t3 と t2 は 2 件', () => {
+    expect(
+      overlapPaths([reading('yomigana', 'y1', 1, 3), reading('yomigana', 'y2', 2, 2)])
+    ).toEqual(['marks[0]', 'marks[1]']);
+  });
+
+  it('yomigana t1-t5、t2、t4 は 3 件 (隣どうしだけを比べると t4 を落とす)', () => {
+    expect(
+      overlapPaths([
+        reading('yomigana', 'y1', 1, 5),
+        reading('yomigana', 'y2', 2, 2),
+        reading('yomigana', 'y3', 4, 4),
+      ])
+    ).toEqual(['marks[0]', 'marks[1]', 'marks[2]']);
+  });
+
+  it('okurigana と soegana も、それぞれ t1-t2 と t2-t3 で 2 件', () => {
+    expect(
+      overlapPaths([reading('okurigana', 'o1', 1, 2), reading('okurigana', 'o2', 2, 3)])
+    ).toEqual(['marks[0]', 'marks[1]']);
+    expect(overlapPaths([reading('soegana', 'e1', 1, 2), reading('soegana', 'e2', 2, 3)])).toEqual([
+      'marks[0]',
+      'marks[1]',
+    ]);
+  });
+
+  it('yomigana t1-t2 と t3-t4 は警告なし', () => {
+    const result = validateSKAMDocument(
+      docOfSix([reading('yomigana', 'y1', 1, 2), reading('yomigana', 'y2', 3, 4)])
+    );
+    expect(result.valid).toBe(true);
+    expect(result).not.toHaveProperty('warnings');
+  });
+
+  it('同じ anchor の yomigana t1-t2 が 2 つは MARK_CONFLICT だけで、READING_OVERLAP は 0 件', () => {
+    const result = validateSKAMDocument(
+      docOfSix([reading('yomigana', 'y1', 1, 2), reading('yomigana', 'y2', 1, 2)])
+    );
+    expect(result.valid).toBe(false);
+    if (result.valid) return;
+    expect(result.errors.map((e) => e.kind)).toEqual(['MARK_CONFLICT']);
+  });
+
+  it('種類の違う yomigana t1-t2 と okurigana t2-t3 は警告なし', () => {
+    const result = validateSKAMDocument(
+      docOfSix([reading('yomigana', 'y1', 1, 2), reading('okurigana', 'o1', 2, 3)])
+    );
+    expect(result.valid).toBe(true);
+    expect(result).not.toHaveProperty('warnings');
+  });
+
+  it('ランダムな範囲の組 (200 組) で、総当たりの判定と同じ場所になる', () => {
+    let seed = 20261022;
+    const next = (bound: number): number => {
+      seed = (seed * 1664525 + 1013904223) % 4294967296;
+      return Math.floor(seed / 65536) % bound;
+    };
+    const types: ReadingType[] = ['yomigana', 'okurigana', 'soegana'];
+    for (let round = 0; round < 200; round++) {
+      const marks: Mark[] = [];
+      const ranges: { type: ReadingType; from: number; to: number }[] = [];
+      const seen = new Set<string>();
+      const count = 1 + next(6);
+      for (let i = 0; i < count; i++) {
+        const type = types[next(3)]!;
+        const from = 1 + next(6);
+        const to = from + next(7 - from);
+        const key = `${type}:${from}:${to}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        marks.push(reading(type, `m${i}`, from, to));
+        ranges.push({ type, from, to });
+      }
+      const expected = ranges
+        .map((range, index) => ({ range, index }))
+        .filter(({ range }) =>
+          ranges.some(
+            (other) =>
+              other !== range &&
+              other.type === range.type &&
+              other.from <= range.to &&
+              range.from <= other.to
+          )
+        )
+        .map(({ index }) => `marks[${index}]`);
+      expect(overlapPaths(marks)).toEqual(expected);
+    }
   });
 });

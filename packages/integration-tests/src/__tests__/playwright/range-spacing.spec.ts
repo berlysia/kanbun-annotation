@@ -11,7 +11,7 @@
 import { test, expect } from '@playwright/test';
 import type { SKAMDocument } from '@kanbun-skam/skam';
 import { render } from '@kanbun-skam/skam-html-renderer';
-import { buildHTMLPage } from '@kanbun-skam/skam-screenshot';
+import { buildHTMLPage, calibrateGridBaselineInPage } from '@kanbun-skam/skam-screenshot';
 
 // 處處 (2 single-character tokens) followed by the 啼鳥 range (1 yomigana over 2 tokens)
 const doc: SKAMDocument = {
@@ -33,6 +33,7 @@ test('characters inside a multi-token range keep the same pitch as outside it', 
   const { html, css } = render(doc, { spacing: 'full' });
   await page.setContent(buildHTMLPage(html, css), { waitUntil: 'networkidle' });
   await page.evaluate('document.fonts.ready');
+  await calibrateGridBaselineInPage(page);
 
   const outside = page.locator('.skam-block > .skam-token > .skam-base');
   const inside = page.locator('.skam-base-seg');

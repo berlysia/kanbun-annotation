@@ -8,16 +8,18 @@
  * 1. ブロック順序と blockId
  * 2. トークン順序と token.id
  * 3. mark 解決結果（ruby/okuri/soegana/kaeri/kutoten/saidoku/ref/highlight/tateten）
- * 4. range 集約境界（from/to, span, trailing mark 集約結果）
+ * 4. range 集約境界（ruby のグループの from/to, span、範囲の最後の字の送り仮名、字自身の注記）
  */
 
 import { describe, it, expect } from 'vitest';
 import {
   buildAnnotationIR,
+  type AIRBlockChild,
   type AIRDocument,
   type AIRTokenNode,
   type AIRTatetenGroupNode,
   type AIRHighlightGroupNode,
+  type AIRRubyGroupNode,
 } from '@kanbun-skam/skam/rendering';
 import {
   FIXTURE_RANGE_RUBY,
@@ -51,27 +53,17 @@ const FULL_PROFILE = {
 // AIR 構造検査ヘルパー
 // ============================================================================
 
-function getTokenNodes(air: AIRDocument, blockIndex: number): AIRTokenNode[] {
-  const block = air.blocks[blockIndex]!;
-  const tokens: AIRTokenNode[] = [];
-  for (const child of block.children) {
-    if (child.type === 'token') {
-      tokens.push(child);
-    } else if (child.type === 'tateten-group') {
-      for (const c of child.children) {
-        if (c.type === 'token') tokens.push(c);
-      }
-    } else if (child.type === 'highlight-group') {
-      for (const c of child.children) {
-        if (c.type === 'token') tokens.push(c);
-        if (c.type === 'tateten-group') {
-          for (const tc of c.children) {
-            if (tc.type === 'token') tokens.push(tc);
-          }
-        }
-      }
-    }
+function collectTokenNodes(children: readonly AIRBlockChild[], tokens: AIRTokenNode[]): void {
+  for (const child of children) {
+    if (child.type === 'token') tokens.push(child);
+    else if (child.type !== 'tateten-separator') collectTokenNodes(child.children, tokens);
   }
+}
+
+/** 木の入れ子に関わらず、字を文書の順に集める */
+function getTokenNodes(air: AIRDocument, blockIndex: number): AIRTokenNode[] {
+  const tokens: AIRTokenNode[] = [];
+  collectTokenNodes(air.blocks[blockIndex]!.children, tokens);
   return tokens;
 }
 
@@ -87,49 +79,40 @@ describe('cross-renderer equivalence: range ruby', () => {
     expect(air.blocks).toHaveLength(1);
     expect(air.blocks[0]!.blockId).toBe('b1');
 
-    // 非リードトークンはフィルタされず rangeConsumed フラグ付きで残る
+    // 範囲の字は ruby のグループの中に 1 回ずつ現れる
     const tokens = getTokenNodes(air, 0);
     expect(tokens.map((t) => t.token.id)).toEqual(['t1', 't2', 't3']);
+    expect(air.blocks[0]!.children.map((c) => c.type)).toEqual(['ruby-group', 'token']);
     const t2 = tokens.find((t) => t.token.id === 't2')!;
-    expect(t2.rangeConsumed).toBe(true);
-    // range 関連スロットはクリア済み
+    // 範囲の読みはグループが持ち、字の slot には入らない
     expect(t2.slots.ruby).toBeUndefined();
   });
 
-  it('range yomigana が先頭トークンに集約される', () => {
+  it('range yomigana が ruby のグループに入る', () => {
     const air = buildAnnotationIR(doc, FULL_PROFILE);
-    const tokens = getTokenNodes(air, 0);
-    const t1 = tokens.find((t) => t.token.id === 't1')!;
+    const group = air.blocks[0]!.children[0] as AIRRubyGroupNode;
 
-    expect(t1.rangeInfo).toBeDefined();
-    expect(t1.rangeInfo!.yomigana).toEqual({
-      baseText: '論語',
-      value: 'ろんご',
-      span: 2,
-    });
-    expect(t1.rangeInfo!.fromTokenId).toBe('t1');
-    expect(t1.rangeInfo!.toTokenId).toBe('t2');
+    expect(group.type).toBe('ruby-group');
+    expect(group.yomigana).toEqual({ value: 'ろんご' });
+    expect(group.span).toBe(2);
+    expect(group.fromTokenId).toBe('t1');
+    expect(group.toTokenId).toBe('t2');
   });
 
-  it('range okurigana が先頭トークンの rangeInfo に含まれる', () => {
+  it('range okurigana が範囲の最後の字の slot に入る', () => {
     const air = buildAnnotationIR(doc, FULL_PROFILE);
     const tokens = getTokenNodes(air, 0);
-    const t1 = tokens.find((t) => t.token.id === 't1')!;
 
-    expect(t1.rangeInfo!.okurigana).toEqual({
-      baseText: '論語',
-      value: 'ノ',
-    });
+    expect(tokens.find((t) => t.token.id === 't1')!.slots.okuri).toBeUndefined();
+    expect(tokens.find((t) => t.token.id === 't2')!.slots.okuri).toBe('ノ');
   });
 
-  it('trailing marks が正しく収集される', () => {
+  it('範囲の後ろの字の返り点は、その字自身の slot に入る', () => {
     const air = buildAnnotationIR(doc, FULL_PROFILE);
     const tokens = getTokenNodes(air, 0);
-    const t1 = tokens.find((t) => t.token.id === 't1')!;
 
-    expect(t1.rangeInfo!.trailingMarks).toHaveLength(1);
-    expect(t1.rangeInfo!.trailingMarks[0]!.kind).toBe('kaeri');
-    expect(t1.rangeInfo!.trailingMarks[0]!.sourceTokenId).toBe('t2');
+    expect(tokens.find((t) => t.token.id === 't1')!.slots.kaeri).toBeUndefined();
+    expect(tokens.find((t) => t.token.id === 't2')!.slots.kaeri).toBe('㆑');
   });
 });
 

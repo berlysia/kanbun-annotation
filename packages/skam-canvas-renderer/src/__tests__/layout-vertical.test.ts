@@ -1,12 +1,24 @@
 import { describe, it, expect } from 'vitest';
 import type { SKAMDocument, Mark } from '@kanbun-skam/skam';
 import { KAERI } from '@kanbun-skam/skam';
-import { buildRenderTree } from '../render-tree.js';
+import { buildAnnotationIR } from '@kanbun-skam/skam/rendering';
+import { convertAIRToCanvasRenderTree } from '../air-adapter.js';
 import { layout } from '../layout.js';
 import { computeRangeRubyOverflow } from '../layout-vertical.placement.js';
 import { PROFILES } from '../profiles.js';
+import type { RenderProfile } from '../profiles.js';
 import { RecordingContext } from './recording-context.js';
-import type { ColumnChild, TokenLayout, TatetenSeparatorLayout } from '../types.js';
+import type {
+  CanvasRenderTree,
+  ColumnChild,
+  TokenLayout,
+  TatetenSeparatorLayout,
+} from '../types.js';
+
+/** 文書を AIR の経路 (buildAnnotationIR → convertAIRToCanvasRenderTree) で Canvas の木にする */
+function buildRenderTree(doc: SKAMDocument, profile: RenderProfile): CanvasRenderTree {
+  return convertAIRToCanvasRenderTree(buildAnnotationIR(doc, profile));
+}
 
 /** Narrow ColumnChild to TokenLayout for test assertions */
 function asToken(child: ColumnChild): TokenLayout {

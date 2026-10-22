@@ -18,29 +18,13 @@ import type {
 import type { TextMeasurer } from './measure.js';
 import { rubyFont, measureTextWidth } from './layout-vertical.helpers.js';
 
-/** CanvasBlockChild から token をフラットに収集（tateten/highlight グループ内も含む） */
+/** 子から token をフラットに収集（tateten/highlight グループ内は入れ子も含む） */
 function collectTokensFromChild(child: CanvasBlockChild, tokens: CanvasTokenNode[]): void {
   if (child.type === 'token') {
     tokens.push(child);
-  } else if (child.type === 'tateten-group') {
+  } else if (child.type !== 'tateten-separator') {
     for (const groupChild of child.children) {
-      if (groupChild.type === 'token') {
-        tokens.push(groupChild);
-      }
-    }
-  } else {
-    // highlight-group
-    for (const hlChild of child.children) {
-      if (hlChild.type === 'token') {
-        tokens.push(hlChild);
-      } else {
-        // tateten-group inside highlight
-        for (const tc of hlChild.children) {
-          if (tc.type === 'token') {
-            tokens.push(tc);
-          }
-        }
-      }
+      collectTokensFromChild(groupChild, tokens);
     }
   }
 }

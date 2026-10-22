@@ -90,15 +90,21 @@ async function withBrowserCapture(
 }
 
 /**
- * HTML renderer prepare callback:
- * calibrates grid baseline bug and returns #skam-root dimensions.
+ * Minimal page shape needed to calibrate, so callers holding either `playwright` or
+ * `@playwright/test` pages can pass them without a type dependency on this package.
  */
-async function prepareHTML(
-  page: import('playwright').Page
-): Promise<{ width: number; height: number } | null> {
-  // Calibrate Chromium's inline-grid baseline bug.
-  // Sets --skam-grid-baseline-fix: 1 on #skam-root if the bug is detected.
-  // See: packages/skam-html-renderer/src/calibrate.ts
+export interface CalibratablePage {
+  evaluate(pageFunction: () => void): Promise<unknown>;
+}
+
+/**
+ * Applies the Chromium inline-grid baseline calibration to `#skam-root` in the page.
+ * Same measurement and threshold (excess > 5) as `calibrateGridBaseline` in
+ * packages/skam-html-renderer/src/calibrate.ts; the page function is re-implemented
+ * here because it must run inside the page without importing the renderer.
+ * Sets `--skam-grid-baseline-fix: 1` on `#skam-root` if the bug is detected.
+ */
+export async function calibrateGridBaselineInPage(page: CalibratablePage): Promise<void> {
   await page.evaluate(() => {
     const vp = 'skam';
     const fontSize = 100;
@@ -138,6 +144,16 @@ async function prepareHTML(
       }
     }
   });
+}
+
+/**
+ * HTML renderer prepare callback:
+ * calibrates grid baseline bug and returns #skam-root dimensions.
+ */
+async function prepareHTML(
+  page: import('playwright').Page
+): Promise<{ width: number; height: number } | null> {
+  await calibrateGridBaselineInPage(page);
 
   return page.evaluate(() => {
     const root = document.getElementById('skam-root');

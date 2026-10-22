@@ -1,7 +1,27 @@
 /// <reference types="node" />
 import { describe, it, expect, vi } from 'vitest';
-import { stringify, SKAMXMLStringifyError, type StringifyLoss } from '../index.js';
+import {
+  stringify as stringifyDocument,
+  SKAMXMLStringifyError,
+  type StringifyLoss,
+  type StringifyOptions,
+} from '../index.js';
+import { convertHandIdsToAuto, isHandId } from '@kanbun-skam/skam';
 import type { SKAMDocument } from '@kanbun-skam/skam';
+
+/**
+ * 手書きの id (`t1` など) の字は `<skam:t xml:id>` で書かれる。このファイルの検査は損失と注記の書き方なので、
+ * 字に手書きの id を使う文書は、ブロックと注記の id を残して字の id だけを位置から決まる形にしてから書く。
+ * 字の手書きの id の書き方は graphemes.test.ts が検査する
+ */
+function stringify(doc: SKAMDocument, options?: StringifyOptions): string {
+  if (!doc.tokens.some((token) => isHandId(token.id))) return stringifyDocument(doc, options);
+  const keep = new Set([
+    ...doc.blocks.map((block) => block.id),
+    ...doc.marks.flatMap((mark) => (mark.id === undefined ? [] : [mark.id])),
+  ]);
+  return stringifyDocument(convertHandIdsToAuto(doc, keep), options);
+}
 
 const doc = (over: Partial<SKAMDocument> = {}): SKAMDocument => ({
   format: 'skam@0.1',
@@ -66,11 +86,10 @@ describe('stringify loss contract (K1)', () => {
   });
   it('orders document-level losses first, then by block, token, mark index', () => {
     const d = doc({
-      ext: { a: 1 },
-      derivations: [{ kind: 'readingOrder', method: 'kaeriten-stack', order: ['t1'] }] as never,
+      derivations: [{ kind: 'readingOrder', method: 'kaeriten-stack', result: ['t1'] }],
       tokens: [
         { id: 't1', text: '甲' },
-        { id: 't2', text: '乙', ext: { b: 1 } },
+        { id: 't2', text: '\u0001' },
         { id: 't3', text: '丙' },
       ],
       marks: [
@@ -79,13 +98,8 @@ describe('stringify loss contract (K1)', () => {
       ],
     });
     // collectRangeMarks は開始位置の昇順に並べるので、e1 (t1–t2) が残り、h1 (marks[0], t2–t3) が部分交差で落ちる。
-    // h1 の鍵は {0,1,0,0}、tokens/1/ext の鍵は {0,1,-1,0} なので、token の ext が先に来る。
-    expect(lossesOf(d).map((l) => l.path)).toEqual([
-      '/ext',
-      '/derivations',
-      '/tokens/1/ext',
-      '/marks/0',
-    ]);
+    // h1 の鍵は {0,1,0,0}、tokens/1/text の鍵は {0,1,-1,0} なので、字の損失が先に来る。
+    expect(lossesOf(d).map((l) => l.path)).toEqual(['/derivations', '/tokens/1/text', '/marks/0']);
   });
   it('is deterministic across calls', () => {
     expect(lossesOf(partial)).toEqual(lossesOf(partial));
@@ -105,18 +119,18 @@ const lossCodes = (d: SKAMDocument) => {
 };
 
 describe('each loss code is produced (K1)', () => {
-  it('ASCII_WHITESPACE_TOKEN', () =>
+  it('ASCII whitespace and multi-grapheme tokens are written as <skam:t>, not lost', () =>
     expect(
       lossCodes(
         doc({
           tokens: [
             { id: 't1', text: ' ' },
-            { id: 't2', text: '乙' },
-            { id: 't3', text: '丙' },
+            { id: 't2', text: '乙丙' },
+            { id: 't3', text: '\r\n' },
           ],
         })
       )
-    ).toContain('unrepresentable:ASCII_WHITESPACE_TOKEN@/tokens/0'));
+    ).toEqual([]));
   it('U+3000 token is not a loss', () =>
     expect(
       lossCodes(
@@ -153,14 +167,23 @@ describe('each loss code is produced (K1)', () => {
         })
       )
     ).toContain('unrepresentable:CROSS_BLOCK_ANCHOR@/marks/0'));
-  it('PLACEMENT_HINT', () =>
-    expect(
-      lossCodes(
-        doc({
-          marks: [{ type: 'okimoji', anchor: { from: 't1', to: 't1' }, placementHint: 'inline' }],
-        })
-      )
-    ).toContain('unsupported:PLACEMENT_HINT@/marks/0/placementHint'));
+  it('placementHint, ext and custom are written, not lost', () => {
+    const d = doc({
+      ext: { a: 1 },
+      custom: { b: 2 },
+      marks: [
+        {
+          type: 'okimoji',
+          anchor: { from: 't1', to: 't1' },
+          placementHint: 'inline',
+          ext: { c: 3 },
+          custom: { d: 4 },
+        },
+      ],
+    });
+    expect(lossCodes(d)).toEqual([]);
+    expect(stringify(d)).toContain('placement-hint="inline"');
+  });
   it('UNNESTABLE_OVERLAP: range group with okuri containing an inner single-token kun', () =>
     expect(
       lossCodes(

@@ -99,16 +99,16 @@ const doc: SKAMDocument = {
   blocks: [{ id: 'b1', tokenIds: ['t1'] }],
   marks: [],
   readings: [],
-  ext: { 'example.com': { note: 'SKAM-ML に書き場所がない' } },
+  derivations: [{ kind: 'readingOrder', method: 'manual', result: ['t1'] }],
 };
 
 const losses: StringifyLoss[] = [];
 const xml = stringify(doc, { lossy: true, onLoss: (loss) => losses.push(loss) });
 
-if (losses.length !== 1 || losses[0]?.code !== 'EXT') {
-  throw new Error('expected one EXT loss');
+if (losses.length !== 1 || losses[0]?.code !== 'DERIVATIONS') {
+  throw new Error('expected one DERIVATIONS loss');
 }
-console.log(xml, losses[0].path); // path: "/ext"
+console.log(xml, losses[0].path); // path: "/derivations"
 ```
 
 ### 欠落の分類
@@ -120,30 +120,28 @@ console.log(xml, losses[0].path); // path: "/ext"
 
 型 `StringifyLossCode` が正本。コードは今後増えうるので、`switch` には `default` を置く。
 
-| code                     | 分類              | 内容                                                                               |
-| ------------------------ | ----------------- | ---------------------------------------------------------------------------------- |
-| `DERIVATIONS`            | `unrepresentable` | `derivations` は SKAM-ML に書けない（コンパイル時に生成される）                    |
-| `ASCII_WHITESPACE_TOKEN` | `unrepresentable` | SKAM-ML が無視する空白だけの token                                                 |
-| `MULTI_GRAPHEME_TOKEN`   | `unrepresentable` | 拡張書記素クラスタを 2 つ以上含む token（読み直すと複数の token に分かれる）       |
-| `BLOCK_START_KAERI`      | `unrepresentable` | ブロック先頭の返り点（直前の token がない）                                        |
-| `BLOCK_START_LINEBREAK`  | `unrepresentable` | ブロック先頭の改行（直前の token がない）                                          |
-| `DANGLING_REFERENCE`     | `unrepresentable` | 存在しない token / block、またはどのブロックにも属さない token を指す              |
-| `CROSS_BLOCK_ANCHOR`     | `unrepresentable` | 複数のブロックにまたがる anchor                                                    |
-| `PARTIAL_OVERLAP`        | `unsupported`     | 範囲が部分的に重なり、入れ子にできない                                             |
-| `UNNESTABLE_OVERLAP`     | `unsupported`     | 内容モデル（SKAM-ML §7.0）上、入れ子にできない範囲                                 |
-| `CONFLICTING_MARKS`      | `unrepresentable` | 同じ anchor に同じ種類の注記が 2 つ以上ある                                        |
-| `EXT`                    | `unsupported`     | `ext` と `custom` を書く場所がない（宣言のある文書で書く場所の無い拡張の値を含む） |
-| `UNKNOWN_EXTENSION`      | `unsupported`     | 書き方を知らない拡張の値、または名前空間の URI が分からない拡張の宣言              |
-| `PLACEMENT_HINT`         | `unsupported`     | `placementHint` を書く場所がない                                                   |
+| code                    | 分類              | 内容                                                                  |
+| ----------------------- | ----------------- | --------------------------------------------------------------------- |
+| `DERIVATIONS`           | `unrepresentable` | `derivations` は SKAM-ML に書けない（コンパイル時に生成される）       |
+| `BLOCK_START_KAERI`     | `unrepresentable` | ブロック先頭の返り点（直前の token がない）                           |
+| `BLOCK_START_LINEBREAK` | `unrepresentable` | ブロック先頭の改行（直前の token がない）                             |
+| `DANGLING_REFERENCE`    | `unrepresentable` | 存在しない token / block、またはどのブロックにも属さない token を指す |
+| `CROSS_BLOCK_ANCHOR`    | `unrepresentable` | 複数のブロックにまたがる anchor                                       |
+| `PARTIAL_OVERLAP`       | `unsupported`     | 範囲が部分的に重なり、入れ子にできない                                |
+| `UNNESTABLE_OVERLAP`    | `unsupported`     | 内容モデル（SKAM-ML §7.0）上、入れ子にできない範囲                    |
+| `CONFLICTING_MARKS`     | `unrepresentable` | 同じ anchor に同じ種類の注記が 2 つ以上ある                           |
+| `UNKNOWN_EXTENSION`     | `unsupported`     | 名前空間の URI が分からない拡張の宣言                                 |
 
 ### token と書記素
 
-1 つの token は拡張書記素クラスタ 1 つに限る。IVS・SVS・結合文字を基底文字と同じ token に持つのは損失ではない。`text: '学問'` のように 2 つ以上のクラスタを持つ token は `MULTI_GRAPHEME_TOKEN` になる（path は `/tokens/<添字>`、message に本文は入らない）。1 字ずつの token に分けるか、`lossy: true` で受け入れる。空白だけの token は `ASCII_WHITESPACE_TOKEN` だけを報告する。
+字は平文のテキストとして書く。平文で書くと同じ token の並びに戻らない字は `<skam:t>` で書くので、損失にならない。
 
-次の 2 つは損失として報告しないが、読み直すと token が変わる。どちらも `parse` が作る token には現れず、手で書いた JSON にだけ現れる。
+- 2 つ以上のクラスタを持つ token（`text: '学問'`）、空白だけの token、無視する空白で始まる token。
+- 前の token と 1 つのクラスタに結合する token（`['葛', '\u{E0100}']` の 2 つ目）。同じテキストノードに続けて書く字の並びだけが対象で、要素の開閉タグや位置の注記の要素を挟めば結合しない。
 
-- 無視する空白で始まり、空白だけではない token（`' \u0301'`）: 先頭の空白が落ちる。
-- 結合文字や選択子で始まる token が、前の token と同じテキストに書かれる（`['葛', '\u{E0100}']`）: 1 つの token にまとまる。
+手書きの id、`ext`、`custom` を持つ字も `<skam:t>` で書く（手書きの id は `xml:id` に書く）。IVS・SVS・結合文字を基底文字と同じ token に持つ字は、平文で書く。
+
+`ext`・`custom`・`placementHint` は持ち主の要素の属性に書く（`skam:ext`、`skam:custom`、`placement-hint`。`skam:kun` の送り仮名と添え仮名は `okuri-`、`soe-` の接頭辞つき）。属性値は JSON で、`JSON.stringify` が書かない U+FFFE と U+FFFF は、JSON の `\u` のエスケープの列（バックスラッシュ、`u`、16 進の 4 桁）に置き換える。
 
 ### 内容モデル表
 

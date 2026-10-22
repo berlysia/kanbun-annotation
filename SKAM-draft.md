@@ -152,7 +152,7 @@ token の `text`、reading の `text`、mark の文字列の値と属性（`id`�
 - token 分割規則（1字/熟語等）は SKAM 仕様外とする
   - **推奨：字単位**（訓点・返り点の指示と一致するため）
   - この仕様の「字」は、Unicode の拡張書記素クラスタ（extended grapheme cluster）1 つを指す。異体字セレクタ（IVS の U+E0100〜U+E01EF、SVS の U+FE00〜U+FE0F）や結合文字は、基底の字と同じ 1 字になる
-  - SKAM-ML（SKAM-ML-draft §6.1）は token を 1 字ずつ作るので、2 字以上の token は XML に書くと往復で分かれる
+  - SKAM-ML（SKAM-ML-draft §6.1）は平文の文字を 1 字ずつの token にする。2 字以上の token、空白の token、前の字と結合する token は `<skam:t>` で書く（SKAM-ML-draft §7.14）
 - `ext`（拡張の値、§11.2）と `custom`（自由なデータ、§11.3）は任意
 
 ### 5.3 参照エラー
@@ -925,7 +925,7 @@ SKAM の仕様が定める注記の種類とフィールド（core）は閉じ�
 
 #### SKAM-ML
 
-拡張は、自分の名前空間の属性で書く。宣言は `skam:meta` の子の `skam:extension` で書き、JSON の宣言と往復する（SKAM-ML-draft §4.3、§10）。
+拡張は、自分の名前空間の属性で書く。宣言は `skam:meta` の子の `skam:extension` で書き、JSON の宣言と往復する（SKAM-ML-draft §4.3、§10）。属性での書き方を定めない拡張の値と、宣言の無い文書の `ext` は、持ち主の要素の `skam:ext` 属性に JSON で書く（SKAM-ML-draft §10.3）。derivations は SKAM-ML に書かないので、derivations の `ext` は SKAM-ML への変換で失われる。
 
 #### 宣言の無い文書の `ext`
 
@@ -953,7 +953,7 @@ SKAM が解釈しない自由なデータは `custom` に置く。文書、readi
 
 - 既知フィールドは仕様で固定
 - **`custom` は保持して再出力してよい（round-trip 推奨）**
-- SKAM-ML には書けない。SKAM-ML への変換では失われる
+- SKAM-ML では持ち主の要素の `skam:custom` 属性に JSON で書く（SKAM-ML-draft §10.3）。derivations の `custom` は SKAM-ML への変換で失われる
 
 #### `ext` と `custom` の上限
 

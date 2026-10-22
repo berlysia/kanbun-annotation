@@ -19,3 +19,28 @@ export function splitGraphemes(text: string): string[] {
   for (const { segment } of segmenter.segment(text)) clusters.push(segment);
   return clusters;
 }
+
+/** SKAM-ML §6.2 が無視する空白 (U+0009、U+000A、U+000D、U+0020)。/\s/ は U+3000 (全角空白) も含むが、全角空白は token として残す */
+const XML_IGNORED_LEADING_WHITESPACE = /^[\t\n\r ]+/;
+
+/**
+ * 平文のテキストノード 1 つを、SKAM-ML の token の並びにする。parser と stringify が同じ規則で判定するための唯一の定義。
+ * 書記素に分け、各書記素の先頭の ASCII 空白を取り除き、空になった書記素は捨てる
+ * (`\r\n` は丸ごと落ち、空白 + 結合文字は結合文字だけが残る)。
+ * `start` / `end` は、取り除く前の書記素の、元の文字列の中の UTF-16 の位置 (parser が `ext.position` を求めるのに使う)。
+ * `<skam:t>` の中の文字はこの関数を通さない (そのまま 1 つの token になる)。
+ * @experimental
+ */
+export function tokenizePlainText(
+  text: string
+): readonly { text: string; start: number; end: number }[] {
+  const tokens: { text: string; start: number; end: number }[] = [];
+  let start = 0;
+  for (const cluster of splitGraphemes(text)) {
+    const end = start + cluster.length;
+    const stripped = cluster.replace(XML_IGNORED_LEADING_WHITESPACE, '');
+    if (stripped !== '') tokens.push({ text: stripped, start, end });
+    start = end;
+  }
+  return tokens;
+}

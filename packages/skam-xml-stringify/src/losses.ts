@@ -3,6 +3,10 @@
  *
  * `unrepresentable` = SKAM-ML intentionally does not describe it (or it is invalid JSON anyway).
  * `unsupported` = SKAM-ML v0.1 has no notation for it yet; a later spec revision could add one.
+ *
+ * `ASCII_WHITESPACE_TOKEN`, `MULTI_GRAPHEME_TOKEN`, `EXT`, `PLACEMENT_HINT` and the value case of
+ * `UNKNOWN_EXTENSION` are no longer produced: `<skam:t>` and the skam:ext / skam:custom / placement-hint
+ * attributes write them. The values stay in the type so existing `switch` statements keep compiling.
  */
 export type StringifyLossCode =
   | 'DERIVATIONS'

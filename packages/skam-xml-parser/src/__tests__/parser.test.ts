@@ -1009,3 +1009,16 @@ describe('parse - highlight and ref linking (by name only)', () => {
     expect(highlights(doc)[0]?.ref).toBeUndefined();
   });
 });
+
+describe('parse - skam:reading whitespace', () => {
+  const withReading = (attrs: string, text: string) =>
+    `<skam:doc xmlns:skam="urn:skam:1"><skam:body><skam:block>學</skam:block></skam:body><skam:readings><skam:reading kind="kundoku"${attrs}>${text}</skam:reading></skam:readings></skam:doc>`;
+
+  it('trims the text without xml:space="preserve"', () => {
+    expect(parseSeq(withReading('', ' 学 ')).readings[0]!.text).toBe('学');
+  });
+
+  it('keeps leading and trailing whitespace with xml:space="preserve"', () => {
+    expect(parseSeq(withReading(' xml:space="preserve"', ' 学 ')).readings[0]!.text).toBe(' 学 ');
+  });
+});

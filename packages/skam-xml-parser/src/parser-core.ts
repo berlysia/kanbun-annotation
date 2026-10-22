@@ -38,7 +38,7 @@ import {
   SKAMValidationError,
   HIGHLIGHT_STYLES,
   isValidHighlightStyle,
-  splitGraphemes,
+  tokenizePlainText,
   SKAM_ML_CONTENT_MODEL,
   isHandId,
 } from '@kanbun-skam/skam';
@@ -284,6 +284,7 @@ const KNOWN_SKAM_ELEMENTS: ReadonlySet<string> = new Set([
   'meta',
   'body',
   'block',
+  't',
   'readings',
   'reading',
   'notes',
@@ -406,14 +407,125 @@ const KUN_PART_BY_TYPE: Readonly<Record<string, 'yomi' | 'okuri' | 'soe'>> = {
   soegana: 'soe',
 };
 
+/** `skam:ext` / `skam:custom` の 1 つの属性の値の長さの上限 (UTF-16 の単位)。入力全体の上限 (5,000,000) の 2 割 */
+const MAX_FREE_DATA_ATTRIBUTE_LENGTH = 1_000_000;
+
+/** ext / custom / placementHint を受ける持ち主。文書、ブロック、字、reading、注記のどれか */
+interface FreeDataTarget {
+  ext?: Record<string, unknown>;
+  custom?: Record<string, unknown>;
+}
+
+/** 要素の属性から読んだ ext / custom / placementHint */
+interface FreeData {
+  ext?: Record<string, unknown>;
+  custom?: Record<string, unknown>;
+  placementHint?: string;
+}
+
 /**
- * 拡張の名前空間の属性を、要素が作った注記の `ext.<拡張の名前>` にする。
+ * 持ち主の要素に付く属性の名前。`skam:kun` は 1 つの要素に最大 3 つの注記が付くので、
+ * 読み仮名は接頭辞なし、送り仮名は `okuri-`、添え仮名は `soe-` の名前で分ける。
+ * JSON の値を持つ属性 (ext、custom) は `skam:` 名前空間、placement-hint は SKAM の要素自身の属性なので接頭辞なし
+ */
+const FREE_DATA_ATTRIBUTE_NAMES = {
+  self: { ext: 'ext', custom: 'custom', hint: 'placement-hint' },
+  okuri: { ext: 'okuri-ext', custom: 'okuri-custom', hint: 'okuri-placement-hint' },
+  soe: { ext: 'soe-ext', custom: 'soe-custom', hint: 'soe-placement-hint' },
+} as const;
+
+function isJsonObject(value: unknown): value is Record<string, unknown> {
+  return typeof value === 'object' && value !== null && !Array.isArray(value);
+}
+
+/**
+ * JSON の値を持つ属性を読む。長さの上限を超える、JSON として読めない (構文の誤り、深さによる RangeError など)、
+ * オブジェクトでないときは位置つきの誤り。メッセージに属性の値は含めない。
+ * 値の深さ・キーの数・`__proto__` などの禁止は、parse の最後に validateSKAMDocument が検査する
+ */
+function readJsonObjectAttribute(
+  element: Element,
+  localName: string
+): Record<string, unknown> | undefined {
+  if (!element.hasAttributeNS(SKAM_NS, localName)) return undefined;
+  const value = element.getAttributeNS(SKAM_NS, localName) ?? '';
+  if (value.length > MAX_FREE_DATA_ATTRIBUTE_LENGTH) {
+    throw parseErrorAt(
+      element,
+      `skam:${localName} is longer than ${MAX_FREE_DATA_ATTRIBUTE_LENGTH} characters`
+    );
+  }
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(value);
+  } catch {
+    throw parseErrorAt(element, `skam:${localName} must be a JSON object`);
+  }
+  if (!isJsonObject(parsed)) {
+    throw parseErrorAt(element, `skam:${localName} must be a JSON object`);
+  }
+  return parsed;
+}
+
+function readFreeData(
+  element: Element,
+  names: (typeof FREE_DATA_ATTRIBUTE_NAMES)[keyof typeof FREE_DATA_ATTRIBUTE_NAMES]
+): FreeData | undefined {
+  const data: FreeData = {};
+  const ext = readJsonObjectAttribute(element, names.ext);
+  if (ext) data.ext = ext;
+  const custom = readJsonObjectAttribute(element, names.custom);
+  if (custom) data.custom = custom;
+  if (element.hasAttribute(names.hint)) data.placementHint = element.getAttribute(names.hint) ?? '';
+  return Object.keys(data).length > 0 ? data : undefined;
+}
+
+/**
+ * ext の値を 1 つ足す。`Object.assign` やスプレッドで複製すると、`__proto__` のキーで setter が動いて
+ * 持ち主の prototype を書き換えてしまうので、`defineProperty` で自分のキーとして足す。
+ * 名前空間の属性と `skam:ext` の両方に同じ拡張の名前があれば位置つきの誤り (メッセージに値は含めない)
+ */
+function addExtValue(element: Element, target: FreeDataTarget, name: string, value: unknown): void {
+  const ext = (target.ext ??= {});
+  if (Object.hasOwn(ext, name)) {
+    throw parseErrorAt(
+      element,
+      `The value of extension "${name}" is given twice (as a namespaced attribute and in skam:ext)`
+    );
+  }
+  Object.defineProperty(ext, name, {
+    value,
+    enumerable: true,
+    writable: true,
+    configurable: true,
+  });
+}
+
+function applyFreeData(
+  element: Element,
+  target: FreeDataTarget & { placementHint?: string },
+  data: FreeData,
+  isMark: boolean
+): void {
+  // custom は属性が 1 つだけなので、JSON.parse が作ったオブジェクトをそのまま持ち主にする
+  if (data.custom) target.custom = data.custom;
+  if (data.ext) {
+    for (const [name, value] of Object.entries(data.ext)) addExtValue(element, target, name, value);
+  }
+  // placement-hint は注記のフィールド。注記でない持ち主 (文書、ブロック、字、reading) では読まない
+  if (isMark && data.placementHint !== undefined) target.placementHint = data.placementHint;
+}
+
+/**
+ * 拡張の名前空間の属性を、要素が作った注記の `ext.<拡張の名前>` にし、
+ * `skam:ext` / `skam:custom` / `placement-hint` を、要素の持ち主 (文書、ブロック、字、reading、注記) に付ける。
  * 注記ができた後に文書全体を一度走査するので、要素ごとの処理には手を入れない。
  * 知っている拡張 (登録簿か渡された定義) の名前空間で宣言の無い属性は誤り。
  * 定義の無い拡張の属性と、登録されていない名前空間の属性は読み飛ばす。
  */
 function applyExtensionAttributes(
   root: Element,
+  skamDoc: SKAMDocument,
   state: ParserState,
   table: ExtensionTable,
   declared: ReadonlySet<string>
@@ -425,6 +537,20 @@ function applyExtensionAttributes(
     const list = marksByElement.get(element);
     if (list) list.push(mark);
     else marksByElement.set(element, [mark]);
+  }
+  // 注記以外の持ち主。字は `<skam:t>` が作ったものだけ (平文の字の持ち主は包む要素で、その要素の持ち主ではない)
+  const plainOwners = new Map<Element, FreeDataTarget>([[root, skamDoc]]);
+  for (const block of state.blocks) {
+    const element = state.sourceElements.get(block);
+    if (element) plainOwners.set(element, block);
+  }
+  for (const reading of state.readings) {
+    const element = state.sourceElements.get(reading);
+    if (element) plainOwners.set(element, reading);
+  }
+  for (const token of state.tokens) {
+    const element = state.sourceElements.get(token);
+    if (element && getLocalName(element) === 't') plainOwners.set(element, token);
   }
 
   const visit = (element: Element): void => {
@@ -449,12 +575,15 @@ function applyExtensionAttributes(
       attributes.set(attr.localName ?? attr.name, attr.value);
     }
 
+    const localName = getLocalName(element);
+    const elementMarks = marksByElement.get(element) ?? [];
+    const partOf = (mark: Mark): 'self' | 'yomi' | 'okuri' | 'soe' | undefined =>
+      localName === 'kun' ? KUN_PART_BY_TYPE[mark.type] : 'self';
+
     for (const [name, attributes] of attributesByExtension) {
       const definition = table.definitions.get(name)!;
-      const localName = getLocalName(element);
-      const marks = (marksByElement.get(element) ?? []).flatMap((mark) => {
-        const part: 'self' | 'yomi' | 'okuri' | 'soe' | undefined =
-          localName === 'kun' ? KUN_PART_BY_TYPE[mark.type] : 'self';
+      const marks = elementMarks.flatMap((mark) => {
+        const part = partOf(mark);
         return part === undefined ? [] : [{ part, mark }];
       });
       const result = definition.readXmlAttributes!(attributes, {
@@ -463,9 +592,11 @@ function applyExtensionAttributes(
       });
       if ('error' in result) throw parseErrorAt(element, result.error);
       for (const { mark, value } of result.values) {
-        mark.ext = { ...mark.ext, [name]: value };
+        addExtValue(element, mark, name, value);
       }
     }
+
+    applyFreeAttributes(element, localName, elementMarks, plainOwners.get(element));
 
     for (const child of Array.from(element.childNodes)) {
       if (!isElement(child) || child.namespaceURI !== SKAM_NS) continue;
@@ -474,6 +605,54 @@ function applyExtensionAttributes(
     }
   };
   visit(root);
+}
+
+/**
+ * 1 つの要素の `skam:ext` / `skam:custom` / `placement-hint` を持ち主に付ける。
+ * `skam:kun` は読み仮名が接頭辞なし、送り仮名が `okuri-`、添え仮名が `soe-` で、対応する注記が無ければ位置つきの誤り
+ * (`edu:okuri-quiz` と同じ扱い)。持ち主の無い要素 (skam:body、skam:meta など) の属性は読まない
+ */
+function applyFreeAttributes(
+  element: Element,
+  localName: string,
+  marks: readonly Mark[],
+  owner: FreeDataTarget | undefined
+): void {
+  if (localName !== 'kun' && marks.length === 0 && owner === undefined) return;
+  if (localName === 'kun') {
+    const partNames = [
+      ['yomigana', FREE_DATA_ATTRIBUTE_NAMES.self],
+      ['okurigana', FREE_DATA_ATTRIBUTE_NAMES.okuri],
+      ['soegana', FREE_DATA_ATTRIBUTE_NAMES.soe],
+    ] as const;
+    for (const [type, names] of partNames) {
+      const data = readFreeData(element, names);
+      if (!data) continue;
+      const mark = marks.find((candidate) => candidate.type === type);
+      if (!mark) {
+        throw parseErrorAt(
+          element,
+          `The attributes ${names.ext}, ${names.custom} and ${names.hint} of <skam:kun> need the ${type} they belong to`
+        );
+      }
+      applyFreeData(element, mark, data, true);
+    }
+    return;
+  }
+
+  // kun 以外では okuri-* / soe-* に付ける先が無い
+  for (const names of [FREE_DATA_ATTRIBUTE_NAMES.okuri, FREE_DATA_ATTRIBUTE_NAMES.soe]) {
+    if (readFreeData(element, names)) {
+      throw parseErrorAt(
+        element,
+        `<skam:${localName}> does not take ${names.ext}, ${names.custom} or ${names.hint}`
+      );
+    }
+  }
+  const data = readFreeData(element, FREE_DATA_ATTRIBUTE_NAMES.self);
+  if (!data) return;
+  for (const mark of marks) applyFreeData(element, mark, data, true);
+  if (owner) applyFreeData(element, owner, data, false);
 }
 
 interface SourcePosition {
@@ -564,27 +743,6 @@ function warn(state: ParserState, element: Element): void {
   state.onWarning(warning);
 }
 
-/**
- * 要素の直下のテキスト (CDATA を含む) だけを読む。
- * 既知の skam:* が入っていれば内容モデル違反、未知の skam:* は部分木ごと無視して通知する。
- */
-function readTextOnly(element: Element, state: ParserState, owner: string): string {
-  let text = '';
-  for (const child of Array.from(element.childNodes)) {
-    if (isText(child)) {
-      text += child.textContent ?? '';
-    } else if (isElement(child)) {
-      assertSkamNamespace(child);
-      const name = getLocalName(child);
-      if (KNOWN_SKAM_ELEMENTS.has(name)) {
-        throw parseErrorAt(child, `<skam:${owner}> must not contain <skam:${name}>`);
-      }
-      warn(state, child);
-    }
-  }
-  return text;
-}
-
 /** 表に載る親要素の子を読む。返す token は文書順 */
 function processConstrainedContent(
   element: Element,
@@ -608,7 +766,8 @@ function processConstrainedContent(
     if (!allowed.includes(name)) {
       throw parseErrorAt(child, `<skam:${owner}> must not contain <skam:${name}>`);
     }
-    if (name === 'kun') tokenIds.push(...processKun(child, state));
+    if (name === 't') tokenIds.push(...processToken(child, state));
+    else if (name === 'kun') tokenIds.push(...processKun(child, state));
     else if (name === 'okimoji') tokenIds.push(...processOkimoji(child, state));
     else if (name === 'joji') tokenIds.push(...processJoji(child, state));
     else if (name === 'okototen') tokenIds.push(...processOkototen(child, state));
@@ -626,66 +785,105 @@ function generateTokenId(state: ParserState): string {
 // Token Generation
 // ============================================================================
 
-// SKAM-ML §6.2 が無視する空白 + U+000D。/\s/ は U+3000 (全角空白) も含むが、全角空白は token として残す
-const XML_IGNORED_LEADING_WHITESPACE = /^[\t\n\r ]+/;
-
-function addTokensFromText(text: string, state: ParserState, owner: Element): string[] {
-  const ids: string[] = [];
+/**
+ * token を 1 つ作って state に積む。位置 (trackPositions) は text の先頭の code point で探す。
+ * クラスタ全体で探すと、`葛&#xE0100;` のようにリテラルと文字参照が混ざるときにソースの中で見つからない
+ */
+function pushToken(
+  state: ParserState,
+  text: string,
+  owner: Element,
+  handId: string | null
+): string {
+  const id = handId ?? generateTokenId(state);
+  const token: Token = { id, text };
   const tracker = state.positionTracker;
 
-  // テキストノードごとに分ける。ノードをまたぐクラスタを作ると、要素の外の字が要素の中の token に入り、
-  // stringify で元の形に戻らない
-  for (const cluster of splitGraphemes(text)) {
-    // 空白で始まるクラスタは、先頭の空白だけ落とす (\r\n は丸ごと落ちる。空白 + 結合文字は結合文字だけが残る)
-    const char = cluster.replace(XML_IGNORED_LEADING_WHITESPACE, '');
-    // 位置は先頭の code point だけで探す。クラスタ全体で探すと、`葛&#xE0100;` のようにリテラルと
-    // 文字参照が混ざるときにソースの中で見つからない
-    const lead = char === '' ? cluster : char;
-    const leadLength = String.fromCodePoint(lead.codePointAt(0)!).length;
-    const leadText = lead.slice(0, leadLength);
+  // Add position info if tracking is enabled
+  if (tracker) {
+    const leadLength = String.fromCodePoint(text.codePointAt(0)!).length;
+    const charPos = tracker.findText(text.slice(0, leadLength), state.currentSearchOffset);
+    if (charPos !== -1) {
+      // リテラルで書かれたクラスタはソースに全体が並ぶので終端まで含める。文字参照が混ざるときは先頭の code point まで
+      const spanLength = tracker.getSource().startsWith(text, charPos) ? text.length : leadLength;
+      const startPos = tracker.offsetToPosition(charPos);
+      const endPos = tracker.offsetToPosition(charPos + spanLength);
 
-    if (char === '') {
-      // Skip whitespace but update search offset if tracking
-      if (tracker) {
-        const pos = tracker.findText(leadText, state.currentSearchOffset);
-        if (pos !== -1) {
-          state.currentSearchOffset = pos + leadLength;
-        }
-      }
-      continue;
+      // Convert to byte offsets for the offset field
+      const startByteOffset = tracker.getByteOffset(charPos);
+      const endByteOffset = tracker.getByteOffset(charPos + spanLength);
+
+      const position: TokenPosition = {
+        start: { ...startPos, offset: startByteOffset },
+        end: { ...endPos, offset: endByteOffset },
+      };
+
+      token.ext = { ...token.ext, position };
+      state.currentSearchOffset = charPos + spanLength;
     }
-
-    const id = generateTokenId(state);
-    const token: Token = { id, text: char };
-
-    // Add position info if tracking is enabled
-    if (tracker) {
-      const charPos = tracker.findText(leadText, state.currentSearchOffset);
-      if (charPos !== -1) {
-        // リテラルで書かれたクラスタはソースに全体が並ぶので終端まで含める。文字参照が混ざるときは先頭の code point まで
-        const spanLength = tracker.getSource().startsWith(char, charPos) ? char.length : leadLength;
-        const startPos = tracker.offsetToPosition(charPos);
-        const endPos = tracker.offsetToPosition(charPos + spanLength);
-
-        // Convert to byte offsets for the offset field
-        const startByteOffset = tracker.getByteOffset(charPos);
-        const endByteOffset = tracker.getByteOffset(charPos + spanLength);
-
-        const position: TokenPosition = {
-          start: { ...startPos, offset: startByteOffset },
-          end: { ...endPos, offset: endByteOffset },
-        };
-
-        token.ext = { ...token.ext, position };
-        state.currentSearchOffset = charPos + spanLength;
-      }
-    }
-
-    state.sourceElements.set(token, owner);
-    state.tokens.push(token);
-    ids.push(id);
   }
-  return ids;
+
+  state.sourceElements.set(token, owner);
+  state.tokens.push(token);
+  return id;
+}
+
+/**
+ * 平文のテキストノードを token にする。分け方は core の `tokenizePlainText` (stringify も同じ関数で判定する)。
+ * テキストノードごとに分ける。ノードをまたぐクラスタを作ると、要素の外の字が要素の中の token に入り、
+ * stringify で元の形に戻らない
+ */
+function addTokensFromText(text: string, state: ParserState, owner: Element): string[] {
+  return tokenizePlainText(text).map((piece) => pushToken(state, piece.text, owner, null));
+}
+
+/**
+ * `<skam:t>`: 内容の文字をそのまま 1 つの token の text にする。書記素に分けず、空白も捨てない。
+ * 字の id は手書きの id (`xml:id`、無ければ `id`)。無ければ平文の字と同じ自動の id
+ */
+function processToken(element: Element, state: ParserState): string[] {
+  let text = '';
+  for (const child of Array.from(element.childNodes)) {
+    if (isText(child)) {
+      text += child.textContent ?? '';
+    } else if (isElement(child)) {
+      throw parseErrorAt(child, `<skam:t> must not contain <${child.nodeName}>`);
+    }
+  }
+  if (text === '') throw parseErrorAt(element, '<skam:t> must contain text');
+  return [pushToken(state, text, element, readHandId(element))];
+}
+
+/**
+ * kun と soegana の中身を読む。平文のテキスト (間に未知の要素やコメントがあってもつなげて 1 つのテキストとして分ける) と
+ * `<skam:t>` を文書順に token にする。ほかの既知の要素は内容モデル違反、未知の skam:* は部分木ごと無視して通知する。
+ */
+function readTextAndTokens(element: Element, state: ParserState, owner: string): string[] {
+  const tokenIds: string[] = [];
+  let pending = '';
+  const flush = (): void => {
+    if (pending === '') return;
+    tokenIds.push(...addTokensFromText(pending, state, element));
+    pending = '';
+  };
+  for (const child of Array.from(element.childNodes)) {
+    if (isText(child)) {
+      pending += child.textContent ?? '';
+    } else if (isElement(child)) {
+      assertSkamNamespace(child);
+      const name = getLocalName(child);
+      if (name === 't') {
+        flush();
+        tokenIds.push(...processToken(child, state));
+      } else if (KNOWN_SKAM_ELEMENTS.has(name)) {
+        throw parseErrorAt(child, `<skam:${owner}> must not contain <skam:${name}>`);
+      } else {
+        warn(state, child);
+      }
+    }
+  }
+  flush();
+  return tokenIds;
 }
 
 function createAnchor(tokenIds: string[], element: Element): { from: string; to: string } {
@@ -745,9 +943,8 @@ function processKun(element: Element, state: ParserState): string[] {
   const okuri = getAttr(element, 'okuri');
   const soe = getAttr(element, 'soe');
 
-  // Extract text content and generate tokens
-  const textContent = readTextOnly(element, state, 'kun');
-  const tokenIds = addTokensFromText(textContent, state, element);
+  // Extract text content (and <skam:t>) and generate tokens
+  const tokenIds = readTextAndTokens(element, state, 'kun');
 
   if (tokenIds.length === 0) {
     throw parseErrorAt(element, '<skam:kun> must contain text');
@@ -967,9 +1164,8 @@ function processJoji(element: Element, state: ParserState): string[] {
 function processSoegana(element: Element, state: ParserState): string[] {
   const value = getRequiredAttr(element, 'value', 'skam:soegana');
 
-  // Extract text content (the wrapped character) and generate tokens
-  const textContent = readTextOnly(element, state, 'soegana');
-  const tokenIds = addTokensFromText(textContent, state, element);
+  // Extract text content (the wrapped character, and <skam:t>) and generate tokens
+  const tokenIds = readTextAndTokens(element, state, 'soegana');
 
   if (tokenIds.length === 0) {
     throw parseErrorAt(element, '<skam:soegana> must contain text (the character to annotate)');
@@ -1242,6 +1438,12 @@ function processBlockChildren(element: Element, state: ParserState): string[] {
         case 'kaeri':
           processKaeri(child, state, lastTokenId);
           break;
+        case 't': {
+          const ids = processToken(child, state);
+          allTokenIds.push(...ids);
+          lastTokenId = ids[ids.length - 1]!;
+          break;
+        }
         case 'kun': {
           const ids = processKun(child, state);
           allTokenIds.push(...ids);
@@ -1373,12 +1575,16 @@ function processReadings(element: Element, state: ParserState): void {
   for (const child of childElements(element)) {
     if (getLocalName(child) === 'reading') {
       const kind = getRequiredAttr(child, 'kind', 'skam:reading');
-      const text = (child.textContent ?? '').trim();
+      // xml:space="preserve" は前後の空白を残す。stringify は前後に空白がある text にこの印を書く
+      const raw = child.textContent ?? '';
+      const text = child.getAttribute('xml:space') === 'preserve' ? raw : raw.trim();
 
-      state.readings.push({
+      const reading: Reading = {
         kind: kind as 'kundoku' | 'kakikudashi' | 'yomiage',
         text,
-      });
+      };
+      state.sourceElements.set(reading, child);
+      state.readings.push(reading);
     }
   }
 }
@@ -1652,7 +1858,6 @@ function parseDocument(
   resolveHighlightRefs(state);
 
   const declaration = readExtensionDeclarations(metas, table);
-  applyExtensionAttributes(root, state, table, new Set(declaration?.used));
 
   // Build document
   const skamDoc: SKAMDocument = {
@@ -1668,6 +1873,8 @@ function parseDocument(
     skamDoc.extensions = declaration.used;
     if (declaration.required.length > 0) skamDoc.extensionsRequired = declaration.required;
   }
+
+  applyExtensionAttributes(root, skamDoc, state, table, new Set(declaration?.used));
 
   if (validate) {
     const result = validateSKAMDocument(

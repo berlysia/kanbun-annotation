@@ -28,12 +28,12 @@ const fixtureDir = join(
   '../../../skam-xml-parser/src/__tests__/fixtures/valid'
 );
 /**
- * spec K1 の「同じ文書」。`basis` は往復の前の文書 (往復の後の文書 `d` を比べる相手)。
- * - ブロックの id は値まで比べる
- * - 字の id は、basis の字の id が自動の形なら値まで比べ、手書きの形は比べない (手書きの字の id を書くのは plan-2)
+ * spec K1 の「同じ文書」。
+ * - ブロックの id と字の id は値まで比べる (手書きの id はそのまま、自動の id は位置の値)
+ * - 字は id ごとに text、ext、custom を比べる。文書、ブロックの ext と custom も比べる
  * - 注記は、手書きの id は値まで、自動の id は値を比べない。highlight.ref は指す注記で比べる
  */
-const normalize = (d: SKAMDocument, basis: SKAMDocument = d) => {
+const normalize = (d: SKAMDocument) => {
   const order = d.blocks.flatMap((b) => b.tokenIds);
   const pos = (id: string | undefined) => (id === undefined ? 'start' : order.indexOf(id));
   const text = (id: string) => d.tokens.find((t) => t.id === id)!.text;
@@ -61,17 +61,21 @@ const normalize = (d: SKAMDocument, basis: SKAMDocument = d) => {
     return JSON.stringify(entries);
   };
   return {
-    blocks: d.blocks.map((b, bi) => ({
+    blocks: d.blocks.map((b) => ({
       id: b.id,
       text: b.tokenIds.map(text).join(''),
-      tokenIds: b.tokenIds.map((id, i) => {
-        const original = basis.blocks[bi]?.tokenIds[i] ?? id;
-        return isAutoId(original) ? id : 'hand';
-      }),
+      tokenIds: b.tokenIds,
+      ext: b.ext,
+      custom: b.custom,
     })),
+    tokens: d.tokens
+      .map(({ id, text: tokenText, ext, custom }) => ({ id, text: tokenText, ext, custom }))
+      .sort((x, y) => (x.id < y.id ? -1 : 1)),
     marks: d.marks.map((m) => markKey(m, true)).sort(),
     readings: d.readings,
     lang: d.lang,
+    ext: d.ext,
+    custom: d.custom,
   };
 };
 const rootXmlLang = (xml: string) => /<skam:doc[^>]*?\sxml:lang="([^"]*)"/.exec(xml)?.[1];
@@ -135,7 +139,7 @@ describe('strict round-trip over all valid fixtures', () => {
         },
       ],
     };
-    expect(normalize(parse(stringify(d)), d)).toEqual(normalize(d));
+    expect(normalize(parse(stringify(d)))).toEqual(normalize(d));
   });
   it('yomigana range with inner kun round-trips', () => {
     const d: SKAMDocument = {
@@ -151,7 +155,7 @@ describe('strict round-trip over all valid fixtures', () => {
         { type: 'okurigana', anchor: { from: 't1', to: 't1' }, value: 'y' },
       ],
     };
-    expect(normalize(parse(stringify(d)), d)).toEqual(normalize(d));
+    expect(normalize(parse(stringify(d)))).toEqual(normalize(d));
   });
 });
 
@@ -290,7 +294,7 @@ describe('property (a)(b): validator-valid documents survive lossy stringify →
         ...doc,
         marks: doc.marks.filter((_, i) => !lost.has(`/marks/${i}`)),
       } as unknown as SKAMDocument;
-      expect(normalize(back, kept)).toEqual(normalize(kept));
+      expect(normalize(back)).toEqual(normalize(kept));
     });
   }
   it('generated enough valid cases', () => expect(checked).toBeGreaterThanOrEqual(100));
@@ -419,7 +423,7 @@ describe('ids: hand-written ids round-trip, automatic ids are recomputed', () =>
     expect(back.marks.map((m) => m.id).filter((id) => !id?.startsWith('m#'))).toEqual(
       expect.arrayContaining(['cite-1', 'ref-1'])
     );
-    expect(normalize(back, d)).toEqual(normalize(d));
+    expect(normalize(back)).toEqual(normalize(d));
   });
 
   it('hand-written block ids round-trip and give the tokens ids built from them', () => {
@@ -486,7 +490,7 @@ describe('ids: hand-written ids round-trip, automatic ids are recomputed', () =>
         const xml = stringify(first);
         expect(xml).not.toContain('ref=""');
         const second = parse(xml);
-        expect(normalize(second, first)).toEqual(normalize(first));
+        expect(normalize(second)).toEqual(normalize(first));
         expect(highlightRefs(second)).toEqual(highlightRefs(first));
         // 種類の違う注記どうしの順は問わない。ref どうしの順は保つ
         const refLabels = (doc: SKAMDocument) =>
@@ -507,7 +511,7 @@ describe('ids: hand-written ids round-trip, automatic ids are recomputed', () =>
       expect(highlightRefs(first)).toEqual(['r1', 'r1']);
       const second = parse(stringify(first));
       expect(highlightRefs(second)).toEqual(['r1', 'r1']);
-      expect(normalize(second, first)).toEqual(normalize(first));
+      expect(normalize(second)).toEqual(normalize(first));
     });
 
     it('a highlight without ref, with one ref inside, is written without a ref attribute and stays unlinked', () => {
@@ -528,5 +532,126 @@ describe('ids: hand-written ids round-trip, automatic ids are recomputed', () =>
       expect(xml).not.toContain('ref="');
       expect(highlightRefs(parse(xml))).toEqual([undefined]);
     });
+  });
+});
+
+// ============================================================================
+// <skam:t> と ext / custom / placementHint (spec K3、K5): 損失なしで往復し、K1 の「同じ文書」に戻る
+// ============================================================================
+
+describe('<skam:t>, ext, custom and placementHint round-trip without loss', () => {
+  const T = (n: number) => `b#1#${n}`;
+  const rich = (): SKAMDocument => ({
+    format: 'skam@0.1',
+    readings: [
+      { kind: 'kundoku', text: ' 学 ', custom: { r: 1 } },
+      { kind: 'yomiage', text: '学', ext: { e: [1, 2] } },
+    ],
+    ext: { legacy: { n: 1 } },
+    custom: { doc: 'x', fffe: `${String.fromCharCode(0xfffe)}${String.fromCharCode(0xffff)}` },
+    tokens: [
+      { id: T(1), text: 'e' },
+      { id: T(2), text: '́' },
+      { id: T(3), text: '學問' },
+      { id: T(4), text: ' ' },
+      { id: T(5), text: ' 學' },
+      { id: T(6), text: '\r\n' },
+      { id: 'cite-1', text: '甲', ext: { tok: 1 } },
+      { id: T(8), text: '乙', custom: { tc: '\u0001' } },
+      { id: T(9), text: '丙' },
+      { id: T(10), text: '丁' },
+    ],
+    blocks: [
+      {
+        id: 'b#1',
+        tokenIds: [T(1), T(2), T(3), T(4), T(5), T(6), 'cite-1', T(8), T(9), T(10)],
+        ext: { blk: true },
+        custom: { bc: [1, { a: null }] },
+      },
+    ],
+    marks: [
+      {
+        type: 'okimoji',
+        id: 'note-1',
+        anchor: { from: T(3), to: T(3) },
+        placementHint: 'left',
+        ext: { x: 1 },
+        custom: { y: 2 },
+      },
+      { type: 'emphasis', id: 'm#2', anchor: { from: T(5), to: 'cite-1' }, custom: { em: true } },
+      { type: 'tateten', id: 'm#3', anchor: { from: T(8), to: T(9) }, placementHint: 'top' },
+      {
+        type: 'yomigana',
+        id: 'm#4',
+        anchor: { from: T(10), to: T(10) },
+        value: 'ア',
+        custom: { y: 1 },
+      },
+      {
+        type: 'okurigana',
+        id: 'm#5',
+        anchor: { from: T(10), to: T(10) },
+        value: 'ブ',
+        placementHint: 'right',
+        ext: { o: 1 },
+      },
+      {
+        type: 'soegana',
+        id: 'm#6',
+        anchor: { from: T(10), to: T(10) },
+        value: 'を',
+        custom: { s: 1 },
+      },
+      {
+        type: 'kaeri',
+        id: 'm#7',
+        value: '㆑',
+        position: { blockId: 'b#1', after: 'cite-1' },
+        placementHint: 'p',
+        custom: { k: 1 },
+      },
+      {
+        type: 'ref',
+        id: 'r-1',
+        label: 'a',
+        position: { blockId: 'b#1', after: T(9) },
+        ext: { re: 1 },
+      },
+      {
+        type: 'highlight',
+        id: 'm#9',
+        anchor: { from: T(9), to: T(9) },
+        ref: 'r-1',
+        custom: { h: 1 },
+      },
+      {
+        type: 'linebreak',
+        id: 'm#10',
+        position: { blockId: 'b#1', after: T(9) },
+        placementHint: 'q',
+      },
+    ],
+  });
+
+  it('is valid with no warnings, stringifies without loss and parses back to the same document', () => {
+    const d = rich();
+    const checked = validateSKAMDocument(d);
+    expect(checked.valid).toBe(true);
+    const losses: StringifyLoss[] = [];
+    const xml = stringify(d, { lossy: true, onLoss: (l) => losses.push(l) });
+    expect(losses).toEqual([]);
+    const back = parse(xml);
+    expect(normalize(back)).toEqual(normalize(d));
+    expect(stringify(back)).toBe(xml);
+  });
+
+  it('writes no raw control character or U+FFFE / U+FFFF in an attribute', () => {
+    const xml = stringify(rich());
+    for (const [, value] of xml.matchAll(/="([^"]*)"/g)) {
+      // formatter が正規表現の U+FFFE の escape を実際の文字に書き換えるので、文字列から組み立てる
+      expect(value).not.toMatch(
+        new RegExp('[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F\\uFFFE\\uFFFF]')
+      );
+    }
   });
 });

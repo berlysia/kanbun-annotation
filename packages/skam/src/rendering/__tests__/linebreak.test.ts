@@ -25,7 +25,7 @@ function createDoc(marks: Mark[]): SKAMDocument {
 
 const br = (after: string): Mark => ({ type: 'linebreak', position: { blockId: 'b1', after } });
 
-/** 印の付いたノードの先頭の字の id (token は自身、tateten-group は最初の字) */
+/** 印の付いたノードの先頭の字の id (token は自身、tateten-group と ruby-group は最初の字) */
 function flaggedIds(children: readonly AIRBlockChild[]): string[] {
   const out: string[] = [];
   const visit = (node: AIRBlockChild | AIRHighlightGroupNode['children'][number]): void => {
@@ -86,13 +86,13 @@ describe('buildAnnotationIR の lineBreakAfter', () => {
     expect(flaggedIds(air.blocks[0]!.children)).toEqual(['t1']);
   });
 
-  it('複数の字にかかる読みの範囲の後ろは、範囲を描く先頭の字のノードに印を付ける', () => {
+  it('複数の字にかかる読みの範囲の後ろは、ruby のグループのノードに印を付ける', () => {
     const doc = createDoc([
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'がくじ' },
       br('t2'),
     ]);
     const air = buildAnnotationIR(doc, FULL);
-    expect(flaggedIds(air.blocks[0]!.children)).toEqual(['t1']);
+    expect(flaggedIds(air.blocks[0]!.children)).toEqual(['group:t1']);
   });
 
   it('ブロック末尾の後ろ (block-end) は印を付けず、例外も出さない', () => {

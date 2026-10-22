@@ -202,6 +202,68 @@ export const FIXTURE_HIGHLIGHT_SPACING: SKAMDocument = {
   readings: [],
 };
 
+/**
+ * Case 7: overlap-crossing — ruby・竪点・傍線・置き字が交差し、傍線と竪点が断片をまたぐ文書。
+ * 字は 子曰學而時習之説 の 8 字。竪点 t2-t5、ruby t3-t6 (送り仮名つき)、傍線 t1-t3 と t5-t7 が
+ * 互いに部分交差し、而 (t4) は置き字。
+ */
+export const FIXTURE_OVERLAP_CROSSING: SKAMDocument = {
+  format: 'skam@0.1',
+  tokens: [...'子曰學而時習之説'].map((text, i) => ({ id: `t${i + 1}`, text })),
+  blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8'] }],
+  marks: [
+    { type: 'tateten', anchor: { from: 't2', to: 't5' } },
+    { type: 'yomigana', anchor: { from: 't3', to: 't6' }, value: 'がくじしゅう' },
+    { type: 'okurigana', anchor: { from: 't3', to: 't6' }, value: 'ヲ' },
+    { type: 'highlight', anchor: { from: 't1', to: 't3' }, style: 'solid' },
+    { type: 'highlight', anchor: { from: 't5', to: 't7' }, style: 'dashed' },
+    { type: 'okimoji', anchor: { from: 't4', to: 't4' } },
+  ],
+  readings: [],
+};
+
+/**
+ * Case 8: reading-chain-kaeri — 3 種類の読みの連鎖 (READING_OVERLAP の警告が出る文書) と、
+ * 範囲の読みの中の返り点。字は 不亦樂乎有朋自遠 の 8 字。
+ * yomigana は t1-t2、t2-t3、t3-t4 (先の 2 つ、t1-t2 と t3-t4 を描き、t2-t3 は描かない)、
+ * okurigana は t4-t5、t5-t6、soegana は t6-t7、t7-t8。竪点 t1-t3 の区切りに返り点が入る。
+ */
+export const FIXTURE_READING_CHAIN: SKAMDocument = {
+  format: 'skam@0.1',
+  tokens: [...'不亦樂乎有朋自遠'].map((text, i) => ({ id: `t${i + 1}`, text })),
+  blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3', 't4', 't5', 't6', 't7', 't8'] }],
+  marks: [
+    { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'あい' },
+    { type: 'yomigana', anchor: { from: 't2', to: 't3' }, value: 'かき' },
+    { type: 'yomigana', anchor: { from: 't3', to: 't4' }, value: 'さし' },
+    { type: 'okurigana', anchor: { from: 't4', to: 't5' }, value: 'ニ' },
+    { type: 'okurigana', anchor: { from: 't5', to: 't6' }, value: 'ヲ' },
+    { type: 'soegana', anchor: { from: 't6', to: 't7' }, value: 'ノ' },
+    { type: 'soegana', anchor: { from: 't7', to: 't8' }, value: 'ハ' },
+    { type: 'tateten', anchor: { from: 't1', to: 't3' } },
+    { type: 'kaeri', position: { blockId: 'b1', after: 't1' }, value: '㆒' },
+    { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆑' },
+  ],
+  readings: [],
+};
+
+/**
+ * Case 9: overlap-highlights — 同じ字に傍線が 2 本以上かかり、段 (lane) で外側へずらして並ぶ文書。
+ * 字は 天御中主神高 の 6 字。傍線 t1-t5 (solid、段 0)、t3-t5 (dotted、段 1)、t4-t6 (dashed、段 2) が
+ * 互いに字を共有する。
+ */
+export const FIXTURE_OVERLAP_HIGHLIGHTS: SKAMDocument = {
+  format: 'skam@0.1',
+  tokens: [...'天御中主神高'].map((text, i) => ({ id: `t${i + 1}`, text })),
+  blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3', 't4', 't5', 't6'] }],
+  marks: [
+    { type: 'highlight', anchor: { from: 't1', to: 't5' }, style: 'solid' },
+    { type: 'highlight', anchor: { from: 't3', to: 't5' }, style: 'dotted' },
+    { type: 'highlight', anchor: { from: 't4', to: 't6' }, style: 'dashed' },
+  ],
+  readings: [],
+};
+
 /** All fixtures keyed by case_id (for iteration) */
 export const FIXTURES = {
   'ruby-range-core': FIXTURE_RANGE_RUBY,
@@ -210,4 +272,7 @@ export const FIXTURES = {
   'saidoku-two-stage': FIXTURE_SAIDOKU,
   'emphasis-highlight': FIXTURE_EMPHASIS_HIGHLIGHT,
   'ref-source-order': FIXTURE_REF_SOURCE_ORDER,
+  'overlap-crossing': FIXTURE_OVERLAP_CROSSING,
+  'reading-chain-kaeri': FIXTURE_READING_CHAIN,
+  'overlap-highlights': FIXTURE_OVERLAP_HIGHLIGHTS,
 } as const;

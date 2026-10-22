@@ -19,6 +19,7 @@ import {
   type SKAMDocument,
   type Mark,
 } from '@kanbun-skam/skam';
+import { generateDocument, prng } from '../property/generate-documents.js';
 
 // The parser's valid fixtures are the single source of correct SKAM-ML examples.
 // This package is private and never published, so a cross-package relative path is safe;
@@ -226,123 +227,16 @@ it('SKAM_ML_CONTENT_MODEL matches the normative table in SKAM-ML-draft §7.0', (
   expect(orderList).toEqual([...STRINGIFY_NESTING_ORDER]);
 });
 
-const prng = (seed: number) => () => {
-  seed |= 0;
-  seed = (seed + 0x6d2b79f5) | 0;
-  let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
-  t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-  return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-};
-const ANCHORED = [
-  'yomigana',
-  'okurigana',
-  'soegana',
-  'okimoji',
-  'joji',
-  'okototen',
-  'saidoku',
-  'emphasis',
-  'emphasis',
-  'highlight',
-  'tateten',
-] as const;
-const randomMark = (r: () => number, n: number, idAt: (index: number) => string) => {
-  const a = Math.floor(r() * n);
-  const type = ANCHORED[Math.floor(r() * ANCHORED.length)]!;
-  // saidoku は 1 字 (複数の字は警告になる)。ほかは 1〜3 字の範囲で、部分交差と包含が自然に起きる
-  const b = type === 'saidoku' ? a : Math.min(n - 1, a + Math.floor(r() * 3));
-  const anchor = { from: idAt(a), to: idAt(b) };
-  switch (type) {
-    case 'yomigana':
-    case 'okurigana':
-    case 'soegana':
-      return { type, anchor, value: 'か' };
-    case 'okototen':
-      return {
-        type,
-        anchor,
-        shape: 'dot',
-        position: { system: 'glyph-grid', grid: '5x5', x: 1 + Math.floor(r() * 3), y: 2 },
-      };
-    case 'saidoku':
-      return { type, anchor, forms: [{ yomi: 'まさ' }, { okuri: 'す' }] };
-    default:
-      return { type, anchor };
-  }
-};
-// 注記の id は、なし / 自動の形 / 手書きの形をばらまく。kun にまとめて書く 3 種は、
-// xml:id を 1 つしか書けないので手書きの id を付けない
-const KUN_TYPES: ReadonlySet<string> = new Set(['yomigana', 'okurigana', 'soegana']);
-const withMarkId = <T extends { type: string }>(r: () => number, mark: T, k: number): T => {
-  const roll = r();
-  if (roll < 1 / 3) return mark;
-  if (roll < 2 / 3) return { ...mark, id: `m#${k + 1}` };
-  return KUN_TYPES.has(mark.type) ? mark : { ...mark, id: `n${k + 1}` };
-};
-// ext、custom、placementHint を持つ注記。kun にまとめて書く 3 種には付けない (部分ごとの名前で書くため、別の検査がある)
-const withFreeData = <T extends { type: string }>(r: () => number, mark: T): T => {
-  if (KUN_TYPES.has(mark.type)) return mark;
-  const roll = r();
-  if (roll < 0.1) return { ...mark, custom: { c: [1, { d: 'x' }] } };
-  if (roll < 0.15) return { ...mark, placementHint: 'left' };
-  if (roll < 0.2) return { ...mark, ext: { zzz: { a: 1 } } };
-  return mark;
-};
-const randomPositionMark = (
-  r: () => number,
-  n: number,
-  blockId: string,
-  idAt: (index: number) => string
-) => {
-  const after = idAt(Math.floor(r() * n));
-  return r() < 0.5
-    ? { type: 'kutoten', kind: 'ten', value: '、', position: { blockId, after } }
-    : { type: 'kaeri', value: '㆑', position: { blockId, after } };
-};
-
 // 性質 (a)(b): validator が誤りも警告も返さない文書は、損失なしで stringify でき、parse すると K1 の「同じ文書」に戻り、
 // 2 回目の stringify が同じ文字列になる。生成器は、部分交差、包含、同じ範囲の同じ種類の注記、範囲の中の位置の注記、
 // 添え仮名と saidoku の組、2 書記素以上の字、空白の字、結合する字、手書きと自動の id、ext、custom、placementHint を作る
 describe('property (a)(b): documents without errors or warnings round-trip without loss', () => {
   const r = prng(4242);
-  const TEXTS = ['甲', '乙', '丙', '丁', '戊', '己', ' ', '學問', '\u0301', ' 庚', '辛'];
   let checked = 0;
   let withPairs = 0;
   let withTokenElements = 0;
-  const pickTexts = (len: number): string[] =>
-    Array.from({ length: len }, () => TEXTS[Math.floor(r() * TEXTS.length)]!);
   for (let n = 0; n < 600; n++) {
-    const len = 2 + Math.floor(r() * 5);
-    // ブロックの id は自動の形と手書きの形の両方。字の id も自動の形と手書きの形をばらまく
-    const blockId = r() < 0.5 ? 'b#1' : 'p1';
-    const texts = pickTexts(len);
-    const tokens = texts.map((text, i) => {
-      const hand = r() < 0.15;
-      const token: { id: string; text: string; ext?: object; custom?: object } = {
-        id: hand ? `k${n}x${i}` : `${blockId}#${i + 1}`,
-        text,
-      };
-      if (r() < 0.1) token.custom = { tc: i };
-      if (r() < 0.05) token.ext = { zzz: { t: i } };
-      return token;
-    });
-    const idAt = (index: number): string => tokens[index]!.id;
-    const rawMarks = [
-      ...Array.from({ length: 1 + Math.floor(r() * 5) }, () => randomMark(r, len, idAt)),
-      ...Array.from({ length: Math.floor(r() * 3) }, () =>
-        randomPositionMark(r, len, blockId, idAt)
-      ),
-    ];
-    const marks = rawMarks.map((mark, k) => withFreeData(r, withMarkId(r, mark, k)));
-    const usesExt = [...tokens, ...marks].some((x) => 'ext' in x);
-    const doc = {
-      format: 'skam@0.1' as const,
-      readings: [],
-      tokens,
-      blocks: [{ id: blockId, tokenIds: tokens.map((t) => t.id) }],
-      marks,
-      ...(usesExt ? { extensions: ['zzz'] } : {}),
-    };
+    const doc = generateDocument(r, n);
     const checkedResult = validateSKAMDocument(doc);
     if (!checkedResult.valid || (checkedResult.warnings ?? []).length > 0) continue;
     checked++;

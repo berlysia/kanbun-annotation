@@ -2,43 +2,15 @@
  * HTML AIR Adapter
  *
  * AIRDocument → BlockRenderTree[] 変換。
- * AIR の意味解決済みデータを HTML renderer の Pass 2 入力に変換する。
- *
- * blockStartHtml, refHtml は AIR の意味データから Adapter 側で HTML を生成する。
- * trailing marks は AIR の raw フィールドから元の Mark オブジェクトを復元する。
+ * AIR の木 (字、区切り、ruby・竪点・傍線のグループ) はそのまま Pass 2 に渡し、
+ * ブロックごとに 1 回だけ決める値 (blockStartHtml、blockHasRuby) をここで作る。
+ * 注記は AIR の slot とノードだけから導き、文書の注記は引き直さない。
  */
 
-import type {
-  KaeriMark,
-  KutotenMark,
-  RefMark,
-  OkimojiMark,
-  JojiMark,
-  EmphasisMark,
-  Token,
-} from '@kanbun-skam/skam';
+import type { AIRBlock, AIRBlockChild, AIRDocument } from '@kanbun-skam/skam/rendering';
 
-import type {
-  AIRDocument,
-  AIRBlock,
-  AIRTokenNode,
-  AIRTatetenGroupNode,
-  AIRHighlightGroupNode,
-  AIRRangeInfo,
-  AIRTrailingMark,
-} from '@kanbun-skam/skam/rendering';
-
-import type {
-  BlockRenderTree,
-  RenderNode,
-  TokenItem,
-  TatetenGroupNode,
-  HighlightGroupNode,
-  RangeMarkContext,
-  RangeTokenInfo,
-} from './render-tree-types.js';
+import type { BlockRenderTree } from './render-tree-types.js';
 import { blankOut, escapeHtml, shouldApplyTateChuYoko } from './html-utils.js';
-import type { MarkLookup } from '@kanbun-skam/skam/rendering';
 
 // ============================================================================
 // Block-start HTML 生成
@@ -64,284 +36,27 @@ function buildBlockStartHtml(airBlock: AIRBlock, prefix: string): string {
 }
 
 // ============================================================================
-// Highlight refHtml 生成
+// blockHasRuby 判定
 // ============================================================================
 
-function buildHighlightRefHtml(refLabel: string | undefined, prefix: string): string {
-  if (!refLabel) return '';
-  const halfWidthClass = shouldApplyTateChuYoko(refLabel) ? ` ${prefix}-ref--half-width` : '';
-  return `<span class="${prefix}-ref${halfWidthClass}">${escapeHtml(refLabel)}</span>`;
-}
-
-// ============================================================================
-// Trailing marks → RangeMarkContext への変換
-// ============================================================================
-
-function convertTrailingMarks(trailingMarks: AIRTrailingMark[]): Partial<RangeMarkContext> {
-  const trailingKaeriMarks: KaeriMark[] = [];
-  const trailingKutotenMarks: KutotenMark[] = [];
-  const trailingRefMarks: RefMark[] = [];
-  const trailingOkimojiMarks: OkimojiMark[] = [];
-  const trailingJojiMarks: JojiMark[] = [];
-  const trailingEmphasisMarks: EmphasisMark[] = [];
-
-  for (const tm of trailingMarks) {
-    switch (tm.kind) {
-      case 'kaeri':
-        trailingKaeriMarks.push(tm.raw as KaeriMark);
+/** ブロックの木に、読み・送り仮名・添え仮名を持つ字か ruby のグループがあるか */
+function hasReading(children: readonly AIRBlockChild[]): boolean {
+  for (const child of children) {
+    switch (child.type) {
+      case 'token':
+        if (child.slots.ruby || child.slots.okuri || child.slots.soegana) return true;
         break;
-      case 'kutoten':
-        trailingKutotenMarks.push(tm.raw as KutotenMark);
+      case 'tateten-separator':
         break;
-      case 'ref':
-        trailingRefMarks.push(tm.raw as RefMark);
-        break;
-      case 'okimoji':
-        trailingOkimojiMarks.push(tm.raw as OkimojiMark);
-        break;
-      case 'joji':
-        trailingJojiMarks.push(tm.raw as JojiMark);
-        break;
-      case 'emphasis':
-        trailingEmphasisMarks.push(tm.raw as EmphasisMark);
-        break;
-    }
-  }
-
-  return {
-    trailingKaeriMarks,
-    trailingKutotenMarks,
-    trailingRefMarks,
-    ...(trailingOkimojiMarks.length > 0 ? { trailingOkimojiMarks } : {}),
-    ...(trailingJojiMarks.length > 0 ? { trailingJojiMarks } : {}),
-    ...(trailingEmphasisMarks.length > 0 ? { trailingEmphasisMarks } : {}),
-  };
-}
-
-// ============================================================================
-// AIRRangeInfo → RangeMarkContext 変換
-// ============================================================================
-
-function convertRangeInfo(rangeInfo: AIRRangeInfo, tokens: Token[]): RangeMarkContext {
-  const rangeTokenInfo: RangeTokenInfo = {
-    from: rangeInfo.fromTokenId,
-    to: rangeInfo.toTokenId,
-  };
-
-  let ctx: RangeMarkContext = { rangeTokenInfo };
-
-  // multi-token range の個別 token テキストを設定（2+ tokens のみ）
-  if (rangeInfo.tokenIds.length > 1) {
-    const tokenMap = new Map(tokens.map((t) => [t.id, t]));
-    const tokenTexts = rangeInfo.tokenIds.map((id) => tokenMap.get(id)?.text ?? '');
-    ctx = { ...ctx, tokenTexts };
-  }
-
-  if (rangeInfo.yomigana) {
-    ctx = {
-      ...ctx,
-      yomiganaBaseText: rangeInfo.yomigana.baseText,
-      ...(rangeInfo.yomigana.hidden ? { yomiganaHidden: true as const } : {}),
-    };
-  }
-  if (rangeInfo.okurigana) {
-    ctx = {
-      ...ctx,
-      okuriganaBaseText: rangeInfo.okurigana.baseText,
-      okuriganaValue: rangeInfo.okurigana.value,
-      ...(rangeInfo.okurigana.hidden ? { okuriganaHidden: true as const } : {}),
-    };
-  }
-  if (rangeInfo.soegana) {
-    ctx = {
-      ...ctx,
-      soeganaBaseText: rangeInfo.soegana.baseText,
-      soeganaValue: rangeInfo.soegana.value,
-      ...(rangeInfo.soegana.hidden ? { soeganaHidden: true as const } : {}),
-    };
-  }
-
-  if (rangeInfo.trailingMarks.length > 0) {
-    ctx = { ...ctx, ...convertTrailingMarks(rangeInfo.trailingMarks) };
-  }
-
-  return ctx;
-}
-
-// ============================================================================
-// Token 変換
-// ============================================================================
-
-function convertTokenNode(airToken: AIRTokenNode, tokens: Token[]): TokenItem {
-  const item: TokenItem = { type: 'token', token: airToken.token };
-  if (airToken.rangeInfo) {
-    item.rangeCtx = convertRangeInfo(airToken.rangeInfo, tokens);
-  }
-  if (airToken.lineBreakAfter) item.lineBreakAfter = true;
-  return item;
-}
-
-// ============================================================================
-// Tateten group 変換
-// ============================================================================
-
-function convertTatetenGroup(airGroup: AIRTatetenGroupNode, tokens: Token[]): TatetenGroupNode {
-  const items: TokenItem[] = [];
-  for (const child of airGroup.children) {
-    if (child.type === 'token') {
-      items.push(convertTokenNode(child, tokens));
-    }
-    // tateten-separator は TatetenGroupNode の items には含まれない
-    // （HTML Pass2 が独自にセパレータを生成する）
-  }
-
-  const node: TatetenGroupNode = {
-    type: 'tateten-group',
-    tateten: airGroup.tatetenMark,
-    items,
-  };
-
-  if (airGroup.rangeInfo) {
-    node.rangeCtx = convertRangeInfo(airGroup.rangeInfo, tokens);
-  }
-  if (airGroup.lineBreakAfter) node.lineBreakAfter = true;
-  if (airGroup.hidden) node.hidden = true;
-
-  return node;
-}
-
-// ============================================================================
-// Highlight group 変換
-// ============================================================================
-
-function convertHighlightGroup(
-  airGroup: AIRHighlightGroupNode,
-  prefix: string,
-  tokens: Token[]
-): HighlightGroupNode {
-  const items: (TokenItem | TatetenGroupNode)[] = airGroup.children.map((child) =>
-    child.type === 'token' ? convertTokenNode(child, tokens) : convertTatetenGroup(child, tokens)
-  );
-
-  // hasKana 判定: AIR の hasKana を使用
-  const hasKana = airGroup.hasKana;
-
-  // inHighlightGroup, highlightGroupHasRuby, blockHasRuby を各 token に設定
-  // （HTML Pass2 がこれらのフラグを使用してグリッドクラスを選択する）
-  // blockHasRuby は block レベルで後から設定するため、ここでは false
-  for (const item of items) {
-    if (item.type === 'token') {
-      item.rangeCtx = {
-        ...item.rangeCtx,
-        inHighlightGroup: true,
-        highlightGroupHasRuby: hasKana,
-        blockHasRuby: false, // block 変換時に更新
-      };
-    } else {
-      for (const tatetenItem of item.items) {
-        tatetenItem.rangeCtx = {
-          ...tatetenItem.rangeCtx,
-          inHighlightGroup: true,
-          highlightGroupHasRuby: hasKana,
-          blockHasRuby: false, // block 変換時に更新
-        };
-      }
-    }
-  }
-
-  const refHtml = buildHighlightRefHtml(airGroup.refLabel, prefix);
-
-  return {
-    type: 'highlight-group',
-    highlight: airGroup.highlightMark,
-    refHtml,
-    items,
-    hasKana,
-    hasEmphasis: airGroup.hasEmphasis,
-    hasRef: !!airGroup.refLabel,
-  };
-}
-
-// ============================================================================
-// blockHasRuby 判定 & 設定
-// ============================================================================
-
-// oxlint-disable-next-line eslint/complexity
-function checkBlockHasRuby(items: RenderNode[], lookupMarks: MarkLookup): boolean {
-  for (const item of items) {
-    if (item.type === 'token') {
-      const tokenMarks = lookupMarks(item.token.id);
-      if (
-        (tokenMarks.get('yomigana')?.length ?? 0) > 0 ||
-        (tokenMarks.get('okurigana')?.length ?? 0) > 0 ||
-        (tokenMarks.get('soegana')?.length ?? 0) > 0 ||
-        !!item.rangeCtx?.yomiganaBaseText ||
-        !!item.rangeCtx?.okuriganaBaseText ||
-        !!item.rangeCtx?.soeganaBaseText
-      ) {
+      case 'ruby-group':
         return true;
-      }
-    } else if (item.type === 'tateten-group') {
-      for (const ti of item.items) {
-        const tokenMarks = lookupMarks(ti.token.id);
-        if (
-          (tokenMarks.get('yomigana')?.length ?? 0) > 0 ||
-          (tokenMarks.get('okurigana')?.length ?? 0) > 0 ||
-          (tokenMarks.get('soegana')?.length ?? 0) > 0 ||
-          !!ti.rangeCtx?.yomiganaBaseText ||
-          !!ti.rangeCtx?.okuriganaBaseText ||
-          !!ti.rangeCtx?.soeganaBaseText
-        ) {
-          return true;
-        }
-      }
-      if (
-        item.rangeCtx?.yomiganaBaseText ||
-        item.rangeCtx?.okuriganaBaseText ||
-        item.rangeCtx?.soeganaBaseText
-      ) {
-        return true;
-      }
-    } else {
-      // highlight-group
-      for (const child of item.items) {
-        if (child.type === 'token') {
-          const tokenMarks = lookupMarks(child.token.id);
-          if (
-            (tokenMarks.get('yomigana')?.length ?? 0) > 0 ||
-            (tokenMarks.get('okurigana')?.length ?? 0) > 0 ||
-            (tokenMarks.get('soegana')?.length ?? 0) > 0 ||
-            !!child.rangeCtx?.yomiganaBaseText ||
-            !!child.rangeCtx?.okuriganaBaseText ||
-            !!child.rangeCtx?.soeganaBaseText
-          ) {
-            return true;
-          }
-        }
-      }
+      case 'tateten-group':
+      case 'highlight-group':
+        if (hasReading(child.children)) return true;
+        break;
     }
   }
   return false;
-}
-
-function setBlockHasRuby(items: RenderNode[], blockHasRuby: boolean): void {
-  for (const item of items) {
-    if (item.type === 'highlight-group') {
-      for (const child of item.items) {
-        if (child.type === 'token') {
-          if (child.rangeCtx) {
-            child.rangeCtx = { ...child.rangeCtx, blockHasRuby };
-          }
-        } else {
-          for (const ti of child.items) {
-            if (ti.rangeCtx) {
-              ti.rangeCtx = { ...ti.rangeCtx, blockHasRuby };
-            }
-          }
-        }
-      }
-    }
-  }
 }
 
 // ============================================================================
@@ -350,36 +65,12 @@ function setBlockHasRuby(items: RenderNode[], blockHasRuby: boolean): void {
 
 /**
  * AIRDocument → BlockRenderTree[]
- *
- * AIR の意味解決済みデータを HTML renderer の Pass 2 入力に変換する。
  */
-export function convertAIRToBlockRenderTrees(
-  air: AIRDocument,
-  prefix: string,
-  tokens: Token[],
-  lookupMarks: MarkLookup
-): BlockRenderTree[] {
-  return air.blocks.map((airBlock) => {
-    const blockStartHtml = buildBlockStartHtml(airBlock, prefix);
-
-    const items: RenderNode[] = airBlock.children
-      // rangeConsumed トークンをスキップ（リードトークンの rangeInfo.baseText で連結描画済み）
-      .filter((child) => !(child.type === 'token' && child.rangeConsumed))
-      .map((child): RenderNode => {
-        switch (child.type) {
-          case 'token':
-            return convertTokenNode(child, tokens);
-          case 'tateten-group':
-            return convertTatetenGroup(child, tokens);
-          case 'highlight-group':
-            return convertHighlightGroup(child, prefix, tokens);
-        }
-      });
-
-    // blockHasRuby 判定 & highlight group 内のフラグ更新
-    const blockHasRuby = checkBlockHasRuby(items, lookupMarks);
-    setBlockHasRuby(items, blockHasRuby);
-
-    return { blockId: airBlock.blockId, blockStartHtml, items };
-  });
+export function convertAIRToBlockRenderTrees(air: AIRDocument, prefix: string): BlockRenderTree[] {
+  return air.blocks.map((airBlock) => ({
+    blockId: airBlock.blockId,
+    blockStartHtml: buildBlockStartHtml(airBlock, prefix),
+    items: airBlock.children,
+    blockHasRuby: hasReading(airBlock.children),
+  }));
 }

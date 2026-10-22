@@ -1,7 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import type { SKAMDocument, Mark } from '../../index.js';
 import { buildAnnotationIR } from '../build-annotation-ir.js';
-import type { AIRRenderProfile, AIRTokenNode, AIRTatetenGroupNode } from '../air-types.js';
+import type {
+  AIRRenderProfile,
+  AIRRubyGroupNode,
+  AIRTokenNode,
+  AIRTatetenGroupNode,
+} from '../air-types.js';
 
 // ============================================================================
 // テストヘルパー
@@ -133,6 +138,38 @@ describe('buildAnnotationIR', () => {
     expect(token.slots.kutoten).toBe('。');
   });
 
+  it('同じ位置の kutoten を、つないだ kutoten と marks[] の順の kutotenValues に持つ', () => {
+    const doc = createDoc([
+      { type: 'kutoten', position: { blockId: 'b1', after: 't3' }, value: '：' },
+      { type: 'kutoten', position: { blockId: 'b1', after: 't3' }, value: '。' },
+    ]);
+    const air = buildAnnotationIR(doc, FULL_PROFILE);
+    const token = air.blocks[0]!.children[2] as AIRTokenNode;
+    expect(token.slots.kutoten).toBe('：。');
+    expect(token.slots.kutotenValues).toEqual(['：', '。']);
+  });
+
+  it('同じ位置の ref を、最後のラベルの ref と marks[] の順の refLabels に持つ', () => {
+    const doc = createDoc([
+      {
+        type: 'ref',
+        position: { blockId: 'b1', after: 't1' },
+        format: 'numeric-paren',
+        content: 'A',
+      },
+      {
+        type: 'ref',
+        position: { blockId: 'b1', after: 't1' },
+        format: 'numeric-paren',
+        content: 'B',
+      },
+    ]);
+    const air = buildAnnotationIR(doc, FULL_PROFILE);
+    const token = air.blocks[0]!.children[0] as AIRTokenNode;
+    expect(token.slots.refLabels).toEqual(['(1)', '(2)']);
+    expect(token.slots.ref).toBe('(2)');
+  });
+
   it('okimoji を isOkimoji フラグで解決する', () => {
     const doc = createDoc([{ type: 'okimoji', anchor: { from: 't1', to: 't1' } }]);
     const air = buildAnnotationIR(doc, FULL_PROFILE);
@@ -149,16 +186,15 @@ describe('buildAnnotationIR', () => {
     expect(token.slots.emphasis).toBe('\u2022');
   });
 
-  it('emphasis のカスタム文字を AIR の slots と trailing の resolved に反映する', () => {
+  it('emphasis のカスタム文字を、範囲の読みの中の各字の slots に反映する', () => {
     const doc = createDoc([
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しいわく' },
       { type: 'emphasis', anchor: { from: 't1', to: 't2' }, style: '\u2605' },
     ]);
     const air = buildAnnotationIR(doc, FULL_PROFILE);
-    const first = air.blocks[0]!.children[0] as AIRTokenNode;
-    expect(first.slots.emphasis).toBe('\u2605');
-    const trailing = first.rangeInfo!.trailingMarks.find((t) => t.kind === 'emphasis');
-    expect(trailing?.resolved).toBe('\u2605');
+    const ruby = air.blocks[0]!.children[0] as AIRRubyGroupNode;
+    const tokens = ruby.children as AIRTokenNode[];
+    expect(tokens.map((t) => t.slots.emphasis)).toEqual(['\u2605', '\u2605']);
   });
 
   it('validator を通らない emphasis style は既定の点にする', () => {
@@ -167,49 +203,51 @@ describe('buildAnnotationIR', () => {
       { type: 'emphasis', anchor: { from: 't1', to: 't2' }, style: '<' },
     ]);
     const air = buildAnnotationIR(doc, FULL_PROFILE);
-    const first = air.blocks[0]!.children[0] as AIRTokenNode;
-    expect(first.slots.emphasis).toBe('\u2022');
-    const trailing = first.rangeInfo!.trailingMarks.find((t) => t.kind === 'emphasis');
-    expect(trailing?.resolved).toBe('\u2022');
+    const ruby = air.blocks[0]!.children[0] as AIRRubyGroupNode;
+    const tokens = ruby.children as AIRTokenNode[];
+    expect(tokens.map((t) => t.slots.emphasis)).toEqual(['\u2022', '\u2022']);
   });
 
   // ============================================================================
   // Range ruby（複数トークン集約 + span）
   // ============================================================================
 
-  it('range yomigana を先頭トークンの rangeInfo に集約する', () => {
+  it('range yomigana を ruby のグループにし、字は 1 字ずつ子に残す', () => {
     const doc = createDoc([
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しいわく' },
     ]);
     const air = buildAnnotationIR(doc, FULL_PROFILE);
 
-    // range の先頭トークンに rangeInfo が設定される
-    const firstToken = air.blocks[0]!.children[0] as AIRTokenNode;
-    expect(firstToken.rangeInfo).toBeDefined();
-    expect(firstToken.rangeInfo!.yomigana).toEqual({
-      baseText: '子曰',
-      value: 'しいわく',
-      span: 2,
-    });
-    expect(firstToken.rangeInfo!.fromTokenId).toBe('t1');
-    expect(firstToken.rangeInfo!.toTokenId).toBe('t2');
-    expect(firstToken.rangeInfo!.tokenIds).toEqual(['t1', 't2']);
+    // ブロックの子は ruby のグループと、その外の t3
+    expect(air.blocks[0]!.children.map((c) => c.type)).toEqual(['ruby-group', 'token']);
+    const ruby = air.blocks[0]!.children[0] as AIRRubyGroupNode;
+    expect(ruby.yomigana).toEqual({ value: 'しいわく' });
+    expect(ruby.span).toBe(2);
+    expect(ruby.fromTokenId).toBe('t1');
+    expect(ruby.toTokenId).toBe('t2');
+    expect(ruby.children.map((c) => (c.type === 'token' ? c.token.id : c.type))).toEqual([
+      't1',
+      't2',
+    ]);
+    // 範囲の読みは字の slots.ruby に入らない
+    expect(ruby.children.map((c) => (c.type === 'token' ? c.slots.ruby : 'x'))).toEqual([
+      undefined,
+      undefined,
+    ]);
   });
 
   // ============================================================================
   // okurigana/soegana range
   // ============================================================================
 
-  it('range okurigana を先頭トークンの rangeInfo に集約する', () => {
+  it('range okurigana を範囲の最後の字の slots.okuri に置き、グループにしない', () => {
     const doc = createDoc([{ type: 'okurigana', anchor: { from: 't1', to: 't2' }, value: 'ビ' }]);
     const air = buildAnnotationIR(doc, FULL_PROFILE);
 
-    const firstToken = air.blocks[0]!.children[0] as AIRTokenNode;
-    expect(firstToken.rangeInfo).toBeDefined();
-    expect(firstToken.rangeInfo!.okurigana).toEqual({
-      baseText: '子曰',
-      value: 'ビ',
-    });
+    expect(air.blocks[0]!.children.map((c) => c.type)).toEqual(['token', 'token', 'token']);
+    const [first, second] = air.blocks[0]!.children as AIRTokenNode[];
+    expect(first!.slots.okuri).toBeUndefined();
+    expect(second!.slots.okuri).toBe('ビ');
   });
 
   // ============================================================================
@@ -348,41 +386,41 @@ describe('buildAnnotationIR', () => {
   });
 
   // ============================================================================
-  // Trailing marks
+  // 範囲の読みの中の字の注記
   // ============================================================================
 
-  it('range group の後続トークンから trailing marks を収集する', () => {
+  it('range yomigana の 2 字目の返り点は、2 字目の slots.kaeri に残る', () => {
     const doc = createDoc([
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しいわく' },
       { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆑' },
     ]);
     const air = buildAnnotationIR(doc, FULL_PROFILE);
 
-    const firstToken = air.blocks[0]!.children[0] as AIRTokenNode;
-    expect(firstToken.rangeInfo).toBeDefined();
-    expect(firstToken.rangeInfo!.trailingMarks).toHaveLength(1);
-    expect(firstToken.rangeInfo!.trailingMarks[0]!.kind).toBe('kaeri');
-    expect(firstToken.rangeInfo!.trailingMarks[0]!.sourceTokenId).toBe('t2');
+    const ruby = air.blocks[0]!.children[0] as AIRRubyGroupNode;
+    const [first, second] = ruby.children as AIRTokenNode[];
+    expect(first!.slots.kaeri).toBeUndefined();
+    expect(second!.slots.kaeri).toBe('㆑');
   });
 
-  describe.each(['okimoji', 'joji'] as const)('range の trailing %s を profile で絞る', (type) => {
+  describe.each(['okimoji', 'joji'] as const)('range の中の %s を profile で絞る', (type) => {
     const doc = () =>
       createDoc([
         { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'しいわく' },
         { type, anchor: { from: 't2', to: 't2' } } as Mark,
       ]);
-    const trailingKinds = (flag: boolean) => {
+    const flagOfSecond = (flag: boolean) => {
       const air = buildAnnotationIR(doc(), { ...FULL_PROFILE, [type]: flag });
-      const first = air.blocks[0]!.children[0] as AIRTokenNode;
-      return first.rangeInfo!.trailingMarks.map((t) => t.kind);
+      const ruby = air.blocks[0]!.children[0] as AIRRubyGroupNode;
+      const second = ruby.children[1] as AIRTokenNode;
+      return type === 'okimoji' ? second.slots.isOkimoji : second.slots.isJoji;
     };
 
-    it(`profile.${type} = false なら trailingMarks に ${type} が入らない`, () => {
-      expect(trailingKinds(false)).not.toContain(type);
+    it(`profile.${type} = false なら 2 字目の slots に ${type} が入らない`, () => {
+      expect(flagOfSecond(false)).toBeUndefined();
     });
 
-    it(`profile.${type} = true なら trailingMarks に ${type} が 1 件入る`, () => {
-      expect(trailingKinds(true).filter((k) => k === type)).toHaveLength(1);
+    it(`profile.${type} = true なら 2 字目の slots に ${type} が入る`, () => {
+      expect(flagOfSecond(true)).toBe(true);
     });
   });
 

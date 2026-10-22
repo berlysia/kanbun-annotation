@@ -73,27 +73,26 @@ describe('describeAnnotationIR', () => {
     expect(us[3]!.notes).toEqual([{ kind: 'kaeri', value: '㆑' }]);
   });
 
-  it('2 token にまたがる yomigana は 1 単位で、2 字目は単位を作らない', () => {
+  it('2 token にまたがる yomigana は字ごとの単位と、最後の字の後ろの読み仮名の単位になる', () => {
     const doc = createDoc([
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'がくじ' },
     ]);
     const us = units(doc, FULL);
-    expect(us).toHaveLength(4);
-    expect(us[0]!.text).toBe('學而');
-    expect(us[0]!.notes).toEqual([{ kind: 'yomigana', value: 'がくじ' }]);
-    expect(us[1]!.text).toBe('時');
+    expect(us.map((u) => u.text)).toEqual(['學', '而', '', '時', '習', '之']);
+    expect(us[0]!.notes).toEqual([]);
+    expect(us[1]!.notes).toEqual([]);
+    expect(us[2]!.notes).toEqual([{ kind: 'yomigana', value: 'がくじ' }]);
   });
 
-  it('範囲の末尾に付いた返り点は、範囲の単位の notes に入る', () => {
+  it('範囲の末尾に付いた返り点は、その字の単位の notes に入り、読み仮名はその後ろに読む', () => {
     const doc = createDoc([
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'がくじ' },
       { type: 'kaeri', position: { blockId: 'b1', after: 't2' }, value: '㆑' },
     ]);
     const us = units(doc, FULL);
-    expect(us[0]!.notes).toEqual([
-      { kind: 'yomigana', value: 'がくじ' },
-      { kind: 'kaeri', value: '㆑' },
-    ]);
+    expect(us.map((u) => u.text)).toEqual(['學', '而', '', '時', '習', '之']);
+    expect(us[1]!.notes).toEqual([{ kind: 'kaeri', value: '㆑' }]);
+    expect(us[2]!.notes).toEqual([{ kind: 'yomigana', value: 'がくじ' }]);
   });
 
   it('竪点の区切りは、tateten の note だけを持つ本文の無い単位になる', () => {
@@ -114,16 +113,15 @@ describe('describeAnnotationIR', () => {
     expect(us[1]!.notes).toEqual([{ kind: 'tateten' }]);
   });
 
-  it('竪点のグループ全体にかかる読みは、グループの範囲を 1 単位にする', () => {
+  it('竪点のグループ全体にかかる読みは、字と区切りを順に読み、読み仮名を最後に読む', () => {
     const doc = createDoc([
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
       { type: 'yomigana', anchor: { from: 't1', to: 't2' }, value: 'がくじ' },
     ]);
     const us = units(doc, FULL);
-    expect(us[0]!.text).toBe('學而');
-    expect(us[0]!.notes).toEqual([{ kind: 'yomigana', value: 'がくじ' }]);
+    expect(us.map((u) => u.text)).toEqual(['學', '', '而', '', '時', '習', '之']);
     expect(us[1]!.notes).toEqual([{ kind: 'tateten' }]);
-    expect(us[2]!.text).toBe('時');
+    expect(us[3]!.notes).toEqual([{ kind: 'yomigana', value: 'がくじ' }]);
   });
 
   describe('再読文字', () => {
@@ -233,14 +231,15 @@ describe('describeAnnotationIR', () => {
     expect(describe1(reversed, FULL)).toEqual(describe1(doc, FULL));
   });
 
-  it('範囲が竪点のグループからはみ出すとき、範囲の読みは先頭の字の yomigana として出る (#16)', () => {
+  it('範囲が竪点のグループからはみ出すとき、範囲の読みは範囲の最後の字の後ろで読む', () => {
     const doc = createDoc([
       { type: 'tateten', anchor: { from: 't1', to: 't2' } },
       { type: 'yomigana', anchor: { from: 't1', to: 't3' }, value: 'がくじし' },
     ]);
     const us = units(doc, FULL);
-    expect(us[0]!.text).toBe('學');
-    expect(us[0]!.notes).toEqual([{ kind: 'yomigana', value: 'がくじし' }]);
+    expect(us.map((u) => u.text)).toEqual(['學', '', '而', '時', '', '習', '之']);
+    expect(us[0]!.notes).toEqual([]);
+    expect(us[4]!.notes).toEqual([{ kind: 'yomigana', value: 'がくじし' }]);
   });
 
   it('複数のブロックを blocks[] に分ける', () => {

@@ -95,6 +95,14 @@ export const SAIDOKU_READING_OVERLAP = 'SAIDOKU_READING_OVERLAP';
  */
 export const SAIDOKU_MULTI_TOKEN = 'SAIDOKU_MULTI_TOKEN';
 
+/**
+ * 同じ種類の読み (yomigana どうし、okurigana どうし、soegana どうし) の範囲が 1 字でも共有され、
+ * anchor が完全に同じではない、という警告のコード。1 字に同じ種類の読みが 2 つ重なり、置き方に正解が無い
+ * (anchor が完全に同じ組は `MARK_CONFLICT`)。描画は先にある読みを描き、重なる後の読みは描かない。
+ * 0.3 では警告、0.4.0 では同じコードの誤りにする
+ */
+export const READING_OVERLAP = 'READING_OVERLAP';
+
 /** 検証の警告の種別。値を足すのは minor の変更として扱う */
 export type ValidationWarningKind =
   | typeof KAERI_MULTI_CHARACTER
@@ -103,7 +111,8 @@ export type ValidationWarningKind =
   | typeof ID_FORM
   | typeof XML_UNWRITABLE_CHAR
   | typeof SAIDOKU_READING_OVERLAP
-  | typeof SAIDOKU_MULTI_TOKEN;
+  | typeof SAIDOKU_MULTI_TOKEN
+  | typeof READING_OVERLAP;
 
 /** 検証の警告。文書は有効だが、将来の版で誤りになる書き方を指す */
 export interface ValidationWarning {

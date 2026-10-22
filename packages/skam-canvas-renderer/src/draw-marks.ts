@@ -8,6 +8,21 @@ import type { CanvasRenderingContext2DLike } from './canvas-context.js';
 import type { HighlightLineLayout, OkototenLayout } from './types.js';
 
 /**
+ * 傍線の線 1 本が横に占める幅の最大 (double: 中心線の両側 2px ずつ + 線の太さ 1px)。
+ * wavy は振幅 2px の両側で 4px、そのほかは 1px なので、double が最大。
+ */
+const HIGHLIGHT_LINE_EXTENT = 5;
+
+/**
+ * 傍線の段 1 つ分のずれ。段が違う線どうしが重ならず、かつ隣の線と離れて見えるよう、
+ * 最も広い線の幅 (HIGHLIGHT_LINE_EXTENT) に、今の線と列の端との空き (highlightGap) を足す。
+ * html の同じ値は styles.ts の highlightLanePitch。
+ */
+export function highlightLanePitch(highlightGap: number): number {
+  return HIGHLIGHT_LINE_EXTENT + highlightGap;
+}
+
+/**
  * highlight 線を描画する。
  * 縦書きなので、線は垂直方向（yStart → yEnd）に描画される。
  */

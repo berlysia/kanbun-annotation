@@ -65,6 +65,40 @@ const full = {
   ext: { note: 'e' },
 } satisfies SKAMDocument;
 
+/**
+ * ruby・竪点・傍線が部分交差する文書。断片に分かれた傍線 (data-continues-*) と、
+ * ruby の中の竪点の区切り・字ごとの要素を通る。
+ * 値の入る所: yomigana の value、傍線の style、ref のラベル、ext。
+ */
+const crossing = {
+  format: 'skam@0.1',
+  extensions: ['edu'],
+  extensionsRequired: ['edu'],
+  tokens: [
+    { id: 't1', text: '甲' },
+    { id: 't2', text: '乙' },
+    { id: 't3', text: '丙' },
+    { id: 't4', text: '丁' },
+  ],
+  blocks: [{ id: 'b1', tokenIds: ['t1', 't2', 't3', 't4'] }],
+  readings: [],
+  marks: [
+    { type: 'yomigana', anchor: { from: 't2', to: 't4' }, value: 'よみ' },
+    { type: 'okurigana', anchor: { from: 't2', to: 't4' }, value: 'お' },
+    { type: 'tateten', anchor: { from: 't1', to: 't3' }, ext: { edu: { quiz: 'q' } } },
+    { type: 'highlight', anchor: { from: 't1', to: 't3' }, style: 'wavy', ref: 'r1' },
+    { id: 'r1', type: 'ref', label: 'L', content: '注', position: { blockId: 'b1', after: 't3' } },
+    { type: 'kaeri', value: '㆓', position: { blockId: 'b1', after: 't1' } },
+    { type: 'kutoten', kind: 'ku', value: '。', position: { blockId: 'b1', after: 't2' } },
+  ],
+} satisfies SKAMDocument;
+
+/** 注入の検査を通す文書 */
+const SOURCES: readonly (readonly [string, object])[] = [
+  ['full', full],
+  ['crossing', crossing],
+];
+
 /** 分岐にだけ使われる葉 (棚卸しで「出力に出ない」としたもの)。置き換えると描画の分岐が消えるだけなので対象外にする */
 const BRANCH_ONLY = new Set(['type', 'kind', 'format', 'system', 'quiz']);
 /** 拡張の宣言も分岐にだけ使われる (宣言が変わると、隠す判定が働くかどうかが変わる) */
@@ -130,10 +164,10 @@ function typedIdVariants(
     return { name: `id:${id}`, doc: copy };
   });
 }
-function variants(payload: unknown): { name: string; doc: unknown }[] {
+function variants(payload: unknown, base: object = full): { name: string; doc: unknown }[] {
   const out: { name: string; doc: unknown }[] =
-    typeof payload === 'string' ? [{ name: 'ids', doc: renameIds(full, payload) }] : [];
-  for (const path of leaves(full)) {
+    typeof payload === 'string' ? [{ name: 'ids', doc: renameIds(base, payload) }] : [];
+  for (const path of leaves(base)) {
     const key = String(path[path.length - 1]);
     if (
       BRANCH_ONLY.has(key) ||
@@ -142,7 +176,7 @@ function variants(payload: unknown): { name: string; doc: unknown }[] {
       isDeclaration(path)
     )
       continue;
-    const copy = structuredClone(full);
+    const copy = structuredClone(base);
     setAt(copy, path, payload);
     out.push({ name: path.join('.'), doc: copy });
   }
@@ -284,7 +318,9 @@ describe('injection oracle controls', () => {
 
 describe('sink presence (oracle is not vacuous)', () => {
   it('benign renders across MATRIX emit every inventoried sink', () => {
-    const all = MATRIX.map((o) => render(full, o).html).join('\n');
+    const all = SOURCES.flatMap(([, source]) =>
+      MATRIX.map((o) => render(source as SKAMDocument, o).html)
+    ).join('\n');
     for (const sink of [
       'data-block-id=',
       'data-token-id=',
@@ -292,6 +328,8 @@ describe('sink presence (oracle is not vacuous)', () => {
       'data-token-to=',
       'data-suffix-for=',
       'data-saidoku-n=',
+      'data-continues-before',
+      'data-continues-after',
       'data-style=',
       '--okototen-x',
       '--okototen-grid-rows',
@@ -304,40 +342,45 @@ describe('sink presence (oracle is not vacuous)', () => {
 });
 
 describe('HTML/CSS injection property (K4)', () => {
-  for (const opts of MATRIX) {
-    const benignVariants = variants('X');
-    for (const payload of CANARIES) {
-      variants(payload).forEach(({ name, doc }, i) => {
-        it(`${JSON.stringify(opts)} ${name} = ${payload}`, () => {
-          const benign = render(benignVariants[i]!.doc as SKAMDocument, opts);
-          const out = render(doc as SKAMDocument, opts);
-          expect(findInjection(out.html, benign.html)).toEqual([]);
-          expect(out.css).toBe(benign.css);
-        });
-      });
-      // 型が違う値: TypeError で止まるか、注入のない出力を返すか、のどちらかであること (fail closed)
-      // 型が違う値は、その mark を出力しない (T2) ことが正しい動作なので、無害な描画との構造比較はしない。
-      // 構造比較を外すため、出力自身を基準にして findInjection を呼ぶ (生のタグ・on* 属性・class・style の 4 条件は残る)
-      for (const typed of typedPayloads(payload)) {
-        const makeTyped = (seed: string) =>
-          Array.isArray(typed) ? [`${payload}${seed}`] : { toString: () => `${payload}${seed}` };
-        const typedVariants = [...variants(typed), ...typedIdVariants(full, makeTyped)];
-        typedVariants.forEach(({ name, doc }) => {
-          it(`${JSON.stringify(opts)} ${name} = typed(${payload})`, () => {
-            let html: string;
-            try {
-              html = render(doc as SKAMDocument, opts).html;
-            } catch (e) {
-              expect(e).toBeInstanceOf(TypeError);
-              return;
-            }
-            expect(findInjection(html, html)).toEqual([]);
+  for (const [label, base] of SOURCES) {
+    for (const opts of MATRIX) {
+      const benignVariants = variants('X', base);
+      for (const payload of CANARIES) {
+        variants(payload, base).forEach(({ name, doc }, i) => {
+          it(`${label} ${JSON.stringify(opts)} ${name} = ${payload}`, () => {
+            const benign = render(benignVariants[i]!.doc as SKAMDocument, opts);
+            const out = render(doc as SKAMDocument, opts);
+            expect(findInjection(out.html, benign.html)).toEqual([]);
+            expect(out.css).toBe(benign.css);
           });
         });
+        // 型が違う値: TypeError で止まるか、注入のない出力を返すか、のどちらかであること (fail closed)
+        // 型が違う値は、その mark を出力しない (T2) ことが正しい動作なので、無害な描画との構造比較はしない。
+        // 構造比較を外すため、出力自身を基準にして findInjection を呼ぶ (生のタグ・on* 属性・class・style の 4 条件は残る)
+        for (const typed of typedPayloads(payload)) {
+          const makeTyped = (seed: string) =>
+            Array.isArray(typed) ? [`${payload}${seed}`] : { toString: () => `${payload}${seed}` };
+          const typedVariants = [...variants(typed, base), ...typedIdVariants(base, makeTyped)];
+          typedVariants.forEach(({ name, doc }) => {
+            it(`${label} ${JSON.stringify(opts)} ${name} = typed(${payload})`, () => {
+              let html: string;
+              try {
+                html = render(doc as SKAMDocument, opts).html;
+              } catch (e) {
+                expect(e).toBeInstanceOf(TypeError);
+                return;
+              }
+              expect(findInjection(html, html)).toEqual([]);
+            });
+          });
+        }
       }
     }
   }
-  it('covers many leaves', () => expect(variants('X').length).toBeGreaterThanOrEqual(20));
+  it('covers many leaves', () => {
+    for (const [, base] of SOURCES) expect(variants('X', base).length).toBeGreaterThanOrEqual(10);
+    expect(variants('X').length).toBeGreaterThanOrEqual(20);
+  });
 });
 
 describe('emphasis custom character output (K4)', () => {

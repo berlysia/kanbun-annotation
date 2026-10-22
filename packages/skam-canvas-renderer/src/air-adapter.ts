@@ -3,24 +3,28 @@
  *
  * AIRDocument → CanvasRenderTree 変換。
  * BlockLayoutFlags は AIR のスロット情報から導出する。
+ *
+ * AIR の入れ子 (ruby、竪点、傍線のグループ) のうち、ruby のグループだけは木に残さない。
+ * Canvas は字を 1 つずつ描くので、ruby のグループは最初の字の `slots.ruby` と `slots.rubySpan` に畳み、
+ * グループの子はグループの親の子に並べる。竪点と傍線のグループは入れ子のまま残す
  */
 
 import type {
   AIRDocument,
   AIRBlock,
-  AIRBlockChild,
   AIRTokenNode,
   AIRTatetenGroupNode,
   AIRTatetenSeparator,
   AIRHighlightGroupNode,
+  AIRRubyGroupNode,
   AIRHiddenSlot,
-  AIRRangeInfo,
 } from '@kanbun-skam/skam/rendering';
 
 import type {
   CanvasRenderTree,
   CanvasBlockNode,
   CanvasBlockChild,
+  CanvasGroupChild,
   CanvasTokenNode,
   CanvasTatetenGroupNode,
   CanvasTatetenSeparator,
@@ -29,35 +33,26 @@ import type {
   BlockLayoutFlags,
 } from './types.js';
 
+/** AIR の木のノード (ブロックの子と、グループの子の和) */
+type AIRNode =
+  | AIRTokenNode
+  | AIRTatetenSeparator
+  | AIRTatetenGroupNode
+  | AIRHighlightGroupNode
+  | AIRRubyGroupNode;
+
 // ============================================================================
 // Token 変換
 // ============================================================================
 
 function convertTokenSlots(airNode: AIRTokenNode): TokenSlots {
-  const slots: TokenSlots = { ...airNode.slots };
-
-  // range info がある場合、先頭トークンに yomigana の span を設定
-  if (airNode.rangeInfo?.yomigana) {
-    slots.ruby = airNode.rangeInfo.yomigana.value;
-    slots.rubySpan = airNode.rangeInfo.yomigana.span;
-  }
-
-  // range okurigana: last concentration → Canvas では okuri を先頭トークンに集約せず
-  // AIR は先頭トークンに rangeInfo を持つが、Canvas は last concentration なので
-  // Adapter で調整が必要
-  // → 実際には Canvas の applyRangeConcentration が先頭/末尾を切り替えるが、
-  //   AIR からの変換では rangeInfo の値をそのまま使う
-  if (airNode.rangeInfo?.okurigana) {
-    slots.okuri = airNode.rangeInfo.okurigana.value;
-  }
-  if (airNode.rangeInfo?.soegana) {
-    slots.soegana = airNode.rangeInfo.soegana.value;
-  }
-
+  // saidoku (全部の形) と emphasisStyle は Canvas の slot に無い。saidoku の第 1・第 2 の形は
+  // ruby / okuri / saidokuUnder / saidokuOkuri2 に入っている
+  const { saidoku: _saidoku, emphasisStyle: _emphasisStyle, ...slots } = airNode.slots;
   return slots;
 }
 
-/** slot を隠す印を、付ける / 外す。範囲の値を動かした先で、隠すかどうかを合わせるために使う */
+/** slot を隠す印を、付ける / 外す。ruby のグループの値を置いた先で、隠すかどうかを合わせるために使う */
 function setSlotHidden(node: CanvasTokenNode, slot: AIRHiddenSlot, hidden: boolean): void {
   const rest = (node.hiddenSlots ?? []).filter((name) => name !== slot);
   const next = hidden ? [...rest, slot] : rest;
@@ -72,150 +67,95 @@ function convertTokenNode(airNode: AIRTokenNode): CanvasTokenNode {
     slots: convertTokenSlots(airNode),
   };
   if (airNode.hiddenSlots) node.hiddenSlots = [...airNode.hiddenSlots];
-  // 範囲の値を置く字は、範囲の注記の印で隠すかを決める
-  if (airNode.rangeInfo?.yomigana) setSlotHidden(node, 'ruby', !!airNode.rangeInfo.yomigana.hidden);
   return node;
 }
 
 // ============================================================================
-// Tateten 変換
+// 木の変換
 // ============================================================================
 
-function convertTatetenSeparator(
-  airSep: AIRTatetenSeparator,
-  groupHidden: boolean
-): CanvasTatetenSeparator {
+function convertTatetenSeparator(airSep: AIRTatetenSeparator): CanvasTatetenSeparator {
   const sep: CanvasTatetenSeparator = { type: 'tateten-separator' };
-  if (airSep.kaeri) {
-    sep.kaeri = airSep.kaeri;
-  }
-  if (groupHidden) sep.hidden = true;
+  if (airSep.kaeri) sep.kaeri = airSep.kaeri;
+  if (airSep.hidden) sep.hidden = true;
   if (airSep.kaeriHidden) sep.kaeriHidden = true;
   return sep;
 }
 
-function convertTatetenGroup(airGroup: AIRTatetenGroupNode): CanvasTatetenGroupNode {
-  const children: (CanvasTokenNode | CanvasTatetenSeparator)[] = airGroup.children.map((child) =>
-    child.type === 'token'
-      ? convertTokenNode(child)
-      : convertTatetenSeparator(child, airGroup.hidden === true)
-  );
-
-  // tateten + range 重複時: rangeInfo を先頭トークンに適用
-  if (airGroup.rangeInfo) {
-    applyRangeInfoToTokens(children, airGroup.rangeInfo);
-  }
-
-  return { type: 'tateten-group', children };
-}
-
-// ============================================================================
-// Highlight 変換
-// ============================================================================
-
 function convertHighlightGroup(airGroup: AIRHighlightGroupNode): CanvasHighlightGroupNode {
-  const children: (CanvasTokenNode | CanvasTatetenGroupNode)[] = airGroup.children.map((child) =>
-    child.type === 'token' ? convertTokenNode(child) : convertTatetenGroup(child)
-  );
-
-  const hlGroup: CanvasHighlightGroupNode = {
+  const fragment = airGroup.continuesBefore || airGroup.continuesAfter;
+  return {
     type: 'highlight-group',
     highlightStyle: airGroup.highlightStyle,
     ...(airGroup.highlightMark.ref ? { highlightRef: airGroup.highlightMark.ref } : {}),
     ...(airGroup.refLabel ? { refLabel: airGroup.refLabel } : {}),
-    children,
+    ...(airGroup.lane ? { lane: airGroup.lane } : {}),
+    children: convertChildren(airGroup.children),
+    ...(airGroup.continuesBefore ? { continuesBefore: true as const } : {}),
+    ...(airGroup.continuesAfter ? { continuesAfter: true as const } : {}),
+    ...(fragment ? { fragmentOf: airGroup.highlightMark } : {}),
   };
-
-  return hlGroup;
 }
 
-// ============================================================================
-// Range info → Canvas tokens の変換ヘルパー
-// ============================================================================
+/** 木を字の順に歩いて、字のノードを集める */
+function collectTokens(nodes: readonly CanvasGroupChild[], out: CanvasTokenNode[]): void {
+  for (const node of nodes) {
+    if (node.type === 'token') out.push(node);
+    else if (node.type !== 'tateten-separator') collectTokens(node.children, out);
+  }
+}
 
 /**
- * rangeInfo の yomigana/okurigana/soegana を Canvas トークンに適用。
- * Canvas の concentration ルール:
- * - yomigana: first concentration（先頭トークンに ruby + rubySpan）
- * - okurigana/soegana: last concentration（末尾トークンに okuri/soegana）
+ * ruby のグループを畳む。最初の字に値と字の数を置き、ほかの字の ruby を外す。
+ * 再読文字の読みが字の ruby にあっても (`SAIDOKU_READING_OVERLAP`)、範囲の読みを描くので
+ * 範囲の中の字の ruby は外す (範囲の読みの上に別の読みを重ねない)
  */
-function applyRangeInfoToTokens(
-  children: (CanvasTokenNode | CanvasTatetenSeparator)[],
-  rangeInfo: AIRRangeInfo
-): void {
-  const tokenNodes = children.filter((c): c is CanvasTokenNode => c.type === 'token');
-  if (tokenNodes.length === 0) return;
+function foldRubyGroup(airGroup: AIRRubyGroupNode, out: CanvasGroupChild[]): void {
+  const start = out.length;
+  out.push(...convertChildren(airGroup.children));
+  const tokens: CanvasTokenNode[] = [];
+  collectTokens(out.slice(start), tokens);
+  const [first, ...rest] = tokens;
+  if (!first) return;
 
-  const firstToken = tokenNodes[0]!;
-  const lastToken = tokenNodes[tokenNodes.length - 1]!;
-
-  // yomigana: first concentration
-  if (rangeInfo.yomigana) {
-    firstToken.slots = {
-      ...firstToken.slots,
-      ruby: rangeInfo.yomigana.value,
-      rubySpan: rangeInfo.yomigana.span,
-    };
-    setSlotHidden(firstToken, 'ruby', !!rangeInfo.yomigana.hidden);
-    // 後続トークンの ruby をクリア
-    for (const t of tokenNodes.slice(1)) {
-      const { ruby: _, rubySpan: __, ...rest } = t.slots;
-      t.slots = rest;
-      setSlotHidden(t, 'ruby', false);
-    }
-  }
-
-  // okurigana: last concentration
-  if (rangeInfo.okurigana) {
-    lastToken.slots = { ...lastToken.slots, okuri: rangeInfo.okurigana.value };
-    setSlotHidden(lastToken, 'okuri', !!rangeInfo.okurigana.hidden);
-    // 先行トークンの okuri をクリア
-    for (const t of tokenNodes.slice(0, -1)) {
-      const { okuri: _, ...rest } = t.slots;
-      t.slots = rest;
-      setSlotHidden(t, 'okuri', false);
-    }
-  }
-
-  // soegana: last concentration
-  if (rangeInfo.soegana) {
-    lastToken.slots = { ...lastToken.slots, soegana: rangeInfo.soegana.value };
-    setSlotHidden(lastToken, 'soegana', !!rangeInfo.soegana.hidden);
-    for (const t of tokenNodes.slice(0, -1)) {
-      const { soegana: _, ...rest } = t.slots;
-      t.slots = rest;
-      setSlotHidden(t, 'soegana', false);
-    }
+  first.slots = { ...first.slots, ruby: airGroup.yomigana.value, rubySpan: airGroup.span };
+  setSlotHidden(first, 'ruby', airGroup.yomigana.hidden === true);
+  for (const token of rest) {
+    const { ruby: _ruby, rubySpan: _rubySpan, ...slots } = token.slots;
+    token.slots = slots;
+    setSlotHidden(token, 'ruby', false);
   }
 }
 
-// ============================================================================
-// Block 変換
-// ============================================================================
-
-function convertBlockChild(airChild: AIRBlockChild): CanvasBlockChild {
-  switch (airChild.type) {
-    case 'token':
-      return convertTokenNode(airChild);
-    case 'tateten-group':
-      return convertTatetenGroup(airChild);
-    case 'highlight-group':
-      return convertHighlightGroup(airChild);
+function convertChildren(nodes: readonly AIRNode[]): CanvasGroupChild[] {
+  const out: CanvasGroupChild[] = [];
+  for (const node of nodes) {
+    switch (node.type) {
+      case 'token':
+        out.push(convertTokenNode(node));
+        break;
+      case 'tateten-separator':
+        out.push(convertTatetenSeparator(node));
+        break;
+      case 'tateten-group':
+        out.push({ type: 'tateten-group', children: convertChildren(node.children) });
+        break;
+      case 'highlight-group':
+        out.push(convertHighlightGroup(node));
+        break;
+      case 'ruby-group':
+        foldRubyGroup(node, out);
+        break;
+    }
   }
+  return out;
 }
 
 // ============================================================================
 // Layout Flags 導出（Q3: AIR に含めない → Adapter で導出）
 // ============================================================================
 
-interface LayoutFlags {
-  hasSuffix: boolean;
-  hasSaidoku: boolean;
-  hasRightColumn: boolean;
-  hasEmphasis: boolean;
-}
-
-function mergeTokenFlags(node: CanvasTokenNode, flags: LayoutFlags): void {
+function mergeTokenFlags(node: CanvasTokenNode, flags: BlockLayoutFlags): void {
   const { slots } = node;
   if (
     slots.okuri ||
@@ -238,54 +178,32 @@ function mergeTokenFlags(node: CanvasTokenNode, flags: LayoutFlags): void {
   }
 }
 
-function checkLayoutFlags(child: CanvasBlockChild): LayoutFlags {
-  const flags: LayoutFlags = {
+function mergeFlags(nodes: readonly CanvasGroupChild[], flags: BlockLayoutFlags): void {
+  for (const node of nodes) {
+    if (node.type === 'token') {
+      mergeTokenFlags(node, flags);
+    } else if (node.type === 'tateten-group') {
+      mergeFlags(node.children, flags);
+    } else if (node.type === 'highlight-group') {
+      flags.hasHighlight = true;
+      if (node.refLabel) flags.hasRefLabel = true;
+      if (node.lane) flags.maxHighlightLane = Math.max(flags.maxHighlightLane ?? 0, node.lane);
+      mergeFlags(node.children, flags);
+    }
+  }
+}
+
+function computeBlockFlags(children: readonly CanvasBlockChild[]): BlockLayoutFlags {
+  const flags: BlockLayoutFlags = {
     hasSuffix: false,
     hasSaidoku: false,
     hasRightColumn: false,
     hasEmphasis: false,
+    hasHighlight: false,
+    hasRefLabel: false,
   };
-  if (child.type === 'token') {
-    mergeTokenFlags(child, flags);
-  } else if (child.type === 'tateten-group') {
-    for (const c of child.children) {
-      if (c.type === 'token') mergeTokenFlags(c, flags);
-    }
-  } else {
-    for (const c of child.children) {
-      if (c.type === 'token') {
-        mergeTokenFlags(c, flags);
-      } else {
-        for (const tc of c.children) {
-          if (tc.type === 'token') mergeTokenFlags(tc, flags);
-        }
-      }
-    }
-  }
+  mergeFlags(children, flags);
   return flags;
-}
-
-function computeBlockFlags(children: CanvasBlockChild[]): BlockLayoutFlags {
-  let hasSuffix = false;
-  let hasSaidoku = false;
-  let hasRightColumn = false;
-  let hasEmphasis = false;
-  let hasHighlight = false;
-  let hasRefLabel = false;
-
-  for (const child of children) {
-    const flags = checkLayoutFlags(child);
-    if (flags.hasSuffix) hasSuffix = true;
-    if (flags.hasSaidoku) hasSaidoku = true;
-    if (flags.hasRightColumn) hasRightColumn = true;
-    if (flags.hasEmphasis) hasEmphasis = true;
-    if (child.type === 'highlight-group') {
-      hasHighlight = true;
-      if (child.refLabel) hasRefLabel = true;
-    }
-  }
-
-  return { hasSuffix, hasSaidoku, hasRightColumn, hasEmphasis, hasHighlight, hasRefLabel };
 }
 
 // ============================================================================
@@ -300,10 +218,7 @@ function computeBlockFlags(children: CanvasBlockChild[]): BlockLayoutFlags {
  */
 export function convertAIRToCanvasRenderTree(air: AIRDocument): CanvasRenderTree {
   const blockNodes: CanvasBlockNode[] = air.blocks.flatMap((airBlock) => {
-    const children: CanvasBlockChild[] = airBlock.children.map(convertBlockChild);
-
-    // Range info が non-tateten トークンにある場合の concentration 適用
-    applyNonTatetenRangeConcentration(airBlock, children);
+    const children = convertChildren(airBlock.children);
 
     // 改行の注記 (lineBreakAfter) は、ブロックの中を区間に分けて 1 区間を 1 列にする。
     // 区間の間の空きは、ブロックの間の空き (columnGap) と同じ値になる。
@@ -323,6 +238,7 @@ export function convertAIRToCanvasRenderTree(air: AIRDocument): CanvasRenderTree
   let hasEmphasis = false;
   let hasHighlight = false;
   let hasRefLabel = false;
+  let maxHighlightLane = 0;
   for (const block of blockNodes) {
     if (block.flags.hasSuffix) hasSuffix = true;
     if (block.flags.hasSaidoku) hasSaidoku = true;
@@ -330,6 +246,7 @@ export function convertAIRToCanvasRenderTree(air: AIRDocument): CanvasRenderTree
     if (block.flags.hasEmphasis) hasEmphasis = true;
     if (block.flags.hasHighlight) hasHighlight = true;
     if (block.flags.hasRefLabel) hasRefLabel = true;
+    maxHighlightLane = Math.max(maxHighlightLane, block.flags.maxHighlightLane ?? 0);
   }
 
   return {
@@ -340,6 +257,7 @@ export function convertAIRToCanvasRenderTree(air: AIRDocument): CanvasRenderTree
     hasEmphasis,
     hasHighlight,
     hasRefLabel,
+    ...(maxHighlightLane > 0 ? { maxHighlightLane } : {}),
   };
 }
 
@@ -347,154 +265,109 @@ export function convertAIRToCanvasRenderTree(air: AIRDocument): CanvasRenderTree
 // 改行 (linebreak): ブロックを区間に分ける
 // ============================================================================
 
+/** AIR のノードの中で最後に描く字の id */
+function lastTokenIdOfAIR(node: AIRNode): string | undefined {
+  if (node.type === 'token') return node.token.id;
+  if (node.type === 'tateten-separator') return undefined;
+  for (let i = node.children.length - 1; i >= 0; i--) {
+    const id = lastTokenIdOfAIR(node.children[i]!);
+    if (id !== undefined) return id;
+  }
+  return undefined;
+}
+
 /**
  * AIR の lineBreakAfter から、「この字の後ろで列を改める」字の id を集める。
- * 読みの範囲の印は範囲を描く先頭の字に付いているが、Canvas は字を 1 つずつ描くので、
- * 範囲の最後の字の後ろで改める。竪点のグループの印はグループの最後の字の後ろ。
+ * 字の印はその字の後ろ、ruby と竪点のグループの印はグループの最後の字の後ろ。
  */
 function collectLineBreakAfterTokenIds(airBlock: AIRBlock): Set<string> {
   const ids = new Set<string>();
-  const visit = (node: AIRTokenNode | AIRTatetenGroupNode): void => {
-    if (!node.lineBreakAfter) return;
-    if (node.type === 'token') {
-      ids.add(node.rangeInfo?.toTokenId ?? node.token.id);
-      return;
+  const visit = (nodes: readonly AIRNode[]): void => {
+    for (const node of nodes) {
+      if (node.type === 'tateten-separator') continue;
+      if (node.type !== 'highlight-group' && node.lineBreakAfter) {
+        const id = lastTokenIdOfAIR(node);
+        if (id !== undefined) ids.add(id);
+      }
+      if (node.type !== 'token') visit(node.children);
     }
-    const lastToken = node.children.findLast((c): c is AIRTokenNode => c.type === 'token');
-    if (lastToken) ids.add(lastToken.token.id);
   };
-  for (const child of airBlock.children) {
-    if (child.type === 'highlight-group') child.children.forEach(visit);
-    else visit(child);
-  }
+  visit(airBlock.children);
   return ids;
 }
 
-/** 子の中で最後に描く字の id */
-function lastTokenIdOf(child: CanvasTokenNode | CanvasTatetenGroupNode): string | undefined {
-  if (child.type === 'token') return child.token.id;
-  return child.children.findLast((c): c is CanvasTokenNode => c.type === 'token')?.token.id;
+interface SegmentAccumulator {
+  segments: CanvasGroupChild[][];
+  current: CanvasGroupChild[];
+}
+
+function cut(acc: SegmentAccumulator): void {
+  acc.segments.push(acc.current);
+  acc.current = [];
 }
 
 /**
- * ブロックの子を、改行の後ろで区間に分ける。改行が無ければ元の子の並びを 1 区間で返す。
- * highlight-group の途中で分けるときは、グループを 2 つに分ける (傍線は列ごとに引く)。
- * 参照ラベルは傍線の上端に付くので、前の区間のグループが持つ。
+ * 子を、改行の後ろで区間に積む。グループの途中で分けるときは、グループを区間ごとの 2 つ以上に分ける
+ * (傍線は列ごとに引く)。参照ラベルは傍線の上端に付くので、最初の区間のグループが持つ。
+ * 不可分単位の中の改行は AIR が付けないので、竪点のグループが分かれることは通常ない
  */
+function accumulate(
+  nodes: readonly CanvasGroupChild[],
+  breakAfter: ReadonlySet<string>,
+  acc: SegmentAccumulator
+): void {
+  for (const node of nodes) {
+    if (node.type === 'token') {
+      acc.current.push(node);
+      if (breakAfter.has(node.token.id)) cut(acc);
+      continue;
+    }
+    if (node.type === 'tateten-separator') {
+      acc.current.push(node);
+      continue;
+    }
+
+    const inner: SegmentAccumulator = { segments: [], current: [] };
+    accumulate(node.children, breakAfter, inner);
+    const endsWithCut = inner.current.length === 0 && inner.segments.length > 0;
+    const parts = inner.current.length > 0 ? [...inner.segments, inner.current] : inner.segments;
+    if (parts.length <= 1) {
+      acc.current.push(node);
+    } else {
+      parts.forEach((part, i) => {
+        acc.current.push(splitCopy(node, part, i === 0));
+        if (i < parts.length - 1) cut(acc);
+      });
+    }
+    if (endsWithCut) cut(acc);
+  }
+}
+
+/** グループを、子を差し替えた 1 つの区間のコピーにする。参照ラベルは最初の区間だけが持つ */
+function splitCopy(
+  node: CanvasTatetenGroupNode | CanvasHighlightGroupNode,
+  children: CanvasGroupChild[],
+  isFirstPart: boolean
+): CanvasTatetenGroupNode | CanvasHighlightGroupNode {
+  if (node.type === 'tateten-group') return { ...node, children };
+  const { highlightRef, refLabel, ...rest } = node;
+  return {
+    ...rest,
+    ...(isFirstPart && highlightRef ? { highlightRef } : {}),
+    ...(isFirstPart && refLabel ? { refLabel } : {}),
+    children,
+  };
+}
+
+/** ブロックの子を、改行の後ろで区間に分ける。改行が無ければ元の子の並びを 1 区間で返す */
 function splitAtLineBreaks(
   children: CanvasBlockChild[],
   breakAfter: ReadonlySet<string>
 ): CanvasBlockChild[][] {
   if (breakAfter.size === 0) return [children];
 
-  const segments: CanvasBlockChild[][] = [];
-  let current: CanvasBlockChild[] = [];
-  const cut = (): void => {
-    segments.push(current);
-    current = [];
-  };
-
-  for (const child of children) {
-    if (child.type !== 'highlight-group') {
-      current.push(child);
-      const last = lastTokenIdOf(child);
-      if (last !== undefined && breakAfter.has(last)) cut();
-      continue;
-    }
-
-    let part: (CanvasTokenNode | CanvasTatetenGroupNode)[] = [];
-    let isFirstPart = true;
-    const flush = (): void => {
-      const { highlightRef, refLabel, ...rest } = child;
-      current.push({
-        ...rest,
-        ...(isFirstPart && highlightRef ? { highlightRef } : {}),
-        ...(isFirstPart && refLabel ? { refLabel } : {}),
-        children: part,
-      });
-      part = [];
-      isFirstPart = false;
-    };
-    child.children.forEach((hlChild) => {
-      part.push(hlChild);
-      const last = lastTokenIdOf(hlChild);
-      if (last === undefined || !breakAfter.has(last)) return;
-      // 最後の子の後ろなら、flush した 1 つ目が group 全体になり、group の後ろで切ることになる
-      flush();
-      cut();
-    });
-    if (part.length > 0) flush();
-  }
-
-  if (current.length > 0) segments.push(current);
-  return segments;
-}
-
-/**
- * non-tateten トークンの rangeInfo に対して Canvas の concentration ルールを適用。
- * AIR では先頭トークンに rangeInfo があるが、Canvas では:
- * - yomigana: first concentration（先頭に値設定）
- * - okurigana/soegana: last concentration（末尾に値設定）
- */
-function applyNonTatetenRangeConcentration(
-  airBlock: AIRBlock,
-  canvasChildren: CanvasBlockChild[]
-): void {
-  // AIR の rangeInfo を持つトークンを探し、対応する Canvas トークンに concentration を適用
-  for (const airChild of airBlock.children) {
-    if (airChild.type !== 'token' || !airChild.rangeInfo) continue;
-
-    const rangeInfo = airChild.rangeInfo;
-    const tokenIds = rangeInfo.tokenIds;
-
-    // Canvas children からフラットなトークンリストを収集
-    const canvasTokens: CanvasTokenNode[] = [];
-    for (const cc of canvasChildren) {
-      if (cc.type === 'token' && tokenIds.includes(cc.token.id)) {
-        canvasTokens.push(cc);
-      }
-    }
-
-    if (canvasTokens.length < 2) continue;
-
-    const firstToken = canvasTokens[0]!;
-    const lastToken = canvasTokens[canvasTokens.length - 1]!;
-
-    // yomigana: first concentration
-    if (rangeInfo.yomigana) {
-      firstToken.slots = {
-        ...firstToken.slots,
-        ruby: rangeInfo.yomigana.value,
-        rubySpan: rangeInfo.yomigana.span,
-      };
-      setSlotHidden(firstToken, 'ruby', !!rangeInfo.yomigana.hidden);
-      for (const t of canvasTokens.slice(1)) {
-        const { ruby: _, rubySpan: __, ...rest } = t.slots;
-        t.slots = rest;
-        setSlotHidden(t, 'ruby', false);
-      }
-    }
-
-    // okurigana: last concentration
-    if (rangeInfo.okurigana) {
-      lastToken.slots = { ...lastToken.slots, okuri: rangeInfo.okurigana.value };
-      setSlotHidden(lastToken, 'okuri', !!rangeInfo.okurigana.hidden);
-      for (const t of canvasTokens.slice(0, -1)) {
-        const { okuri: _, ...rest } = t.slots;
-        t.slots = rest;
-        setSlotHidden(t, 'okuri', false);
-      }
-    }
-
-    // soegana: last concentration
-    if (rangeInfo.soegana) {
-      lastToken.slots = { ...lastToken.slots, soegana: rangeInfo.soegana.value };
-      setSlotHidden(lastToken, 'soegana', !!rangeInfo.soegana.hidden);
-      for (const t of canvasTokens.slice(0, -1)) {
-        const { soegana: _, ...rest } = t.slots;
-        t.slots = rest;
-        setSlotHidden(t, 'soegana', false);
-      }
-    }
-  }
+  const acc: SegmentAccumulator = { segments: [], current: [] };
+  accumulate(children, breakAfter, acc);
+  if (acc.current.length > 0) acc.segments.push(acc.current);
+  return acc.segments;
 }

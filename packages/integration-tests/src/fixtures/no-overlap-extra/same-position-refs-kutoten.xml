@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- 同じ字の後ろに ref が 2 つ、句読点が 2 つ。ref は 1 つずつの上付き文字、句読点は 1 つずつの要素に描く -->
+<skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
+  <skam:body>
+    <skam:block>
+      學<skam:ref xml:id="n1" format="numeric-paren"/><skam:ref xml:id="n2" format="numeric-paren"/>而時習<skam:kutoten value="：" kind="ku"/><skam:kutoten value="。" kind="ku"/>
+    </skam:block>
+  </skam:body>
+  <skam:notes>
+    <skam:note ref="n1">一つ目の注</skam:note>
+    <skam:note ref="n2">二つ目の注</skam:note>
+  </skam:notes>
+</skam:doc>

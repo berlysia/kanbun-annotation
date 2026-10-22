@@ -1,8 +1,10 @@
 /**
  * Placement レイヤ — ブロック内の子要素を配置
  *
- * token/tateten-group/highlight-group の配置ロジックを統合し、
+ * token/tateten-group/highlight-group (入れ子を含む) の配置ロジックを統合し、
  * 共通の Y 進行・token 配置ルーチンを提供する。
+ * 木は字・区切り・グループの出入りの並び (PlacementOp) にして、1 回の走査で配置する。
+ * ruby の範囲 (rubySpan) は、並びの上で字を数えるので、竪点や傍線をまたいでもよい。
  */
 
 import type { HighlightStyle } from '@kanbun-skam/skam';
@@ -11,7 +13,7 @@ import { resolveSpacingEm } from '@kanbun-skam/skam/rendering';
 import type {
   CanvasTokenNode,
   CanvasTatetenSeparator,
-  CanvasBlockChild,
+  CanvasGroupChild,
   CanvasBlockNode,
   CanvasHighlightGroupNode,
   GridColumns,
@@ -28,16 +30,27 @@ import type {
   OkototenLayout,
 } from './types.js';
 import { shouldApplyTateChuYoko } from './draw-text.js';
+import { highlightLanePitch } from './draw-marks.js';
 
-/** 可変追跡状態（range ruby 進行管理） */
+/** ruby の範囲 (rubySpan) を配置している間の状態 */
+interface RubyRun {
+  /** 範囲の残りの字の数 (いま置く字を含む) */
+  remaining: number;
+  /** 範囲の字と区切りに足す余白 (distribute) */
+  extraPerElement: number;
+  /** 範囲の後ろに足す余白 (center) */
+  bottomPad: number;
+  /** 読みを中央に寄せるための範囲の高さ */
+  spanHeight: number;
+  rubyYOffset: number;
+  /** 読みがあふれたときの、読みの下端の絶対 Y */
+  endY: number | undefined;
+}
+
+/** 可変追跡状態 */
 interface BlockLayoutState {
   yOffset: number;
-  rubySpanRemaining: number;
-  blockRangeExtraPerToken: number;
-  blockRangeSpanHeight: number | undefined;
-  blockRangeRubyYOffset: number;
-  blockRangeCenterBottomPad: number;
-  blockRangeRubyEndY: number | undefined;
+  run: RubyRun | undefined;
 }
 
 /** 読み取り専用のブロック配置定数群 */
@@ -59,15 +72,7 @@ interface PlacementContext {
 }
 
 function createInitialState(): BlockLayoutState {
-  return {
-    yOffset: 0,
-    rubySpanRemaining: 0,
-    blockRangeExtraPerToken: 0,
-    blockRangeSpanHeight: undefined,
-    blockRangeRubyYOffset: 0,
-    blockRangeCenterBottomPad: 0,
-    blockRangeRubyEndY: undefined,
-  };
+  return { yOffset: 0, run: undefined };
 }
 
 function buildPlacementContext(plan: ColumnPlan, options: ResolvedOptions): PlacementContext {
@@ -359,24 +364,6 @@ function computeTokenContentHeight(
   return maxExtent;
 }
 
-/** highlight-group 内の仮名類（ruby/okuri/soegana）の有無を判定 */
-function checkGroupHasRightColumn(group: CanvasHighlightGroupNode): boolean {
-  for (const hlChild of group.children) {
-    if (hlChild.type === 'token') {
-      if (hlChild.slots.ruby || hlChild.slots.okuri || hlChild.slots.soegana) {
-        return true;
-      }
-    } else {
-      for (const tc of hlChild.children) {
-        if (tc.type === 'token' && (tc.slots.ruby || tc.slots.okuri || tc.slots.soegana)) {
-          return true;
-        }
-      }
-    }
-  }
-  return false;
-}
-
 /**
  * range ruby が自然な高さを超える場合の余白の計算（block と tateten で共有する純関数）。
  * center: 超過分の半分を前後に振る。distribute: N+1 ギャップモデル（leading + N 要素）で均等配分する。
@@ -434,347 +421,308 @@ export function computeRangeRubyOverflow(input: {
     extraPerElement,
   };
 }
+// ============================================================================
+// 木 → 配置の並び
+// ============================================================================
 
-/** range ruby 開始時の overflow 検出 + State パラメータ設定 */
-function detectRangeRubyOverflow(
-  block: CanvasBlockNode,
-  childIdx: number,
-  token: CanvasTokenNode,
-  state: BlockLayoutState,
-  ctx: PlacementContext
+/** 木を歩いた並び。配置は、この並びを先頭から 1 回走査して決める */
+type PlacementOp =
+  | {
+      kind: 'token';
+      node: CanvasTokenNode;
+      /** 竪点のグループの中 (字の高さは fontSize を下限にする) */
+      inTateten: boolean;
+      /** 傍線のグループの中 */
+      inHighlight: boolean;
+      /** 傍点の x。傍線の外側か、ruby のある竪点の ruby の右側。無ければ字の位置から決める */
+      emphasisOverrideX: number | undefined;
+    }
+  | { kind: 'separator'; node: CanvasTatetenSeparator }
+  /** 竪点のグループの終わり。グループの後ろに字間の余白を足す */
+  | { kind: 'tateten-exit' }
+  | { kind: 'highlight-enter' }
+  | { kind: 'highlight-exit'; node: CanvasHighlightGroupNode; lineX: number };
+
+interface FlattenEnv {
+  inTateten: boolean;
+  inHighlight: boolean;
+  emphasisOverrideX: number | undefined;
+}
+
+function someToken(
+  nodes: readonly CanvasGroupChild[],
+  predicate: (token: CanvasTokenNode) => boolean
+): boolean {
+  return nodes.some((node) => {
+    if (node.type === 'token') return predicate(node);
+    if (node.type === 'tateten-separator') return false;
+    return someToken(node.children, predicate);
+  });
+}
+
+/** highlight-group 内の仮名類（ruby/okuri/soegana）の有無を判定 */
+function checkGroupHasRightColumn(group: CanvasHighlightGroupNode): boolean {
+  return someToken(group.children, ({ slots }) => !!(slots.ruby || slots.okuri || slots.soegana));
+}
+
+function flatten(
+  nodes: readonly CanvasGroupChild[],
+  env: FlattenEnv,
+  ctx: PlacementContext,
+  ops: PlacementOp[]
 ): void {
-  const { fontSize, rubyFontSize, cellAdvance, columnY } = ctx;
-  const rubySpan = token.slots.rubySpan!;
-  state.rubySpanRemaining = rubySpan - 1;
-
-  // 先読み: スパン内トークンの実際の advance を合計
-  let actualSpan = 0;
-  let lastSpanTokenContentHeight = fontSize;
-  for (let j = 0; j < rubySpan && childIdx + j < block.children.length; j++) {
-    const spanChild = block.children[childIdx + j]!;
-    if (spanChild.type === 'token') {
-      lastSpanTokenContentHeight = computeTokenContentHeight(
-        spanChild.slots,
-        fontSize,
-        rubyFontSize
+  for (const node of nodes) {
+    if (node.type === 'token') {
+      ops.push({
+        kind: 'token',
+        node,
+        inTateten: env.inTateten,
+        inHighlight: env.inHighlight,
+        emphasisOverrideX: env.emphasisOverrideX,
+      });
+    } else if (node.type === 'tateten-separator') {
+      ops.push({ kind: 'separator', node });
+    } else if (node.type === 'tateten-group') {
+      // tateten グループ内の range ruby は先頭トークンにのみ slots.ruby が設定される。
+      // 2文字目以降も ruby 列分の空きを確保するため、グループ内に ruby があれば
+      // 全トークンの emphasis を ruby-aware 位置に統一する。
+      const emphasisOverrideX =
+        env.emphasisOverrideX ??
+        (someToken(node.children, (token) => !!token.slots.ruby)
+          ? ctx.grid.suffixX + ctx.rubyFontSize
+          : undefined);
+      flatten(node.children, { ...env, inTateten: true, emphasisOverrideX }, ctx, ops);
+      ops.push({ kind: 'tateten-exit' });
+    } else {
+      const { effectiveFlags, effectiveMaxRubyWidth, rubyFontSize, highlightLineX, highlightGap } =
+        ctx;
+      const groupHasRightColumn = checkGroupHasRightColumn(node);
+      let rightAdjust = 0;
+      if (effectiveFlags.hasSuffix && effectiveFlags.hasRightColumn && !groupHasRightColumn) {
+        rightAdjust = rubyFontSize;
+      } else if (!effectiveFlags.hasSuffix && effectiveMaxRubyWidth > 0 && !groupHasRightColumn) {
+        rightAdjust = effectiveMaxRubyWidth;
+      }
+      const lineX =
+        highlightLineX - rightAdjust + (node.lane ?? 0) * highlightLanePitch(highlightGap);
+      ops.push({ kind: 'highlight-enter' });
+      // ADR-015: emphasis+highlight 共存時、emphasis を highlight line の外側（右）に配置
+      flatten(
+        node.children,
+        {
+          ...env,
+          inHighlight: true,
+          emphasisOverrideX: lineX + highlightGap / 2 + rubyFontSize / 2,
+        },
+        ctx,
+        ops
       );
-      actualSpan += Math.max(cellAdvance, lastSpanTokenContentHeight);
+      ops.push({ kind: 'highlight-exit', node, lineX });
     }
   }
-  // 最後のトークンの suffix 延伸分はルビ centering に含めない
-  const spanTrailingExt = Math.max(0, lastSpanTokenContentHeight - fontSize);
-  const baseSpan = actualSpan - spanTrailingExt;
+}
+
+// ============================================================================
+// 配置
+// ============================================================================
+
+function tokenAdvance(op: PlacementOp & { kind: 'token' }, ctx: PlacementContext): number {
+  const contentHeight = computeTokenContentHeight(op.node.slots, ctx.fontSize, ctx.rubyFontSize);
+  return Math.max(op.inTateten ? ctx.fontSize : ctx.cellAdvance, contentHeight);
+}
+
+/**
+ * ruby の範囲 (rubySpan) の字から始まる走りを作る。範囲の字と区切りの高さを先読みして、
+ * 読みがあふれるときの余白を決める。あふれるときは先頭の余白を state.yOffset に足す。
+ */
+function startRubyRun(
+  ops: readonly PlacementOp[],
+  index: number,
+  state: BlockLayoutState,
+  ctx: PlacementContext
+): RubyRun {
+  const { fontSize, rubyFontSize, columnY } = ctx;
+  const first = ops[index] as PlacementOp & { kind: 'token' };
+  const span = first.node.slots.rubySpan!;
+  const spacingPx = ctx.cellAdvance - ctx.fontSize;
+
+  // 先読み: 範囲の字の実際の advance と、範囲の途中の区切りと竪点のグループの後ろの余白を合計
+  let naturalSpan = 0;
+  let elementCount = 0;
+  let counted = 0;
+  let lastTokenContentHeight = fontSize;
+  for (let j = index; j < ops.length && counted < span; j++) {
+    const op = ops[j]!;
+    if (op.kind === 'token') {
+      lastTokenContentHeight = computeTokenContentHeight(op.node.slots, fontSize, rubyFontSize);
+      naturalSpan += tokenAdvance(op, ctx);
+      elementCount++;
+      counted++;
+    } else if (op.kind === 'separator') {
+      naturalSpan += ctx.separatorAdvance;
+      elementCount++;
+    } else if (op.kind === 'tateten-exit' && spacingPx > 0) {
+      naturalSpan += spacingPx;
+    }
+  }
+  // 最後のトークンの suffix 延伸分（okuri/soegana 等）はルビ centering のスパンに含めない
+  const trailingExtension = Math.max(0, lastTokenContentHeight - fontSize);
+  const baseSpan = naturalSpan - trailingExtension;
 
   // range ruby overflow: ルビがスパンを超える場合の均等割り付け/中央寄せを計算
-  if (token.slots.ruby) {
-    const alignment = ctx.options.rangeRubyAlignment === 'center' ? 'center' : 'distribute';
-    const result = computeRangeRubyOverflow({
-      rubyChars: splitGraphemes(token.slots.ruby).length,
-      rubyFontSize,
-      naturalSpan: actualSpan,
-      baseSpan,
-      elementCount: rubySpan,
-      alignment,
-    });
-    state.blockRangeSpanHeight = result.spanHeight;
-    if (result.overflow) {
-      // ルビ下端 = スパン開始位置（leading/padding 適用前）+ rubyTextHeight
-      state.blockRangeRubyEndY = columnY + state.yOffset + result.rubyEndOffset!;
-      state.yOffset += result.leading;
-      state.blockRangeRubyYOffset = result.rubyYOffset;
-      if (alignment === 'center') {
-        state.blockRangeCenterBottomPad = result.trailing;
-      } else {
-        state.blockRangeExtraPerToken = result.extraPerElement;
+  const alignment = ctx.options.rangeRubyAlignment === 'center' ? 'center' : 'distribute';
+  const result = computeRangeRubyOverflow({
+    rubyChars: splitGraphemes(first.node.slots.ruby!).length,
+    rubyFontSize,
+    naturalSpan,
+    baseSpan,
+    elementCount,
+    alignment,
+  });
+  const run: RubyRun = {
+    remaining: span,
+    extraPerElement: result.extraPerElement,
+    bottomPad: result.trailing,
+    spanHeight: result.spanHeight,
+    rubyYOffset: result.overflow ? result.rubyYOffset : 0,
+    // ルビ下端 = スパン開始位置（leading/padding 適用前）+ rubyTextHeight
+    endY: result.overflow ? columnY + state.yOffset + result.rubyEndOffset! : undefined,
+  };
+  if (result.overflow) state.yOffset += result.leading;
+  return run;
+}
+
+interface HighlightEntry {
+  node: CanvasHighlightGroupNode;
+  line: HighlightLineLayout;
+}
+
+/**
+ * 断片に分かれた傍線は、続きの側の端を閉じず、隣の断片の始まりまで線をつなぐ。
+ * 断片の間に区切りや余白があっても、線は切れない
+ */
+function joinHighlightFragments(entries: readonly HighlightEntry[]): void {
+  const byMark = new Map<unknown, HighlightEntry[]>();
+  for (const entry of entries) {
+    const mark = entry.node.fragmentOf;
+    if (!mark) continue;
+    const list = byMark.get(mark) ?? [];
+    list.push(entry);
+    byMark.set(mark, list);
+  }
+  for (const list of byMark.values()) {
+    list.sort((a, b) => a.line.yStart - b.line.yStart);
+    for (let i = 0; i + 1 < list.length; i++) {
+      const [current, next] = [list[i]!, list[i + 1]!];
+      if (current.node.continuesAfter && next.node.continuesBefore) {
+        current.line.yEnd = Math.max(current.line.yEnd, next.line.yStart);
       }
     }
   }
 }
 
-/** 非トークン child 遭遇時の State リセット */
-function resetRangeRubyState(state: BlockLayoutState): void {
-  state.rubySpanRemaining = 0;
-  state.blockRangeExtraPerToken = 0;
-  state.blockRangeSpanHeight = undefined;
-  state.blockRangeRubyEndY = undefined;
-}
+type TokenOp = PlacementOp & { kind: 'token' };
 
-/** range ruby 2文字目以降の消費カウンタ更新 + 完了時リセット */
-function consumeRangeRuby(child: CanvasBlockChild, state: BlockLayoutState): void {
-  if (child.type === 'token' && !child.slots.ruby && state.rubySpanRemaining > 0) {
-    state.rubySpanRemaining--;
-    if (state.rubySpanRemaining === 0) {
-      // center モード: 末尾パディング
-      state.yOffset += state.blockRangeCenterBottomPad;
-      state.blockRangeCenterBottomPad = 0;
-      state.blockRangeExtraPerToken = 0;
-      state.blockRangeSpanHeight = undefined;
-      state.blockRangeRubyEndY = undefined;
-      state.blockRangeRubyYOffset = 0;
-    }
-  }
-}
-
-interface PlaceBlockChildResult {
-  children: ColumnChild[];
-  highlightLines?: HighlightLineLayout[];
-}
-
-/** CanvasBlockChild を配置し、結果を返す。state.yOffset を直接変更する。 */
-function placeBlockChild(
-  child: CanvasBlockChild,
+/** 字を置き、Y を進める。ruby の範囲の先頭ならあふれの余白を決め、範囲の最後の字で閉じる */
+function placeTokenOp(
+  ops: readonly PlacementOp[],
+  index: number,
   state: BlockLayoutState,
   blockLctx: LayoutContext,
   ctx: PlacementContext
-): PlaceBlockChildResult {
-  const {
-    fontSize,
-    rubyFontSize,
-    cellAdvance,
-    grid,
-    columnY,
-    blockColumnX,
-    blockBaseCenterX,
-    highlightLineX,
-    highlightGap,
-    effectiveFlags,
-    effectiveMaxRubyWidth,
-  } = ctx;
-
-  if (child.type === 'token') {
-    const tokenX = blockColumnX + blockBaseCenterX;
-    const tokenY = columnY + state.yOffset;
-    // range ruby の2文字目以降: ruby 列分の空きを確保するため emphasis を右にずらす
-    let lctx: LayoutContext =
-      state.rubySpanRemaining > 0 && !child.slots.ruby && blockLctx.emphasisOverrideX === undefined
-        ? { ...blockLctx, emphasisOverrideX: grid.suffixX + rubyFontSize }
-        : blockLctx;
-    // range ruby overflow 時はルビ centering 用のスパン高さ、Y オフセット、ルビ下端を渡す
-    if (state.blockRangeSpanHeight !== undefined) {
-      lctx = {
-        ...lctx,
-        rangeRubySpanHeight: state.blockRangeSpanHeight,
-        rangeRubyYOffset: state.blockRangeRubyYOffset,
-        ...(state.blockRangeRubyEndY !== undefined
-          ? { rangeRubyEndY: state.blockRangeRubyEndY }
-          : {}),
-      };
-    }
-    const tokenLayout = layoutSingleToken(child, tokenX, tokenY, lctx);
-    const contentHeight = computeTokenContentHeight(child.slots, fontSize, rubyFontSize);
-    state.yOffset += Math.max(cellAdvance, contentHeight) + state.blockRangeExtraPerToken;
-    return { children: [tokenLayout] };
+): TokenLayout {
+  const op = ops[index] as TokenOp;
+  // 傍線の中の ruby の範囲 (竪点の外) は、読みのあふれを扱わない。範囲の読みの高さは字の数 × cellAdvance。
+  // 今までの描画の命令を変えないために、この扱いを保つ
+  const isRangeRubyStart = op.node.slots.ruby && (op.node.slots.rubySpan ?? 0) > 1;
+  if (isRangeRubyStart && (!op.inHighlight || op.inTateten)) {
+    state.run = startRubyRun(ops, index, state, ctx);
   }
-
-  if (child.type === 'tateten-group') {
-    const children = placeTatetenGroup(child.children, state, blockLctx, ctx);
-    return { children };
-  }
-
-  // highlight-group: track y range and layout children
-  const groupHasRightColumn = checkGroupHasRightColumn(child);
-  let rightAdjust = 0;
-  if (effectiveFlags.hasSuffix && effectiveFlags.hasRightColumn && !groupHasRightColumn) {
-    rightAdjust = rubyFontSize;
-  } else if (!effectiveFlags.hasSuffix && effectiveMaxRubyWidth > 0 && !groupHasRightColumn) {
-    rightAdjust = effectiveMaxRubyWidth;
-  }
-  const groupHighlightLineX = highlightLineX - rightAdjust;
-
-  // ADR-015: emphasis+highlight 共存時、emphasis を highlight line の外側（右）に配置
-  const hlLctx: LayoutContext = {
+  const run = state.run;
+  const tokenX = ctx.blockColumnX + ctx.blockBaseCenterX;
+  const tokenY = ctx.columnY + state.yOffset;
+  // range ruby の2文字目以降: ruby 列分の空きを確保するため emphasis を右にずらす
+  const emphasisOverrideX =
+    op.emphasisOverrideX ??
+    (run && !op.node.slots.ruby ? ctx.grid.suffixX + ctx.rubyFontSize : undefined);
+  // range ruby overflow 時はルビ centering 用のスパン高さ、Y オフセット、ルビ下端を渡す
+  const lctx: LayoutContext = {
     ...blockLctx,
-    emphasisOverrideX: groupHighlightLineX + highlightGap / 2 + rubyFontSize / 2,
+    ...(emphasisOverrideX !== undefined ? { emphasisOverrideX } : {}),
+    ...(run
+      ? {
+          rangeRubySpanHeight: run.spanHeight,
+          rangeRubyYOffset: run.rubyYOffset,
+          ...(run.endY !== undefined ? { rangeRubyEndY: run.endY } : {}),
+        }
+      : {}),
   };
-  const resultChildren: ColumnChild[] = [];
-  const yStart = columnY + state.yOffset;
-  for (const highlightChild of child.children) {
-    if (highlightChild.type === 'token') {
-      const tokenX = blockColumnX + blockBaseCenterX;
-      const tokenY = columnY + state.yOffset;
-      resultChildren.push(layoutSingleToken(highlightChild, tokenX, tokenY, hlLctx));
-      const hlContentHeight = computeTokenContentHeight(
-        highlightChild.slots,
-        fontSize,
-        rubyFontSize
-      );
-      state.yOffset += Math.max(cellAdvance, hlContentHeight);
-    } else {
-      // tateten-group inside highlight-group
-      resultChildren.push(...placeTatetenGroup(highlightChild.children, state, hlLctx, ctx));
-    }
+  const layoutOfToken = layoutSingleToken(op.node, tokenX, tokenY, lctx);
+  state.yOffset += tokenAdvance(op, ctx) + (run?.extraPerElement ?? 0);
+  if (run && --run.remaining <= 0) {
+    // center モード: 範囲の末尾パディング
+    state.yOffset += run.bottomPad;
+    state.run = undefined;
   }
-  const yEnd = columnY + state.yOffset;
+  return layoutOfToken;
+}
 
-  // highlight-ref: ラベルを highlight 線の開始位置（上端）に配置
+/** 竪点の区切りを置き、Y を進める */
+function placeSeparatorOp(
+  node: CanvasTatetenSeparator,
+  state: BlockLayoutState,
+  ctx: PlacementContext
+): TatetenSeparatorLayout {
+  const { rubyFontSize } = ctx;
+  // HTML の letter-spacing に相当するスペーシング量。
+  // HTML では sep の negative margin で前トークンの LS を潰した上で、
+  // sep 高さ = max(1em, LS) で間隔を確保する
+  const spacingPx = ctx.cellAdvance - ctx.fontSize;
+  const effectiveSepAdvance = Math.max(ctx.separatorAdvance, spacingPx);
+  // spacing が大きい場合、separator を advance 領域の中央に配置する
+  const sepCenterOffset = (effectiveSepAdvance - rubyFontSize) / 2;
+  const sepY = ctx.columnY + state.yOffset + sepCenterOffset;
+  const sepLayout: TatetenSeparatorLayout = {
+    type: 'tateten-separator',
+    x: ctx.blockColumnX + ctx.blockBaseCenterX,
+    y: sepY,
+    fontSize: rubyFontSize,
+    ...(node.hidden ? { hidden: true as const } : {}),
+    ...(node.kaeriHidden ? { kaeriHidden: true as const } : {}),
+  };
+  if (node.kaeri) {
+    sepLayout.kaeri = { text: node.kaeri, x: ctx.grid.kaeriX, y: sepY, fontSize: rubyFontSize };
+  }
+  state.yOffset += effectiveSepAdvance + (state.run?.extraPerElement ?? 0);
+  return sepLayout;
+}
+
+/** 傍線の線 (と参照ラベル) の配置。ラベルは線の始まり (上端) に置く */
+function layoutHighlightLine(
+  node: CanvasHighlightGroupNode,
+  lineX: number,
+  yStart: number,
+  yEnd: number,
+  rubyFontSize: number
+): HighlightLineLayout {
   let refLayout: SlotLayout | undefined;
-  if (child.refLabel) {
-    const isTCY = shouldApplyTateChuYoko(child.refLabel);
+  if (node.refLabel) {
+    const isTCY = shouldApplyTateChuYoko(node.refLabel);
     refLayout = {
-      text: child.refLabel,
-      x: groupHighlightLineX + (rubyFontSize * 7) / 8,
+      text: node.refLabel,
+      x: lineX + (rubyFontSize * 7) / 8,
       y: yStart,
       fontSize: rubyFontSize,
       ...(isTCY ? { tateChuYoko: true } : {}),
     };
   }
-
-  const highlightLine: HighlightLineLayout = {
-    style: child.highlightStyle as HighlightStyle,
-    x: groupHighlightLineX,
+  return {
+    style: node.highlightStyle as HighlightStyle,
+    x: lineX,
     yStart,
     yEnd,
     ...(refLayout ? { refLayout } : {}),
   };
-
-  return { children: resultChildren, highlightLines: [highlightLine] };
-}
-
-/**
- * tateten グループの children を配置し、ColumnChild[] を返す。
- * state.yOffset を直接変更する。
- */
-function placeTatetenGroup(
-  children: (CanvasTokenNode | CanvasTatetenSeparator)[],
-  state: BlockLayoutState,
-  baseLctx: LayoutContext,
-  ctx: PlacementContext
-): ColumnChild[] {
-  const {
-    fontSize,
-    rubyFontSize,
-    separatorAdvance,
-    grid,
-    columnY,
-    blockColumnX,
-    blockBaseCenterX,
-  } = ctx;
-  const result: ColumnChild[] = [];
-
-  // tateten グループ内の range ruby は先頭トークンにのみ slots.ruby が設定される。
-  // 2文字目以降も ruby 列分の空きを確保するため、グループ内に ruby があれば
-  // 全トークンの emphasis を ruby-aware 位置に統一する。
-  let lctx = baseLctx;
-  if (lctx.emphasisOverrideX === undefined) {
-    const groupHasRuby = children.some((c) => c.type === 'token' && c.slots.ruby);
-    if (groupHasRuby) {
-      lctx = {
-        ...lctx,
-        emphasisOverrideX: grid.suffixX + rubyFontSize,
-      };
-    }
-  }
-
-  // range ruby overflow: ルビがグループ自然高さを超える場合、
-  // distribute: 超過分を全要素（トークン+セパレータ）で均等割り付け
-  // center: グループを中央寄せ（前後にパディング）
-  let extraAdvancePerElement = 0;
-  let rangeRubySpanHeight: number | undefined;
-  let rangeRubyYOffset = 0;
-  let centerBottomPad = 0;
-  const firstRubyToken = children.find(
-    (c): c is CanvasTokenNode =>
-      c.type === 'token' && !!(c.slots.rubySpan && c.slots.rubySpan > 1 && c.slots.ruby)
-  );
-  // rangeRubyEndY: ルビ下端の絶対 Y（okuri/soegana の押し下げ用）
-  let rangeRubyEndY: number | undefined;
-  if (firstRubyToken) {
-    // naturalHeight: セパレータを含むグループの実際の物理高さ（advance 合計）
-    // baseSpanHeight: 最初のベース文字上端〜最後のベース文字下端（ルビ centering 用）
-    let naturalHeight = 0;
-    let lastTokenContentHeight = fontSize;
-    for (const child of children) {
-      if (child.type === 'token') {
-        lastTokenContentHeight = computeTokenContentHeight(child.slots, fontSize, rubyFontSize);
-        naturalHeight += Math.max(fontSize, lastTokenContentHeight);
-      } else {
-        naturalHeight += separatorAdvance;
-      }
-    }
-    // 最後のトークンの suffix 延伸分（okuri/soegana 等）はルビ centering のスパンに含めない
-    const trailingExtension = Math.max(0, lastTokenContentHeight - fontSize);
-    const baseSpanHeight = naturalHeight - trailingExtension;
-    const alignment = ctx.options.rangeRubyAlignment === 'center' ? 'center' : 'distribute';
-    const result = computeRangeRubyOverflow({
-      rubyChars: splitGraphemes(firstRubyToken.slots.ruby!).length,
-      rubyFontSize,
-      naturalSpan: naturalHeight,
-      baseSpan: baseSpanHeight,
-      elementCount: children.length,
-      alignment,
-    });
-    rangeRubySpanHeight = result.spanHeight;
-    if (result.overflow) {
-      // ルビ下端 = グループ開始位置（leading/padding 適用前）+ rubyTextHeight
-      rangeRubyEndY = columnY + state.yOffset + result.rubyEndOffset!;
-      state.yOffset += result.leading;
-      rangeRubyYOffset = result.rubyYOffset;
-      centerBottomPad = result.trailing;
-      extraAdvancePerElement = result.extraPerElement;
-    }
-  }
-
-  // range ruby overflow 時はルビ centering 用のスパン高さと Y オフセット、ルビ下端を渡す
-  const tokenLctx: LayoutContext =
-    rangeRubySpanHeight !== undefined
-      ? {
-          ...lctx,
-          rangeRubySpanHeight,
-          rangeRubyYOffset,
-          ...(rangeRubyEndY !== undefined ? { rangeRubyEndY } : {}),
-        }
-      : lctx;
-
-  // HTML の letter-spacing に相当するスペーシング量
-  const spacingPx = ctx.cellAdvance - ctx.fontSize;
-  // HTML では sep の negative margin で前トークンの LS を潰した上で、
-  // sep 高さ = max(1em, LS) で間隔を確保する
-  const effectiveSepAdvance = Math.max(separatorAdvance, spacingPx);
-
-  for (const groupChild of children) {
-    if (groupChild.type === 'token') {
-      const tokenX = blockColumnX + blockBaseCenterX;
-      const tokenY = columnY + state.yOffset;
-      result.push(layoutSingleToken(groupChild, tokenX, tokenY, tokenLctx));
-      const contentHeight = computeTokenContentHeight(groupChild.slots, fontSize, rubyFontSize);
-      state.yOffset += Math.max(fontSize, contentHeight) + extraAdvancePerElement;
-    } else {
-      // tateten-separator
-      // spacing が大きい場合、separator を advance 領域の中央に配置する
-      const sepCenterOffset = (effectiveSepAdvance - rubyFontSize) / 2;
-      const sepX = blockColumnX + blockBaseCenterX;
-      const sepY = columnY + state.yOffset + sepCenterOffset;
-      const sepLayout: TatetenSeparatorLayout = {
-        type: 'tateten-separator',
-        x: sepX,
-        y: sepY,
-        fontSize: rubyFontSize,
-        ...(groupChild.hidden ? { hidden: true as const } : {}),
-        ...(groupChild.kaeriHidden ? { kaeriHidden: true as const } : {}),
-      };
-      if (groupChild.kaeri) {
-        const kaeriLayout: SlotLayout = {
-          text: groupChild.kaeri,
-          x: grid.kaeriX,
-          y: sepY,
-          fontSize: rubyFontSize,
-        };
-        sepLayout.kaeri = kaeriLayout;
-      }
-      result.push(sepLayout);
-      state.yOffset += effectiveSepAdvance + extraAdvancePerElement;
-    }
-  }
-  // center モード: 末尾パディング
-  state.yOffset += centerBottomPad;
-
-  // tateten グループ後のスペーシング
-  // HTML では最後のトークンの letter-spacing がグループと次の要素の間にギャップを作る
-  if (spacingPx > 0) {
-    state.yOffset += spacingPx;
-  }
-
-  return result;
 }
 
 /**
@@ -795,22 +743,49 @@ export function placeBlock(
   };
   const state = createInitialState();
   const columnChildren: ColumnChild[] = [];
-  const highlightLines: HighlightLineLayout[] = [];
+  const highlightEntries: HighlightEntry[] = [];
+  const highlightStarts: number[] = [];
 
-  for (let i = 0; i < block.children.length; i++) {
-    const child = block.children[i]!;
-    if (child.type === 'token' && child.slots.rubySpan && child.slots.rubySpan > 1) {
-      detectRangeRubyOverflow(block, i, child, state, ctx);
-    } else if (child.type !== 'token') {
-      resetRangeRubyState(state);
+  const ops: PlacementOp[] = [];
+  flatten(
+    block.children,
+    { inTateten: false, inHighlight: false, emphasisOverrideX: undefined },
+    ctx,
+    ops
+  );
+
+  // HTML では最後のトークンの letter-spacing がグループと次の要素の間にギャップを作る
+  const groupTrailingSpacing = ctx.cellAdvance - ctx.fontSize;
+
+  ops.forEach((op, index) => {
+    switch (op.kind) {
+      case 'token':
+        columnChildren.push(placeTokenOp(ops, index, state, blockLctx, ctx));
+        break;
+      case 'separator':
+        columnChildren.push(placeSeparatorOp(op.node, state, ctx));
+        break;
+      case 'tateten-exit':
+        // tateten グループ後のスペーシング
+        if (groupTrailingSpacing > 0) state.yOffset += groupTrailingSpacing;
+        break;
+      case 'highlight-enter':
+        highlightStarts.push(ctx.columnY + state.yOffset);
+        break;
+      case 'highlight-exit': {
+        const yStart = highlightStarts.pop()!;
+        const yEnd = ctx.columnY + state.yOffset;
+        highlightEntries.push({
+          node: op.node,
+          line: layoutHighlightLine(op.node, op.lineX, yStart, yEnd, ctx.rubyFontSize),
+        });
+        break;
+      }
     }
+  });
 
-    const result = placeBlockChild(child, state, blockLctx, ctx);
-    columnChildren.push(...result.children);
-    if (result.highlightLines) highlightLines.push(...result.highlightLines);
-
-    consumeRangeRuby(child, state);
-  }
+  joinHighlightFragments(highlightEntries);
+  const highlightLines = highlightEntries.map((entry) => entry.line);
 
   return {
     x: ctx.blockColumnX,

@@ -1727,7 +1727,7 @@ describe('data-token-id attributes', () => {
     expect(result.html).toContain('ちょうてい');
   });
 
-  it('should render data-token-from/to on range okurigana when interactive: true', () => {
+  it('should render data-token-id per token on range okurigana when interactive: true', () => {
     const doc: SKAMDocument = {
       format: 'skam@0.1',
       tokens: [
@@ -1747,9 +1747,10 @@ describe('data-token-id attributes', () => {
 
     const result = render(doc, { interactive: true });
 
-    // 範囲マークの場合はdata-token-from/toが使用される
-    expect(result.html).toContain('data-token-from="t1"');
-    expect(result.html).toContain('data-token-to="t2"');
+    // 送り仮名の範囲は区間にならず、字ごとの data-token-id で引く
+    expect(result.html).toContain('data-token-id="t1"');
+    expect(result.html).toContain('data-token-id="t2"');
+    expect(result.html).not.toContain('data-token-from=');
   });
 
   it('should not render data-token-id by default', () => {

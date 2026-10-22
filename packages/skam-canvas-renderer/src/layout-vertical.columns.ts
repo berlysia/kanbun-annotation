@@ -5,6 +5,7 @@
  * Placement レイヤがモードを意識しないようにする。
  */
 
+import { highlightLanePitch } from './draw-marks.js';
 import type {
   BlockLayoutFlags,
   ColumnDimensions,
@@ -65,6 +66,11 @@ export function computeColumnDimensions(
   if (flags.hasHighlight && flags.hasRefLabel) {
     const labelRightEdge = highlightGap + Math.ceil((rubyFontSize * 11) / 8);
     extraRightWidth = Math.max(extraRightWidth, labelRightEdge);
+  }
+
+  // 傍線の段: 段の数だけ線が列の右へずれる (ずれた線とラベルが隣の列に入らないようにする)
+  if (flags.hasHighlight && flags.maxHighlightLane) {
+    extraRightWidth += flags.maxHighlightLane * highlightLanePitch(highlightGap);
   }
 
   return {

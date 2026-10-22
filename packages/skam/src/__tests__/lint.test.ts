@@ -647,7 +647,7 @@ describe('lintSKAMDocument', () => {
   });
 
   describe('1 字の竪点の描画 (ADR-044 に事実として書く)', () => {
-    // 描画は直さない。レ以外の返り点が 1 字の竪点の字に付いたとき、AIR にその返り点が出るかを確かめる
+    // レ以外の返り点が 1 字の竪点の字に付いたとき、AIR にその返り点が出るかを確かめる
     function airTextWithKaeri(value: string, withTateten: boolean): string {
       const marks: Mark[] = [
         { type: 'kaeri', id: 'k1', position: { blockId: 'b1', after: 't1' }, value },
@@ -666,9 +666,8 @@ describe('lintSKAMDocument', () => {
       expect(airTextWithKaeri(KAERI.RE, true)).toContain(KAERI.RE);
     });
 
-    it('1 字の竪点の字に付いたレ以外 (二) は AIR に出ない', () => {
-      // 区切りが 0 個のグループになり、非レ成分の置き場が無い。lint が TATETEN_SINGLE_TOKEN を出す根拠の 1 つ
-      expect(airTextWithKaeri(KAERI.NI, true)).not.toContain(KAERI.NI);
+    it('1 字の竪点の字に付いたレ以外 (二) は、置く区切りが無いので字に残る', () => {
+      expect(airTextWithKaeri(KAERI.NI, true)).toContain(KAERI.NI);
     });
   });
 });

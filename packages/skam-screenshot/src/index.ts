@@ -13,3 +13,5 @@ export { capture, captureHTML, captureCanvas } from './capture.js';
 export { buildHTMLPage } from './page-builder.js';
 export { generateCompareHTML } from './compare-html.js';
 export { getDefaultBrowsers } from './platform.js';
+export { calibrateGridBaselineInPage } from './browser-manager.js';
+export type { CalibratablePage } from './browser-manager.js';

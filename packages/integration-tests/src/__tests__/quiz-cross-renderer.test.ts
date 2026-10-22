@@ -41,9 +41,7 @@ function airOf(document: SKAMDocument, hideQuiz: unknown): AIRDocument {
 function tokenNodes(children: readonly AIRBlockChild[]): AIRTokenNode[] {
   return children.flatMap((child): AIRTokenNode[] => {
     if (child.type === 'token') return [child];
-    if (child.type === 'tateten-group') {
-      return child.children.filter((c): c is AIRTokenNode => c.type === 'token');
-    }
+    if (child.type === 'tateten-separator') return [];
     return tokenNodes(child.children);
   });
 }
@@ -60,28 +58,28 @@ function airHiddenKinds(air: AIRDocument): Set<string> {
     saidokuUnder: 'skam-ruby',
     saidokuOkuri2: 'skam-okuri',
   };
+  const walk = (children: readonly AIRBlockChild[]): void => {
+    for (const child of children) {
+      if (child.type === 'token') {
+        for (const slot of child.hiddenSlots ?? []) {
+          // 値の無い slot は、html にも隠す要素が出ない
+          const value = child.slots[slot as keyof typeof child.slots];
+          if (value !== undefined) kinds.add(byName[slot]!);
+        }
+        continue;
+      }
+      if (child.type === 'tateten-separator') {
+        if (child.kaeriHidden) kinds.add('skam-kaeriten');
+        continue;
+      }
+      if (child.type === 'tateten-group' && child.hidden) kinds.add('skam-tateten-mark');
+      if (child.type === 'ruby-group' && child.yomigana.hidden) kinds.add('skam-ruby');
+      walk(child.children);
+    }
+  };
   for (const block of air.blocks) {
     for (const k of block.blockStartKutoten) if (k.hidden) kinds.add('skam-suffix-kutoten');
-    for (const child of block.children) {
-      if (child.type === 'tateten-group' && child.hidden) kinds.add('skam-tateten-mark');
-      if (child.type === 'tateten-group') {
-        for (const c of child.children) {
-          if (c.type === 'tateten-separator' && c.kaeriHidden) kinds.add('skam-kaeriten');
-        }
-      }
-    }
-    for (const node of tokenNodes(block.children)) {
-      for (const slot of node.hiddenSlots ?? []) {
-        // 値の無い slot は、html にも隠す要素が出ない
-        const value = node.slots[slot as keyof typeof node.slots];
-        if (value !== undefined) kinds.add(byName[slot]!);
-      }
-      const info = node.rangeInfo;
-      if (info?.yomigana?.hidden) kinds.add('skam-ruby');
-      if (info?.okurigana?.hidden) kinds.add('skam-okuri');
-      if (info?.soegana?.hidden) kinds.add('skam-soegana');
-      for (const t of info?.trailingMarks ?? []) if (t.hidden) kinds.add(`trailing:${t.kind}`);
-    }
+    walk(block.children);
   }
   return kinds;
 }
@@ -161,9 +159,7 @@ describe('quiz hiding: AIR and html agree', () => {
     const document = doc(marks);
     const air = airHiddenKinds(airOf(document, true));
     const html = htmlHiddenKinds(document);
-    // trailing の印は html では trailing 先の字の要素になるので、ここでは種類の集合から外す
-    const comparable = new Set([...air].filter((kind) => !kind.startsWith('trailing:')));
-    expect(html).toEqual(comparable);
+    expect(html).toEqual(air);
   });
 
   it('隠す所が何かしらある（空の比較で通っていない）', () => {

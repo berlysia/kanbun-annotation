@@ -2,19 +2,19 @@
  * 読み上げ用テキスト: AIR から言語に依存しない構造を作る。
  *
  * AIR は profile で絞った「画面に見えるもの」なので、この構造に入る値は
- * 画面に見えている注記だけになる。slots / rangeInfo / trailingMarks に無い値は出さない。
+ * 画面に見えている注記だけになる。字の slots と、グループのノードに無い値は出さない。
  */
 
 import type {
   AIRBlock,
+  AIRBlockChild,
   AIRDocument,
-  AIRRangeInfo,
+  AIRRubyGroupNode,
   AIRTatetenGroupNode,
   AIRTatetenSeparator,
   AIRHiddenSlot,
   AIRTokenNode,
   AIRTokenSlots,
-  AIRTrailingMark,
   AIRHighlightGroupNode,
 } from './air-types.js';
 import { DEFAULT_ACCESSIBLE_LABELS, type AccessibleLabels } from './accessible-labels.js';
@@ -99,7 +99,7 @@ function makeUnit(text: string, notes: AccessibleNote[]): AccessibleUnit {
   return { text, notes: sorted.map((n) => Object.freeze(n)) };
 }
 
-/** 単位の並びの最後の単位に、行を改める印を付ける。単位が無ければ (範囲に畳まれた字など) 何もしない */
+/** 単位の並びの最後の単位に、行を改める印を付ける。単位が無ければ何もしない */
 function withLineBreakAfter(units: AccessibleUnit[], lineBreakAfter: boolean): AccessibleUnit[] {
   const last = units[units.length - 1];
   if (!lineBreakAfter || !last) return units;
@@ -107,7 +107,7 @@ function withLineBreakAfter(units: AccessibleUnit[], lineBreakAfter: boolean): A
 }
 
 // ============================================================================
-// slots / rangeInfo から note を作る
+// slots から note を作る
 // ============================================================================
 
 function isSaidoku(slots: AIRTokenSlots): boolean {
@@ -120,30 +120,19 @@ function isSaidoku(slots: AIRTokenSlots): boolean {
  * 再読文字（2 回目の読みがある）のときは、ruby / okuri を `saidoku` の 1 回目として扱い、
  * yomigana / okurigana の note にしない。
  */
-function readingNotes(
-  node: AIRTokenNode,
-  withSlotReadings: boolean,
-  range: AIRRangeInfo | undefined
-): AccessibleNote[] {
+function readingNotes(node: AIRTokenNode): AccessibleNote[] {
   const { slots } = node;
   const saidoku = isSaidoku(slots);
-  const slotReadings = withSlotReadings && !saidoku;
   // 拡張 (出題の印) が隠す読みは、画面と同じく note にしない
   const pick = (
-    rangePart: { value: string; hidden?: true } | undefined,
     useSlot: boolean,
     hiddenName: AIRHiddenSlot,
     slotValue: string | undefined
   ): string | undefined =>
-    preferRange(
-      rangePart?.value,
-      useSlot && node.hiddenSlots?.includes(hiddenName) !== true,
-      slotValue,
-      rangePart?.hidden === true
-    );
-  const yomigana = pick(range?.yomigana, slotReadings, 'ruby', slots.ruby);
-  const okurigana = pick(range?.okurigana, slotReadings, 'okuri', slots.okuri);
-  const soegana = pick(range?.soegana, withSlotReadings, 'soegana', slots.soegana);
+    useSlot && node.hiddenSlots?.includes(hiddenName) !== true ? slotValue : undefined;
+  const yomigana = pick(!saidoku, 'ruby', slots.ruby);
+  const okurigana = pick(!saidoku, 'okuri', slots.okuri);
+  const soegana = pick(true, 'soegana', slots.soegana);
 
   const notes: AccessibleNote[] = [];
   if (yomigana) notes.push({ kind: 'yomigana', value: yomigana });
@@ -158,17 +147,6 @@ function readingNotes(
     if (first || second) notes.push({ kind: 'saidoku', first, second });
   }
   return notes;
-}
-
-/** 範囲の値があればそれを、無ければ（許されるとき）slot の値を使う */
-function preferRange(
-  rangeValue: string | undefined,
-  useSlot: boolean,
-  slotValue: string | undefined,
-  rangeHidden: boolean
-): string | undefined {
-  if (rangeValue !== undefined) return rangeHidden ? undefined : rangeValue;
-  return useSlot ? slotValue : undefined;
 }
 
 /** 読み以外の slot から作る note */
@@ -189,64 +167,22 @@ function markNotes(node: AIRTokenNode): AccessibleNote[] {
   return notes;
 }
 
-function describeSlots(
-  node: AIRTokenNode,
-  withSlotReadings: boolean,
-  range?: AIRRangeInfo
-): AccessibleNote[] {
-  return [...readingNotes(node, withSlotReadings, range), ...markNotes(node)];
-}
-
-function trailingNote(mark: AIRTrailingMark): AccessibleNote {
-  switch (mark.kind) {
-    case 'kaeri':
-      return { kind: 'kaeri', value: mark.resolved };
-    case 'kutoten':
-      return { kind: 'kutoten', value: mark.resolved };
-    case 'ref':
-      return { kind: 'ref', label: mark.resolved };
-    case 'okimoji':
-      return { kind: 'okimoji' };
-    case 'joji':
-      return { kind: 'joji' };
-    case 'emphasis':
-      return { kind: 'emphasis' };
-  }
-}
-
-/** 範囲全体の基底文字列。AIR は少なくとも 1 つの範囲 mark の baseText を持つ */
-function rangeText(range: AIRRangeInfo, fallback: string): string {
-  return (
-    range.yomigana?.baseText ?? range.okurigana?.baseText ?? range.soegana?.baseText ?? fallback
-  );
+function describeSlots(node: AIRTokenNode): AccessibleNote[] {
+  return [...readingNotes(node), ...markNotes(node)];
 }
 
 // ============================================================================
 // ノードから単位を作る
 // ============================================================================
 
-function describeTokenNode(node: AIRTokenNode): AccessibleUnit | undefined {
-  const unit = describeTokenNodeUnit(node);
-  return unit && node.lineBreakAfter ? { ...unit, lineBreakAfter: true } : unit;
+function describeTokenNode(node: AIRTokenNode): AccessibleUnit {
+  const unit = makeUnit(node.token.text, describeSlots(node));
+  return node.lineBreakAfter ? { ...unit, lineBreakAfter: true } : unit;
 }
 
-function describeTokenNodeUnit(node: AIRTokenNode): AccessibleUnit | undefined {
-  if (node.rangeConsumed) return undefined;
-  const range = node.rangeInfo;
-  const notes = describeSlots(node, true, range);
-  if (!range) return makeUnit(node.token.text, notes);
-  for (const mark of range.trailingMarks) {
-    if (mark.hidden !== true) notes.push(trailingNote(mark));
-  }
-  return makeUnit(rangeText(range, node.token.text), notes);
-}
-
-/** 竪点の区切り。竪点を拡張 (出題の印) が隠すときは単位を出さない */
-function describeSeparator(
-  separator: AIRTatetenSeparator,
-  hidden: boolean
-): AccessibleUnit | undefined {
-  if (hidden) return undefined;
+/** 竪点の区切り。含む竪点がどれも拡張 (出題の印) で隠されているときは単位を出さない */
+function describeSeparator(separator: AIRTatetenSeparator): AccessibleUnit | undefined {
+  if (separator.hidden === true) return undefined;
   const note: AccessibleNote =
     separator.kaeri !== undefined && separator.kaeriHidden !== true
       ? { kind: 'tateten', kaeri: separator.kaeri }
@@ -254,77 +190,52 @@ function describeSeparator(
   return makeUnit('', [note]);
 }
 
+/** 傍線の id (注記) から、断片に分かれても 1 つの解決済みラベルを引く */
+type HighlightLabels = ReadonlyMap<AIRHighlightGroupNode['highlightMark'], string>;
+
 /**
- * 竪点のグループ。読みの範囲がグループの中に収まっているとき（`rangeInfo` がある）は、
- * 範囲全体を 1 単位にする。範囲の中の区切りは、その単位の後に続ける。
+ * ruby のグループ。字は 1 字ずつ単位にし、範囲の読み仮名は最後の字の後ろの、本文の無い単位で読む。
+ * 読みを拡張 (出題の印) が隠すときは、その単位を出さない。
  */
-function describeTatetenGroup(group: AIRTatetenGroupNode): AccessibleUnit[] {
-  return withLineBreakAfter(describeTatetenGroupUnits(group), group.lineBreakAfter === true);
+function describeRubyGroup(group: AIRRubyGroupNode, labels: HighlightLabels): AccessibleUnit[] {
+  const units = describeChildren(group.children, labels);
+  if (group.yomigana.hidden !== true) {
+    units.push(makeUnit('', [{ kind: 'yomigana', value: group.yomigana.value }]));
+  }
+  return withLineBreakAfter(units, group.lineBreakAfter === true);
 }
 
-function describeTatetenGroupUnits(group: AIRTatetenGroupNode): AccessibleUnit[] {
-  const range = group.rangeInfo;
+function describeTatetenGroup(
+  group: AIRTatetenGroupNode,
+  labels: HighlightLabels
+): AccessibleUnit[] {
+  return withLineBreakAfter(
+    describeChildren(group.children, labels),
+    group.lineBreakAfter === true
+  );
+}
+
+/**
+ * 傍線のグループ。傍線の始まりは前に断片が無いグループで、終わりは後ろに断片が無いグループで読む
+ * (断片に分かれた傍線も、始まりと終わりは 1 回ずつ)。ラベルは最後の断片に付くので、始まりでは
+ * 同じ傍線の解決済みラベルを引く。
+ */
+function describeHighlightGroup(
+  group: AIRHighlightGroupNode,
+  labels: HighlightLabels
+): AccessibleUnit[] {
   const out: AccessibleUnit[] = [];
-  const hidden = group.hidden === true;
-
-  if (!range) {
-    for (const child of group.children) {
-      if (child.type === 'tateten-separator') {
-        const separator = describeSeparator(child, hidden);
-        if (separator) out.push(separator);
-        continue;
-      }
-      const unit = describeTokenNode(child);
-      if (unit) out.push(unit);
-    }
-    return out;
+  if (group.continuesBefore !== true) {
+    const label = group.refLabel ?? labels.get(group.highlightMark);
+    out.push(
+      makeUnit('', [
+        label !== undefined ? { kind: 'highlightStart', label } : { kind: 'highlightStart' },
+      ])
+    );
   }
+  out.push(...describeChildren(group.children, labels));
+  if (group.continuesAfter === true) return out;
 
-  const covered = new Set(range.tokenIds);
-  const mergedNotes: AccessibleNote[] = [];
-  const deferred: AccessibleUnit[] = [];
-  let merging = false;
-
-  for (const child of group.children) {
-    if (child.type === 'tateten-separator') {
-      const separator = describeSeparator(child, hidden);
-      if (separator) (merging ? deferred : out).push(separator);
-      continue;
-    }
-    const id = child.token.id;
-    if (!covered.has(id)) {
-      const unit = describeTokenNode(child);
-      if (unit) out.push(unit);
-      continue;
-    }
-    if (id === range.fromTokenId) {
-      merging = true;
-      mergedNotes.push(...describeSlots(child, true, range));
-    } else {
-      mergedNotes.push(...describeSlots(child, false));
-    }
-    if (id === range.toTokenId) {
-      out.push(makeUnit(rangeText(range, ''), mergedNotes), ...deferred);
-      merging = false;
-    }
-  }
-  return out;
-}
-
-function describeHighlightGroup(group: AIRHighlightGroupNode): AccessibleUnit[] {
-  const start: AccessibleNote =
-    group.refLabel !== undefined
-      ? { kind: 'highlightStart', label: group.refLabel }
-      : { kind: 'highlightStart' };
-  const out: AccessibleUnit[] = [makeUnit('', [start])];
-  for (const child of group.children) {
-    if (child.type === 'tateten-group') {
-      out.push(...describeTatetenGroup(child));
-    } else {
-      const unit = describeTokenNode(child);
-      if (unit) out.push(unit);
-    }
-  }
   // 最後の子の後ろの改行は、傍線の終わりの後ろに置く (html は span を閉じた後に改行する)
   const last = out[out.length - 1];
   const breakAtEnd = last !== undefined && out.length > 1 && last.lineBreakAfter === true;
@@ -337,6 +248,48 @@ function describeHighlightGroup(group: AIRHighlightGroupNode): AccessibleUnit[] 
   return out;
 }
 
+function describeChildren(
+  children: readonly AIRBlockChild[],
+  labels: HighlightLabels
+): AccessibleUnit[] {
+  const units: AccessibleUnit[] = [];
+  for (const child of children) {
+    switch (child.type) {
+      case 'token':
+        units.push(describeTokenNode(child));
+        break;
+      case 'tateten-separator': {
+        const separator = describeSeparator(child);
+        if (separator) units.push(separator);
+        break;
+      }
+      case 'ruby-group':
+        units.push(...describeRubyGroup(child, labels));
+        break;
+      case 'tateten-group':
+        units.push(...describeTatetenGroup(child, labels));
+        break;
+      case 'highlight-group':
+        units.push(...describeHighlightGroup(child, labels));
+        break;
+    }
+  }
+  return units;
+}
+
+/** 傍線ごとの解決済みラベルを集める。ラベルは断片のうち最後の 1 つだけに付く */
+function collectHighlightLabels(
+  children: readonly AIRBlockChild[],
+  labels: Map<AIRHighlightGroupNode['highlightMark'], string>
+): void {
+  for (const child of children) {
+    if (child.type === 'highlight-group' && child.refLabel !== undefined) {
+      labels.set(child.highlightMark, child.refLabel);
+    }
+    if ('children' in child) collectHighlightLabels(child.children, labels);
+  }
+}
+
 function describeBlock(block: AIRBlock): AccessibleBlock {
   const units: AccessibleUnit[] = [];
   for (const kutoten of block.blockStartKutoten) {
@@ -346,16 +299,9 @@ function describeBlock(block: AIRBlock): AccessibleBlock {
   for (const ref of block.blockStartRefs) {
     units.push(makeUnit('', [{ kind: 'ref', label: ref.resolved }]));
   }
-  for (const child of block.children) {
-    if (child.type === 'highlight-group') {
-      units.push(...describeHighlightGroup(child));
-    } else if (child.type === 'tateten-group') {
-      units.push(...describeTatetenGroup(child));
-    } else {
-      const unit = describeTokenNode(child);
-      if (unit) units.push(unit);
-    }
-  }
+  const labels = new Map<AIRHighlightGroupNode['highlightMark'], string>();
+  collectHighlightLabels(block.children, labels);
+  units.push(...describeChildren(block.children, labels));
   return { blockId: block.blockId, units };
 }
 
@@ -365,11 +311,14 @@ function describeBlock(block: AIRBlock): AccessibleBlock {
  * - 単位の順序は AIR の走査順で、`blocks[].tokenIds` の連結順に一致する。
  * - 注記の順序は、本文の後に yomigana, saidoku, okurigana, soegana, kaeri, kutoten,
  *   okimoji, joji, emphasis, okototen, ref の順。
- * - 出すのは AIR の slots / rangeInfo / trailingMarks にある値だけ。AIR は profile で絞り込み済みなので、
+ * - 出すのは AIR の字の slots と、グループのノードにある値だけ。AIR は profile で絞り込み済みなので、
  *   画面に見えていない注記は出ない。
+ * - 字は 1 字ずつ単位にし、その字自身の注記を notes に入れる。
  * - 再読文字は `slots.saidokuUnder` か `slots.saidokuOkuri2` があるときだけ `saidoku` の note にする。
  *   2 回目の読みが無い再読文字は、1 回目の読みが yomigana / okurigana として出る (R4)。
- * - 竪点のグループからはみ出す読みの範囲は、先頭の字の yomigana として出る (#16)。
+ * - 2 字以上の読みの範囲 (ruby のグループ) は、範囲の最後の字の単位の後ろに、本文の無い単位で
+ *   yomigana の note を 1 つ出す。竪点や傍線の断片にまたがっても 1 回。
+ * - 傍線の始まりと終わりは、断片に分かれても 1 回ずつ出す。
  * - 純粋関数。AIR を書き換えない。返す note は凍結している。
  *
  * @experimental

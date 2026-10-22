@@ -1,16 +1,25 @@
 import { describe, it, expect } from 'vitest';
 import type { SKAMDocument, Mark } from '@kanbun-skam/skam';
 import { KAERI } from '@kanbun-skam/skam';
-import { buildRenderTree } from '../render-tree.js';
+import { buildAnnotationIR } from '@kanbun-skam/skam/rendering';
+import { convertAIRToCanvasRenderTree } from '../air-adapter.js';
 import { PROFILES } from '../profiles.js';
+import type { RenderProfile } from '../profiles.js';
 import type {
+  CanvasRenderTree,
   CanvasBlockChild,
+  CanvasGroupChild,
   CanvasTokenNode,
   CanvasTatetenGroupNode,
   CanvasHighlightGroupNode,
   CanvasTatetenSeparator,
   BlockLayoutFlags,
 } from '../types.js';
+
+/** 文書を AIR の経路 (buildAnnotationIR → convertAIRToCanvasRenderTree) で Canvas の木にする */
+function buildRenderTree(doc: SKAMDocument, profile: RenderProfile): CanvasRenderTree {
+  return convertAIRToCanvasRenderTree(buildAnnotationIR(doc, profile));
+}
 
 /** Narrow CanvasBlockChild to CanvasTokenNode for test assertions */
 function asTokenNode(child: CanvasBlockChild): CanvasTokenNode {
@@ -25,13 +34,13 @@ function asTatetenGroup(child: CanvasBlockChild): CanvasTatetenGroupNode {
 }
 
 /** Narrow tateten group child to CanvasTokenNode */
-function asGroupToken(child: CanvasTokenNode | CanvasTatetenSeparator): CanvasTokenNode {
+function asGroupToken(child: CanvasGroupChild): CanvasTokenNode {
   if (child.type !== 'token') throw new Error(`Expected token in group, got ${child.type}`);
   return child;
 }
 
 /** Narrow tateten group child to CanvasTatetenSeparator */
-function asSeparator(child: CanvasTokenNode | CanvasTatetenSeparator): CanvasTatetenSeparator {
+function asSeparator(child: CanvasGroupChild): CanvasTatetenSeparator {
   if (child.type !== 'tateten-separator')
     throw new Error(`Expected tateten-separator in group, got ${child.type}`);
   return child;

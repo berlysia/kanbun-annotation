@@ -15,7 +15,7 @@
 /// <reference lib="dom.iterable" />
 import { test, expect, type Page } from '@playwright/test';
 import { render } from '@kanbun-skam/skam-html-renderer';
-import { buildHTMLPage } from '@kanbun-skam/skam-screenshot';
+import { buildHTMLPage, calibrateGridBaselineInPage } from '@kanbun-skam/skam-screenshot';
 import {
   FIXTURES,
   FIXTURE_HIGHLIGHT_SPACING,
@@ -154,14 +154,29 @@ async function scanSolidHighlightLines(
   );
 }
 
+/**
+ * ページを組み、フォントの読み込みを待ち、Chromium の inline-grid の基準線の補正を当てる。
+ * 補正を当てないと縦書きで inline-grid (範囲の読みなど) の後ろの字が右下にずれ、
+ * ずれた状態が基準画像になる。Chromium の project だけで走るので、補正が立つことを確かめる
+ * (立たなければ補正の呼び忘れか、測定が Chromium で効いていない)。
+ */
+async function loadPage(page: Page, html: string, css: string): Promise<void> {
+  await page.setContent(buildHTMLPage(html, css), { waitUntil: 'networkidle' });
+  await page.evaluate('document.fonts.ready');
+  await calibrateGridBaselineInPage(page);
+  const fix = await page.evaluate(() =>
+    document
+      .querySelector<HTMLElement>('#skam-root')
+      ?.style.getPropertyValue('--skam-grid-baseline-fix')
+  );
+  expect(fix, '--skam-grid-baseline-fix on #skam-root').toBe('1');
+}
+
 test.describe('visual regression', () => {
   for (const [caseId, doc] of Object.entries(FIXTURES)) {
     test(caseId, async ({ page }) => {
       const { html, css } = render(doc);
-      const pageContent = buildHTMLPage(html, css);
-
-      await page.setContent(pageContent, { waitUntil: 'networkidle' });
-      await page.evaluate('document.fonts.ready');
+      await loadPage(page, html, css);
 
       const root = page.locator('#skam-root');
       await expect(root).toHaveScreenshot(`${caseId}.png`, {
@@ -179,8 +194,7 @@ test.describe('visual regression', () => {
         spacing: 'half',
         writingMode: orientation,
       });
-      await page.setContent(buildHTMLPage(html, css), { waitUntil: 'networkidle' });
-      await page.evaluate('document.fonts.ready');
+      await loadPage(page, html, css);
 
       const root = page.locator('#skam-root');
       const png = await root.screenshot();
@@ -204,7 +218,7 @@ test.describe('visual regression', () => {
   // 注釈欄の行は marks[] の順に並ぶため、DOM の順でなく本文の文字で行を引く。
   test('ref-source-order labels follow source order', async ({ page }) => {
     const { html, css } = render(FIXTURE_REF_SOURCE_ORDER);
-    await page.setContent(buildHTMLPage(html, css), { waitUntil: 'networkidle' });
+    await loadPage(page, html, css);
 
     await expect(page.locator('.skam-display .skam-ref')).toHaveText(['(1)', '(2)', '(3)']);
 

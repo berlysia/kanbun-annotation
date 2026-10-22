@@ -2,7 +2,7 @@
  * Canvas Renderer 型定義
  */
 
-import type { Token, HighlightStyle } from '@kanbun-skam/skam';
+import type { Token, HighlightStyle, HighlightMark } from '@kanbun-skam/skam';
 import type { HideQuizOption, SKAMExtensionDefinition } from '@kanbun-skam/skam/extensions';
 import type { AIRHiddenSlot, Spacing } from '@kanbun-skam/skam/rendering';
 import type { RenderProfile, RenderProfileInput } from './profiles.js';
@@ -150,9 +150,16 @@ export interface CanvasTatetenSeparator {
   kaeriHidden?: true;
 }
 
+/** 竪点・傍線のグループの子。AIR の入れ子のまま持つ (ruby のグループは最初の字の `rubySpan` に畳む) */
+export type CanvasGroupChild =
+  | CanvasTokenNode
+  | CanvasTatetenSeparator
+  | CanvasTatetenGroupNode
+  | CanvasHighlightGroupNode;
+
 export interface CanvasTatetenGroupNode {
   type: 'tateten-group';
-  children: (CanvasTokenNode | CanvasTatetenSeparator)[];
+  children: CanvasGroupChild[];
 }
 
 export interface CanvasHighlightGroupNode {
@@ -160,10 +167,20 @@ export interface CanvasHighlightGroupNode {
   highlightStyle: HighlightStyle;
   highlightRef?: string;
   refLabel?: string;
-  children: (CanvasTokenNode | CanvasTatetenGroupNode)[];
+  children: CanvasGroupChild[];
+  /** 傍線の段 (AIR の `lane`。1 以上のときだけ付く)。段 × 間隔だけ右へずらして線を引く */
+  lane?: number;
+  /**
+   * 前 / 後ろに同じ傍線の断片がある (AIR の `continuesBefore` / `continuesAfter`)。
+   * 付かないときはキーごと無い。続きの側の端は、同じ列の隣の断片の端まで線をつなぐ
+   */
+  continuesBefore?: true;
+  continuesAfter?: true;
+  /** 断片が同じ傍線のものかを見分ける印 (断片のときだけ付く) */
+  fragmentOf?: HighlightMark;
 }
 
-export type CanvasBlockChild = CanvasTokenNode | CanvasTatetenGroupNode | CanvasHighlightGroupNode;
+export type CanvasBlockChild = CanvasGroupChild;
 
 /** ブロック単位のレイアウトフラグ（各ブロックの children から集約） */
 export interface BlockLayoutFlags {
@@ -174,6 +191,8 @@ export interface BlockLayoutFlags {
   hasHighlight: boolean;
   /** highlight-group に refLabel を持つものが存在 → 列右側に追加幅が必要 */
   hasRefLabel: boolean;
+  /** 傍線の段の最大 (1 以上のときだけ付く)。段の数だけ列右側に追加幅が必要 */
+  maxHighlightLane?: number;
 }
 
 export interface CanvasBlockNode {
@@ -198,6 +217,8 @@ export interface CanvasRenderTree {
   hasHighlight: boolean;
   /** highlight-group に refLabel を持つものが存在 → 列右側に追加幅が必要 */
   hasRefLabel: boolean;
+  /** 傍線の段の最大 (1 以上のときだけ付く) */
+  maxHighlightLane?: number;
 }
 
 // ============================================================================

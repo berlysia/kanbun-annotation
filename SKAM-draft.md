@@ -1067,6 +1067,7 @@ SKAM-ML の属性は SKAM-ML-draft §10.2 を参照。
 | `TATETEN_SINGLE_TOKEN`   | 竪点の `anchor` が 1 字だけ                                             |
 | `KAERI_UNCLOSED`         | 閉じていない返り点（§14.1）                                             |
 | `HIGHLIGHT_REF_MISSING`  | 傍線の `ref` が、どの ref 注記の `id` とも等しくない                    |
+| `HIGHLIGHT_REF_UNLINKED` | `ref` を持たない傍線の範囲に、ref 注記がちょうど 1 つある               |
 
 ### 14.1 閉じていない返り点
 

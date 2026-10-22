@@ -77,7 +77,7 @@ assertSKAMDocument(input);
 - 不可分単位の中: たて点のグループの中と、`yomigana` / `okurigana` / `soegana` / `saidoku` / `okimoji` / `joji` の範囲の中（`highlight` / `emphasis` / `okototen` の範囲の中には置ける）
 - 同じ位置の 2 つ目
 
-`getLinebreakPlacementIssues(doc)` は、置けない場所にある `linebreak` を `marks[]` の添字ごとに返す（理由は `'block-start' | 'block-end' | 'inside-unit' | 'duplicate'`）。描画は同じ判定を使い、置けない `linebreak` を無視する。`@kanbun-skam/skam/rendering` の AIR では、行を改める単位のノード（`AIRTokenNode` / `AIRTatetenGroupNode`）に `lineBreakAfter: true` が付く。表示設定のキー `linebreak` を `false` にすると、改行を描かない。
+`getLinebreakPlacementIssues(doc)` は、置けない場所にある `linebreak` を `marks[]` の添字ごとに返す（理由は `'block-start' | 'block-end' | 'inside-unit' | 'duplicate'`）。描画は同じ判定を使い、置けない `linebreak` を無視する。`@kanbun-skam/skam/rendering` の AIR では、行を改める単位のノード（`AIRTokenNode` / `AIRRubyGroupNode` / `AIRTatetenGroupNode`）に `lineBreakAfter: true` が付く（その字で終わるグループがあれば、最も外側の ruby か竪点のグループに付く）。表示設定のキー `linebreak` を `false` にすると、改行を描かない。
 
 ## 本文の言語（`lang`）
 
@@ -85,7 +85,7 @@ assertSKAMDocument(input);
 
 ## 未完成の検査
 
-`lintSKAMDocument(doc)` は、構造として正しい文書のうち、作業が終わっていないように見える内容（読みが 1 つの再読文字、空の仮名、1 字の竪点、閉じていない返り点、参照先の無い傍線の `ref`）を、コード付きの診断（`{ code, path, message }`）の配列で返す。診断は誤りではない。`validateSKAMDocument` か `parse` を通した文書を渡す（中で検証しない。検証を通っていない文書でも例外は出さないが、診断が正しいとは限らない）。コードは今後増えることがある。`validateSKAMDocument` の `warnings` は、後の版で誤りになる書き方の知らせで、これとは別のもの。
+`lintSKAMDocument(doc)` は、構造として正しい文書のうち、作業が終わっていないように見える内容（読みが 1 つの再読文字、空の仮名、1 字の竪点、閉じていない返り点、参照先の無い傍線の `ref`、`ref` で結ばれていない傍線の範囲にある ref）を、コード付きの診断（`{ code, path, message }`）の配列で返す。診断は誤りではない。`validateSKAMDocument` か `parse` を通した文書を渡す（中で検証しない。検証を通っていない文書でも例外は出さないが、診断が正しいとは限らない）。コードは今後増えることがある。`validateSKAMDocument` の `warnings` は、後の版で誤りになる書き方の知らせで、これとは別のもの。
 
 ## JSON Schema
 
@@ -137,10 +137,9 @@ const text = formatAccessibleText(describeAnnotationIR(air));
 // 例: 學。而、置き字。時。習、レ点。之。
 ```
 
-既知の制約:
+2 字以上の読みの範囲（`AIRRubyGroupNode`）は、範囲の最後の字の単位の後ろに、本文の無い単位で読み仮名の注記として 1 つ出る。傍線の始まりと終わりは、竪点や傍線の断片に分かれても 1 回ずつ出る。
 
-- 読みの範囲が竪点のグループからはみ出す文書（#16）では、範囲の読みが先頭の字の読み仮名として出る。
-- 再読文字は `slots.saidokuUnder` か `slots.saidokuOkuri2` があるときだけ再読文字として読む。2 回目の読みが無い再読文字は、1 回目の読みが読み仮名・送り仮名として出る。
+既知の制約: 再読文字は `slots.saidokuUnder` か `slots.saidokuOkuri2` があるときだけ再読文字として読む。2 回目の読みが無い再読文字は、1 回目の読みが読み仮名・送り仮名として出る。
 
 ## Mark Types
 

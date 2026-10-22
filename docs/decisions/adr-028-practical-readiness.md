@@ -14,6 +14,7 @@ status: Complete
 
 - **parser が本文を黙って落とす**: 全角空白 (`\s` による除去) と CDATA。SKAM-ML-draft §6.2 は U+3000 を意図的な空白と定めており、挙動が仕様と逆だった。
 - **XML の往復で、検証を通る注記が黙って消える**: 重なる yomigana と okurigana、ブロック先頭の kutoten / ref、部分交差する範囲、複数 token の okimoji / joji / okototen / saidoku、content だけの ref、空ブロック。
+  - ADR-047 で改めた: 部分交差と入れ子にできない重なりは空要素の対で書けるようになった。2 字以上の saidoku は「往復で消える欠陥」から、0.4.0 で誤りにする形 (`SAIDOKU_MULTI_TOKEN`) に変わった。
 - **HTML 注入**: `render()` は validator を呼ばない。JSON の `kaeri.value`、`emphasis.style`、`classPrefix` と、web-component の `class-prefix` がそのまま HTML / CSS に入った。
 
 ### P1 (実用化の前に解消したいもの)
@@ -72,6 +73,7 @@ plan-1 の実装後に、内容モデルの退行と漏れが見つかった (Ro
   - (b) parse 結果は、元の文書から欠落した mark を除いたものと意味が同値である。
   - (c) 内容モデルの表に沿って生成した SKAM-ML は、parse → stringify で losses が 0 件になる。(b) だけでは基準が stringify 自身の losses になり、過剰な欠落報告を見逃すため、独立した生成器で (c) を置いた。
 - 欠落として扱わないもの: token / mark の ID の再生成 (ADR-003 の設計)。block と ref の `xml:id` は保持される。
+  - ADR-047 で改めた: 手書きの id は字と注記でも往復で値まで残る。自動の id は位置から決まる。
 
 ### K2: parser の厳格化と、内容モデル・名前空間の方針
 
@@ -79,6 +81,7 @@ plan-1 の実装後に、内容モデルの退行と漏れが見つかった (Ro
 - **内容モデル**: 規範は SKAM-ML-draft §7.0 の表 1 つ (K2a)。`SKAM_ML_CONTENT_MODEL` 定数は、表のうち子に制約がある行を字句どおりに転記したもの (`@experimental`)。parser と stringify が同じ値をそれぞれ export し、一致を integration-tests で検査する。draft の表と定数の突き合わせテストも置いた。
   - 生成器の性質テストは表を前提に動くため、表自体の誤りは捕まえられない。表の行ごとに受理と拒否を 1 件以上置いた固定テストで補う。固定テストと表が食い違ったら表を疑い、spec と draft を直す。
 - **stringify の判定規則** (K2b): 部分交差を除去してから、祖先と子孫のすべての組を表と照合する。違反があれば常に外側を出力せず `UNNESTABLE_OVERLAP` で報告する。外側を落としても残った要素どうしの関係は変わらないので、走査は 1 回で固定点に達する。
+  - ADR-047 で改めた: 部分交差を除去せず、入れ子にできない範囲を空要素の対で書く。§7.0 の表は緩め、`SKAM_ML_CONTENT_MODEL` は core に置く。
 - **名前空間**: ルートが `urn:skam:1` 以外ならエラー。body 内の要素は `namespaceURI` で照合する。
   - SKAM の名前空間の未知の要素は、§10 に従って無視し、`onWarning` (`UNKNOWN_ELEMENT`) で通知する。
   - **他の名前空間の要素はエラーにする。** 理由: §10 が規定するのは `skam:*` だけで、他の名前空間には規定がない。0.1.x は他の名前空間の要素を黙って SKAM として解釈しており、これは誤りである (Codex が再現し、メインループでも確認した)。仕様に規定がないものは、安全側に倒してエラーにする。拡張用の名前空間を将来認めるときは、仕様の変更として扱う。
@@ -135,6 +138,8 @@ TS 型の表明 (mark の `id` は string、`ext` は plain object、`placementH
 | `UNNESTABLE_OVERLAP` | §7.0 の表を緩めて yomigana と包む要素の入れ子を許す、または上と同じ milestone / stand-off 方式。範囲 kun の入れ子は kun の内容モデルの拡張が要る |
 | `EXT`                | 拡張用の名前空間の要素、または `skam:ext` 要素。他の名前空間をエラーとする現行方針 (K2) の変更を伴う                                             |
 | `PLACEMENT_HINT`     | mark 要素の `placement-hint` 属性                                                                                                                |
+
+ADR-047 で改めた: `PARTIAL_OVERLAP` と `UNNESTABLE_OVERLAP` は空要素の対 (milestone 方式) と緩めた内容モデルで、`EXT` は `skam:ext` 属性と名前空間の属性で、`PLACEMENT_HINT` は `placement-hint` 属性で書けるようになった。コードの値は `StringifyLossCode` に残り、validator を通らない文書と警告のある文書で出る。
 
 ### unrepresentable (出る条件)
 
@@ -212,6 +217,7 @@ TS 型の表明 (mark の `id` は string、`ext` は plain object、`placementH
 - **`package.json` の version は、release workflow を実行するまで 0.1.1 のままである。手で上げてはいけない。** 0.2.0 への更新は changesets の version コマンドが行う。`check-version-bump.mjs` が scratch のコピーで 0.2.0 になることを確かめている。
 - コミット `a33edaf` (plan-3 T4) は、単体では lint (complexity) を通らない。直後の `e6ecb2e` で直っている。PR を作るときに squash するかどうかを決める (Followup)。
 - 意図して提供しなかったもの: 範囲の重なり・部分交差の XML 表現 (JSON なら表現できる)、IVS と結合文字を 1 token にまとめること (現状は code point 単位。注記を基底文字の token に付ければ回避できる)、JSON Schema の配布と未知の mark type を保持する読み込み。
+  - ADR-047 で改めた: 範囲の重なりと部分交差は XML に書けるようになった。結合文字は `<skam:t>` で 1 つの token として書ける。
 
 以後は docs/plans/backlog.md で追う。
 

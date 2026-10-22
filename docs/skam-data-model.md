@@ -98,14 +98,26 @@ anchor ベースと position ベースは共通基底 `MarkBase` から対等に
 - 複数の字の kaeri 値（`㆒㆑`、非推奨）: `ichi-re` に変換して書く（`kaeriValueToKind` 関数）。正の書き方は同じ位置の 1 字ずつの kaeri で、それぞれ `kind="ichi"`、`kind="re"` として書く。同じ位置の kaeri は `marks[]` の順に出力する
 - linebreak: 直前の字の後ろの位置マークとして、kaeri、kutoten、ref の順の後に `<skam:br/>` を書く（`id` があれば `xml:id` も書く）。竪点のグループの最後の字の後ろの位置マークは、どれも `</skam:tateten>` の後ろに書く。`after` が無い linebreak は書けない（`BLOCK_START_LINEBREAK`）
 - readings: `doc.readings` を `<skam:readings>` 要素に出力
-- token の text: SKAM-ML は token を書記素クラスタ 1 つずつ作るので、2 つ以上の書記素の token は `MULTI_GRAPHEME_TOKEN` の欠落になる（空白だけの token は `ASCII_WHITESPACE_TOKEN` だけ）。空白で始まる token と、結合文字や選択子で始まる token は、欠落にならないが往復で変わりうる（ADR-042）
-- 拡張: 宣言のある文書は `skam:meta` に `skam:extension` を書き、ルートに拡張の名前空間を宣言する。拡張の値は定義の `writeXmlAttributes` が返す属性を、要素に拡張の名前（接頭辞）をつけて書く。書き方を知らない拡張の値は `UNKNOWN_EXTENSION`、`custom` と宣言の無い文書の `ext` は `EXT` の欠落になる。拡張を使わない文書の出力は変わらない。拡張の名前は SKAM-ML の接頭辞になるので、英字で始まり `xml` で始まらない
+- token の text: 平文で書くと parser の分け方（書記素クラスタ 1 つを 1 token、各書記素の先頭の ASCII 空白は捨てる。`tokenizePlainText`）で同じ字の並びに戻らない字（2 書記素以上、空白だけ、空白で始まる、前の字と 1 つのクラスタに結合する字）と、手書きの id・ext・custom を持つ字は `<skam:t>` で書く。損失にならない。IVS・SVS・結合文字を基底の字と同じ token に持つ字は平文で書く。本文の CR と属性値の U+0009・U+000A・U+000D は文字参照で書く
+- ext・custom・placementHint: 持ち主の要素の属性（`skam:ext`、`skam:custom`、`placement-hint`）に JSON で書く。損失にならない
+- 重なる範囲: 入れ子にできない範囲だけを `sID` / `eID` の空要素の対で書き、注記の属性は始まりの要素に書く。範囲を（始まりの昇順、終わりの降順、§7.0 の入れ子の順、注記の順）で並べ、開いている入れ子の範囲と比べて、包含か離れていれば入れ子、そうでなければ対にする。同じ anchor の同じ種類の注記は全部入れ子か全部対にする（混ぜると読み直したときに注記の順が入れ替わる）。範囲の要素の深さの上限は 56（`SKAM_ML_MAX_RANGE_DEPTH`）で、stringify は超える範囲を対にし、parser は超えたら誤りにする。字と字の間の出力の順は、閉じるタグ、終わりの空要素、位置の注記、始まりの空要素、開くタグ。`saidoku` は対にしない。再読文字を入れ子に書けない範囲は損失 `UNNESTABLE_OVERLAP` で、検証が `SAIDOKU_READING_OVERLAP` か `SAIDOKU_MULTI_TOKEN` の警告を返す文書だけに出る
+- 拡張: 宣言のある文書は `skam:meta` に `skam:extension` を書き、ルートに拡張の名前空間を宣言する。拡張の値は定義の `writeXmlAttributes` が返す属性を、要素に拡張の名前（接頭辞）をつけて書く。登録簿にも定義にも無い拡張は `uri` を省いて宣言し、値は `skam:ext` に書く。`UNKNOWN_EXTENSION` の損失になるのは、拡張の名前の形でない名前と、知らない必須の拡張だけ。拡張を使わない文書の出力は変わらない。拡張の名前は SKAM-ML の接頭辞になるので、英字で始まり `xml` で始まらない
+
+## AIR（描画の中間表現）
+
+`buildAnnotationIR`（`@kanbun-skam/skam/rendering`）が作る、HTML と canvas の描画が共有する木。型の一覧は [API リファレンス](skam-api-reference.md) の「AIR の形」にある。不変条件:
+
+- どの字もブロックの木に 1 回だけ現れる。字自身の注記（読み、送り仮名、返り点、句読点、傍点、再読文字、ref など）は字の `slots` に入る
+- 範囲の注記は区間の入れ子で表す。2 字以上の yomigana は `AIRRubyGroupNode`。送り仮名と添え仮名の範囲は範囲の最後の字の slot に入る
+- 竪点と傍線は、交差する範囲で断片に分かれる（`continuesBefore` / `continuesAfter`）。同じ字を共有する傍線は段（`lane`）が違い、段が大きいほど字から離して描く
+- 同じ種類の読みが重なる文書（`READING_OVERLAP`）では、`marks[]` で先にある読みを描き、字を共有する後の読みは描かない。同じ字の 2 つ目以降の傍点は描かない
+- 描画の上限は、1 ブロックの竪点と傍線の合計 1,024 個、1 つの注記の断片 8 個、範囲の要素の深さ 56（`packages/skam/src/rendering/build-annotation-ir.ts`）。validator を通らない文書でも描画の手間を抑えるためで、上限を超えた注記は描かず、字は必ず描く
 
 ## linebreak（改行）
 
 - 置けない場所（ブロックの先頭、ブロックの最後の字の後ろ、不可分単位の中、同じ位置の 2 つ目）の判定は `packages/skam/src/line-units.ts` の `getLinebreakPlacementIssues` の 1 か所にある。validator（`INVALID_LINEBREAK`）と AIR の組み立てが同じ判定を使う
 - 不可分単位は、竪点のグループと、yomigana / okurigana / soegana / saidoku / okimoji / joji の anchor の範囲。highlight / emphasis / okototen の範囲は単位を作らない
 - 竪点のグループの範囲は、`rendering/mark-groups.ts` の `getTatetenGroups` と同じ規則を `line-units.ts` の中で別に求めている（`getTatetenGroups` は循環する依存を持つため使えない）。2 つの一致は `packages/skam/src/__tests__/linebreak.test.ts` が確かめる
-- AIR は新しいノードを持たず、最上位の単位のノード（`AIRTokenNode` / `AIRTatetenGroupNode`）に `lineBreakAfter?: true` を付ける。置けない場所の linebreak は描画では無視する
+- AIR は改行のためのノードを持たず、単位のノード（`AIRTokenNode` / `AIRRubyGroupNode` / `AIRTatetenGroupNode`）に `lineBreakAfter?: true` を付ける。その字で終わる ruby か竪点のグループがあれば、最も外側のグループに付く。置けない場所の linebreak は描画では無視する
 - html は `<br class="{prefix}-linebreak">` を `<wbr>` の代わりに出す。canvas は AIR adapter が改行の後ろでブロックを区間に分け、1 区間を 1 列にする（区間の間の空きは列の間の空きと同じ）。canvas の `buildRenderTree`（AIR を通らない経路）は改行を扱わない
 - 読み上げのテキストは、`lineBreakAfter` の単位の後ろにブロックの区切りと同じ半角空白を 1 つ入れる。注記の一覧には出さない

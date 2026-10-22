@@ -55,6 +55,7 @@ token ごとに次の順で判定し、当たった 1 つだけを報告する�
 - 次の 2 つは往復で token が変わるが、損失にしない。どちらも parse が作る token には現れず、手で書いた JSON にだけ現れる。
   - 無視する空白で始まり空白だけではない token (`' ́'`): 読み直しで先頭の空白が落ちる。
   - 結合文字や選択子で始まる token が、前の token と同じテキストに書かれる (`['葛', '\u{E0100}']`): 読み直しで 1 token にまとまる。見つけるには、どの token が同じテキストノードに入るかを stringify の書き出しの全経路で追う必要がある。parse が作る孤立した選択子の token (要素の後ろ) は同じ位置に書き戻されて変わらないので、手で書いた JSON だけのために追う仕組みは足さない。
+  - ADR-047 で改めた: stringify は、平文で書くと同じ字の並びに戻らない字を `<skam:t>` で書くので、この 2 つも往復で token が変わらない。2 書記素以上の token も `<skam:t>` で書ける。
 - `Intl.Segmenter` の無い実行環境 (Firefox 124 以前など) では、parse、stringify、描画が `TypeError` になる。
 - canvas は skam を bundle するので、`splitGraphemes` と使い回す Segmenter が canvas の bundle に別に入る。
 - playground は選択を token の添字で保つので、IVS や結合文字を含む入力では編集の前後で選択がずれうる (未確認。docs/plans/backlog.md で追う)。

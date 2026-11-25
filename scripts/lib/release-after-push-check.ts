@@ -683,6 +683,8 @@ function parseTar(tar: Buffer): TarParse {
 }
 
 const ALLOWED_ROOT_FILES = ['package.json', 'README.md', 'LICENSE', 'CHANGELOG.md'];
+// skam の files の "schema" (ADR-043 の JSON Schema)。直下の .json だけで、入れ子は許さない
+const SCHEMA_FILE = /^schema\/[^/]+\.json$/;
 
 // ディレクトリのパスは末尾の `/` を除いて返す。外れなら理由
 function checkEntryPath(entry: TarFile): string | undefined {
@@ -696,13 +698,18 @@ function checkEntryPath(entry: TarFile): string | undefined {
   }
   if (entry.dir) {
     const inside =
-      bare === 'package' || bare === 'package/dist' || bare.startsWith('package/dist/');
+      bare === 'package' ||
+      bare === 'package/dist' ||
+      bare.startsWith('package/dist/') ||
+      bare === 'package/schema';
     return inside ? undefined : `directory ${JSON.stringify(path)} is outside package/dist`;
   }
   if (!path.startsWith('package/')) return `path ${JSON.stringify(path)} is outside package/`;
   const rel = path.slice('package/'.length);
   const allowed =
-    ALLOWED_ROOT_FILES.includes(rel) || (rel.startsWith('dist/') && rel.length > 'dist/'.length);
+    ALLOWED_ROOT_FILES.includes(rel) ||
+    (rel.startsWith('dist/') && rel.length > 'dist/'.length) ||
+    SCHEMA_FILE.test(rel);
   return allowed ? undefined : `file ${JSON.stringify(path)} is not in the allowed set`;
 }
 

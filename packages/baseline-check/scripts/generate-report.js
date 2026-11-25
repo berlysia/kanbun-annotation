@@ -174,19 +174,46 @@ function collectFeatures(results) {
   return new Set(results.map((r) => r.feature));
 }
 
+/**
+ * Notes for a renderer's summary row. `required` is a feature with no fallback: the renderer
+ * does not work without it, so it counts toward the Baseline year like any non-broken feature.
+ */
+function summaryNotes(s) {
+  const notes = [];
+  if (s.hasEnhancedNotBaseline || s.hasEnhancedBaseline)
+    notes.push('対応ブラウザで追加の体験向上あり');
+  if (s.hasDegradedNotBaseline || s.hasDegradedBaseline)
+    notes.push('一部ブラウザで cosmetic な劣化あり');
+  if (s.required.length > 0) notes.push('代替の無い必須の機能あり');
+  if (s.unknown.length > 0) notes.push(`${s.unknown.length} 件フォールバック未定義`);
+  return notes;
+}
+
+const RENDERER_SECTIONS = ['html-grid', 'html-ruby', 'canvas'];
+const HTML_SECTIONS = ['html-grid', 'html-ruby'];
+
+/** Sections that use the code of an extracted JS file (names from extract-css.js). */
+function jsSections(f) {
+  // skam is a dependency of every renderer, and drawing from SKAM-ML goes through the parser
+  if (/^skam(\.|__)/.test(f) || f.startsWith('skam-xml-')) return RENDERER_SECTIONS;
+  if (f.startsWith('skam-html-renderer') || f.startsWith('skam-web-component'))
+    return HTML_SECTIONS;
+  if (f.startsWith('skam-canvas-')) return ['canvas'];
+  return [];
+}
+
 /** Classify features into sections based on file name patterns.
- *  Shared files (both-both, no-layer, skam-html-*, skam-xml-*, skam.js) are
- *  excluded from ruby/grid classification so that only variant-specific files
- *  determine which section a feature belongs to. */
+ *  JS files go to the renderers that run their code. CSS files that every variant
+ *  shares (both-both, no-layer) are skipped, so that only the variant-specific CSS
+ *  decides between ruby and grid. */
 function classifySection(files) {
   const sections = new Set();
   for (const f of files) {
-    if (f.includes('-ruby')) sections.add('html-ruby');
+    if (f.endsWith('.js')) {
+      for (const section of jsSections(f)) sections.add(section);
+    } else if (f.includes('-ruby')) sections.add('html-ruby');
     else if (f.includes('-grid')) sections.add('html-grid');
-    else if (f.startsWith('skam-canvas-')) sections.add('canvas');
     else if (f.startsWith('playground-')) sections.add('playground');
-    // renderer-both-both, renderer-no-layer, skam-html-*, skam-xml-*, skam.js
-    // are shared — skip them to avoid leaking features across ruby/grid
   }
   return [...sections];
 }
@@ -315,6 +342,7 @@ function main() {
     const feats = all.filter((f) => f.sections.includes(sectionKey));
     const broken = feats.filter((f) => resolveStatus(f.feature, sectionKey) === 'broken');
     const unknown = feats.filter((f) => resolveStatus(f.feature, sectionKey) === 'unknown');
+    const required = feats.filter((f) => resolveStatus(f.feature, sectionKey) === 'required');
     const withYear = feats.filter(
       (f) => f.baselineYear != null && resolveStatus(f.feature, sectionKey) !== 'broken'
     );
@@ -341,6 +369,7 @@ function main() {
       feats,
       broken,
       unknown,
+      required,
       maxYear,
       notYetBaseline,
       unresolvedNotBaseline,
@@ -368,12 +397,7 @@ function main() {
     if (s.broken.length > 0) {
       lines.push(`| ${label} | ❌ broken | 一部機能は非対応ブラウザで動作しません |`);
     } else {
-      const notes = [];
-      if (s.hasEnhancedNotBaseline || s.hasEnhancedBaseline)
-        notes.push('対応ブラウザで追加の体験向上あり');
-      if (s.hasDegradedNotBaseline || s.hasDegradedBaseline)
-        notes.push('一部ブラウザで cosmetic な劣化あり');
-      if (s.unknown.length > 0) notes.push(`${s.unknown.length} 件フォールバック未定義`);
+      const notes = summaryNotes(s);
       // safe な Limited 機能を除外した上で baseline 年度を決定
       // maxYear がなければ全機能が Baseline 2022 より前から対応済み
       const yearLabel =
@@ -398,6 +422,7 @@ function main() {
     enhanced: '💡 enhanced',
     degraded: '⚠️ degraded',
     broken: '❌ broken',
+    required: '🔒 required',
     unknown: '❓ unknown',
   };
 

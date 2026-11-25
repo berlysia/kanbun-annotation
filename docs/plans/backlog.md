@@ -55,8 +55,6 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 
 ## テストと CI
 
-- **baseline の report が共有のファイルの機能をどの節にも載せない**: `generate-report.js` の `classifySection` は、ファイル名で節 (html の grid / ruby、canvas、playground) を決め、共有のファイル (`skam.js`、`skam__*`、`skam-xml-*`、`skam-html-renderer.js` など) を飛ばす。そのため、skam の本体の chunk (`skam__src.js`) で見つかる `Intl.Segmenter` は、年ごとの集計 (2022 と 2023 の JS の警告 1 件) には入るが、どの節の表にも出ない。共有のファイルの機能をどの節に載せるか、`Intl.Segmenter` の状態 (代替が無く、無ければ parse も描画も動かない) を overrides にどう書くか、要約の Baseline の年を変えるかを決める。出典: PR (feat/reading-layer-default-and-cleanups) の T4 (2026-11-25)。規模: 小。
-
 - **書き下し文を作る機能と、KanbunKundoku との照合のテスト**: SKAM の文書から書き下し文 (返り点で読む順を組み、送り仮名と添え仮名をつないだ文) を作る機能が無い。作ったら、KanbunKundoku の `japanese_translation` と突き合わせ、当てはめの規則と renderer の訓読の正しさを確かめる。出典: feat/kundoku-samples の調査 (2026-10-21)。規模: 大。
 - **古事記の bench で master と索引化の後を比べる**: `pnpm bench` の古事記の文書は、索引化 (`createMarkLookup`) の後の時間しか測っていない。master の html は 5000 字で 70 秒かかり、全巻 (42,387 字) では数時間かかる見込み (外挿、未確認) なので、上巻の先頭 2000 字で両方を比べる。出典: perf/kojiki-bench の plan の T4。規模: 小。
 - **全巻を 1 文書にすると字あたりの時間が増える**: 古事記の bench で、合成の注記つきの全巻 (42,387 字) の AIR は 632〜699 ms で、同じ字と注記を 3 巻に分けた文書の和 (約 250 ms) の約 2.6 倍だった。html と canvas も同じ傾向。全巻だけを単独で流しても変わらなかったので、実行の順や warmup の影響ではないとみている。原因は調べていない (未確認)。出典: perf/kojiki-bench の計測 (2026-10-21)。規模: 中。

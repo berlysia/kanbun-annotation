@@ -440,6 +440,8 @@ export interface ReleaseDeps {
   oxfmt(files: string[]): Promise<FrontCheck<void>>;
   checkRelease(tag: string): Promise<FrontCheck<void>>;
   consumer(): Promise<FrontCheck<void>>;
+  // 段 4: 一時 dir に pack して verify-manifest (integrity と tarball の形) を流す
+  shapeCheck(tag: string): Promise<FrontCheck<void>>;
   // master が tag より先に進んだ後の再開の前に、HEAD の scripts を検査する (typecheck:scripts と test:scripts)
   scriptsCheck(): Promise<FrontCheck<void>>;
   ghRelease(tag: string): ReleaseLookup;
@@ -594,6 +596,20 @@ function stopOnCheck(
   recovery?: string
 ): ReleaseOutcome {
   return s.stop(stage, reason, checkError(check), recovery, check.failure?.rerun);
+}
+
+// 段 4: tarball の形 (パスの許可、package.json の名前・版・内部の依存) を tag の前に確かめてから、
+// 利用者テストを流す。形の検査は段 9 と同じもので、ここで外れれば tag を打たずに止まる
+async function runTarballChecks(
+  s: FrontState,
+  deps: ReleaseDeps,
+  recovery: string | undefined
+): Promise<StageResult> {
+  const shaped = await deps.shapeCheck(s.tag);
+  if (!shaped.ok) return stopOnCheck(s, STAGE_4, 'tarball shape check failed', shaped, recovery);
+  const consumed = await deps.consumer();
+  if (!consumed.ok) return stopOnCheck(s, STAGE_4, 'consumer test failed', consumed, recovery);
+  return undefined;
 }
 
 function stopOnErrors(
@@ -1072,8 +1088,8 @@ export async function runRelease(flags: ReleaseFlags, deps: ReleaseDeps): Promis
 
   // 段 4: 利用者テスト (新しい版の tarball で)
   stageStart(s, 4);
-  const consumed = await deps.consumer();
-  if (!consumed.ok) return stopOnCheck(s, STAGE_4, 'consumer test failed', consumed, recovery);
+  const tested = await runTarballChecks(s, deps, recovery);
+  if (tested !== undefined) return tested;
   log(formatOk('consumer test passed'));
 
   // 段 5: 確認。y/N の質問が根拠の代わりになるので ok の行は出さない
@@ -1885,6 +1901,7 @@ export type FrontChild =
   | 'oxfmt'
   | 'checkRelease'
   | 'consumer'
+  | 'shapeCheck'
   | 'scriptsCheck';
 
 const FRONT_CHILD_STDIO: Readonly<Record<FrontChild, RunStdio>> = {
@@ -1895,6 +1912,7 @@ const FRONT_CHILD_STDIO: Readonly<Record<FrontChild, RunStdio>> = {
   oxfmt: 'inherit-keep-stderr',
   checkRelease: 'inherit-keep-stderr',
   consumer: 'inherit-keep-stderr',
+  shapeCheck: 'inherit-keep-stderr',
   scriptsCheck: 'inherit-keep-stderr',
 };
 
@@ -2039,6 +2057,30 @@ export function buildReleaseDeps(
         '--registry',
       ]),
     consumer: () => runChild('consumer', 'pnpm', ['test:consumer']),
+    shapeCheck: async (tag) => {
+      const out = mkdtempSync(join(tmpdir(), 'skam-release-shape-'));
+      try {
+        const packed = await runChild('shapeCheck', process.execPath, [
+          checkReleaseScript,
+          'pack',
+          '--out',
+          out,
+          '--tag',
+          tag,
+        ]);
+        if (!packed.ok) return packed;
+        return await runChild('shapeCheck', process.execPath, [
+          checkReleaseScript,
+          'verify-manifest',
+          '--dir',
+          out,
+          '--tag',
+          tag,
+        ]);
+      } finally {
+        rmSync(out, { recursive: true, force: true });
+      }
+    },
     scriptsCheck: async () => {
       const typed = await runChild('scriptsCheck', 'pnpm', ['typecheck:scripts']);
       return typed.ok ? runChild('scriptsCheck', 'pnpm', ['test:scripts']) : typed;

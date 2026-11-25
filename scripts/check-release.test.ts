@@ -1,9 +1,11 @@
 import { afterEach, test } from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import {
   chmodSync,
   existsSync,
+  mkdirSync,
   mkdtempSync,
   readdirSync,
   readFileSync,
@@ -154,6 +156,77 @@ test('pack, verify-manifest and the manifest contract', () => {
   const tampered = cli(['verify-manifest', '--root', root, '--dir', out, '--tag', 'v0.2.0']);
   assert.equal(tampered.status, 1);
   assert.match(tampered.stderr, /fx-a-0\.2\.0\.tgz/);
+});
+
+// pack した fx-a の tarball を作り直し、manifest の integrity も合わせる (integrity の照合は通し、形の検査だけを見る)
+function repackA(out: string, change: (dir: string) => void): void {
+  const file = join(out, 'fx-a-0.2.0.tgz');
+  const dir = scratchDir();
+  assert.equal(spawnSync('tar', ['-xzf', file, '-C', dir]).status, 0);
+  change(dir);
+  assert.equal(spawnSync('tar', ['--format=ustar', '-czf', file, '-C', dir, 'package']).status, 0);
+  const manifestPath = join(out, 'manifest.json');
+  const manifest = readJson(manifestPath) as { packages: { file: string; integrity: string }[] };
+  const integrity = `sha512-${createHash('sha512').update(readFileSync(file)).digest('base64')}`;
+  for (const p of manifest.packages) if (p.file === 'fx-a-0.2.0.tgz') p.integrity = integrity;
+  writeFileSync(manifestPath, `${JSON.stringify(manifest, null, 2)}\n`);
+}
+
+function packedFixture(): { root: string; out: string } {
+  const root = fixture({ version: '0.2.0' });
+  const out = scratchDir();
+  const pack = cli(['pack', '--root', root, '--out', out, '--tag', 'v0.2.0']);
+  assert.equal(pack.status, 0, pack.stderr);
+  return { root, out };
+}
+
+test('verify-manifest: checks the shape of each tarball (paths and package.json), not only the integrity', () => {
+  const schema = packedFixture();
+  repackA(schema.out, (dir) => {
+    mkdirSync(join(dir, 'package', 'schema'));
+    writeFileSync(join(dir, 'package', 'schema', 'x.json'), '{}\n');
+  });
+  const ok = cli([
+    'verify-manifest',
+    '--root',
+    schema.root,
+    '--dir',
+    schema.out,
+    '--tag',
+    'v0.2.0',
+  ]);
+  assert.equal(ok.status, 0, ok.stderr);
+
+  const src = packedFixture();
+  repackA(src.out, (dir) => {
+    mkdirSync(join(dir, 'package', 'src'));
+    writeFileSync(join(dir, 'package', 'src', 'x.ts'), 'export {};\n');
+  });
+  const bad = cli(['verify-manifest', '--root', src.root, '--dir', src.out, '--tag', 'v0.2.0']);
+  assert.equal(bad.status, 1);
+  assert.match(
+    bad.stderr,
+    /@fx\/a: .*"package\/src\/(x\.ts)?" is (outside package\/dist|not in the allowed set)/
+  );
+
+  const version = packedFixture();
+  repackA(version.out, (dir) => {
+    const file = join(dir, 'package', 'package.json');
+    const json = readJson(file);
+    json['version'] = '0.2.1';
+    writeFileSync(file, `${JSON.stringify(json, null, 2)}\n`);
+  });
+  const wrong = cli([
+    'verify-manifest',
+    '--root',
+    version.root,
+    '--dir',
+    version.out,
+    '--tag',
+    'v0.2.0',
+  ]);
+  assert.equal(wrong.status, 1);
+  assert.match(wrong.stderr, /@fx\/a: /);
 });
 
 test('pack: fails when the output directory already holds a tgz', () => {

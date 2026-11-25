@@ -292,6 +292,10 @@ function fakeDeps(repo: Repo, overrides: Partial<ReleaseDeps> = {}): Fake {
       calls.push('consumer');
       return ok;
     },
+    shapeCheck: async (tag) => {
+      calls.push(`shapeCheck:${tag}`);
+      return ok;
+    },
     scriptsCheck: async () => {
       calls.push('scriptsCheck');
       return ok;
@@ -375,8 +379,29 @@ test('normal release: commit and annotated tag exist locally and on origin, tree
     'changesetVersion',
     'oxfmt',
     'checkRelease',
+    'shapeCheck:v0.2.0',
     'consumer',
   ]);
+});
+
+test('stage 4 stops on a tarball shape failure before the consumer test, and restores the working tree', async () => {
+  const repo = makeRepo();
+  const before = mustGit(repo.work, ['rev-parse', 'HEAD']);
+  const failing: FrontCheck<void> = {
+    ok: false,
+    errors: ['verify-manifest exited with 1'],
+    failure: {
+      command: 'node check-release.ts verify-manifest',
+      status: 1,
+      stderr: '@fx/a: file "package/src/x.ts" is not in the allowed set\n',
+      captured: true,
+    },
+  };
+  const fake = fakeDeps(repo, { shapeCheck: async () => failing });
+  const outcome = await runRelease(normal, fake.deps);
+  assert.equal(stoppedStage(outcome), '4 consumer test');
+  assert.equal(fake.calls.includes('consumer'), false);
+  assert.equal(mustGit(repo.work, ['rev-parse', 'HEAD']), before);
 });
 
 // 進み方の行 (段の始めと根拠)
@@ -2836,6 +2861,8 @@ function realDeps(repo: Repo): RealFake {
         return errors.length > 0 ? { ok: false, errors } : ok;
       },
       consumer: async () => ok,
+      // pack は check-release.ts が fixture でなく本物のリポジトリを読むので、consumer と同じく差し替える
+      shapeCheck: async () => ok,
       ghRelease: () => ({ kind: 'not-found' }),
       confirm: async () => true,
       log: (line) => logs.push(line),

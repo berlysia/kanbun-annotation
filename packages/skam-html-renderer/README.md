@@ -38,7 +38,7 @@ await fontsCalibrated; // フォントの読み込み後の補正まで待つ場
 - `mount` の入力は `SKAMDocument` で、SKAM-ML の文字列から描くときは先に `@kanbun-skam/skam-xml-parser` の `parse` を呼ぶ。
 - 要素は document に接続しておく。接続されていない要素には `TypeError` を投げ、DOM を変えない。オプションの誤り（`SKAMRenderProfileError` など）も、DOM を変えずに投げる。
 - `mount` は Web フォント（Noto Serif JP など）を読み込まない。フォントはページの側で読み込む。Web Component が足している CSS 変数の上書きも行わない。
-- 出題のように注記を隠すときは、`readingLayerSource: 'display'` を指定する（下の「出題に使うとき」）。既定の `'readings'` は `render` と同じで、隠した注記も読み層に出す。
+- 読み層の出どころの既定は `render` と同じで、`profile` を渡せば `'display'` になり、隠した注記は読み層に出ない（下の「出題に使うとき」）。
 - 入れた `<style>` を後から外す手段は無い。オプションが違えば CSS も違うので、`<style>` が増える。
 
 #### CSP と Trusted Types
@@ -151,8 +151,10 @@ const result = render(doc);
 
 `readingLayerSource` (`@experimental`) で、読み層の出どころを選べる。
 
-- `'readings'` (既定): 作者が書いた読み (`yomiage` → `kakikudashi`)。無ければ白文。**`profile` で隠した注記も、読み下しとして読み上げる。**
+- `'readings'`: 作者が書いた読み (`yomiage` → `kakikudashi`)。無ければ白文。**`profile` で隠した注記も、読み下しとして読み上げる。**
 - `'display'`: 表示層と同じ `profile` で解決した、画面に見えている注記だけを言葉にする。`readings` も白文も参照しない。
+
+書かないときは、`profile` か `hideQuiz` を渡せば `'display'`、どちらも無ければ `'readings'` になる。`profile` を渡して作者の読みを読み上げたいときは、`'readings'` を書く。
 
 `'display'` の言葉は `accessibleLabels` (`@experimental`) で上書きできる。注記の種類ごとに `(note) => string` を渡す。空文字・例外・string 以外を返した注記は読み上げない。返した文字列は HTML エスケープされる。読み上げの言葉は 0.x のマイナーリリースで変わりうる。
 
@@ -177,8 +179,8 @@ const { html } = render(doc, {
 
 教材の出題画面のように注記の一部を隠すときは、次の 4 点に従う。
 
-1. `profile` は `{ base, overrides }` の形で書き、**必ず** `readingLayerSource: 'display'` と併用する。部分指定はキーを書き忘れると full 側に倒れる。
-2. 既定の `'readings'` は、隠した注記を読み下しとして読み上げる。
+1. `profile` は `{ base, overrides }` の形で書く。部分指定はキーを書き忘れると full 側に倒れる。
+2. `readingLayerSource` は書かない（`profile` があるので `'display'` になる）か、`'display'` を書く。`'readings'` を書くと、隠した注記を読み下しとして読み上げる。
 3. Web Component では、`profile` 属性を外すと full で描かれる。
 4. 保証するのは画面と読み層だけである。HTML ソースや `<script>` 内の SKAM-ML からは元の注記を取れる。答えを本当に隠したいなら、配る前に SKAM-ML から注記を除く。
 

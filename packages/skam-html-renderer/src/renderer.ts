@@ -59,9 +59,11 @@ export interface RenderOptions {
   /**
    * 読み上げ層の出どころ（experimental）
    *
-   * - 'readings'（既定）: 作者が書いた読み下し（`doc.readings`）。無ければ白文。表示設定で隠した注記も読み上げる
+   * - 'readings': 作者が書いた読み下し（`doc.readings`）。無ければ白文。表示設定で隠した注記も読み上げる
    * - 'display': 表示層と同じ profile で解決した、画面に見えている注記だけを言葉にする。
    *   `doc.readings` も白文も参照しない。注記を隠す用途（出題など）ではこちらを使う
+   *
+   * 既定は、`profile` か `hideQuiz` を渡したときは 'display'、どちらも無いときは 'readings'。
    *
    * 不正な値は TypeError。
    *
@@ -174,9 +176,11 @@ export interface RenderHTMLOptions {
   /**
    * 読み上げ層の出どころ（experimental）
    *
-   * - 'readings'（既定）: 作者が書いた読み下し（`doc.readings`）。無ければ白文。表示設定で隠した注記も読み上げる
+   * - 'readings': 作者が書いた読み下し（`doc.readings`）。無ければ白文。表示設定で隠した注記も読み上げる
    * - 'display': 表示層と同じ profile で解決した、画面に見えている注記だけを言葉にする。
    *   `doc.readings` も白文も参照しない。注記を隠す用途（出題など）ではこちらを使う
+   *
+   * 既定は、`profile` か `hideQuiz` を渡したときは 'display'、どちらも無いときは 'readings'。
    *
    * 不正な値は TypeError。
    *
@@ -347,7 +351,8 @@ function renderRefNotes(
 
 /**
  * 読み層。'display' は表示層と同じ profile から作り、doc.readings も白文も参照しない。
- * hideQuiz を渡して読み上げ層の出どころを書かないときは、答えを含む readings ではなく表示層から作る。
+ * profile か hideQuiz を渡して読み上げ層の出どころを書かないときは、答えを含みうる readings ではなく表示層から作る。
+ * どちらも無いときは注記を隠しようがないので、作者の書いた readings を読む。
  * 文書の lang は本文 (白文) の言語なので、読み上げ層が白文に戻ったときだけ付ける。
  * 書き下し・yomiage・'display' の読み上げは日本語のラベルを含むため、付けない
  */
@@ -361,7 +366,8 @@ function renderReadingLayer(
   extensionRender: RenderExtensionOptions
 ): string {
   const readingSource =
-    options.readingLayerSource ?? (options.hideQuiz !== undefined ? 'display' : 'readings');
+    options.readingLayerSource ??
+    (options.profile !== undefined || options.hideQuiz !== undefined ? 'display' : 'readings');
   if (readingSource === 'display') {
     const text = buildReadingText(doc, profile, options.accessibleLabels, extensionRender);
     return renderReadingLayerElement(text, prefix, inline);

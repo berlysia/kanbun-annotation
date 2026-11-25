@@ -145,6 +145,12 @@ SKAM の 6 つの公開パッケージ (`@kanbun-skam/skam`、`skam-xml-parser`�
 - 0.2.x の parser は `<skam:t>`、`skam:ext` / `skam:custom` 属性、`placement-hint` 属性を捨て、空要素の対 (`sID` / `eID`) と緩めた入れ子を誤りにするか捨てる。
 - やること: その XML を読む所を、すべて 0.3.x に上げる。
 
+### profile を渡して読み下しを読み上げさせている所に `'readings'` を書く (skam-html-renderer、skam-web-component)
+
+- 対象: `render` / `renderHTML` / `mount` に `profile` を渡し、`readingLayerSource` を書かずに、読み層で作者の読み (`yomiage` / `kakikudashi`、無ければ白文) を読み上げさせている。Web Component では `profile` 属性があり、`reading-layer-source` 属性が無い。
+- 読み層の既定が変わる。`profile` か `hideQuiz` を渡して `readingLayerSource` を書かないときは `'display'` (画面に見えている注記だけを言葉にする) になる。どちらも渡さないときは、今までどおり `'readings'`。
+- やること: 作者の読みを読み上げさせたい所に `readingLayerSource: 'readings'` (Web Component は `reading-layer-source="readings"`) を書く。出題のように注記を隠す所は、書かなくてよい。
+
 ### AIR を直接使う所を直す (skam)
 
 - 対象: `@kanbun-skam/skam/rendering` の AIR を読む、または `getTatetenGroups` / `getHighlightGroups` を呼ぶ。

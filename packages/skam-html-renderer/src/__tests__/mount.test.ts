@@ -256,6 +256,16 @@ describe('mount: readingLayerSource display', () => {
     });
     expect(container.innerHTML).not.toContain('ヒミツ');
   });
+
+  it('defaults to display when a profile is given, so readings do not leak the answer', () => {
+    const container = connectedContainer();
+    const d: SKAMDocument = {
+      ...makeDoc('甲', true),
+      readings: [{ kind: 'kakikudashi', text: '甲ヒミツ' }],
+    };
+    mount(container, d, { profile: { base: 'full', overrides: { okurigana: false } } });
+    expect(container.innerHTML).not.toContain('ヒミツ');
+  });
 });
 
 describe('mount: fonts', () => {

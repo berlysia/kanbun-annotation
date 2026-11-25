@@ -70,7 +70,7 @@ el.xmlContent = xmlString;
 | `profile`               | `full` \| `learningBasic` \| `learningHint` \| JSON | `full`                       | 表示プロファイル                                  |
 | `inline`                | (boolean)                                           | false                        | インラインモード                                  |
 | `include-reading-layer` | `true` \| `false`                                   | `true`                       | 読み層の表示                                      |
-| `reading-layer-source`  | `readings` \| `display`                             | `readings`                   | 読み層の出どころ (`@experimental`)                |
+| `reading-layer-source`  | `readings` \| `display`                             | 下の説明                     | 読み層の出どころ (`@experimental`)                |
 | `hide-quiz`             | (空) \| JSON の名前の配列                           | (なし)                       | 出題の印の付いた注記を隠す (`@experimental`)      |
 | `copyable`              | `all` \| スペース区切りの要素名                     | (なし)                       | コピー可能な注記要素                              |
 | `class-prefix`          | 文字列                                              | `skam`                       | CSS クラス名の接頭辞                              |
@@ -86,9 +86,9 @@ el.xmlContent = xmlString;
 
 未知のキー、真偽値でない値、空文字、JSON の `null` / 配列 / 数値は不正で、**描画しない**（下の `skam-error`、`recoverable: false`）。`include-reading-layer` も `true` / `false` / 空文字以外は描画しない。`profile` 属性を外すと、full で描画する。
 
-`reading-layer-source` (`@experimental`) は、読み層の出どころを選ぶ。`readings`（既定）は作者が書いた読みを、`display` は `profile` で画面に見えている注記だけを言葉にする。`readings` と白文は参照しない。`readings` / `display` 以外は不正で、描画しない。**`reading-layer-source=""` は不正（描画しない）だが、`include-reading-layer=""` は真偽値の属性として true になる。**
+`reading-layer-source` (`@experimental`) は、読み層の出どころを選ぶ。`readings` は作者が書いた読みを、`display` は `profile` で画面に見えている注記だけを言葉にする（作者の読みと白文は参照しない）。書かないときは、`profile` か `hide-quiz` があれば `display`、どちらも無ければ `readings` になる。`readings` / `display` 以外は不正で、描画しない。**`reading-layer-source=""` は不正（描画しない）だが、`include-reading-layer=""` は真偽値の属性として true になる。**
 
-`hide-quiz` (`@experimental`) は、学習・教育用拡張（`edu`）の出題の印が付いた注記を隠す。空の値（`hide-quiz`）はすべて、`hide-quiz='["問1"]'` は名前が合う印だけを隠す。不正な値（JSON でない、名前が空、101 個以上、`false` など）は、`profile` と同じく**描画しない**（`attribute` が `hide-quiz` の `recoverable: false` の `skam-error`）。隠した注記の中身は空白に置き換わるので、字数は分かる。属性を外すと、隠さずに描き直す。`reading-layer-source` を書かないときは、読み層も `display` になる。
+`hide-quiz` (`@experimental`) は、学習・教育用拡張（`edu`）の出題の印が付いた注記を隠す。空の値（`hide-quiz`）はすべて、`hide-quiz='["問1"]'` は名前が合う印だけを隠す。不正な値（JSON でない、名前が空、101 個以上、`false` など）は、`profile` と同じく**描画しない**（`attribute` が `hide-quiz` の `recoverable: false` の `skam-error`）。隠した注記の中身は空白に置き換わるので、字数は分かる。属性を外すと、隠さずに描き直す。
 
 読み上げの言葉を変える `accessibleLabels` (`@experimental`) は関数を含むので、属性ではなくプロパティで渡す。
 
@@ -106,8 +106,8 @@ el.accessibleLabels = { kaeri: () => '返り点' };
 
 教材の出題画面のように注記の一部を隠すときは、次の 4 点に従う。
 
-1. `profile` は `{ "base": ..., "overrides": ... }` の形で書き、**必ず** `reading-layer-source="display"` と併用する。部分指定はキーを書き忘れると full 側に倒れる。
-2. 既定の `readings` は、隠した注記を読み下しとして読み上げる。
+1. `profile` は `{ "base": ..., "overrides": ... }` の形で書く。部分指定はキーを書き忘れると full 側に倒れる。
+2. `reading-layer-source` は書かない（`profile` があるので `display` になる）か、`display` を書く。`readings` を書くと、隠した注記を読み下しとして読み上げる。
 3. `profile` 属性を外すと、full で描かれる。属性を動的に付け外しする画面では、外した瞬間に答えが見える。
 4. 保証するのは画面と読み層だけである。HTML ソースや `<script>` 内の SKAM-ML からは元の注記を取れる。答えを本当に隠したいなら、配る前に SKAM-ML から注記を除く。
 

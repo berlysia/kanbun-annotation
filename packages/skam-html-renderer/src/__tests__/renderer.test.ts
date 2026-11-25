@@ -1952,7 +1952,7 @@ describe('highlight with ref association', () => {
       readings: [],
     };
 
-    const result = render(doc, { profile: PROFILES.full });
+    const result = render(doc, { profile: PROFILES.full, readingLayerSource: 'readings' });
 
     // Count occurrences of (A) - should be exactly 1 (inside highlight, not standalone)
     const matches = result.html.match(/\(A\)/g);
@@ -2026,7 +2026,7 @@ describe('highlight with ref association', () => {
       readings: [],
     };
 
-    const result = render(doc, { profile: PROFILES.full });
+    const result = render(doc, { profile: PROFILES.full, readingLayerSource: 'readings' });
 
     // Ref should be rendered inside highlight (not standalone)
     const htmlContent = result.html;
@@ -2081,7 +2081,7 @@ describe('XML to HTML integration - highlight with ref', () => {
 </skam:doc>`;
 
     const doc = parse(xml);
-    const result = render(doc, { profile: PROFILES.full });
+    const result = render(doc, { profile: PROFILES.full, readingLayerSource: 'readings' });
 
     // Both (A) and (B) should appear inside their respective highlights
     const htmlContent = result.html;
@@ -2114,7 +2114,7 @@ describe('XML to HTML integration - highlight with ref', () => {
 </skam:doc>`;
 
     const doc = parse(xml);
-    const result = render(doc, { profile: PROFILES.full });
+    const result = render(doc, { profile: PROFILES.full, readingLayerSource: 'readings' });
 
     // Ref should appear inside highlight, not as standalone
     const htmlContent = result.html;
@@ -2139,7 +2139,7 @@ describe('XML to HTML integration - highlight with ref', () => {
 </skam:doc>`;
 
     const doc = parse(xml);
-    const result = render(doc, { profile: PROFILES.full });
+    const result = render(doc, { profile: PROFILES.full, readingLayerSource: 'readings' });
 
     // Ref should appear inside highlight, not as standalone
     const htmlContent = result.html;

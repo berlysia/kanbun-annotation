@@ -35,18 +35,14 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 - **竪点のグループからはみ出す読みの範囲 (#16)**: はみ出す読みの範囲は、先頭の字の読みとして出る。2 回目の読みが無い再読文字は、読み仮名として読まれる (`lintSKAMDocument` の `SAIDOKU_SINGLE_READING` で見つけられる)。実際の訓点資料にこの形があるかを、一次資料で確かめてから扱いを決める。調べる資料: 訓点資料の研究 (訓点語学会の『訓点語と訓点資料』など)、国立国語研究所の訓点資料のデータ、高校の漢文の教科書と指導書。それまでの扱いは ADR-030 の「既知の制約」のまま。出典: plan-consumer-feedback.md L64、ADR-030「既知の制約」、#16、spec K14 (2026-10-21)。規模: 小。
 - **注記の範囲を操作するエディタ**: JSON を編集し、保存のときに stringify で SKAM-ML を書くエディタを作る。手で書いた XML のコメントと改行は残らない。SKAM-ML を保存の形として集めて再利用する前提で、ADR-047 の決定はこのエディタがあることを前提にしている。出典: ADR-047「利用者の決定」の 6。規模: 大。
 - **傍線のラベルの表示位置を文書ごとに選ぶ**: 傍線の ref のラベルは決まった位置 (最後の断片) に出る。傍線の始まりと終わりのどちらに出すかを、文書ごとに選べるようにする (利用者の選択)。出典: ADR-047 の検討 (2026-10-22)。規模: 中。
-- **readingLayerSource の既定の見直し**: 次の破壊的リリースで、profile を指定して `readingLayerSource` を省いたときの既定 (`'readings'`) を見直す。2 回目のフィードバックは `'display'` を既定にするよう求めた。既定のまま出題に使うと、答えがスクリーンリーダーの利用者にだけ渡るためである。同じフィードバックが求めた README の注意は、html-renderer の README の「出題に使うとき」の節に書いてある。出典: plan-consumer-feedback.md L62、ADR-030「リスク R1〜R8 の結果」の R6、利用者のフィードバック 2 回目 (2026-10-20) の 9。規模: 小。
 - **'display' の読み上げ層の実機確認**: NVDA (Windows、日本語) と VoiceOver (macOS) で確かめる (未確認)。合格の条件は 2 つある。`習、送り仮名 フ、レ点。` の各語が言葉として発話されること。表示層のルビや返り点が、読み上げ層と重ねて読まれないこと。確かめたら、experimental を外すかを決める。あわせて、注記の無い字が `學。而。時。` のように 1 字ごとに区切られる読み上げが聞きにくくないかを聞き、続く字をつなげる形にするかを決める (利用者の提案、未検証)。出典: plan-consumer-feedback.md L61、ADR-030「リスク R1〜R8 の結果」の R1、利用者のフィードバック 2 回目 (2026-10-20) の 8。規模: 中。
 
 ## パーサー
 
-- **playground の例の `skam:tokenize`**: playground の例の 2 つが `<skam:meta><skam:tokenize strategy="char"/></skam:meta>` と書く。仕様に無い要素で、parser は読まない。`tokenization="char"` に直すか消す。出典: feat/grapheme-tokenize の調査 (2026-10-21)。規模: 小。
 - **playground の選択と書記素**: playground は選択を token の添字で保つ。IVS や結合文字を含む入力で、編集の前後に選択がずれるかを確かめる。出典: ADR-042 (2026-10-21)。規模: 小。
 
 - **誤りの種類を構造で持つ**: parser の誤り (`SKAMXMLParseError`) に種類 (`kind`) を足し、利用者がメッセージの文言に頼らずに誤りを判別できるようにするかを決める。メッセージの文言は互換の対象外 (2026-10-21 に README に書いた)。parser の公開 API の追加になる。出典: fix/backlog-batch-a (2026-10-21)。規模: 中。
 - **WebKit の parsererror の文の確認**: ブラウザ版は、Chromium と Firefox の報告の形から構文の誤りの位置を読む。WebKit (Safari) の形は、手元の WSL で WebKit が起動せず確かめていない (未確認)。Chromium と同じ形でなければ、Safari では構文の誤りに位置が付かない。出典: feat/browser-parser-positions の調査 (2026-10-20)。規模: 小。
-
-- **1 つのブロックの字が多いと parse が落ちる**: 1 つのブロックに 20 万字以上の本文を書くと、parser が `RangeError` (スタックあふれ) で落ちる。10 万字では通った (2026-10-21 に測った)。`maxInputLength` (500 万) の範囲の入力で、ブロックの token の id を配列に入れる所 (`push(...ids)`) が原因とみられる。出典: feat/grapheme-tokenize の計測 (2026-10-21)。規模: 小。
 
 ## レンダラー
 
@@ -58,8 +54,6 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 - **描画のメモリ使用量の追跡**: 描画の時間は CI のテスト (10 s の上限) で見ているが、メモリは見ていない。`createMarkLookup` の索引は範囲の注記が覆う字の数に比例し、5000 字の block 全体を覆う highlight 200 個の文書で、html の描画で増える RSS が 22 MB から 70 MB になった (索引のヒープは 10.4 MB)。普通の文書 (5000 字、10 字ごとに 4 字の highlight) では 20 MB と 22 MB で変わらない。メモリの使用量をどう測って追うかを決める。出典: 束 C の 2。規模: 中。
 
 ## テストと CI
-
-- **baseline の JS の検査が chunk を見ない**: `pnpm baseline` の JS の検査は各パッケージの `dist/index.js` だけを写して検査する。skam の `dist/index.js` は chunk (`dist/src-*.js`) を再 export するだけなので、skam の本体のコードは検査されない。2026-10-21 に `Intl.Segmenter` (Baseline の同梱データでは low) を足したが、検出されなかった。canvas の IIFE には入っているが、検査の対象は ESM の `dist/index.js`。出典: feat/grapheme-tokenize (2026-10-21)。規模: 小。
 
 - **書き下し文を作る機能と、KanbunKundoku との照合のテスト**: SKAM の文書から書き下し文 (返り点で読む順を組み、送り仮名と添え仮名をつないだ文) を作る機能が無い。作ったら、KanbunKundoku の `japanese_translation` と突き合わせ、当てはめの規則と renderer の訓読の正しさを確かめる。出典: feat/kundoku-samples の調査 (2026-10-21)。規模: 大。
 - **古事記の bench で master と索引化の後を比べる**: `pnpm bench` の古事記の文書は、索引化 (`createMarkLookup`) の後の時間しか測っていない。master の html は 5000 字で 70 秒かかり、全巻 (42,387 字) では数時間かかる見込み (外挿、未確認) なので、上巻の先頭 2000 字で両方を比べる。出典: perf/kojiki-bench の plan の T4。規模: 小。

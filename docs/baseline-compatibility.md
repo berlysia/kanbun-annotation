@@ -1,16 +1,22 @@
 # Baseline Compatibility Report
 
-Generated: 2026-10-20
+Generated: 2026-11-25
 
 ## Summary
 
-| Renderer             | Baseline Year     | Notes                                                                |
-| -------------------- | ----------------- | -------------------------------------------------------------------- |
-| HTML Renderer (Grid) | < Baseline 2022   | 対応ブラウザで追加の体験向上あり                                     |
-| HTML Renderer (Ruby) | **Baseline 2024** | 対応ブラウザで追加の体験向上あり、一部ブラウザで cosmetic な劣化あり |
-| Canvas Renderer      | < Baseline 2022   | —                                                                    |
+| Renderer             | Baseline Year     | Notes                                                                                          |
+| -------------------- | ----------------- | ---------------------------------------------------------------------------------------------- |
+| HTML Renderer (Grid) | **Baseline 2024** | 対応ブラウザで追加の体験向上あり、代替の無い必須の機能あり                                     |
+| HTML Renderer (Ruby) | **Baseline 2024** | 対応ブラウザで追加の体験向上あり、一部ブラウザで cosmetic な劣化あり、代替の無い必須の機能あり |
+| Canvas Renderer      | **Baseline 2024** | 代替の無い必須の機能あり                                                                       |
 
 ## HTML Renderer (Grid)
+
+### Baseline 2024
+
+| Feature          | Status      | Fallback                                                                                                                                                                                                                      |
+| ---------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Intl.Segmenter` | 🔒 required | 代替なし。無い環境では、token に分ける最初の呼び出し (parse、tokenize など) が TypeError になる。書記素クラスタで分けるのに使い、環境ごとに token の数が変わるより失敗させる (packages/skam/src/graphemes.ts)。0.3.0 から必要 |
 
 ### Limited Availability
 
@@ -23,10 +29,11 @@ Generated: 2026-10-20
 
 ### Baseline 2024
 
-| Feature         | Status      | Fallback                                                                                                                                                                                                                                                                     |
-| --------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `ruby-align`    | 💡 enhanced | Baseline Newly available (2024-12)。対応ブラウザ（Safari 18.2+/Chrome 128+/Firefox 38+）でルビが中央揃えになる。非対応ブラウザではブラウザデフォルトの配置で表示され、機能的な問題はない                                                                                     |
-| `ruby-position` | ⚠️ degraded | Baseline Newly available (2024-12)。使用値 over/under は Safari 18.2+/Chrome 84+/Firefox 38+ で対応。rubyMethod=ruby で再読文字（saidoku）を描画する場合、Safari 18.1 以前では under が効かず上下ルビが同一位置に重なる。rubyMethod=grid は ruby-position に依存せず影響なし |
+| Feature          | Status      | Fallback                                                                                                                                                                                                                                                                     |
+| ---------------- | ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `ruby-align`     | 💡 enhanced | Baseline Newly available (2024-12)。対応ブラウザ（Safari 18.2+/Chrome 128+/Firefox 38+）でルビが中央揃えになる。非対応ブラウザではブラウザデフォルトの配置で表示され、機能的な問題はない                                                                                     |
+| `ruby-position`  | ⚠️ degraded | Baseline Newly available (2024-12)。使用値 over/under は Safari 18.2+/Chrome 84+/Firefox 38+ で対応。rubyMethod=ruby で再読文字（saidoku）を描画する場合、Safari 18.1 以前では under が効かず上下ルビが同一位置に重なる。rubyMethod=grid は ruby-position に依存せず影響なし |
+| `Intl.Segmenter` | 🔒 required | 代替なし。無い環境では、token に分ける最初の呼び出し (parse、tokenize など) が TypeError になる。書記素クラスタで分けるのに使い、環境ごとに token の数が変わるより失敗させる (packages/skam/src/graphemes.ts)。0.3.0 から必要                                                |
 
 ### Limited Availability
 
@@ -37,7 +44,11 @@ Generated: 2026-10-20
 
 ## Canvas Renderer
 
-全機能 Baseline 対応済み — 非 Baseline 機能は検出されませんでした。
+### Baseline 2024
+
+| Feature          | Status      | Fallback                                                                                                                                                                                                                      |
+| ---------------- | ----------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `Intl.Segmenter` | 🔒 required | 代替なし。無い環境では、token に分ける最初の呼び出し (parse、tokenize など) が TypeError になる。書記素クラスタで分けるのに使い、環境ごとに token の数が変わるより失敗させる (packages/skam/src/graphemes.ts)。0.3.0 から必要 |
 
 ## Playground
 
@@ -64,8 +75,8 @@ Generated: 2026-10-20
 
 | Year | CSS Warnings | JS Warnings | Total |
 | ---- | ------------ | ----------- | ----- |
-| 2022 | 122          | 0           | 122   |
-| 2023 | 122          | 0           | 122   |
+| 2022 | 122          | 1           | 123   |
+| 2023 | 122          | 1           | 123   |
 | 2024 | 113          | 0           | 113   |
 | 2025 | 113          | 0           | 113   |
 | 2026 | 113          | 0           | 113   |

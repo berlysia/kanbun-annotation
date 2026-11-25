@@ -134,7 +134,10 @@ describe('html: linebreak', () => {
 
   it('linebreak の無い文書の出力は、linebreak を足しても profile で消せば同じ', () => {
     const plain = render(createDoc([])).html;
-    const hidden = render(createDoc([br('t1')]), { profile: { linebreak: false } }).html;
+    const hidden = render(createDoc([br('t1')]), {
+      profile: { linebreak: false },
+      readingLayerSource: 'readings',
+    }).html;
     expect(hidden).toBe(plain);
   });
 });

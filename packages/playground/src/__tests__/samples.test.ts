@@ -21,6 +21,17 @@ describe('SAMPLES', () => {
     ]);
   });
 
+  // parser は skam:meta の知らない子を黙って読み飛ばすので、例の書き誤りは parse では見つからない
+  it.each(SAMPLES)(
+    '$name の skam:meta の子は skam:extension だけ (SKAM-ML-draft §4.1.1)',
+    ({ xml }) => {
+      // happy-dom の XML の DOM は名前空間つきの検索で要素を返さないので、文字列から子の名前を取る
+      const metaBody = /<skam:meta\b[^>]*?>([\s\S]*?)<\/skam:meta>/.exec(xml)?.[1] ?? '';
+      const children = [...metaBody.matchAll(/<skam:([\w-]+)/g)].map((match) => match[1]);
+      expect(children.filter((name) => name !== 'extension')).toEqual([]);
+    }
+  );
+
   it.each(SAMPLES)('$name をパースできる', ({ xml }) => {
     expect(() => parse(xml)).not.toThrow();
     const doc = parse(xml);

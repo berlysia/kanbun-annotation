@@ -309,15 +309,34 @@ describe('reading-layer-source attribute (K3, K5)', () => {
     expect(reading(el)).toBe('學。而、置き字。時。習、レ点。之。');
   });
 
-  it('removing the attribute renders with readings again', async () => {
+  it('removing the attribute keeps display while a profile is set', async () => {
     const { el, renders } = mountWithXml(
-      { profile: 'learningBasic', 'reading-layer-source': 'display' },
+      { profile: 'learningBasic', 'reading-layer-source': 'readings' },
       XML_GAKUJI
     );
     await vi.waitFor(() => expect(renders).toHaveLength(1));
+    expect(reading(el)).toBe('學びて時に之を習ふ');
     el.removeAttribute('reading-layer-source');
     await vi.waitFor(() => expect(renders).toHaveLength(2));
-    expect(reading(el)).toBe('學びて時に之を習ふ');
+    expect(reading(el)).toBe('學。而、置き字。時。習、レ点。之。');
+  });
+
+  it('defaults to display with a profile and to readings without one', async () => {
+    const withProfile = mountWithXml({ profile: 'learningBasic' }, XML_GAKUJI);
+    const withoutProfile = mountWithXml({}, XML_GAKUJI);
+    await vi.waitFor(() => expect(withProfile.renders).toHaveLength(1));
+    await vi.waitFor(() => expect(withoutProfile.renders).toHaveLength(1));
+    expect(reading(withProfile.el)).toBe('學。而、置き字。時。習、レ点。之。');
+    expect(reading(withoutProfile.el)).toBe('學びて時に之を習ふ');
+  });
+
+  it('does not read a hidden okurigana with a JSON profile and no reading-layer-source', async () => {
+    const { el, renders } = mountWithXml(
+      { profile: '{"base":"learningBasic","overrides":{"okurigana":false}}' },
+      XML_GAKUJI
+    );
+    await vi.waitFor(() => expect(renders).toHaveLength(1));
+    expect(reading(el)).not.toContain('學びて');
   });
 
   it('reports each blocked attribute once, in a fixed order', async () => {

@@ -129,8 +129,32 @@ describe("readingLayerSource: 'display'", () => {
     expect(html).not.toContain('ビテ');
   });
 
-  it("既定 ('readings') は現挙動のまま、読み下しを読み上げる", () => {
-    const html = render(gakuji(), { profile: learningBasic }).html;
+  it("profile を渡して readingLayerSource を省くと 'display' になる", () => {
+    const profile = { base: 'learningBasic', overrides: { okurigana: false } } as const;
+    const implicit = render(gakuji(), { profile }).html;
+    const explicit = render(gakuji(), { profile, readingLayerSource: 'display' }).html;
+    expect(reading(implicit)?.textContent).toBe(reading(explicit)?.textContent);
+    expect(implicit).not.toContain('學びて');
+  });
+
+  it("プリセット名の profile でも 'display' になる", () => {
+    const html = render(gakuji(), { profile: { base: 'full' } }).html;
+    expect(reading(html)?.textContent).toBe(
+      reading(render(gakuji(), { readingLayerSource: 'display' }).html)?.textContent
+    );
+  });
+
+  it('renderHTML でも profile を渡すと display になる', () => {
+    const html = renderHTML(gakuji(), { profile: learningBasic });
+    expect(reading(html)?.textContent).toBe('學。而、置き字。時。習、レ点。之。');
+  });
+
+  it("profile も hideQuiz も無いときは 'readings' のまま、読み下しを読み上げる", () => {
+    expect(reading(render(gakuji(), {}).html)?.textContent).toBe('學びて時に之を習ふ');
+  });
+
+  it("profile を渡しても 'readings' を明示すれば読み下しを読み上げる", () => {
+    const html = render(gakuji(), { profile: learningBasic, readingLayerSource: 'readings' }).html;
     expect(reading(html)?.textContent).toBe('學びて時に之を習ふ');
   });
 

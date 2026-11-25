@@ -64,3 +64,14 @@ describe('checkInputLimits (fail-closed pre-scan)', () => {
     expect(() => parse('x'.repeat(5_000_001))).toThrow(/maxInputLength/);
   });
 });
+
+describe('long blocks', () => {
+  // A block of 200,000 characters overflowed the stack while its token ids were spread into
+  // push(); 210,000 is the first round number above that
+  it('parses one block of 210,000 characters', () => {
+    const xml = `<skam:doc xmlns:skam="urn:skam:1"><skam:body><skam:block>${'學'.repeat(210_000)}</skam:block></skam:body></skam:doc>`;
+    const doc = parse(xml, { validate: false });
+    expect(doc.tokens).toHaveLength(210_000);
+    expect(doc.blocks[0]!.tokenIds).toHaveLength(210_000);
+  });
+});

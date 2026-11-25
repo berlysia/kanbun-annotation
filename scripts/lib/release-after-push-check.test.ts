@@ -1195,6 +1195,33 @@ test('inspectTarball: 正常 (package.json、README.md、LICENSE、CHANGELOG.md�
   assert.deepEqual(inspectEntries(goodEntries()), { kind: 'ok' });
 });
 
+test('inspectTarball: schema/ の直下の .json (skam の JSON Schema) は ok', () => {
+  const entries = [
+    ...goodEntries(),
+    { name: 'package/schema/', typeflag: '5' },
+    fileEntry('package/schema/skam.schema.json', '{}\n'),
+    fileEntry('package/schema/ext-edu.schema.json', '{}\n'),
+  ];
+  assert.deepEqual(inspectEntries(entries), { kind: 'ok' });
+});
+
+test('inspectTarball: schema/ の .json 以外、入れ子、名前の無い .json は mismatch', () => {
+  for (const name of [
+    'package/schema/notes.txt',
+    'package/schema/sub/a.json',
+    'package/schema/.json',
+    'package/schema.json',
+  ]) {
+    assert.equal(
+      inspectEntries([...goodEntries(), fileEntry(name, '{}\n')]).kind,
+      'mismatch',
+      name
+    );
+  }
+  const nestedDir = { name: 'package/schema/sub/', typeflag: '5' };
+  assert.equal(inspectEntries([nestedDir, ...goodEntries()]).kind, 'mismatch');
+});
+
 test('inspectTarball: 終端の後ろが 0 で埋められていても ok (10240 バイトの境界)', () => {
   assert.deepEqual(inspectEntries(goodEntries(), { zeroPadTo: 10240 }), { kind: 'ok' });
 });

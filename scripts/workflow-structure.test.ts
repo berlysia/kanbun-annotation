@@ -46,6 +46,7 @@ interface Step {
 }
 
 interface Job {
+  container?: { image?: string; options?: string };
   needs?: string | string[];
   permissions?: Record<string, string>;
   environment?: unknown;
@@ -797,6 +798,53 @@ describe('ci.yml', () => {
     }
     const missing = commands.filter((c) => !runs.has(c));
     assert.deepEqual(missing, []);
+  });
+
+  describe('browser jobs run in the Playwright image', () => {
+    const BROWSER_JOBS = ['visual-test', 'e2e'] as const;
+    const PLAYWRIGHT_PACKAGES = ['packages/integration-tests', 'packages/playground'] as const;
+
+    function playwrightVersionOf(pkgDir: string): string {
+      const pkg = JSON.parse(readFileSync(join(REPO_ROOT, pkgDir, 'package.json'), 'utf8')) as {
+        dependencies?: Record<string, string>;
+        devDependencies?: Record<string, string>;
+      };
+      const version =
+        pkg.devDependencies?.['@playwright/test'] ?? pkg.dependencies?.['@playwright/test'];
+      assert.ok(version, `${pkgDir} does not depend on @playwright/test`);
+      return version;
+    }
+
+    test('container.image is pinned by digest and its version equals @playwright/test of both packages', () => {
+      const ci = loadWorkflow('ci.yml');
+      for (const name of BROWSER_JOBS) {
+        const image = jobOf(ci, name).container?.image;
+        const m =
+          /^mcr\.microsoft\.com\/playwright:v(\d+\.\d+\.\d+)-noble@sha256:[0-9a-f]{64}$/.exec(
+            image ?? ''
+          );
+        assert.ok(m, `${name}: unexpected container.image ${String(image)}`);
+        for (const pkgDir of PLAYWRIGHT_PACKAGES) {
+          assert.equal(m[1], playwrightVersionOf(pkgDir), `${name} vs ${pkgDir}`);
+        }
+      }
+    });
+
+    test('container.options has --ipc=host', () => {
+      const ci = loadWorkflow('ci.yml');
+      for (const name of BROWSER_JOBS) {
+        assert.match(jobOf(ci, name).container?.options ?? '', /(^|\s)--ipc=host(\s|$)/, name);
+      }
+    });
+
+    test('no step installs browsers (the image has them)', () => {
+      const ci = loadWorkflow('ci.yml');
+      for (const name of BROWSER_JOBS) {
+        for (const step of stepsOf(jobOf(ci, name))) {
+          assert.ok(!step.run?.includes('playwright install'), `${name}: ${step.name}`);
+        }
+      }
+    });
   });
 });
 

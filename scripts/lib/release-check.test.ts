@@ -742,6 +742,51 @@ test('decideEntry: row 2 away from HEAD tells how to switch to the tag', () => {
   assert.match(stopReason(d), /git switch --detach v0\.2\.0/);
 });
 
+test('decideEntry: row 1 resumes from origin/master ahead of the tag when package.json is unchanged', () => {
+  for (const published of [0, 3]) {
+    const d = decideEntry(
+      observed({
+        originTag: present(SHA_OTHER),
+        published: counts(published),
+        tagRelation: { kind: 'ahead-same-packages', commits: 2 },
+      })
+    );
+    assert.deepEqual(d, { kind: 'after-push', resume: { commits: 2 } }, `published ${published}`);
+  }
+});
+
+test('decideEntry: row 2 names why HEAD ahead of the tag cannot resume', () => {
+  const cases: [NonNullable<EntryObservation['tagRelation']>, RegExp][] = [
+    [{ kind: 'ahead-packages-changed' }, /packages\/\*\/package\.json changed since v0\.2\.0/],
+    [{ kind: 'not-descendant' }, /HEAD is not a descendant of v0\.2\.0/],
+    [{ kind: 'ahead-untrusted' }, /HEAD is ahead of v0\.2\.0 but is not origin\/master/],
+    [
+      { kind: 'error', error: lsRemoteError },
+      /cannot compare HEAD with v0\.2\.0; run git fetch --tags origin/,
+    ],
+  ];
+  for (const [tagRelation, reason] of cases) {
+    const d = decideEntry(
+      observed({ originTag: present(SHA_OTHER), published: counts(0), tagRelation })
+    );
+    assert.equal(stopRow(d), 2, tagRelation.kind);
+    assert.match(stopReason(d), reason, tagRelation.kind);
+  }
+});
+
+test('decideEntry: row 2 with a flag does not resume even when HEAD could', () => {
+  const d = decideEntry(
+    observed({
+      flags: { mode: 'tag-only' },
+      originTag: present(SHA_OTHER),
+      published: counts(0),
+      tagRelation: { kind: 'ahead-same-packages', commits: 1 },
+    })
+  );
+  assert.equal(stopRow(d), 2);
+  assert.match(stopReason(d), /rerun without flags/);
+});
+
 test('decideEntry: row 2 with --tag-only and an unpublished origin tag', () => {
   const d = decideEntry(
     observed({

@@ -561,6 +561,12 @@ const ENTRY_KIND_DEFAULTS: Readonly<Record<Exclude<EntryWhere['kind'], 'row'>, D
     '`git status`',
     'Revert or commit the changes, then run again'
   ),
+  'resume-check': def(
+    'default:entry:resume-check',
+    'HEAD is ahead of the tag, and its release scripts did not pass the check run before resuming',
+    'Run `pnpm typecheck:scripts` and `pnpm test:scripts` and read the failures',
+    'Fix the scripts on master (or run git switch --detach vX.Y.Z to resume with the scripts of the tag), then run again'
+  ),
   'after-push-input': def(
     'default:entry:after-push-input',
     'The input for the second half (the tag commit or the manifest order) could not be prepared',

@@ -60,6 +60,7 @@ import type {
   EntryObservation,
   ReleaseFlags,
   ReleaseLookup,
+  TagRelation,
   VerifyPlan,
   WorkspacePackage,
 } from './lib/release-check.ts';
@@ -439,6 +440,10 @@ export interface ReleaseDeps {
   oxfmt(files: string[]): Promise<FrontCheck<void>>;
   checkRelease(tag: string): Promise<FrontCheck<void>>;
   consumer(): Promise<FrontCheck<void>>;
+  // 段 4: 一時 dir に pack して verify-manifest (integrity と tarball の形) を流す
+  shapeCheck(tag: string): Promise<FrontCheck<void>>;
+  // master が tag より先に進んだ後の再開の前に、HEAD の scripts を検査する (typecheck:scripts と test:scripts)
+  scriptsCheck(): Promise<FrontCheck<void>>;
   ghRelease(tag: string): ReleaseLookup;
   confirm(question: string): Promise<boolean>;
   log(line: string): void;
@@ -591,6 +596,20 @@ function stopOnCheck(
   recovery?: string
 ): ReleaseOutcome {
   return s.stop(stage, reason, checkError(check), recovery, check.failure?.rerun);
+}
+
+// 段 4: tarball の形 (パスの許可、package.json の名前・版・内部の依存) を tag の前に確かめてから、
+// 利用者テストを流す。形の検査は段 9 と同じもので、ここで外れれば tag を打たずに止まる
+async function runTarballChecks(
+  s: FrontState,
+  deps: ReleaseDeps,
+  recovery: string | undefined
+): Promise<StageResult> {
+  const shaped = await deps.shapeCheck(s.tag);
+  if (!shaped.ok) return stopOnCheck(s, STAGE_4, 'tarball shape check failed', shaped, recovery);
+  const consumed = await deps.consumer();
+  if (!consumed.ok) return stopOnCheck(s, STAGE_4, 'consumer test failed', consumed, recovery);
+  return undefined;
 }
 
 function stopOnErrors(
@@ -1069,8 +1088,8 @@ export async function runRelease(flags: ReleaseFlags, deps: ReleaseDeps): Promis
 
   // 段 4: 利用者テスト (新しい版の tarball で)
   stageStart(s, 4);
-  const consumed = await deps.consumer();
-  if (!consumed.ok) return stopOnCheck(s, STAGE_4, 'consumer test failed', consumed, recovery);
+  const tested = await runTarballChecks(s, deps, recovery);
+  if (tested !== undefined) return tested;
   log(formatOk('consumer test passed'));
 
   // 段 5: 確認。y/N の質問が根拠の代わりになるので ok の行は出さない
@@ -1366,6 +1385,10 @@ async function observeEntry(deps: MainDeps, flags: ReleaseFlags, root: string): 
     tag
   );
   const local = git(['rev-parse', '-q', '--verify', `refs/tags/${tag}^{commit}`]);
+  const tagRelation =
+    originTag.kind === 'present' && originTag.commit !== head
+      ? observeTagRelation(git, originTag.commit, head)
+      : undefined;
   const names = readPublicPackages(root, git).map((p) => p.name);
   const results = await Promise.all(
     names.map(async (name) => {
@@ -1385,6 +1408,7 @@ async function observeEntry(deps: MainDeps, flags: ReleaseFlags, root: string): 
     observation: {
       ...base,
       originTag,
+      ...(tagRelation === undefined ? {} : { tagRelation }),
       localTagCommit: local.status === 0 ? local.stdout.trim() : undefined,
       published:
         firstFailed === undefined
@@ -1398,10 +1422,42 @@ async function observeEntry(deps: MainDeps, flags: ReleaseFlags, root: string): 
   };
 }
 
+// HEAD が origin の tag の commit と違うときの関係。git の終了コードは 0 / 1 を結果、それ以外を観測の失敗とする
+// (tag の commit が手元に無いときは merge-base が 128 で終わる)。origin/master は ls-remote で読む (fetch しない)
+function observeTagRelation(git: MainDeps['git'], tagCommit: string, head: string): TagRelation {
+  const failed = (command: string, result: GitResult): TagRelation => ({
+    kind: 'error',
+    error: gitError(command, result),
+  });
+  const ancestor = git(['merge-base', '--is-ancestor', tagCommit, head]);
+  if (ancestor.status === 1) return { kind: 'not-descendant' };
+  if (ancestor.status !== 0) return failed('git merge-base --is-ancestor', ancestor);
+  const diff = git(['diff', '--quiet', tagCommit, head, '--', ':(glob)packages/*/package.json']);
+  if (diff.status === 1) return { kind: 'ahead-packages-changed' };
+  if (diff.status !== 0) return failed('git diff --quiet', diff);
+  const branch = git(['rev-parse', '--abbrev-ref', 'HEAD']);
+  if (branch.status !== 0) return failed('git rev-parse --abbrev-ref HEAD', branch);
+  const remote = git(['ls-remote', 'origin', `refs/heads/${BRANCH}`]);
+  if (remote.status !== 0) return failed(`git ls-remote origin refs/heads/${BRANCH}`, remote);
+  const originHead = remote.stdout.trim().split(/\s+/)[0] ?? '';
+  if (branch.stdout.trim() !== BRANCH || originHead !== head) return { kind: 'ahead-untrusted' };
+  const count = git(['rev-list', '--count', `${tagCommit}..${head}`]);
+  const commits = Number(count.stdout.trim());
+  if (count.status !== 0 || !Number.isSafeInteger(commits)) {
+    return failed('git rev-list --count', count);
+  }
+  return { kind: 'ahead-same-packages', commits };
+}
+
 type AfterPushPrepared = { ok: true; value: AfterPushInput } | { ok: false; stop: EntryStopValue };
 
 // 後半の入力。tag の commit は origin から読む (前半から続けて入るときも、再開で入るときも同じ)
-function prepareAfterPush(deps: MainDeps, root: string, checkOnly: boolean): AfterPushPrepared {
+function prepareAfterPush(
+  deps: MainDeps,
+  root: string,
+  checkOnly: boolean,
+  expectedTagCommit?: string
+): AfterPushPrepared {
   const { git } = deps;
   const version = readVersion(root, git);
   if (!version.ok) {
@@ -1420,6 +1476,19 @@ function prepareAfterPush(deps: MainDeps, root: string, checkOnly: boolean): Aft
     return {
       ok: false,
       stop: { reason: 'the tag was not found on origin', error: detailError([tag]) },
+    };
+  }
+  // 入口で HEAD と比べた tag の commit と違えば、比べていない commit の run を照合することになるので止まる
+  if (expectedTagCommit !== undefined && originTag.commit !== expectedTagCommit) {
+    return {
+      ok: false,
+      stop: {
+        reason: `the tag ${tag} moved on origin during the check`,
+        error: detailError([
+          `compared with ${expectedTagCommit}`,
+          `origin now has ${originTag.commit}`,
+        ]),
+      },
     };
   }
   const ordered = orderByDependencies(readPublicPackages(root, git));
@@ -1444,8 +1513,13 @@ function prepareAfterPush(deps: MainDeps, root: string, checkOnly: boolean): Aft
   };
 }
 
-async function enterAfterPush(deps: MainDeps, root: string, checkOnly: boolean): Promise<Outcome> {
-  const input = prepareAfterPush(deps, root, checkOnly);
+async function enterAfterPush(
+  deps: MainDeps,
+  root: string,
+  checkOnly: boolean,
+  expectedTagCommit?: string
+): Promise<Outcome> {
+  const input = prepareAfterPush(deps, root, checkOnly, expectedTagCommit);
   if (!input.ok) {
     return entryStop({ kind: 'after-push-input' }, input.stop.reason, input.stop.error);
   }
@@ -1489,8 +1563,12 @@ function describeEntry(
     observation.published.kind === 'counts'
       ? `${observation.published.published}/${observation.published.total}`
       : 'unknown';
+  const resume =
+    decision.kind === 'after-push' && decision.resume !== undefined
+      ? `; HEAD is ${decision.resume.commits} commit(s) ahead of v${versions.value}; packages/*/package.json unchanged`
+      : '';
   return formatEntry(
-    `version ${versions.value}, tag v${versions.value} on origin: ${origin}, published ${published} -> ${outcome}`
+    `version ${versions.value}, tag v${versions.value} on origin: ${origin}, published ${published} -> ${outcome}${resume}`
   );
 }
 
@@ -1548,7 +1626,20 @@ async function runEntry(argv: readonly string[], deps: MainDeps): Promise<Outcom
         return entryStop({ kind: 'dirty' }, reason, error);
       }
       deps.output.emit(describeEntry(observed.observation, decision));
-      return enterAfterPush(deps, root, decision.kind === 'after-push-check-only');
+      const { originTag } = observed.observation;
+      const tagCommit = originTag.kind === 'present' ? originTag.commit : undefined;
+      if (decision.kind === 'after-push' && decision.resume !== undefined) {
+        // 後半で動かすのは HEAD の scripts なので、tag の commit より先に進んだ分を検査してから入る
+        const checked = await deps.release.scriptsCheck();
+        if (!checked.ok) {
+          return entryStop(
+            { kind: 'resume-check' },
+            'the release scripts at HEAD did not pass typecheck:scripts and test:scripts',
+            checkError(checked)
+          );
+        }
+      }
+      return enterAfterPush(deps, root, decision.kind === 'after-push-check-only', tagCommit);
     }
   }
 }
@@ -1809,7 +1900,9 @@ export type FrontChild =
   | 'changesetVersion'
   | 'oxfmt'
   | 'checkRelease'
-  | 'consumer';
+  | 'consumer'
+  | 'shapeCheck'
+  | 'scriptsCheck';
 
 const FRONT_CHILD_STDIO: Readonly<Record<FrontChild, RunStdio>> = {
   changesetStatus: 'inherit-keep-stderr',
@@ -1819,6 +1912,8 @@ const FRONT_CHILD_STDIO: Readonly<Record<FrontChild, RunStdio>> = {
   oxfmt: 'inherit-keep-stderr',
   checkRelease: 'inherit-keep-stderr',
   consumer: 'inherit-keep-stderr',
+  shapeCheck: 'inherit-keep-stderr',
+  scriptsCheck: 'inherit-keep-stderr',
 };
 
 // リポジトリの package.json の scripts.verify を、流す時点で読む。読めない、JSON でない、
@@ -1962,6 +2057,34 @@ export function buildReleaseDeps(
         '--registry',
       ]),
     consumer: () => runChild('consumer', 'pnpm', ['test:consumer']),
+    shapeCheck: async (tag) => {
+      const out = mkdtempSync(join(tmpdir(), 'skam-release-shape-'));
+      try {
+        const packed = await runChild('shapeCheck', process.execPath, [
+          checkReleaseScript,
+          'pack',
+          '--out',
+          out,
+          '--tag',
+          tag,
+        ]);
+        if (!packed.ok) return packed;
+        return await runChild('shapeCheck', process.execPath, [
+          checkReleaseScript,
+          'verify-manifest',
+          '--dir',
+          out,
+          '--tag',
+          tag,
+        ]);
+      } finally {
+        rmSync(out, { recursive: true, force: true });
+      }
+    },
+    scriptsCheck: async () => {
+      const typed = await runChild('scriptsCheck', 'pnpm', ['typecheck:scripts']);
+      return typed.ok ? runChild('scriptsCheck', 'pnpm', ['test:scripts']) : typed;
+    },
     ghRelease,
     confirm:
       options.confirm ??

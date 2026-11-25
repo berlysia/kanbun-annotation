@@ -55,6 +55,7 @@ import type {
   SpawnSyncFn,
 } from './release.ts';
 import type { AfterPushInput } from './release-after-push.ts';
+import type { FrontCheck } from './lib/release-types.ts';
 import { checkChangelog } from './lib/release-check.ts';
 import type { ChangesetStatus, ReleaseFlags, ReleaseLookup } from './lib/release-check.ts';
 import { excerptDetail, STAGES } from './lib/release-stop-report.ts';
@@ -291,6 +292,14 @@ function fakeDeps(repo: Repo, overrides: Partial<ReleaseDeps> = {}): Fake {
       calls.push('consumer');
       return ok;
     },
+    shapeCheck: async (tag) => {
+      calls.push(`shapeCheck:${tag}`);
+      return ok;
+    },
+    scriptsCheck: async () => {
+      calls.push('scriptsCheck');
+      return ok;
+    },
     ghRelease: () => notFound,
     confirm: async () => true,
     log: (line) => logs.push(line),
@@ -370,8 +379,29 @@ test('normal release: commit and annotated tag exist locally and on origin, tree
     'changesetVersion',
     'oxfmt',
     'checkRelease',
+    'shapeCheck:v0.2.0',
     'consumer',
   ]);
+});
+
+test('stage 4 stops on a tarball shape failure before the consumer test, and restores the working tree', async () => {
+  const repo = makeRepo();
+  const before = mustGit(repo.work, ['rev-parse', 'HEAD']);
+  const failing: FrontCheck<void> = {
+    ok: false,
+    errors: ['verify-manifest exited with 1'],
+    failure: {
+      command: 'node check-release.ts verify-manifest',
+      status: 1,
+      stderr: '@fx/a: file "package/src/x.ts" is not in the allowed set\n',
+      captured: true,
+    },
+  };
+  const fake = fakeDeps(repo, { shapeCheck: async () => failing });
+  const outcome = await runRelease(normal, fake.deps);
+  assert.equal(stoppedStage(outcome), '4 consumer test');
+  assert.equal(fake.calls.includes('consumer'), false);
+  assert.equal(mustGit(repo.work, ['rev-parse', 'HEAD']), before);
 });
 
 // 進み方の行 (段の始めと根拠)
@@ -1637,6 +1667,113 @@ test('main: an after-push entry calls runAfterPush once with the origin tag, and
   assert.equal(fake.interruptInstalls(), 1);
 });
 
+// tag の後に scripts だけを変えた commit を master に積む。push しないときは origin/master より先になる
+function commitAfterTag(repo: Repo, file: string, push = true): string {
+  const tagCommit = mustGit(repo.work, ['rev-parse', 'HEAD']);
+  mkdirSync(join(repo.work, dirname(file)), { recursive: true });
+  writeFileSync(join(repo.work, file), `// ${file}\n`);
+  mustGit(repo.work, ['add', file]);
+  mustGit(repo.work, ['commit', '-m', `change ${file}`]);
+  if (push) mustGit(repo.work, ['push', 'origin', 'master']);
+  return tagCommit;
+}
+
+test('main: resume from origin/master ahead of the tag checks the scripts, then runs the second half on the tag commit', async () => {
+  const repo = makeRepo({ changeset: false });
+  tagOriginAtHead(repo, 'v0.1.0');
+  const tagCommit = commitAfterTag(repo, 'scripts/fix.ts');
+  const fake = fakeMain(repo, { published: 'none' });
+  await runMain([], fake.deps);
+  assert.equal(fake.afterPushInputs.length, 1, fake.lines());
+  assert.equal(fake.afterPushInputs[0]?.tagCommit, tagCommit);
+  assert.deepEqual(
+    fake.releaseCalls.filter((c) => c === 'scriptsCheck' || c === 'verify'),
+    ['scriptsCheck']
+  );
+  assert.match(
+    fake.lines(),
+    /HEAD is 1 commit\(s\) ahead of v0\.1\.0; packages\/\*\/package\.json unchanged/
+  );
+});
+
+test('main: resume stops before the second half when the scripts check fails', async () => {
+  const repo = makeRepo({ changeset: false });
+  tagOriginAtHead(repo, 'v0.1.0');
+  commitAfterTag(repo, 'scripts/fix.ts');
+  const failing: FrontCheck<void> = {
+    ok: false,
+    errors: ['pnpm test:scripts exited with 1'],
+    failure: { command: 'pnpm test:scripts', status: 1, stderr: 'not ok 1\n', captured: true },
+  };
+  const fake = fakeMain(repo, {
+    published: 'none',
+    releaseOverrides: { scriptsCheck: async () => failing },
+  });
+  assert.equal(await runMain([], fake.deps), 1);
+  assert.equal(fake.afterPushInputs.length, 0);
+  assert.match(fake.lines(), /release scripts at HEAD did not pass/);
+});
+
+test('main: HEAD ahead of the tag that is not origin/master, or that changed package.json, stops at row 2', async () => {
+  const unpushed = makeRepo({ changeset: false });
+  tagOriginAtHead(unpushed, 'v0.1.0');
+  commitAfterTag(unpushed, 'scripts/fix.ts', false);
+  const changed = makeRepo({ changeset: false });
+  tagOriginAtHead(changed, 'v0.1.0');
+  const file = join(changed.work, 'packages', 'a', 'package.json');
+  const json = JSON.parse(readFileSync(file, 'utf8')) as Record<string, unknown>;
+  json['description'] = 'changed';
+  writeFileSync(file, `${JSON.stringify(json, null, 2)}\n`);
+  mustGit(changed.work, ['commit', '-am', 'change a']);
+  mustGit(changed.work, ['push', 'origin', 'master']);
+  for (const [repo, reason] of [
+    [unpushed, /is not origin\/master/],
+    [changed, /packages\/\*\/package\.json changed since v0\.1\.0/],
+  ] as const) {
+    const fake = fakeMain(repo, { published: 'none' });
+    assert.equal(await runMain([], fake.deps), 1);
+    assert.equal(fake.afterPushInputs.length, 0);
+    assert.equal(fake.releaseCalls.includes('scriptsCheck'), false);
+    assert.match(fake.lines(), reason);
+  }
+});
+
+test('main: git exit codes other than 0 and 1 while comparing HEAD with the tag stop the entry', async () => {
+  for (const sub of ['merge-base', 'diff']) {
+    const repo = makeRepo({ changeset: false });
+    tagOriginAtHead(repo, 'v0.1.0');
+    commitAfterTag(repo, 'scripts/fix.ts');
+    const fake = fakeMain(repo, {
+      published: 'none',
+      gitOverride: (args) =>
+        args[0] === sub ? { status: 128, stdout: '', stderr: 'fatal: bad object\n' } : undefined,
+    });
+    assert.equal(await runMain([], fake.deps), 1, sub);
+    assert.equal(fake.afterPushInputs.length, 0, sub);
+    assert.match(fake.lines(), /cannot compare HEAD with v0\.1\.0/, sub);
+  }
+});
+
+test('main: the tag moving on origin between the entry and the second half stops before it', async () => {
+  const repo = makeRepo({ changeset: false });
+  tagOriginAtHead(repo, 'v0.1.0');
+  commitAfterTag(repo, 'scripts/fix.ts');
+  let tagReads = 0;
+  const fake = fakeMain(repo, {
+    published: 'none',
+    gitOverride: (args) => {
+      if (args[0] !== 'ls-remote' || !args.includes('refs/tags/v0.1.0')) return undefined;
+      tagReads += 1;
+      if (tagReads < 2) return undefined;
+      const moved = 'c'.repeat(40);
+      return { status: 0, stdout: `${moved}\trefs/tags/v0.1.0\n`, stderr: '' };
+    },
+  });
+  assert.equal(await runMain([], fake.deps), 1);
+  assert.equal(fake.afterPushInputs.length, 0);
+  assert.match(fake.lines(), /the tag v0\.1\.0 moved on origin during the check/);
+});
+
 test('main: the check-only entry (row 8: released, all published, no pending changeset) passes checkOnly', async () => {
   const repo = makeRepo({ changeset: false });
   tagOriginAtHead(repo, 'v0.1.0');
@@ -2450,9 +2587,18 @@ for (const [label, argv, setup] of entryTriggers) {
 test('entry stop: every row and every place prints the three headings', () => {
   const wheres: EntryWhere[] = [
     ...ENTRY_STOP_ROWS.map((row) => ({ kind: 'row' as const, row })),
-    ...(['flags', 'tty', 'tooling', 'repo', 'pre-state', 'dirty', 'after-push-input'] as const).map(
-      (kind) => ({ kind })
-    ),
+    ...(
+      [
+        'flags',
+        'tty',
+        'tooling',
+        'repo',
+        'pre-state',
+        'dirty',
+        'resume-check',
+        'after-push-input',
+      ] as const
+    ).map((kind) => ({ kind })),
   ];
   for (const where of wheres) {
     const out = lineCollector();
@@ -2715,6 +2861,8 @@ function realDeps(repo: Repo): RealFake {
         return errors.length > 0 ? { ok: false, errors } : ok;
       },
       consumer: async () => ok,
+      // pack は check-release.ts が fixture でなく本物のリポジトリを読むので、consumer と同じく差し替える
+      shapeCheck: async () => ok,
       ghRelease: () => ({ kind: 'not-found' }),
       confirm: async () => true,
       log: (line) => logs.push(line),

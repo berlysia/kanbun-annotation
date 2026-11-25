@@ -588,6 +588,7 @@ const ENTRY_WHERES: EntryWhere[] = [
   { kind: 'repo' },
   { kind: 'pre-state' },
   { kind: 'dirty' },
+  { kind: 'resume-check' },
   { kind: 'after-push-input' },
 ];
 const ALL_SITES: StopSite[] = [
@@ -597,7 +598,7 @@ const ALL_SITES: StopSite[] = [
 ];
 
 test('diagnose: すべての停止の場所に 1 件以上の候補があり、cause / check / 対処が空でない', () => {
-  assert.equal(ALL_SITES.length, 19 + 7 + 18 + 2);
+  assert.equal(ALL_SITES.length, 19 + 7 + 18 + 2 + 1);
   for (const site of ALL_SITES) {
     const causes = diagnose(site, errorOf({}));
     assert.ok(causes.length >= 1, JSON.stringify(site));

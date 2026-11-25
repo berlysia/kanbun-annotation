@@ -157,7 +157,7 @@ changeset の本文が、6 つのパッケージの CHANGELOG の本文になる
 | 1   | 前提の確認               | branch が master、作業ツリーが clean、`git fetch` 後に HEAD が `origin/master` と同じ。6 パッケージの trust が 1 件ずつ期待どおり。`changeset status` で出す版が決まる。`pnpm verify` が通り、作業ツリーが汚れていない                                                                                                                                                                          | trust の確認で 2FA (「次の 5 分間は 2FA を省略する」を選ぶ)                   |
 | 2   | 版上げ                   | `changeset version`、ignore 済みパッケージの変更の復元、本文のない CHANGELOG の節の補完、変更が許可リストに収まること、oxfmt                                                                                                                                                                                                                                                                    | なし                                                                          |
 | 3   | 公開前提の検査           | `check-release check --tag vX.Y.Z --registry`: 6 つの版が等しい、6 つの CHANGELOG の先頭が新しい版で本文がある、npm に未公開、stable なら現在の `latest` より新しい。tag が local にも origin にもない                                                                                                                                                                                          | なし                                                                          |
-| 4   | 利用者テスト             | 新しい版の tarball を空のプロジェクトに入れて確かめる (`pnpm test:consumer`)                                                                                                                                                                                                                                                                                                                    | なし                                                                          |
+| 4   | 利用者テスト             | 一時 dir に pack して `check-release.ts verify-manifest` で tarball の形 (段 9 と同じパスの許可、`package.json` の名前・版・内部の依存) を確かめ、新しい版の tarball を空のプロジェクトに入れて確かめる (`pnpm test:consumer`)                                                                                                                                                                  | なし                                                                          |
 | 5   | 確認                     | 版と変更ファイルの一覧を出す                                                                                                                                                                                                                                                                                                                                                                    | y/N。`y` で進み、`N` なら止まる                                               |
 | 6   | 記録                     | `chore: release vX.Y.Z` の commit (許可リストのパスだけ) と、annotated tag `vX.Y.Z`                                                                                                                                                                                                                                                                                                             | なし                                                                          |
 | 7   | 送信                     | `git push --atomic origin master vX.Y.Z`。拒否されたら origin は変わらない                                                                                                                                                                                                                                                                                                                      | なし                                                                          |
@@ -193,6 +193,8 @@ git tag -d vX.Y.Z && git reset --hard origin/master
 ## 止まったとき
 
 同じコマンド (`pnpm run release`) を再実行すると、続きから進む。進捗のファイルはなく、毎回 git、GitHub、npm の状態を読んで、どの段から再開するかを決める。tag を push した後に止まったときは、origin に tag があるので、再実行は後半 (段 8) から始まる。
+
+後半で止まった原因がリリースの scripts の不具合なら、scripts を直して master に入れ、master で同じコマンドを再実行すれば続きから進む。HEAD が tag の commit より先にあっても、次の 4 つがそろえば、HEAD の scripts で後半を続ける。HEAD が tag の commit の子孫であること、`packages/*/package.json` が tag の commit と同じであること、HEAD が master で `origin/master` と同じであること、HEAD で `pnpm typecheck:scripts` と `pnpm test:scripts` が通ること。後半が作業ツリーから読むのは `packages/*/package.json` (公開パッケージ、版、依存の順) だけなので、出すものと照合の対象は tag の commit から始めたときと変わらない。入口で比べた tag の commit と、後半に入るときに origin から読み直した commit が違えば止まる。
 
 入口、前半、後半のどこで止まっても、次の形で表示する。exit code は 1 である。
 
@@ -261,24 +263,28 @@ Ctrl-C は 1 回目で、待機と再試行の区切りで止まり (`Interrupte
 
 入口の判定で止まったときは `release stopped: <理由>` と表示し、何も変えずに exit 1 で終わる。理由の英文の断片と、次の手は次のとおり。
 
-| 状態                                                                      | 理由の断片                                                                                             | 次の手                                                                                                       |
-| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------ |
-| 端末でない                                                                | `stdin and stdout must both be a terminal`                                                             | 端末で実行する                                                                                               |
-| npm / gh の版、registry の設定                                            | `is older than`、`is 13 or newer`、`npm registry is`                                                   | 版を上げる、または設定を直す                                                                                 |
-| 引数                                                                      | `unknown argument`、`cannot be combined`、`--pre needs a tag`                                          | 引数を直す。`--tag-only`、`--pre <tag>`、`--exit-pre` は同時に使えない                                       |
-| 観測の失敗                                                                | `git ls-remote failed`、`npm view failed`                                                              | 原因 (ネットワーク、認証) を直して再実行                                                                     |
-| 6 パッケージの版が一致しない                                              | `version ... differs from`                                                                             | 版を確かめる。手で `package.json` の版を上げない                                                             |
-| tag が origin にあり、公開が未完了で、HEAD が tag の commit でない        | `is unfinished (published ...); run git switch --detach vX.Y.Z, then rerun without flags to finish it` | `git switch --detach vX.Y.Z` の後に、フラグなしで再実行                                                      |
-| tag が origin にあり、公開が未完了で、フラグが付いている                  | `is unfinished (published ...); rerun without flags to finish it`                                      | フラグなしで再実行して、まず完了させる                                                                       |
-| tag が local だけにあり、HEAD と同じ commit (段 7 の push が失敗した状態) | `exists at HEAD but not on origin (the push failed)`                                                   | `git tag -d vX.Y.Z && git reset --hard origin/master`。`--tag-only` で打ち直すなら、先に `git tag -d vX.Y.Z` |
-| tag が local だけにあり、HEAD と違う commit                               | `a stale local tag`                                                                                    | `git tag -d vX.Y.Z` の後に再実行                                                                             |
-| `--tag-only` で、tag がすでにあり、公開が完了している                     | `is already released`                                                                                  | 打ち直すなら、先に「失敗したとき」の F1 の手順で tag を消す                                                  |
-| `--tag-only` で、一部が公開済み                                           | `is partly published`                                                                                  | F1 の打ち直しは公開 0 が前提。F3 の手順へ                                                                    |
-| `changeset status` の失敗、不整合                                         | `changeset status failed`、`changeset status is inconsistent`                                          | 理由を読んで直す                                                                                             |
-| 版上げ済みで tag がない                                                   | `the version is bumped to ... but there is no tag`                                                     | `pnpm run release -- --tag-only`                                                                             |
-| pre mode 中で、消費済みの changeset しかない                              | `in pre mode with only consumed changesets`                                                            | 新しい changeset を足す、または `pnpm run release -- --exit-pre` で stable を出す                            |
-| 出すものがない                                                            | `nothing to release (no pending changeset`                                                             | changeset を書く                                                                                             |
-| 後半に入るとき、作業ツリーが clean でない                                 | `working tree is not clean`                                                                            | 変更を戻すか commit する                                                                                     |
+| 状態                                                                         | 理由の断片                                                                    | 次の手                                                                                                       |
+| ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| 端末でない                                                                   | `stdin and stdout must both be a terminal`                                    | 端末で実行する                                                                                               |
+| npm / gh の版、registry の設定                                               | `is older than`、`is 13 or newer`、`npm registry is`                          | 版を上げる、または設定を直す                                                                                 |
+| 引数                                                                         | `unknown argument`、`cannot be combined`、`--pre needs a tag`                 | 引数を直す。`--tag-only`、`--pre <tag>`、`--exit-pre` は同時に使えない                                       |
+| 観測の失敗                                                                   | `git ls-remote failed`、`npm view failed`                                     | 原因 (ネットワーク、認証) を直して再実行                                                                     |
+| 6 パッケージの版が一致しない                                                 | `version ... differs from`                                                    | 版を確かめる。手で `package.json` の版を上げない                                                             |
+| tag が origin にあり、公開が未完了で、HEAD が tag の commit の子孫でない     | `HEAD is not a descendant of vX.Y.Z`                                          | `git switch --detach vX.Y.Z` の後に、フラグなしで再実行                                                      |
+| 同じで、tag の後に `packages/*/package.json` が変わった                      | `packages/*/package.json changed since vX.Y.Z`                                | `git switch --detach vX.Y.Z` の後に、フラグなしで再実行                                                      |
+| 同じで、HEAD が master の `origin/master` でない                             | `HEAD is ahead of vX.Y.Z but is not origin/master`                            | master に切り替えて `git pull --ff-only`、または `git switch --detach vX.Y.Z` の後に、フラグなしで再実行     |
+| 同じで、HEAD と tag を比べる git が失敗した (tag の commit が手元に無いなど) | `cannot compare HEAD with vX.Y.Z`                                             | `git fetch --tags origin` の後に再実行                                                                       |
+| HEAD が tag より先で再開できる状態だが、HEAD の scripts の検査が通らない     | `the release scripts at HEAD did not pass typecheck:scripts and test:scripts` | scripts を直して master に入れて再実行する。tag の scripts で続けるなら `git switch --detach vX.Y.Z`         |
+| tag が origin にあり、公開が未完了で、フラグが付いている                     | `is unfinished (published ...); rerun without flags to finish it`             | フラグなしで再実行して、まず完了させる                                                                       |
+| tag が local だけにあり、HEAD と同じ commit (段 7 の push が失敗した状態)    | `exists at HEAD but not on origin (the push failed)`                          | `git tag -d vX.Y.Z && git reset --hard origin/master`。`--tag-only` で打ち直すなら、先に `git tag -d vX.Y.Z` |
+| tag が local だけにあり、HEAD と違う commit                                  | `a stale local tag`                                                           | `git tag -d vX.Y.Z` の後に再実行                                                                             |
+| `--tag-only` で、tag がすでにあり、公開が完了している                        | `is already released`                                                         | 打ち直すなら、先に「失敗したとき」の F1 の手順で tag を消す                                                  |
+| `--tag-only` で、一部が公開済み                                              | `is partly published`                                                         | F1 の打ち直しは公開 0 が前提。F3 の手順へ                                                                    |
+| `changeset status` の失敗、不整合                                            | `changeset status failed`、`changeset status is inconsistent`                 | 理由を読んで直す                                                                                             |
+| 版上げ済みで tag がない                                                      | `the version is bumped to ... but there is no tag`                            | `pnpm run release -- --tag-only`                                                                             |
+| pre mode 中で、消費済みの changeset しかない                                 | `in pre mode with only consumed changesets`                                   | 新しい changeset を足す、または `pnpm run release -- --exit-pre` で stable を出す                            |
+| 出すものがない                                                               | `nothing to release (no pending changeset`                                    | changeset を書く                                                                                             |
+| 後半に入るとき、作業ツリーが clean でない                                    | `working tree is not clean`                                                   | 変更を戻すか commit する                                                                                     |
 
 ### 待つ時間
 
@@ -351,6 +357,8 @@ validate の job は、manifest の表を Step Summary (`$GITHUB_STEP_SUMMARY`) 
 
 表の integrity は、summary の step が `npm-tarball/` の tgz から sha512 を計算した値で、manifest の `integrity` を写したものではない。manifest の値と違っても summary の step は止まらない。同じ job の verify-manifest が先に止めるためである。manifest や tgz に不備があれば、summary の step は何も出さずに失敗する。
 
+verify-manifest は、manifest と integrity の一致に加えて、各 tarball の形 (段 9 と同じパスの許可と、`package.json` の名前・版・内部の依存) も検査する。外れたら stage の前に止まるので、F1 (stage は 0) になる。
+
 log は書かれた後に編集できず、artifact の保存領域とは別にある。`pnpm run release` は、この log の表を錨にしている。手で読むときは、Step Summary でも log でもよい。log は次のコマンドで取る。
 
 ```bash
@@ -379,7 +387,7 @@ gh run view <run-id> --log --job <validate の job の id>
    echo "sha512-$(openssl dgst -sha512 -binary <ダウンロードした .tgz> | openssl base64 -A)"
    ```
 
-3. **中身が想定どおり**: `npm stage download <stage-id>` で tarball を落とし、ファイル一覧が `package.json` / `README.md` / `LICENSE` / `CHANGELOG.md` / `dist/` に収まることを確かめる (保存先は出力に従う。保存先と書式は未確認)。
+3. **中身が想定どおり**: `npm stage download <stage-id>` で tarball を落とし、ファイル一覧が `package.json` / `README.md` / `LICENSE` / `CHANGELOG.md` / `dist/` / `schema/` の直下の `.json` に収まることを確かめる (保存先は出力に従う。保存先と書式は未確認)。
 
    ```bash
    npm stage download <stage-id>

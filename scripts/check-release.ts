@@ -28,6 +28,7 @@ import {
   verifyManifest,
 } from './lib/release-check.ts';
 import type { Check, ReleaseManifest, WorkspacePackage } from './lib/release-check.ts';
+import { inspectTarball } from './lib/release-after-push-check.ts';
 
 const DEFAULT_ROOT = new URL('..', import.meta.url).pathname.replace(/\/$/, '');
 
@@ -217,7 +218,20 @@ function runVerifyManifest(options: Options): Check<void> {
   const expected: { tag?: string; names: string[] } = { names: resolved.value.map((p) => p.name) };
   if (options.tag !== undefined) expected.tag = options.tag;
   const verdict = verifyManifest(manifest, files, expected);
-  return verdict.ok ? { ok: true, value: undefined } : verdict;
+  if (!verdict.ok) return verdict;
+  // 段 9 が stage の後に流す形の検査を、stage の前 (validate) と tag の前 (前半の段 4) にも流す。
+  // 段 9 の sha512 の照合は stage の後でしか意味がないので、ここでは integrity の一致までにとどめる
+  const { version, packages } = verdict.value;
+  const internalNames = packages.map((p) => p.name);
+  for (const p of packages) {
+    const shape = inspectTarball(readFileSync(join(options.dir, p.file)), {
+      name: p.name,
+      version,
+      internalNames,
+    });
+    if (shape.kind !== 'ok') return fail(`${p.name}: ${shape.what}`);
+  }
+  return { ok: true, value: undefined };
 }
 
 function run(command: string, options: Options): { lines: string[]; result: Check<unknown> } {

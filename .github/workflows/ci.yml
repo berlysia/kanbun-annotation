@@ -127,6 +127,10 @@ jobs:
   visual-test:
     name: Visual Regression Test
     runs-on: ubuntu-latest
+    # ubuntu-latest has no Playwright-supported Chromium build; the version tag must match @playwright/test.
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.0-noble@sha256:35c7d48b4ccaf3aca5018f5f1bf7f50c7da7d61d176c530741f4f2e9ca336c34
+      options: --ipc=host
     permissions:
       contents: read
     timeout-minutes: 10
@@ -151,9 +155,6 @@ jobs:
       - name: Build packages
         run: pnpm build
 
-      - name: Install Playwright browsers
-        run: pnpm --filter @kanbun-skam/integration-tests exec playwright install --with-deps chromium
-
       - name: Run visual tests
         run: pnpm --filter @kanbun-skam/integration-tests test:visual
 
@@ -172,6 +173,10 @@ jobs:
   e2e:
     name: Playground E2E
     runs-on: ubuntu-latest
+    # ubuntu-latest has no Playwright-supported Chromium build; the version tag must match @playwright/test.
+    container:
+      image: mcr.microsoft.com/playwright:v1.58.0-noble@sha256:35c7d48b4ccaf3aca5018f5f1bf7f50c7da7d61d176c530741f4f2e9ca336c34
+      options: --ipc=host
     permissions:
       contents: read
     timeout-minutes: 15
@@ -195,9 +200,6 @@ jobs:
 
       - name: Build packages
         run: pnpm build
-
-      - name: Install Playwright browsers
-        run: pnpm --filter @kanbun-skam/playground exec playwright install --with-deps chromium
 
       - name: Run e2e tests
         run: pnpm --filter @kanbun-skam/playground test:e2e --fail-on-flaky-tests

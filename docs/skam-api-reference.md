@@ -445,11 +445,11 @@ const { html, css } = render(doc);
 // 不正な値は TypeError（Web Component の profile 属性では描画しない）
 // 出題の印を隠す（@experimental）: { hideQuiz: true | ['問1'] }
 //   印の付いた注記の中身を 1 字ずつ空白に置き換え、class と aria-hidden を付ける。
-//   hideQuiz を渡して readingLayerSource を書かないときは、読み層も 'display' になる
 // 表示層の lang: displayLang → 文書の lang → 'ja' の順（形に合わない値は使わない）。コンテナは 'ja'。
 //   読み層は、readings の経路で白文に戻ったときだけ文書の lang を持つ
 // 読み層の出どころ（@experimental）: { readingLayerSource: 'readings' | 'display' }
 //   'display' は profile で見えている注記だけを言葉にする（readings も白文も参照しない）。
+//   書かないときは、profile か hideQuiz を渡せば 'display'、どちらも無ければ 'readings'。
 //   言葉の上書き: { accessibleLabels: { kaeri: (note) => '...' } }
 //   Web Component では `accessibleLabels` プロパティで渡す。
 //   出題など注記を隠す用途では { base, overrides } の profile と 'display' を併用する

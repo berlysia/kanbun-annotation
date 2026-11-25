@@ -114,7 +114,17 @@ export const NO_COMMAND = '(no command)';
 
 export type EntryWhere =
   | { kind: 'row'; row: EntryStopRow }
-  | { kind: 'flags' | 'tty' | 'tooling' | 'repo' | 'pre-state' | 'dirty' | 'after-push-input' };
+  | {
+      kind:
+        | 'flags'
+        | 'tty'
+        | 'tooling'
+        | 'repo'
+        | 'pre-state'
+        | 'dirty'
+        | 'resume-check'
+        | 'after-push-input';
+    };
 
 export type FrontStage =
   | '1 prerequisites'

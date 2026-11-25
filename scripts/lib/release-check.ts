@@ -468,13 +468,25 @@ export interface EntryObservation {
     | { kind: 'counts'; published: number; total: number }
     | { kind: 'error'; failedNames: readonly string[]; error: ErrorExcerpt };
   preMode: boolean;
+  // origin に tag があり HEAD と違うときだけ観測する。HEAD が tag の commit の子孫で、
+  // packages/*/package.json が tag の commit と同じで、HEAD が master の origin/master なら
+  // ahead-same-packages (後半が作業ツリーから読むのは package.json だけなので、照合の対象は変わらない)
+  tagRelation?: TagRelation;
 }
+
+export type TagRelation =
+  | { kind: 'ahead-same-packages'; commits: number }
+  | { kind: 'ahead-packages-changed' }
+  | { kind: 'not-descendant' }
+  | { kind: 'ahead-untrusted' }
+  | { kind: 'error'; error: ErrorExcerpt };
 
 // error は観測にあった ErrorExcerpt をそのまま通すときだけ持つ。detail は外部の値 (versions.errors など) を
 // 生のまま持つ。RC は ErrorExcerpt を作らない (作るのは呼び出し側で、外部の値は行の切り出しを通す)
 export type EntryDecision =
   | { kind: 'front'; mode: ReleaseFlags }
-  | { kind: 'after-push' }
+  // resume は HEAD が tag の commit より先にあるときの再開 (commits は tag から HEAD までの数)
+  | { kind: 'after-push'; resume?: { commits: number } }
   | { kind: 'after-push-check-only' }
   | {
       kind: 'stop';
@@ -498,6 +510,55 @@ const stopAt = (
   ...(extra.error === undefined ? {} : { error: extra.error }),
   ...(extra.detail === undefined ? {} : { detail: extra.detail }),
 });
+
+// origin に tag があり公開が未完了のとき: 行 1 (後半へ) か行 2 (止まる)。
+// 未完了のリリースの上に新しいリリースを積まない。HEAD が tag より先でも、package.json が同じ
+// origin/master なら出すものは変わらないので、HEAD の scripts で後半を続ける
+function decideUnfinished(
+  observed: EntryObservation,
+  tagCommit: string,
+  tag: string,
+  count: string
+): EntryDecision {
+  const { flags, head, tagRelation: relation } = observed;
+  const atTag = tagCommit === head;
+  if (flags.mode === 'normal') {
+    if (atTag) return { kind: 'after-push' };
+    if (relation?.kind === 'ahead-same-packages') {
+      return { kind: 'after-push', resume: { commits: relation.commits } };
+    }
+  }
+  const unfinished = `release ${tag} is unfinished (published ${count})`;
+  if (flags.mode !== 'normal' || atTag || relation === undefined) {
+    const switchHint = atTag ? '' : `run git switch --detach ${tag}, then `;
+    return stopAt(2, `${unfinished}; ${switchHint}rerun without flags to finish it`);
+  }
+  if (relation.kind === 'ahead-same-packages') {
+    return stopAt(2, `${unfinished}; rerun without flags to finish it`);
+  }
+  const reason = `${unfinished}; ${cannotResume(relation, tag)}`;
+  return relation.kind === 'error'
+    ? stopAt(2, reason, { error: relation.error })
+    : stopAt(2, reason);
+}
+
+// 行 2 で、tag より先の HEAD から再開できない理由と次の手
+function cannotResume(
+  relation: Exclude<TagRelation, { kind: 'ahead-same-packages' }>,
+  tag: string
+): string {
+  const detach = `run git switch --detach ${tag}, then rerun without flags to finish it`;
+  switch (relation.kind) {
+    case 'ahead-packages-changed':
+      return `packages/*/package.json changed since ${tag}; ${detach}`;
+    case 'not-descendant':
+      return `HEAD is not a descendant of ${tag}; ${detach}`;
+    case 'ahead-untrusted':
+      return `HEAD is ahead of ${tag} but is not origin/master; switch to master and run git pull --ff-only, or ${detach}`;
+    case 'error':
+      return `cannot compare HEAD with ${tag}; run git fetch --tags origin, then rerun`;
+  }
+}
 
 // changeset status が要る行 (8 以降) の手前までを決める。要るときは need-status を返し、
 // 呼び出し側が status を読んで decideEntryWithStatus を呼ぶ (status の失敗が後半の再開を止めないため)。
@@ -528,15 +589,7 @@ export function decideEntry(observed: EntryObservation): EntryDecision {
   const complete = published.total > 0 && published.published === published.total;
 
   if (originTag.kind === 'present') {
-    if (!complete) {
-      if (originTag.commit === head && flags.mode === 'normal') return { kind: 'after-push' }; // 行 1
-      // 行 2: 未完了のリリースの上に新しいリリースを積まない
-      const switchHint = originTag.commit === head ? '' : `run git switch --detach ${tag}, then `;
-      return stopAt(
-        2,
-        `release ${tag} is unfinished (published ${count}); ${switchHint}rerun without flags to finish it`
-      );
-    }
+    if (!complete) return decideUnfinished(observed, originTag.commit, tag, count);
   } else if (localTagCommit !== undefined) {
     if (localTagCommit === head) {
       // 行 3: 段 7 の push が失敗した状態

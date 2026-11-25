@@ -1,10 +1,95 @@
 # @kanbun-skam/skam-web-component
 
+## 0.3.0
+
+### Minor Changes
+
+- f1bd8d3: Keep the language of the base text in the document (`lang`) and use it for the display layer (ADR-041).
+
+  - `skam`: documents have an optional top-level `lang`, a language tag such as `ja`, `lzh` or `zh-Hant`. The validator reports a non-string `lang` as `INVALID_TYPE` and a malformed one as `INVALID_VALUE` (path `lang`), and keeps a valid one in the returned document. `isLanguageTag(value)` is a new type guard for the accepted form; it does not check registered subtags.
+  - `skam-xml-parser`: the root `xml:lang` becomes `lang` (an empty value means no `lang`). Parse results of documents whose root has `xml:lang` now contain `lang`, so tests that compare whole parse results need updating. `xml:lang` on other elements is still ignored.
+  - `skam-xml-stringify`: writes `lang` as the escaped root `xml:lang` when it is a string.
+  - `skam-html-renderer`: the display layer's `lang` is `displayLang`, then the document's `lang`, then `ja`. The container stays `lang="ja"`. The reading layer gets the document's `lang` only when it falls back to the base text. A document `lang` that does not match `isLanguageTag` is ignored. The `displayLang` error message changed.
+  - `skam-web-component`: no code change; without `display-lang`, the display layer now follows the document's `lang`.
+  - 0.2.x readers drop `lang` without an error.
+
+- 9ba6f66: Add an extension mechanism and the learning extension `edu` with quiz marks (ADR-040).
+
+  - Documents may declare `extensions` (used) and `extensionsRequired` (must be understood). In a declared document, extension values live under `ext.<name>`; an undeclared name in `ext`, an unknown required extension, or a required extension that is used but not listed is `INVALID_EXTENSION`. Documents without `extensions` read `ext` as free data, as before. `custom` holds free application data.
+  - Extension definitions (`SKAMExtensionDefinition`) carry validation, SKAM-ML attribute mapping and render hooks. `@kanbun-skam/skam/extensions` exports the bundle of spec-defined extensions, the registry table and types; `@kanbun-skam/skam/extensions/edu` exports the learning extension. Validators, parsers, stringifiers and renderers take extra definitions via `extensions`.
+  - SKAM-ML declares extensions with `<skam:extension name uri required/>` inside `skam:meta` and writes extension values as attributes in the extension's namespace (`edu:quiz`, and `edu:yomi-quiz` / `edu:okuri-quiz` / `edu:soe-quiz` on `skam:kun`). A required extension that the parser does not know is a parse error. Values of unknown extensions are the stringify loss `UNKNOWN_EXTENSION`.
+  - `ext` and `custom` are limited in depth, keys, array length and total size; `__proto__`, `constructor` and `prototype` keys are rejected.
+  - Quiz marks: `ext.edu.quiz` on kaeri, okurigana, soegana, yomigana, saidoku, kutoten, tateten, okototen, okimoji and joji. The renderers' `hideQuiz` (`true` or a list of names) keeps the space and does not draw the answer; the HTML output replaces the text with blanks and marks it `aria-hidden`. The web component has a `hide-quiz` attribute. Hiding is display control, not secrecy: the document still contains the answers.
+  - 0.2.x readers ignore the declarations and extension values, so they show the answers even for a required extension.
+
+- c1196a0: Tokenize and count characters by extended grapheme cluster (ADR-042). This needs `Intl.Segmenter` (Node 16+, Chrome 87+, Safari 14.1+, Firefox 125+).
+
+  - `skam`: new `splitGraphemes(text)`, which splits a string into extended grapheme clusters with `Intl.Segmenter`. Importing works without `Intl.Segmenter`; calling it throws `TypeError`.
+  - `skam-xml-parser` (breaking): each grapheme cluster becomes one token, so an ideographic variation selector (U+E0100–U+E01EF), a standardized variation selector (U+FE00–U+FE0F) or a combining mark stays in the token of its base character. Documents with such characters parse to fewer tokens, with different generated ids and indexes. Clusters do not cross element boundaries; a selector or combining mark at the start of a text node is a token of its own. Leading ignored whitespace is removed from a cluster, and a cluster of ignored whitespace only (such as `\r\n`) is not a token. A cluster's position is that of its first code point.
+  - `skam-xml-stringify` (breaking): a token whose `text` has two or more grapheme clusters is the new loss `MULTI_GRAPHEME_TOKEN`, an error unless `lossy: true`, because reading the XML back would split it. Whitespace-only tokens are still reported only as `ASCII_WHITESPACE_TOKEN`. `StringifyLossCode` has a new value, which can break exhaustive switches.
+  - `skam-html-renderer`: emphasis marks and the blanks for hidden quiz marks are counted per grapheme cluster.
+  - `skam-canvas-renderer`: characters are drawn and ruby lengths counted per grapheme cluster, so a variation selector is no longer drawn on its own.
+  - `skam-web-component`: parses with the new tokenizer.
+  - Grapheme segmentation depends on the Unicode version of the runtime (for example emoji ZWJ sequences). CJK characters, variation selectors and combining marks do not change between versions.
+
+- 8df0c9c: Read the display layer by default when a profile is given, so a quiz that hides annotations does not read the answer aloud.
+
+  - `skam-html-renderer` (breaking): when `profile` or `hideQuiz` is given and `readingLayerSource` is left out, `render`, `renderHTML` and `mount` use `readingLayerSource: 'display'`. Before this release only `hideQuiz` did. Without `profile` and `hideQuiz`, the default is still `'readings'`. To keep reading the author's readings with a profile, write `readingLayerSource: 'readings'`.
+  - `skam-web-component` (breaking): `<skam-renderer>` with a `profile` attribute and no `reading-layer-source` reads the display layer. Write `reading-layer-source="readings"` to keep the author's readings.
+
+- 0e41f9e: Render without inline `style` attributes for pages whose CSP uses a nonce-only `style-src`, and pass the nonce through the Web Component.
+
+  - `skam-html-renderer`: new `inlineStyles` render option (experimental, default `true`). With `false`, okototen positions and emphasis shapes are emitted as `data-okototen-*` and `data-emphasis-style` attributes instead of `style` attributes. The default output is unchanged.
+  - `skam-html-renderer`: new `applyRenderedStyles(root)` (experimental) sets those values through the CSSOM, which CSP does not block. It accepts only safe non-negative integers for positions and emphasis keywords or one character for shapes; other attribute values are ignored.
+  - `skam-html-renderer`: `mount()` now always renders with `inlineStyles: false` and calls `applyRenderedStyles`, so it no longer needs `style-src-attr` on nonce-only CSP pages. `MountResult.html` (and the string given to a Trusted Types `createHTML`) is the data-attribute version; call `applyRenderedStyles` if you insert it elsewhere. `MountOptions` no longer accepts `inlineStyles`.
+  - `skam-web-component`: `<skam-renderer nonce="…">` puts the nonce on its shadow-root `<style>` elements, passes it to `mount`, and adds it to the Google Fonts `<link>` that `auto-font` inserts. Set the nonce before the element is connected; changing it later does not re-render by itself.
+
+- 6e2b3e8: Add the `accessibleLabels` property to `<skam-renderer>` and report a fatal `skam-error` once per distinct error.
+
+  - `skam-web-component`: the `accessibleLabels` property overrides the reading-layer words (experimental). It only takes effect with `reading-layer-source="display"`. An invalid value renders without labels and emits a recoverable `skam-error` with `attribute: 'accessibleLabels'`. Assign a new object to change it; re-assigning the same object does not re-render.
+  - `skam-web-component`: a non-recoverable `skam-error` now fires once while the same content keeps failing with the same error. It fires again when the content or the error changes, after a successful render, or after the element is disconnected. Previously it fired on every re-render.
+
+- caa7477: Render `<skam-renderer>` through the html-renderer's `mount()`, fix `class-prefix`, and support Trusted Types from parsing to rendering.
+
+  - `skam-web-component`: `<skam-renderer>` now calibrates the grid baseline right after rendering and again after `document.fonts.ready`, like `mount()`. Fonts loaded by `auto-font` are now taken into account.
+  - `skam-web-component`: with a `class-prefix` other than `skam`, the CSS variables are now `--{class-prefix}-*`, as the README described. Before, the rendered CSS used `--skam-*` while the element set `--{class-prefix}-*`, so baseline calibration, variable overrides on the host and `auto-font` had no effect with a custom prefix. Without `class-prefix`, the output is unchanged.
+  - `skam-web-component`: new `trustedTypesPolicy` property (experimental) for pages that require Trusted Types. The element passes it to both `parse` and `mount`, so `createHTML` receives the SKAM-ML source and then the rendered HTML. Return the XML unchanged; do not pass an HTML sanitizer as is. If `createHTML` throws, the element reports a non-recoverable `skam-error` with that error's message.
+  - `skam-web-component`: the element no longer renders while it is disconnected. Content set before the element is attached is rendered once it is connected, and `skam-render` fires then.
+  - `skam-web-component`: the shadow root keeps exactly one `<style data-skam-css>` for the rendered CSS, replaced on every render.
+  - `skam-xml-parser`: new `trustedTypesPolicy` parse option (experimental). The browser build passes `createHTML(xml)` to `DOMParser.parseFromString`, which Trusted Types otherwise blocks. It is called once, after the input-limit checks, and its errors propagate unchanged. Limits and positions are computed on the original string, so the policy must return the XML unchanged. The Node build ignores the option.
+
+### Patch Changes
+
+- Updated dependencies [a005f7b]
+- Updated dependencies [b610edd]
+- Updated dependencies [f1bd8d3]
+- Updated dependencies [76e914f]
+- Updated dependencies [ff1f4ea]
+- Updated dependencies [017ee19]
+- Updated dependencies [9ba6f66]
+- Updated dependencies [c1196a0]
+- Updated dependencies [d1ce284]
+- Updated dependencies [ed0b578]
+- Updated dependencies [9d65384]
+- Updated dependencies [5096a6d]
+- Updated dependencies [daf455a]
+- Updated dependencies [a3a8f13]
+- Updated dependencies [604ad67]
+- Updated dependencies [8df0c9c]
+- Updated dependencies [f742409]
+- Updated dependencies [0e41f9e]
+- Updated dependencies [ad3d600]
+- Updated dependencies [2976d27]
+- Updated dependencies [caa7477]
+  - @kanbun-skam/skam-xml-parser@0.3.0
+  - @kanbun-skam/skam-html-renderer@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes
 
 - 76f5648: Report where SKAM-ML errors are, fix the embedding media type, and widen the xmldom range.
+
   - `skam-xml-parser`: every `SKAMXMLParseError` raised while handling an element now carries that element's `line` / `column` (Node build only). Only `Empty document` stays without a position (M35).
   - `skam`, `skam-xml-parser`: `ValidationError` gets optional `line` / `column`. `parse()` fills them for errors whose `path` starts with `tokens[i]`, `marks[i]` or `blocks[i]`; `validateSKAMDocument` called directly does not. Code that compares errors with `toEqual` should use `toMatchObject` or drop the two keys (M36).
   - `skam-web-component`: the embedding media type `application/vnd.berlysia.skam+xml` is now fixed by the spec (SKAM-ML-draft section 3.3). The string has been public since 0.1.0 and does not change.
@@ -13,6 +98,7 @@
   Migration rows: M26, M35, M36. See https://github.com/berlysia/kanbun-annotation/blob/master/docs/migration-0.1-to-0.2.md
 
 - 4865f7e: Add reading-layer text derived from what the display layer shows (experimental).
+
   - `skam`: `describeAnnotationIR` builds a language-independent structure from an AIR, `formatAccessibleText` turns it into raw Japanese text, and `DEFAULT_ACCESSIBLE_LABELS` holds the default words. Types: `AccessibleNote`, `AccessibleUnit`, `AccessibleBlock`, `AccessibleLabels`. All of them are `@experimental`.
   - `skam-html-renderer`: the `readingLayerSource: 'display'` option makes the reading layer say only the annotations the `profile` shows, and never `readings` or the plain text. The default `'readings'` is unchanged. `accessibleLabels` overrides the words per note kind. Invalid values throw `TypeError`.
   - `skam-web-component`: the `reading-layer-source` attribute (`readings` or `display`). Other values are invalid and nothing is rendered, like `profile`.
@@ -21,6 +107,7 @@
   Migration row: M37. See https://github.com/berlysia/kanbun-annotation/blob/master/docs/migration-0.1-to-0.2.md
 
 - 60ebfb0: Validate render profiles strictly and keep hidden annotations hidden.
+
   - `profile` is resolved and validated in one place (`resolveRenderProfile` in `@kanbun-skam/skam/rendering`). Unknown keys, non-boolean values and mixed `base` forms throw `TypeError` in the html and canvas renderers (M28, M29). `includeReadingLayer` must be a boolean (M30).
   - The `{ base, overrides }` form of `profile` lets you start from a preset and change a few items. A partial profile still overlays full.
   - `<skam-renderer>` does not render when `profile` or `include-reading-layer` is invalid, and emits a non-recoverable `skam-error` (M31). Invalid `writing-mode` and `copyable` are now reported with a recoverable `skam-error` (M32).
@@ -35,10 +122,12 @@
   Breaking changes: invalid render options now throw `TypeError`, the reading layer falls back to plain text and no longer carries an `aria-label`, refs are numbered in source order, the canvas `writingMode` type is narrowed and the canvas size is set by autoSize, okototen is drawn on canvas, and the `skam-error` detail gains `recoverable` and `attribute`. The old behavior, the new behavior and the workaround of each change are in the migration table: https://github.com/berlysia/kanbun-annotation/blob/master/docs/migration-0.1-to-0.2.md
 
   Fixes
+
   - All document-derived and option-derived values are escaped or checked against an allowlist in the html-renderer output.
   - `skam-web-component` can be imported during SSR.
 
   Features
+
   - `displayLang` option / `display-lang` attribute.
   - Canvas renders okototen.
   - `validateRenderOptions` / `validateCSSOptions` are exported.
@@ -48,6 +137,7 @@
 - 2809081: Fix the six public packages to 0.2.0 and consolidate the 0.1 to 0.2 migration table.
 
   Every row of the migration table, with a one-line summary:
+
   - M01 (skam, skam-xml-parser, skam-xml-stringify, skam-html-renderer, skam-canvas-renderer, skam-web-component): CHANGELOG から未公開の 0.1.1 (scope の改名) の節を消した。npm の名前は 0.1.0 から `@kanbun-skam/*` のままで、対応は不要
   - M02 (skam-xml-stringify): `stringify()` が表現できないものがあると `SKAMXMLStringifyError` を投げる
   - M03 (skam-xml-stringify): `stringify()` の出力の形が変わる

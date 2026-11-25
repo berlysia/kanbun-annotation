@@ -1,10 +1,101 @@
 # @kanbun-skam/skam-canvas-renderer
 
+## 0.3.0
+
+### Minor Changes
+
+- 017ee19: Add an explicit line break inside a block (ADR-039).
+
+  - New position mark `linebreak` (`LinebreakMark`, no value) after a token. SKAM-ML writes it as the empty element `<skam:br/>`.
+  - The validator reports `INVALID_LINEBREAK` for a line break at the block start, at the block end, inside an unbreakable unit (a tateten group, or a multi-token yomigana / okurigana / soegana / saidoku / okimoji / joji), or a second one at the same position. `getLinebreakPlacementIssues(doc)` returns the same judgment; renderers ignore those line breaks.
+  - Rendering: the HTML renderer writes `<br class="<prefix>-linebreak">`, the canvas renderer starts a new column in the same block, and the accessible text inserts one space. AIR marks the unit before the break with `lineBreakAfter: true`. The render profile has a new `linebreak` key, `true` in every preset.
+  - `BLOCK_START_KAERI_HINT` now points to `<skam:br/>` for breaking a line.
+  - Adding `linebreak` to `MarkType`, `Mark`, `ValidationErrorKind`, `RenderProfile` and `AIRRenderProfile` can break exhaustive switches and profile objects that list every key.
+
+- 9ba6f66: Add an extension mechanism and the learning extension `edu` with quiz marks (ADR-040).
+
+  - Documents may declare `extensions` (used) and `extensionsRequired` (must be understood). In a declared document, extension values live under `ext.<name>`; an undeclared name in `ext`, an unknown required extension, or a required extension that is used but not listed is `INVALID_EXTENSION`. Documents without `extensions` read `ext` as free data, as before. `custom` holds free application data.
+  - Extension definitions (`SKAMExtensionDefinition`) carry validation, SKAM-ML attribute mapping and render hooks. `@kanbun-skam/skam/extensions` exports the bundle of spec-defined extensions, the registry table and types; `@kanbun-skam/skam/extensions/edu` exports the learning extension. Validators, parsers, stringifiers and renderers take extra definitions via `extensions`.
+  - SKAM-ML declares extensions with `<skam:extension name uri required/>` inside `skam:meta` and writes extension values as attributes in the extension's namespace (`edu:quiz`, and `edu:yomi-quiz` / `edu:okuri-quiz` / `edu:soe-quiz` on `skam:kun`). A required extension that the parser does not know is a parse error. Values of unknown extensions are the stringify loss `UNKNOWN_EXTENSION`.
+  - `ext` and `custom` are limited in depth, keys, array length and total size; `__proto__`, `constructor` and `prototype` keys are rejected.
+  - Quiz marks: `ext.edu.quiz` on kaeri, okurigana, soegana, yomigana, saidoku, kutoten, tateten, okototen, okimoji and joji. The renderers' `hideQuiz` (`true` or a list of names) keeps the space and does not draw the answer; the HTML output replaces the text with blanks and marks it `aria-hidden`. The web component has a `hide-quiz` attribute. Hiding is display control, not secrecy: the document still contains the answers.
+  - 0.2.x readers ignore the declarations and extension values, so they show the answers even for a required extension.
+
+- c1196a0: Tokenize and count characters by extended grapheme cluster (ADR-042). This needs `Intl.Segmenter` (Node 16+, Chrome 87+, Safari 14.1+, Firefox 125+).
+
+  - `skam`: new `splitGraphemes(text)`, which splits a string into extended grapheme clusters with `Intl.Segmenter`. Importing works without `Intl.Segmenter`; calling it throws `TypeError`.
+  - `skam-xml-parser` (breaking): each grapheme cluster becomes one token, so an ideographic variation selector (U+E0100–U+E01EF), a standardized variation selector (U+FE00–U+FE0F) or a combining mark stays in the token of its base character. Documents with such characters parse to fewer tokens, with different generated ids and indexes. Clusters do not cross element boundaries; a selector or combining mark at the start of a text node is a token of its own. Leading ignored whitespace is removed from a cluster, and a cluster of ignored whitespace only (such as `\r\n`) is not a token. A cluster's position is that of its first code point.
+  - `skam-xml-stringify` (breaking): a token whose `text` has two or more grapheme clusters is the new loss `MULTI_GRAPHEME_TOKEN`, an error unless `lossy: true`, because reading the XML back would split it. Whitespace-only tokens are still reported only as `ASCII_WHITESPACE_TOKEN`. `StringifyLossCode` has a new value, which can break exhaustive switches.
+  - `skam-html-renderer`: emphasis marks and the blanks for hidden quiz marks are counted per grapheme cluster.
+  - `skam-canvas-renderer`: characters are drawn and ruby lengths counted per grapheme cluster, so a variation selector is no longer drawn on its own.
+  - `skam-web-component`: parses with the new tokenizer.
+  - Grapheme segmentation depends on the Unicode version of the runtime (for example emoji ZWJ sequences). CJK characters, variation selectors and combining marks do not change between versions.
+
+- ed0b578: Write each kaeri (返り点) as a mark with one character. Multi-character kaeri values are deprecated and become an error in 0.4.0 (ADR-038, `docs/migration-0.2-to-0.3.md`).
+
+  - `validateSKAMDocument` adds an optional `warnings` array to a `valid: true` result. A kaeri value with two or more characters adds a `KAERI_MULTI_CHARACTER` warning. Without warnings the key is absent. `@kanbun-skam/skam` exports `KAERI_MULTI_CHARACTER`, `ValidationWarning` and `ValidationWarningKind`.
+  - The parser still reads `<skam:kaeri kind="ichi-re"/>` as one mark and emits a `ParseWarning` with `code: 'KAERI_MULTI_CHARACTER'`, also with `validate: false`. It does not forward the validator's warnings.
+  - `splitMultiCharacterKaeri(doc, { idGenerator? })` splits multi-character kaeri into one-character marks at the same position.
+  - Rendering: kaeri marks at the same position render as one mark whose value joins them in `marks[]` order, in the HTML renderer, the canvas renderer, `buildAnnotationIR` and the accessible text. `@kanbun-skam/skam/rendering` exports `joinKaeriValues`. Fixes the second kaeri being dropped inside a tateten group.
+
+- daf455a: Overlapping range annotations are drawn as their ranges, and every character is drawn exactly once.
+
+  - `skam`: new validation warning `READING_OVERLAP` (the document stays valid; it becomes an error in 0.4.0). It is reported for each yomigana, okurigana or soegana whose range shares a character with another annotation of the same type on a different anchor (the same anchor is still `MARK_CONFLICT`). To fix it, remove one of the readings or split the ranges so they no longer share a character. Readings of different types may share characters (a range yomigana with an okurigana on one of its characters).
+  - `skam` (breaking): the AIR (`@kanbun-skam/skam/rendering`) changes shape.
+    - A yomigana over two or more characters is an `AIRRubyGroupNode` (`type: 'ruby-group'`, `yomigana`, `fromTokenId`, `toTokenId`, `span`, `children`). An okurigana or soegana range is put on the slot of its last character.
+    - Tateten and highlight groups that cross another range are split into fragments with `continuesBefore` / `continuesAfter`. A highlight's `refLabel` is on its last fragment only. Groups may contain ruby groups, tateten separators and groups of the same type.
+    - Each character node carries only its own annotations. New: `joinedWithNext` (no line break before the next character), `slots.saidoku` (all forms), `slots.emphasisStyle`, `slots.kutotenValues`, `slots.refLabels`, and `hidden` on tateten separators.
+    - Removed: `AIRRangeInfo`, `AIRTrailingMark`, `AIRTokenNode.rangeInfo` / `rangeConsumed`, `AIRTatetenGroupNode.rangeInfo`. `AIRBlockChild` and the group `children` unions now include `AIRRubyGroupNode` and `AIRTatetenSeparator`, so exhaustive switches over them need new cases.
+  - `skam` (breaking): `getTatetenGroups` and `getHighlightGroups` return every group of a character (`Map<tokenId, Mark[]>`, in `marks` order). `getRangeMarkGroups` is unchanged.
+  - Rendering:
+    - Ranges that cross each other are drawn as their ranges: a range reading inside a tateten that starts after the tateten's first character is drawn (it was dropped), an okurigana range crossing a yomigana range is drawn, overlapping tateten and highlight marks are all drawn, and okimoji, joji and emphasis marks stay on their own characters.
+    - A non-レ kaeri on a one-character tateten is kept on the character (it was dropped), and two kaeri marks that wanted the same tateten separator are both drawn.
+    - When readings of the same type overlap (`READING_OVERLAP`), the first one in `marks` is drawn and later ones that share a character are not. Several yomigana, okurigana or soegana on the same anchor (`MARK_CONFLICT`) are no longer concatenated; the first one is drawn.
+    - Highlights that share a character are drawn in separate lanes, each further from the characters (`AIRHighlightGroupNode.lane`, set from 1; all fragments of a highlight share its lane). Documents without such highlights render as before.
+    - Only the first emphasis mark of a character is drawn.
+    - Limits for documents that do not pass validation: per block, up to 1,024 tateten and highlight marks, up to 8 fragments per mark and a range nesting depth of 56 are drawn; further marks are not drawn, and characters are always drawn.
+  - `skam-html-renderer`:
+    - The renderer draws only from the AIR and no longer looks marks up again.
+    - In ruby mode, the base text of a range reading is split into one `skam-base-seg` element per character.
+    - The characters of an okurigana or soegana range are separate `skam-token` elements, so interactive mode gives each a `data-token-id` instead of `data-token-from` / `data-token-to`.
+    - Line breaks follow the same indivisible units as the validator (`joinedWithNext`).
+    - A highlight that contains a tateten with a reading gets the four-row grid like other blocks with readings.
+  - `skam-canvas-renderer`: draws the new AIR, including fragments that continue across crossing ranges. The unused internal `buildRenderTree` was removed.
+
+### Patch Changes
+
+- d1ce284: Draw custom emphasis characters in grid mode and on Canvas, and make the emphasis keyword lookup strict.
+
+  - `skam`, `skam-html-renderer`, `skam-canvas-renderer`: a one-character `style` of an emphasis mark (for example `★`) is now drawn in grid mode and on Canvas. It used to fall back to `•`. Ruby mode already drew it.
+  - `skam`: `resolveEmphasisCharacter` now accepts `unknown` and matches the 15 emphasis keywords exactly. A value with different case or surrounding spaces (`Circle`, ` circle`) and a bare `open` are no longer taken for a keyword, and become the default `•`. A value that `validateSKAMDocument` would reject also becomes `•`. For documents that pass the validator, the output only changes for custom characters.
+  - `skam-html-renderer`: `generateEmphasisMarks` now escapes HTML special characters in the emphasis character (`<` becomes `&lt;`).
+  - `skam-html-renderer`: removed the CSS for `.skam-suffix-kana`, an element the renderer never outputs.
+
+- Updated dependencies [a005f7b]
+- Updated dependencies [f1bd8d3]
+- Updated dependencies [76e914f]
+- Updated dependencies [ff1f4ea]
+- Updated dependencies [017ee19]
+- Updated dependencies [9ba6f66]
+- Updated dependencies [c1196a0]
+- Updated dependencies [d1ce284]
+- Updated dependencies [e689a67]
+- Updated dependencies [ed0b578]
+- Updated dependencies [74b8b89]
+- Updated dependencies [c2d7649]
+- Updated dependencies [5096a6d]
+- Updated dependencies [daf455a]
+- Updated dependencies [604ad67]
+- Updated dependencies [8736e77]
+- Updated dependencies [2976d27]
+  - @kanbun-skam/skam@0.3.0
+
 ## 0.2.0
 
 ### Minor Changes
 
 - 60ebfb0: Validate render profiles strictly and keep hidden annotations hidden.
+
   - `profile` is resolved and validated in one place (`resolveRenderProfile` in `@kanbun-skam/skam/rendering`). Unknown keys, non-boolean values and mixed `base` forms throw `TypeError` in the html and canvas renderers (M28, M29). `includeReadingLayer` must be a boolean (M30).
   - The `{ base, overrides }` form of `profile` lets you start from a preset and change a few items. A partial profile still overlays full.
   - `<skam-renderer>` does not render when `profile` or `include-reading-layer` is invalid, and emits a non-recoverable `skam-error` (M31). Invalid `writing-mode` and `copyable` are now reported with a recoverable `skam-error` (M32).
@@ -19,10 +110,12 @@
   Breaking changes: invalid render options now throw `TypeError`, the reading layer falls back to plain text and no longer carries an `aria-label`, refs are numbered in source order, the canvas `writingMode` type is narrowed and the canvas size is set by autoSize, okototen is drawn on canvas, and the `skam-error` detail gains `recoverable` and `attribute`. The old behavior, the new behavior and the workaround of each change are in the migration table: https://github.com/berlysia/kanbun-annotation/blob/master/docs/migration-0.1-to-0.2.md
 
   Fixes
+
   - All document-derived and option-derived values are escaped or checked against an allowlist in the html-renderer output.
   - `skam-web-component` can be imported during SSR.
 
   Features
+
   - `displayLang` option / `display-lang` attribute.
   - Canvas renders okototen.
   - `validateRenderOptions` / `validateCSSOptions` are exported.
@@ -32,6 +125,7 @@
 - 2809081: Fix the six public packages to 0.2.0 and consolidate the 0.1 to 0.2 migration table.
 
   Every row of the migration table, with a one-line summary:
+
   - M01 (skam, skam-xml-parser, skam-xml-stringify, skam-html-renderer, skam-canvas-renderer, skam-web-component): CHANGELOG から未公開の 0.1.1 (scope の改名) の節を消した。npm の名前は 0.1.0 から `@kanbun-skam/*` のままで、対応は不要
   - M02 (skam-xml-stringify): `stringify()` が表現できないものがあると `SKAMXMLStringifyError` を投げる
   - M03 (skam-xml-stringify): `stringify()` の出力の形が変わる

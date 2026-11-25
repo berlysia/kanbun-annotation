@@ -300,9 +300,7 @@ export const SAMPLES: Sample[] = [
     description: '使役表現「使人言」とレ点・一二点の組み合わせ例',
     xml: `<?xml version="1.0" encoding="UTF-8"?>
 <skam:doc xmlns:skam="urn:skam:1">
-  <skam:meta>
-    <skam:tokenize strategy="char"/>
-  </skam:meta>
+  <skam:meta tokenization="char"/>
   <skam:body>
     <skam:block><skam:kun okuri="ニ">天</skam:kun><skam:kun okuri="シ">無</skam:kun><skam:kaeri kind="re"/>口、<skam:kun okuri="ム">使</skam:kun><skam:kaeri kind="ni"/><skam:kun okuri="ヲシテ">人</skam:kun><skam:kun okuri="ハ">言</skam:kun><skam:kaeri kind="ichi"/>。</skam:block>
   </skam:body>
@@ -378,9 +376,7 @@ export const SAMPLES: Sample[] = [
       '再読文字・返り点・送り仮名・読み仮名・添え仮名・置字・助字・句読点・たて点・傍点・傍線・注釈の全要素を含むレイアウト確認用総合例',
     xml: `<?xml version="1.0" encoding="UTF-8"?>
 <skam:doc xmlns:skam="urn:skam:1" xml:lang="ja">
-  <skam:meta>
-    <skam:tokenize strategy="char"/>
-  </skam:meta>
+  <skam:meta tokenization="char"/>
   <skam:body>
     <skam:block>
       <skam:saidoku>

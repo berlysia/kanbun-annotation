@@ -195,7 +195,8 @@ el.trustedTypesPolicy = policy;
 - `createHTML` が例外を投げると、`recoverable: false` の `skam-error` になり、その例外のメッセージが alert と `error.message` に出る。メッセージに秘密を入れない。
 - policy を渡さずに Trusted Types が必須のページで描くと、`recoverable: false` の `skam-error` になる。
 - `null` は指定なしとして扱う。同じ policy を代入し直しても再描画しない。
-- `customElements.define` の後に代入する。define の前に要素へ代入した値は使われない (`accessibleLabels` も同じ)。
+- `customElements.define` の前に要素へ代入しても使われる。要素は upgrade の時点で、define の前に代入された値を取り込む (`xmlContent` と `accessibleLabels` も同じ)。
+- 要素を使わずに描くときは、`@kanbun-skam/skam-html-renderer` の `mount` に `trustedTypesPolicy` を渡す。
 - `style-src` に nonce だけを使う CSP のページでは、下の `nonce` 属性も書く。
 
 ### CSP の nonce
@@ -215,10 +216,6 @@ el.trustedTypesPolicy = policy;
 - nonce は接続の前に書く。接続した後に変えても、それだけでは描き直さない (次に描くときに新しい値を使う)。
 - CSP をヘッダで送るページでは、ブラウザが `nonce` 属性の値を空にして隠す。要素は `nonce` プロパティから値を読むので、隠されても動く。ただし `innerHTML` や `cloneNode` で要素を作り直すと値は引き継がれない。
 - nonce はリクエストごとに変える値である。固定の値を書くと、CSP の保護にならない。
-
-### Trusted Types
-
-`<skam-renderer>` は shadow root の中で `innerHTML` に文字列を入れるので、`require-trusted-types-for 'script'` のページでは使えない。そうしたページでは、`@kanbun-skam/skam-html-renderer` の `mount` に `trustedTypesPolicy` を渡して描く。
 
 ## 0.1 からの移行
 

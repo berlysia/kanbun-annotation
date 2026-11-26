@@ -2773,7 +2773,10 @@ selectionPanel.addEventListener(
 );
 selectionKanaTypes.addEventListener('click', (e) => {
   const target = e.target as HTMLElement;
-  if (target.classList.contains('selection-kana-type-btn') && target.dataset['type'] !== 'saidoku') {
+  if (
+    target.classList.contains('selection-kana-type-btn') &&
+    target.dataset['type'] !== 'saidoku'
+  ) {
     kanaTypeChosen = true;
   }
 });

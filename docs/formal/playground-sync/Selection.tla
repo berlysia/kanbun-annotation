@@ -5,18 +5,18 @@
 \* 実装との対応 (packages/playground/src/main.ts):
 \*   sel / selGen   = currentSelectionRange (:170) の有無とそれを作った経路 ("none" / "pc" / "touch")、作ったときの文書の世代
 \*   hl             = プレビュー上の .skam-selected (setSelectionClasses :22)
-\*   docGen         = 表示している文書の世代。loadDocumentText (:2089) で進む (サンプル :2073、ファイル選択 :2348、ドロップ :2380)
+\*   docGen         = 表示している文書の世代。loadDocumentText (:2091) で進む (サンプル :2075、ファイル選択 :2350、ドロップ :2382)
 \*   touch/touchGen = touchRangeState と touchFirstTokenId (:303-304)、その ID を取ったときの文書の世代
 \*   renderer       = HTML / Canvas (getRendererMode)
-\*   compact        = isCompactLayout() (:2727)
+\*   compact        = isCompactLayout() (:2729)
 \*
 \* token ID は無注記の字に t1, t2 ... と順に振られる (skam-xml-parser parser-core.ts:800) ので、
 \* 別の文書でも同じ ID や同じ位置が存在しうる。存在するかどうかは非決定的に選ぶ。
 \*
 \* フラグ (formal.json の契約はすべて TRUE、壊したモデルは 1 つだけ FALSE):
-\*   ResetOnLoad   : 文書を読み込んだら選択と 2 タップ状態を捨てる (loadDocumentText :2089)
-\*   KeepHighlight : HTML で描き直すたびに選択の強調も描き直す (renderDocument :1963)
-\*   ResetTouch    : 選択を消す経路すべて (clearSelectionPanel :1695) と画面幅の変化 (:2733) で 2 タップ状態を idle に戻す
+\*   ResetOnLoad   : 文書を読み込んだら選択と 2 タップ状態を捨てる (loadDocumentText :2091)
+\*   KeepHighlight : HTML で描き直すたびに選択の強調も描き直す (renderDocument :1965)
+\*   ResetTouch    : 選択を消す経路すべて (clearSelectionPanel :1696) と画面幅の変化 (:2735) で 2 タップ状態を idle に戻す
 \* FALSE の組は 2026-11-26 の修正前の実装を表す。反例は ledger.md にある。
 EXTENDS Naturals
 CONSTANTS MaxGen, ResetOnLoad, KeepHighlight, ResetTouch
@@ -43,7 +43,7 @@ ClearSel == ClearPanel /\ TouchAfterClear
 \* kind はパネルの選択を作った経路: "pc" (クリック / ドラッグ) か "touch" (2 タップ)
 SetSel(kind) == sel' = kind /\ selGen' = docGen /\ hl' = TRUE
 
-\* parseAndRender (:2000) の選択の復元: 位置 (index) が新しい文書にあれば同じ位置を選び直す。
+\* parseAndRender (:2002) の選択の復元: 位置 (index) が新しい文書にあれば同じ位置を選び直す。
 \* 復元は位置だけを見るので、selGen (どの文書で作った選択か) は変わらない。
 \* 2 タップ状態は呼び出し側が決める。cleared は選択が消えたかどうか
 RestorePanel(cleared) == IF renderer = "canvas" \/ sel = "none"
@@ -54,7 +54,7 @@ RestorePanel(cleared) == IF renderer = "canvas" \/ sel = "none"
 RestoreOrClear == \/ RestorePanel(TRUE) /\ TouchAfterClear
                   \/ RestorePanel(FALSE) /\ UNCHANGED <<touch, touchGen>>
 
-\* --- PC: クリック / ドラッグ / Shift+クリック (renderDocument の onTokenClick 以下 :1969) ---
+\* --- PC: クリック / ドラッグ / Shift+クリック (renderDocument の onTokenClick 以下 :1971) ---
 PcSelect == /\ ~compact /\ renderer = "html"
             /\ SetSel("pc")
             /\ UNCHANGED <<docGen, touch, touchGen, renderer, compact>>
@@ -63,7 +63,7 @@ PcEmptyClick == /\ ~compact /\ renderer = "html"
                 /\ ClearSel
                 /\ UNCHANGED <<docGen, renderer, compact>>
 
-\* --- SP: 2 タップ範囲選択 handleTouchTokenTap (:2897) ---
+\* --- SP: 2 タップ範囲選択 handleTouchTokenTap (:2936) ---
 TapToken == /\ compact /\ renderer = "html"
             /\ \/ /\ touch \in {"idle", "range"}
                   /\ touch' = "first" /\ touchGen' = docGen
@@ -75,12 +75,12 @@ TapToken == /\ compact /\ renderer = "html"
                      \/ ClearPanel /\ touch' = IF ResetTouch THEN "idle" ELSE "range"
             /\ UNCHANGED <<docGen, renderer, compact>>
 
-\* handleTouchEmptyTap (:2939) と bottom sheet の背景タップ
+\* handleTouchEmptyTap (:2978) と bottom sheet の背景タップ
 TapEmpty == /\ compact /\ renderer = "html"
             /\ ClearPanel /\ touch' = "idle" /\ UNCHANGED touchGen
             /\ UNCHANGED <<docGen, renderer, compact>>
 
-\* タブ切り替え (:2799): preview なら parseAndRender、そのあと 2 タップ状態を idle に戻す
+\* タブ切り替え (:2838): preview なら parseAndRender、そのあと 2 タップ状態を idle に戻す
 TabSwitch == /\ compact
              /\ (RestorePanel(TRUE) \/ RestorePanel(FALSE))
              /\ touch' = "idle" /\ UNCHANGED touchGen
@@ -99,23 +99,23 @@ Load == /\ docGen < MaxGen
              ELSE RestoreOrClear
         /\ UNCHANGED <<renderer, compact>>
 
-\* --- テキスト編集で token 数が変わる / parse 失敗 / 空 (PC のエディタ。parseAndRender と clearDocumentView :2062) ---
+\* --- テキスト編集で token 数が変わる / parse 失敗 / 空 (PC のエディタ。parseAndRender と clearDocumentView :2064) ---
 EditClears == /\ ~compact
               /\ ClearSel
               /\ UNCHANGED <<docGen, renderer, compact>>
 
-\* --- GUI 操作: commitDocument (:2140) → parseAndRender。token は変わらないので位置は残る ---
+\* --- GUI 操作: commitDocument (:2142) → parseAndRender。token は変わらないので位置は残る ---
 GuiOp == /\ sel # "none"
          /\ IF renderer = "canvas"
               THEN ClearSel
               ELSE UNCHANGED <<sel, selGen, touch, touchGen>> /\ hl' = TRUE
          /\ UNCHANGED <<docGen, renderer, compact>>
 
-\* --- 表示設定の変更: 書字方向・ルビ方式・inline・字間・プロファイル (:2512-2560) → renderDocument のみ ---
+\* --- 表示設定の変更: 書字方向・ルビ方式・inline・字間・プロファイル (:2514-2562) → renderDocument のみ ---
 SettingRerender == /\ hl' = IF KeepHighlight THEN (sel # "none" /\ renderer = "html") ELSE FALSE
                    /\ UNCHANGED <<docGen, sel, selGen, touch, touchGen, renderer, compact>>
 
-\* --- 描画方式の切り替え (:2492) → renderDocument のみ。選択の状態は残る ---
+\* --- 描画方式の切り替え (:2494) → renderDocument のみ。選択の状態は残る ---
 \* Canvas では選択パネルを CSS で隠す (styles.css:501-503) ので、性質 4 は HTML 描画のときだけを見る
 SwitchRenderer == /\ renderer' = IF renderer = "html" THEN "canvas" ELSE "html"
                   /\ hl' = (KeepHighlight /\ sel # "none" /\ renderer' = "html")

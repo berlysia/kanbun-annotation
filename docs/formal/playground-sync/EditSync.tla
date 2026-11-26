@@ -9,9 +9,9 @@
 \*   intent = 利用者の操作から期待されるテキスト (観測用のゴースト変数。実装にはない)
 \*
 \* フラグ (formal.json の契約はすべて TRUE、壊したモデルは 1 つだけ FALSE):
-\*   FlushOnOp   : 選択パネルの操作の前に保留中の入力を parse する (flushEditorBeforePanelAction main.ts:2761)
-\*   SilentCommit: GUI 操作と読み込みの結果をタイマーを張らずに即時 parse する (commitDocument :2140、loadDocumentText :2089)
-\*   EmptyClears : 空テキストの parse で文書を null にする (parseAndRender :2000 → clearDocumentView :2062)
+\*   FlushOnOp   : 選択パネルの操作の前に保留中の入力を parse する (flushEditorBeforePanelAction main.ts:2828)
+\*   SilentCommit: GUI 操作と読み込みの結果をタイマーを張らずに即時 parse する (commitDocument :2142、loadDocumentText :2091)
+\*   EmptyClears : 空テキストの parse で文書を null にする (parseAndRender :2002 → clearDocumentView :2064)
 \* FALSE の組は 2026-11-26 の修正前の実装を表す。反例は ledger.md にある。
 EXTENDS FiniteSets
 CONSTANTS UserEdits, GuiOps, FlushOnOp, SilentCommit, EmptyClears
@@ -42,13 +42,13 @@ UserType(e) == /\ e \notin (IF Parse(text) = NULL THEN {} ELSE text)
 UserBreak == text # INVALID /\ UserAction(INVALID)
 UserClear == text # EMPTY /\ UserAction(EMPTY)
 
-\* --- debounce 満了 (xml-editor.ts:176-179 → main.ts:2404) ---
+\* --- debounce 満了 (xml-editor.ts:176-179 → main.ts:2406) ---
 TimerFire == /\ armed
              /\ armed' = FALSE
              /\ ParseNow
              /\ UNCHANGED <<text, intent>>
 
-\* --- 解析ボタン / Ctrl+Enter (main.ts:2341, 2409)。タイマーは残る ---
+\* --- 解析ボタン / Ctrl+Enter (main.ts:2343, 2411)。タイマーは残る ---
 ManualParse == /\ ParseNow
                /\ UNCHANGED <<text, armed, intent>>
 

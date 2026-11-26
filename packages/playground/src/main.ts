@@ -710,6 +710,7 @@ function normalizeSelection(
  */
 // oxlint-disable-next-line eslint/complexity
 function updateSelectionPanel(fromId: string, toId: string): void {
+  forgetPanelDrafts();
   if (!currentDocument) {
     clearSelectionPanel();
     return;
@@ -1693,6 +1694,7 @@ function handleSaidokuRereadApply(): void {
  * Clear selection panel
  */
 function clearSelectionPanel(): void {
+  forgetPanelDrafts();
   // Every path that drops the selection also drops a waiting first tap,
   // so the next tap never extends from a character that is no longer selected.
   touchRangeState = 'idle';
@@ -2338,7 +2340,7 @@ function setupResizableDivider(): void {
 // Event Listeners
 // ============================================================================
 
-parseBtn.addEventListener('click', parseAndRender);
+parseBtn.addEventListener('click', () => reparseEditorKeepingDrafts());
 
 // File upload
 uploadBtn.addEventListener('click', () => {
@@ -2402,14 +2404,14 @@ xmlPane.addEventListener('drop', async (e) => {
 // This enables auto-parse on content change (after debounce)
 // Selection is restored via position-based tracking in parseAndRender
 xmlEditor.onContentChange(() => {
-  parseAndRender();
+  reparseEditorKeepingDrafts();
 });
 
 // Ctrl/Cmd+Enter to parse
 xmlEditor.getTextareaElement().addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();
-    parseAndRender();
+    reparseEditorKeepingDrafts();
   }
 });
 
@@ -2736,41 +2738,61 @@ window.matchMedia(COMPACT_LAYOUT_QUERY).addEventListener('change', () => {
   hideTouchRangeHint();
 });
 
-// --- Pending editor input before panel actions ---
+// --- Panel drafts across a re-parse of the editor ---
 
 /**
- * Panel state the user has chosen but not applied yet, beyond form values.
- * updateSelectionPanel derives these from the document, so a flush would reset them.
- * Style buttons are not listed: they apply on click, after the flush.
+ * Values the user has typed or chosen in the selection panel but not applied yet.
+ * updateSelectionPanel redraws the panel from the document, so a re-parse of an editor
+ * change would reset them. Only what the user touched is kept: an untouched field shows
+ * the document's value, including a value just changed in the editor.
+ * Style buttons are not tracked: they apply on click.
  */
-const PANEL_DRAFT_STATE = {
-  save: () => ({ kanaType: currentSelectedKanaType }),
-  restore: (draft: { kanaType: typeof currentSelectedKanaType }) => {
-    currentSelectedKanaType = draft.kanaType;
-    updateKanaTypeButtons();
+const touchedPanelFields = new Set<string>();
+let kanaTypeChosen = false;
+
+function forgetPanelDrafts(): void {
+  touchedPanelFields.clear();
+  kanaTypeChosen = false;
+}
+
+selectionPanel.addEventListener(
+  'input',
+  (e) => {
+    const target = e.target as HTMLElement;
+    if (target.id) touchedPanelFields.add(target.id);
   },
-};
+  { capture: true }
+);
+selectionPanel.addEventListener(
+  'change',
+  (e) => {
+    const target = e.target as HTMLElement;
+    if (target.id) touchedPanelFields.add(target.id);
+  },
+  { capture: true }
+);
+selectionKanaTypes.addEventListener('click', (e) => {
+  const target = e.target as HTMLElement;
+  if (target.classList.contains('selection-kana-type-btn') && target.dataset['type'] !== 'saidoku') {
+    kanaTypeChosen = true;
+  }
+});
 
 /**
- * Apply an editor input that is still waiting for its debounce before any
- * selection panel handler reads the document, so the handler starts from what
- * the editor shows instead of overwriting it. Runs in the capture phase to
- * precede the handlers on the panel's children; the click target is already
- * fixed, so a button redrawn by the flush still gets its click.
+ * Parse an editor change and keep the panel drafts when the selection stays on the
+ * same characters. Every re-parse that comes from the editor (the debounce, the parse
+ * button, Ctrl+Enter, the preview tab, the flush before a panel action) goes through
+ * here; a GUI commit and a document load call parseAndRender directly and drop drafts.
  */
-function flushEditorBeforePanelAction(): void {
-  if (!xmlEditor.hasPendingChange()) return;
-
-  const fields = Array.from(
-    selectionPanel.querySelectorAll<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>(
-      'input[id], select[id], textarea[id]'
-    ),
-    (field) => [field.id, field.value] as const
-  );
-  const draft = PANEL_DRAFT_STATE.save();
+function reparseEditorKeepingDrafts(): void {
+  const fields = [...touchedPanelFields].flatMap((id) => {
+    const field = document.getElementById(id) as HTMLInputElement | null;
+    return field && selectionPanel.contains(field) ? [[id, field.value] as const] : [];
+  });
+  const chosenKanaType = kanaTypeChosen ? currentSelectedKanaType : undefined;
   const rangeBefore = currentSelectionRange;
 
-  xmlEditor.flushPendingChange();
+  parseAndRender();
 
   const rangeAfter = currentSelectionRange;
   const sameRange =
@@ -2782,12 +2804,29 @@ function flushEditorBeforePanelAction(): void {
 
   for (const [id, value] of fields) {
     const field = document.getElementById(id) as HTMLInputElement | null;
-    if (field && selectionPanel.contains(field)) field.value = value;
+    if (!field) continue;
+    field.value = value;
+    touchedPanelFields.add(id);
   }
-  PANEL_DRAFT_STATE.restore(draft);
+  if (chosenKanaType !== undefined) {
+    currentSelectedKanaType = chosenKanaType;
+    kanaTypeChosen = true;
+    updateKanaTypeButtons();
+  }
   const hasKanaInput = Boolean(selectionKanaInput.value.trim());
   const hasExistingKana = Boolean(currentKanaValues[currentSelectedKanaType]);
   selectionKanaApply.disabled = !hasKanaInput && !hasExistingKana;
+}
+
+/**
+ * Apply an editor input that is still waiting for its debounce before any
+ * selection panel handler reads the document, so the handler starts from what
+ * the editor shows instead of overwriting it. Runs in the capture phase to
+ * precede the handlers on the panel's children; the click target is already
+ * fixed, so a button redrawn by the flush still gets its click.
+ */
+function flushEditorBeforePanelAction(): void {
+  xmlEditor.flushPendingChange();
 }
 
 for (const type of ['click', 'keydown', 'change'] as const) {
@@ -2814,7 +2853,7 @@ compactTabBar.addEventListener('click', (e) => {
 
   // Auto-render when switching to preview tab
   if (tab === 'preview') {
-    parseAndRender();
+    reparseEditorKeepingDrafts();
   }
 
   // Reset SP range selection state on tab switch

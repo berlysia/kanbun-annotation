@@ -98,6 +98,30 @@ test.describe('GUI operations keep every edit (NoLostEdit)', () => {
     expect(xml).toContain('style="dashed"');
   });
 
+  test('a kana draft survives the debounced re-parse of an editor change', async ({ page }) => {
+    await page.locator('.selection-kana-type-btn[data-type="okurigana"]').click();
+    await page.locator('#selection-kana-input').fill('く');
+    await page.locator('#xml-input').fill(SIMPLE_XML.replace('學而時習之', '學而時習之也'));
+    // Wait past the debounce: the editor change is parsed before the apply button is pressed.
+    await page.waitForTimeout(PAST_DEBOUNCE_MS);
+    await expect(page.locator('#selection-kana-input')).toHaveValue('く');
+    await page.locator('#selection-kana-apply').click();
+    await page.waitForTimeout(PAST_DEBOUNCE_MS);
+    const xml = await xmlOf(page);
+    expect(xml).toContain('之也');
+    expect(xml).toContain('okuri="く"');
+  });
+
+  test('a kana value changed in the editor shows in an untouched kana field', async ({ page }) => {
+    await page.locator('#selection-kana-input').fill('まな');
+    await page.locator('#selection-kana-apply').click();
+    await page.waitForTimeout(PAST_DEBOUNCE_MS);
+    const applied = await xmlOf(page);
+    await page.locator('#xml-input').fill(applied.replace('まな', 'がく'));
+    await page.waitForTimeout(PAST_DEBOUNCE_MS);
+    await expect(page.locator('#selection-kana-input')).toHaveValue('がく');
+  });
+
   test('the selection is restored after a mark is applied', async ({ page }) => {
     await page.locator('#selection-emphasis-btn').click();
     await page.waitForTimeout(PAST_DEBOUNCE_MS);

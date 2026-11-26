@@ -74,6 +74,13 @@ function generateVarOverrideCss(classPrefix: string, variablePrefix: string): st
 }`;
 }
 
+/**
+ * define の前に代入されうるプロパティ。constructor が upgrade の時点でアクセサに通し直す。
+ * 代入で再描画するプロパティを足すときは、ここにも足す。
+ */
+const UPGRADED_PROPERTIES = ['xmlContent', 'accessibleLabels', 'trustedTypesPolicy'] as const;
+type UpgradedProperty = (typeof UPGRADED_PROPERTIES)[number];
+
 // SSR で import できるよう、HTMLElement が無い環境ではダミーの基底クラスを使う。
 // その環境では要素を生成できない (constructor は document を使う)。
 const BaseElement = (
@@ -143,6 +150,23 @@ export class SkamRendererElement extends BaseElement {
     this.#shadow.appendChild(this.#mainStyle);
     this.#shadow.appendChild(this.#errorStyle);
     this.#shadow.appendChild(this.#contentDiv);
+
+    this.#upgradeProperties();
+  }
+
+  /**
+   * define の前に要素へ代入した値は、要素自身のプロパティとして残り、クラスのアクセサを隠す。
+   * upgrade で走る constructor で自身のプロパティを消し、同じ値をアクセサに通し直す。
+   * connectedCallback ではなくここで行うのは、接続されないまま upgrade された要素でも、
+   * getter と描画に使う値を最初から揃えるため。
+   */
+  #upgradeProperties(): void {
+    for (const name of UPGRADED_PROPERTIES) {
+      if (!Object.hasOwn(this, name)) continue;
+      const value: unknown = this[name];
+      delete this[name];
+      (this as Record<UpgradedProperty, unknown>)[name] = value;
+    }
   }
 
   /**
@@ -184,7 +208,7 @@ export class SkamRendererElement extends BaseElement {
    * 描画の HTML の両方で呼ばれ、XML はそのまま返すこと。何を検査するかは利用者の責任で、
    * 描画の HTML の安全性は render のエスケープに依る。変えるときは新しいオブジェクトを代入する
    * (同じ参照の再代入は再描画しない)。null は指定なしとして扱う。
-   * customElements.define の前にインスタンスへ代入した値は、このアクセサを通らない。
+   * customElements.define の前に代入した値も、upgrade の時点でこのアクセサに通す。
    *
    * @experimental
    */

@@ -1572,6 +1572,23 @@ function describeEntry(
   );
 }
 
+/**
+ * 未 commit の変更があれば止まる。入口はどの行の判定よりも先にこれを見る (観測の失敗を除く)。
+ * 前半は段 1 で、後半は clean でないと進めないので、ここで止めても塞ぐ経路はない。止まる行の
+ * 案内 (行 12 の --tag-only など) は clean な作業ツリーを前提にしており、dirty のまま出すと
+ * 従っても進めない。changeset status を待つ間に変わる場合も拾うよう、最終の判定の後に呼ぶ
+ */
+function stopIfDirty(deps: MainDeps): Outcome | undefined {
+  const dirty = deps.git(['status', '--porcelain']);
+  if (dirty.status === 0 && dirty.stdout.trim() === '') return undefined;
+  const reason = dirty.status !== 0 ? 'git status failed' : 'working tree is not clean';
+  const error =
+    dirty.status !== 0
+      ? gitError('git status --porcelain', dirty)
+      : excerptDetail('git status --porcelain', 0, dirty.stdout.split('\n'));
+  return entryStop({ kind: 'dirty' }, reason, error);
+}
+
 async function runEntry(argv: readonly string[], deps: MainDeps): Promise<Outcome> {
   const flags = parseReleaseFlags(argv);
   if (!flags.ok) {
@@ -1604,6 +1621,10 @@ async function runEntry(argv: readonly string[], deps: MainDeps): Promise<Outcom
     status = await deps.release.changesetStatus();
     decision = decideEntryWithStatus(observed.observation, status);
   }
+  // 観測の失敗 (行 0) は何を直すべきかを示すので、dirty より先に出す
+  const observationFailed = decision.kind === 'stop' && decision.row === 0;
+  const dirtyStop = observationFailed ? undefined : stopIfDirty(deps);
+  if (dirtyStop !== undefined) return dirtyStop;
   switch (decision.kind) {
     case 'stop':
       // 停止の表示の先頭は見出しの行。入口の行は、続けて進む判定にだけ出す
@@ -1616,15 +1637,6 @@ async function runEntry(argv: readonly string[], deps: MainDeps): Promise<Outcom
     }
     case 'after-push':
     case 'after-push-check-only': {
-      const dirty = deps.git(['status', '--porcelain']);
-      if (dirty.status !== 0 || dirty.stdout.trim() !== '') {
-        const reason = dirty.status !== 0 ? 'git status failed' : 'working tree is not clean';
-        const error =
-          dirty.status !== 0
-            ? gitError('git status --porcelain', dirty)
-            : excerptDetail('git status --porcelain', 0, dirty.stdout.split('\n'));
-        return entryStop({ kind: 'dirty' }, reason, error);
-      }
       deps.output.emit(describeEntry(observed.observation, decision));
       const { originTag } = observed.observation;
       const tagCommit = originTag.kind === 'present' ? originTag.commit : undefined;

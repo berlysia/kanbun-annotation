@@ -1,0 +1,117 @@
+{
+  "schemaVersion": 1,
+  "checks": [
+    {
+      "id": "published-verified",
+      "kind": "tla",
+      "model": "Release.tla",
+      "cfg": "Fixed-PublishedVerified.cfg",
+      "property": "PublishedVerified",
+      "expect": "hold",
+      "role": "contract",
+      "brokenBy": "published-verified-without-verify",
+      "note": "公開した tarball はどれも、validate の log の sha512 と照合した試行のものである",
+      "sync": {
+        "commit": "ad9b581b0491783d941a9254ea914690fc224b79",
+        "covers": [
+          {
+            "path": "scripts/release-after-push.ts",
+            "sha256": "82887ce70b1b611473f9259b44c1827a70efd96add23bc2b4dc5347cbcd0b997"
+          },
+          {
+            "path": "scripts/lib/release-after-push-check.ts",
+            "sha256": "ca6339c00dfd490cefa5ecc3d914d14ed8790bb753583bc527162ef02f46a1f0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "published-verified-without-verify",
+      "kind": "tla",
+      "model": "Release.tla",
+      "cfg": "NoVerify-PublishedVerified.cfg",
+      "property": "PublishedVerified",
+      "expect": "violate",
+      "role": "broken-variant",
+      "note": "段 9 の照合を外すと、log と一致しない tarball が公開される"
+    },
+    {
+      "id": "published-verified-without-recheck",
+      "kind": "tla",
+      "model": "Release.tla",
+      "cfg": "NoRecheck-PublishedVerified.cfg",
+      "property": "PublishedVerified",
+      "expect": "violate",
+      "role": "broken-variant",
+      "note": "段 10 の直前の読み直しを外すと、照合の後に CI が再実行されて stage し直された、照合していない tarball が公開される"
+    },
+    {
+      "id": "published-prefix",
+      "kind": "tla",
+      "model": "Release.tla",
+      "cfg": "Fixed-PublishedPrefix.cfg",
+      "property": "PublishedPrefix",
+      "expect": "hold",
+      "role": "contract",
+      "brokenBy": "published-prefix-without-order",
+      "note": "公開済みのパッケージは manifest の先頭から途切れない",
+      "sync": {
+        "commit": "ad9b581b0491783d941a9254ea914690fc224b79",
+        "covers": [
+          {
+            "path": "scripts/release-after-push.ts",
+            "sha256": "82887ce70b1b611473f9259b44c1827a70efd96add23bc2b4dc5347cbcd0b997"
+          },
+          {
+            "path": "scripts/lib/release-after-push-check.ts",
+            "sha256": "ca6339c00dfd490cefa5ecc3d914d14ed8790bb753583bc527162ef02f46a1f0"
+          }
+        ]
+      }
+    },
+    {
+      "id": "published-prefix-without-order",
+      "kind": "tla",
+      "model": "Release.tla",
+      "cfg": "NoOrder-PublishedPrefix.cfg",
+      "property": "PublishedPrefix",
+      "expect": "violate",
+      "role": "broken-variant",
+      "note": "順番の検査を外すと、公開済みの並びに抜けができる"
+    },
+    {
+      "id": "hint-followable",
+      "kind": "tla",
+      "model": "Release.tla",
+      "cfg": "Fixed-HintFollowable.cfg",
+      "property": "HintFollowable",
+      "expect": "hold",
+      "role": "contract",
+      "brokenBy": "hint-followable-before-2026-11-26",
+      "note": "入口が --tag-only を案内するのは作業ツリーが clean のときだけである",
+      "sync": {
+        "commit": "ad9b581b0491783d941a9254ea914690fc224b79",
+        "covers": [
+          {
+            "path": "scripts/release.ts",
+            "sha256": "cf1e737e3e33900995f42e06b662cf00bd2d0c34a28692d8c979dd077f3cf847"
+          },
+          {
+            "path": "scripts/lib/release-check.ts",
+            "sha256": "ffaaeb8ada79ab406e90c18ed25d1ae6065e54358928f63e6dd8f3a8f0764e9c"
+          }
+        ]
+      }
+    },
+    {
+      "id": "hint-followable-before-2026-11-26",
+      "kind": "tla",
+      "model": "Release.tla",
+      "cfg": "Current-HintFollowable.cfg",
+      "property": "HintFollowable",
+      "expect": "violate",
+      "role": "broken-variant",
+      "note": "2026-11-26 より前の入口 (DirtyFirst=FALSE)。段 2〜5 で止まった後の再実行が --tag-only を案内し、従うと段 1 で止まる"
+    }
+  ]
+}

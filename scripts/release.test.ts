@@ -3272,3 +3272,72 @@ test('fetchTextWithLimits asks fetch for no redirects and a timeout signal', asy
   assert.equal(seen?.redirect, 'error');
   assert.ok(seen?.signal instanceof AbortSignal);
 });
+
+// --- entry: a dirty working tree stops before the rows are chosen (TLA+ HintFollowable) ---
+
+// The state after a stop in stages 2-5: the versions are bumped in the working tree,
+// nothing is committed, there is no tag and nothing is published.
+function bumpWithoutCommit(repo: Repo, version: string): void {
+  for (const name of ['a', 'b']) {
+    writeFileSync(
+      join(repo.work, 'packages', name, 'package.json'),
+      `${JSON.stringify({ name: `@fx/${name}`, version }, null, 2)}\n`
+    );
+  }
+}
+
+test('entry: after a stop in stages 2-5 a rerun stops on the dirty tree instead of suggesting --tag-only', async () => {
+  const repo = makeRepo({ changeset: false });
+  bumpWithoutCommit(repo, '0.2.0');
+  const fake = fakeMain(repo, { published: 'none' });
+  assert.equal(await runMain([], fake.deps), 1);
+  const lines = printed(fake.lines());
+  assert.equal(lines[0], 'release stopped: working tree is not clean');
+  assert.ok(!fake.lines().includes('--tag-only'), fake.lines());
+  assert.equal(fake.frontFlags.length, 0);
+});
+
+test('entry: --tag-only on a dirty tree stops at the entry, before the front half', async () => {
+  const repo = makeRepo({ changeset: false });
+  bumpWithoutCommit(repo, '0.2.0');
+  const fake = fakeMain(repo, { published: 'none' });
+  assert.equal(await runMain(['--tag-only'], fake.deps), 1);
+  assert.equal(printed(fake.lines())[0], 'release stopped: working tree is not clean');
+  assert.equal(fake.frontFlags.length, 0);
+});
+
+test('entry: a committed version bump without a tag on a clean tree still suggests --tag-only', async () => {
+  const repo = makeRepo({ changeset: false, version: '0.2.0' });
+  const fake = fakeMain(repo, { published: 'none' });
+  assert.equal(await runMain([], fake.deps), 1);
+  assert.ok(fake.lines().includes('there is no tag; to tag it, run with --tag-only'), fake.lines());
+});
+
+test('entry: a dirty tree with unrelated edits stops without a command that would discard them', async () => {
+  const repo = makeRepo({ changeset: false });
+  mkdirSync(join(repo.work, 'docs'), { recursive: true });
+  writeFileSync(join(repo.work, 'docs', 'notes.md'), 'my notes\n');
+  writeFileSync(join(repo.work, 'packages', 'a', 'local.txt'), 'local\n');
+  const fake = fakeMain(repo, { published: 'none' });
+  assert.equal(await runMain([], fake.deps), 1);
+  assert.equal(printed(fake.lines())[0], 'release stopped: working tree is not clean');
+  assert.ok(!fake.lines().includes('git checkout -- .'), fake.lines());
+  assert.ok(!fake.lines().includes('git clean'), fake.lines());
+});
+
+test('entry: a tree that becomes dirty while changeset status runs stops instead of suggesting --tag-only', async () => {
+  const repo = makeRepo({ changeset: false, version: '0.2.0' });
+  const fake = fakeMain(repo, {
+    published: 'none',
+    releaseOverrides: {
+      changesetStatus: async () => {
+        mkdirSync(join(repo.work, 'docs'), { recursive: true });
+        writeFileSync(join(repo.work, 'docs', 'notes.md'), 'edited meanwhile\n');
+        return { ok: true, value: { kind: 'none' } };
+      },
+    },
+  });
+  assert.equal(await runMain([], fake.deps), 1);
+  assert.equal(printed(fake.lines())[0], 'release stopped: working tree is not clean');
+  assert.ok(!fake.lines().includes('--tag-only'), fake.lines());
+});

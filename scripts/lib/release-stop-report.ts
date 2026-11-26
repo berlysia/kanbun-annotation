@@ -555,11 +555,12 @@ const ENTRY_KIND_DEFAULTS: Readonly<Record<Exclude<EntryWhere['kind'], 'row'>, D
     'Read the lines under error:',
     'Fix the cause shown, then run the same command again'
   ),
+  // 入口は変更の由来を判別できないので、変更を消すコマンドは出さない (別の編集を失わせうる)
   dirty: def(
     'default:entry:dirty',
     'The working tree is not clean',
-    '`git status`',
-    'Revert or commit the changes, then run again'
+    '`git status` and `git diff`',
+    'If the only changes are the version bump left by a stop in stages 2-5, undo them by "段 2〜7 で止まったとき" in docs/releasing.md; otherwise commit or stash them, then run again'
   ),
   'resume-check': def(
     'default:entry:resume-check',

@@ -12,11 +12,11 @@
       "brokenBy": "no-lost-edit-without-flush",
       "note": "GUI 操作が、エディタに打った文字やまだ反映していない操作を消さない",
       "sync": {
-        "commit": "518fd07190876bb044dc0ecff4cc2c4af70024df",
+        "commit": "e2f593d8119febc05076ca1755487cea2bb1e9d2",
         "covers": [
           {
             "path": "packages/playground/src/main.ts",
-            "sha256": "9bc632c84955eaa2b9a475c61f185c7decb2d511867b882324608452ca7025bc"
+            "sha256": "368a43314aa13f4e140a827915e3306f4bdc880b545e64f355ef38bf387a831b"
           },
           {
             "path": "packages/playground/src/editor/xml-editor.ts",
@@ -46,11 +46,11 @@
       "brokenBy": "doc-reflects-text-empty-keeps",
       "note": "タイマーが止まっているとき、文書はエディタのテキストを parse した結果と一致する (空なら文書なし)",
       "sync": {
-        "commit": "518fd07190876bb044dc0ecff4cc2c4af70024df",
+        "commit": "e2f593d8119febc05076ca1755487cea2bb1e9d2",
         "covers": [
           {
             "path": "packages/playground/src/main.ts",
-            "sha256": "9bc632c84955eaa2b9a475c61f185c7decb2d511867b882324608452ca7025bc"
+            "sha256": "368a43314aa13f4e140a827915e3306f4bdc880b545e64f355ef38bf387a831b"
           },
           {
             "path": "packages/playground/src/editor/xml-editor.ts",
@@ -80,11 +80,11 @@
       "brokenBy": "sel-belongs-to-doc-no-reset-on-load",
       "note": "選択パネルの選択は、いま表示している文書の上で作ったものである",
       "sync": {
-        "commit": "518fd07190876bb044dc0ecff4cc2c4af70024df",
+        "commit": "e2f593d8119febc05076ca1755487cea2bb1e9d2",
         "covers": [
           {
             "path": "packages/playground/src/main.ts",
-            "sha256": "9bc632c84955eaa2b9a475c61f185c7decb2d511867b882324608452ca7025bc"
+            "sha256": "368a43314aa13f4e140a827915e3306f4bdc880b545e64f355ef38bf387a831b"
           }
         ]
       }
@@ -110,11 +110,11 @@
       "brokenBy": "sel-visible-no-keep-highlight",
       "note": "HTML 描画で選択パネルが選択を示すなら、プレビューにも強調が出ている",
       "sync": {
-        "commit": "518fd07190876bb044dc0ecff4cc2c4af70024df",
+        "commit": "e2f593d8119febc05076ca1755487cea2bb1e9d2",
         "covers": [
           {
             "path": "packages/playground/src/main.ts",
-            "sha256": "9bc632c84955eaa2b9a475c61f185c7decb2d511867b882324608452ca7025bc"
+            "sha256": "368a43314aa13f4e140a827915e3306f4bdc880b545e64f355ef38bf387a831b"
           }
         ]
       }
@@ -140,11 +140,11 @@
       "brokenBy": "touch-anchor-fresh-no-reset-touch",
       "note": "SP の 2 タップの 1 つ目は、いまの文書の字で、パネルにもその字が出ている",
       "sync": {
-        "commit": "518fd07190876bb044dc0ecff4cc2c4af70024df",
+        "commit": "e2f593d8119febc05076ca1755487cea2bb1e9d2",
         "covers": [
           {
             "path": "packages/playground/src/main.ts",
-            "sha256": "9bc632c84955eaa2b9a475c61f185c7decb2d511867b882324608452ca7025bc"
+            "sha256": "368a43314aa13f4e140a827915e3306f4bdc880b545e64f355ef38bf387a831b"
           }
         ]
       }

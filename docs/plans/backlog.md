@@ -21,6 +21,8 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 - **npm stage view の出力の確認**: 手作業の手順は、integrity の照合に `npm stage view <stage-id>` を使う。0.2.0 では使っておらず、出力の書式は未確認である。`npm stage list` の書式は確かめた。releasing.md の冒頭の注記も、確かめた範囲に合わせて直す。出典: ADR-029「未確認の事項」と「結果」。規模: 小。
 - **E409 の実際の stderr の確認**: `automated review hasn't finished` の E409 は、shiori の手順書の記録しかなく、実物を見ていない (未確認)。出典: ADR-031「未確認の事項」。規模: 小。
 - **scope の registry 設定・artifact 名の衝突・log の保持期間の確認**: 次の 3 つは未確認である。`npm stage` が scope の registry 設定を参照するか。validate を re-run したときに artifact が同名で衝突するか。job の log の保持期間 (R7)。出典: ADR-031「未確認の事項」。規模: 小。
+- **2 つの端末で後半を同時に流す場合の検査**: `docs/formal/release/Release.tla` は 1 プロセスだけを表し、同時実行は確かめていない。approve の直前の読み直し (`recheckBeforeApprove`) と、失敗後の状態の読み直し (`afterApproveFailure`) が頼りで、ロックはない。モデルに 2 つ目のプロセスを足し、PublishedVerified と PublishedPrefix が保たれるかを確かめる。出典: 2026-11-26 のリリース手順の形式検査。規模: 中。
+- **release.yml の npm の版のコメント**: release.yml は npm を 12.1.0 に固定し、そばのコメントは「11.15.0 以上」と書く。入口は手元の npm に 12.2.0 以上を求める。CI と手元は別の環境なので食い違いではないが、コメントが古い。出典: 同上。規模: 小。
 
 ## Web Component
 

@@ -52,28 +52,33 @@ Init == /\ tree = "base"
 
 \* --- 入口 (runEntry, release.ts:1575) ---
 \* 返り値: "front" / "after-push" / "check-only" / <<"stop", 行, 次の手>>
+\* 入口の判定。どの経路も同じ形のレコードで返す (種類、停止の行、停止で案内する次の手)。
+\* 文字列と組を混ぜて返すと、Start の比較が型の違う値どうしの比較になり、意味が決まらない
+Go(kind) == [kind |-> kind, row |-> 0, next |-> "none"]
+Stop(row, next) == [kind |-> "stop", row |-> row, next |-> next]
+
 EntryRoute ==
-  IF DirtyFirst /\ tree = "dirty" THEN <<"stop", 15, "revert">>
+  IF DirtyFirst /\ tree = "dirty" THEN Stop(15, "revert")
   ELSE IF originTag /\ ~Complete
-    THEN IF mode = "normal" THEN "after-push" ELSE <<"stop", 2, "none">>          \* 行 1 / 行 2
-  ELSE IF ~originTag /\ localTag THEN <<"stop", 3, "revert">>                       \* 行 3
+    THEN IF mode = "normal" THEN Go("after-push") ELSE Stop(2, "none")              \* 行 1 / 行 2
+  ELSE IF ~originTag /\ localTag THEN Stop(3, "revert")                             \* 行 3
   ELSE IF mode = "tag-only"
-    THEN IF originTag THEN <<"stop", 5, "none">>                                   \* 行 5
-         ELSE IF PublishedCount > 0 THEN <<"stop", 6, "none">> ELSE "front"         \* 行 6 / 6a
+    THEN IF originTag THEN Stop(5, "none")                                          \* 行 5
+         ELSE IF PublishedCount > 0 THEN Stop(6, "none") ELSE Go("front")           \* 行 6 / 6a
   \* normal: changeset status を読む (版を上げると changeset は消費される)
-  ELSE IF tree = "base" THEN "front"                                                \* 行 11
-  ELSE IF originTag /\ Complete THEN "check-only"                                   \* 行 8
-  ELSE IF ~originTag /\ PublishedCount = 0 THEN <<"stop", 12, "tag-only">>          \* 行 12
-  ELSE <<"stop", 14, "none">>                                                       \* 行 14
+  ELSE IF tree = "base" THEN Go("front")                                            \* 行 11
+  ELSE IF originTag /\ Complete THEN Go("check-only")                               \* 行 8
+  ELSE IF ~originTag /\ PublishedCount = 0 THEN Stop(12, "tag-only")                \* 行 12
+  ELSE Stop(14, "none")                                                             \* 行 14
 
 Start == /\ pc = "idle"
          /\ LET r == EntryRoute IN
-              IF r = "front" THEN pc' = "front" /\ UNCHANGED hint
-              ELSE IF r = "after-push" THEN
+              IF r.kind = "front" THEN pc' = "front" /\ UNCHANGED hint
+              ELSE IF r.kind = "after-push" THEN
                 \* DirtyFirst=FALSE の入口は、after-push の経路でだけ未 commit の変更を見ていた
                 IF tree = "dirty" THEN pc' = "idle" /\ hint' = "revert" ELSE pc' = "s8" /\ UNCHANGED hint
-              ELSE IF r = "check-only" THEN pc' = "s11" /\ UNCHANGED hint
-              ELSE pc' = "idle" /\ hint' = r[3]
+              ELSE IF r.kind = "check-only" THEN pc' = "s11" /\ UNCHANGED hint
+              ELSE pc' = "idle" /\ hint' = r.next
          /\ mode' = "normal"
          /\ UNCHANGED <<tree, localTag, originTag, attempt, good, staged, published, verified>>
 

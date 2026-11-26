@@ -61,6 +61,22 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 - **fallow の試用**: 未使用の検出の fallow (Rust、Oxc。TypeScript も Node も要らない) を knip と並べて走らせ、設定を詰める。`knip.config.ts` は自動で移せず、設定なしでは Web Component のライフサイクルの関数や canvas-renderer のテストを未使用と判定した。出典: ADR-037 の却下した案。規模: 中。
 - **stylelint の代わり**: TS の中の CSS の構文と Baseline を、TypeScript の JS API なしで検査する方法を探す。今の stylelint の `postcss-styled-syntax` は TypeScript の JS API で TS を読み、ADR-037 の例外になっている。出典: ADR-037 の例外。規模: 中。
 
+## Playground
+
+次の 2 件は、直すかどうかを「戻せないか・気づけないか」「深刻か」「通常の使い方で頻繁に起きるか」の 3 条件で判断し、記録にとどめた。subagent には観察と位置だけを渡し、独立に判定させた。
+
+- **ドラッグ中の再描画でドラッグ選択が失われる**: `renderDocument` は handler を付け直し (`packages/playground/src/main.ts` の `cleanupInteractiveHandlers`)、新しい closure は `isDragging=false` で始まる (`packages/skam-html-renderer/src/interactive.ts` の `handleMouseUp`)。エディタへの入力から 300ms 以内にプレビューでドラッグを始め、mouseup の前に debounce の再描画が入ると、選択が付かない。GUI 操作後の 300ms 後の再描画は 2026-11-26 の修正 (GUI 操作の即時 parse) でなくなった。
+  - 自身の見立て: 最悪でも選択をやり直すだけで済む。通常の使い方で 100 回に 1 回未満
+  - subagent の見立て: データ損失はない。ドラッグ 1 回あたり 1% 未満 (推定 0.1% 前後)
+  - 3 条件: 戻せない・気づけない → 両者とも いいえ。深刻 → 両者とも いいえ。頻繁 → 両者とも いいえ
+  - 出典: 2026-11-26 の playground の形式検査 (docs/formal/playground-sync/ledger.md)。規模: 中 (`interactive.ts` の公開 API に状態の引き継ぎが要る)
+- **再描画で Shift+クリックの起点が消える**: Shift+クリックの起点 `lastSelectedTokenId` は `attachInteractiveHandlers` ごとの closure にあり、再描画のたびに null で始まる。注記ボタンを押した直後に Shift+クリックで範囲を広げると、単独の選択になる。
+  - 自身の見立て: その場で気づけて、やり直せる。Shift+クリックを使う人の操作の 10 回に 1 回程度
+  - subagent の見立て: その場で気づけて、やり直せる。Shift+クリックを使うセッションの 10〜30% (推定)
+  - 3 条件: 戻せない・気づけない → 両者とも いいえ。深刻 → 両者とも いいえ。頻繁 → 自身 いいえ、subagent は「いいえ寄りだが判定は割れうる」
+  - 判断が割れうるので、2026-11-26 の完了報告でユーザーに判断を委ねた。直すと決まったら別の計画で扱う
+  - 出典: 同上。規模: 中 (同上)
+
 ## 外部利用
 
 外部利用のロードマップ (1.0 安定化、CJS 対応、CDN、CLI) は #6 で追う。

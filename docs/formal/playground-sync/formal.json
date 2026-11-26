@@ -1,0 +1,163 @@
+{
+  "schemaVersion": 1,
+  "checks": [
+    {
+      "id": "no-lost-edit",
+      "kind": "tla",
+      "model": "EditSync.tla",
+      "cfg": "Fixed-NoLostEdit.cfg",
+      "property": "NoLostEdit",
+      "expect": "hold",
+      "role": "contract",
+      "brokenBy": "no-lost-edit-without-flush",
+      "note": "GUI 操作が、エディタに打った文字やまだ反映していない操作を消さない",
+      "sync": {
+        "commit": "980fb7c7896d7825ab2cfe4ed3c9f955531b3bac",
+        "covers": [
+          {
+            "path": "packages/playground/src/main.ts",
+            "sha256": "d46dfe9f2abc8d3a11eadf5b00d89ce6de06e38e4bb362756a102a14e22e4af4"
+          },
+          {
+            "path": "packages/playground/src/editor/xml-editor.ts",
+            "sha256": "0c8c5530977af5ae0fc70c2c057c3b822274e5c11e15936c60c0d637e4041a75"
+          }
+        ]
+      }
+    },
+    {
+      "id": "no-lost-edit-without-flush",
+      "kind": "tla",
+      "model": "EditSync.tla",
+      "cfg": "NoFlush-NoLostEdit.cfg",
+      "property": "NoLostEdit",
+      "expect": "violate",
+      "role": "broken-variant",
+      "note": "選択パネルの前の flush を外すと、直前に打った文字が GUI 操作で消える"
+    },
+    {
+      "id": "doc-reflects-text",
+      "kind": "tla",
+      "model": "EditSync.tla",
+      "cfg": "Fixed-DocReflectsText.cfg",
+      "property": "DocReflectsText",
+      "expect": "hold",
+      "role": "contract",
+      "brokenBy": "doc-reflects-text-empty-keeps",
+      "note": "タイマーが止まっているとき、文書はエディタのテキストを parse した結果と一致する (空なら文書なし)",
+      "sync": {
+        "commit": "980fb7c7896d7825ab2cfe4ed3c9f955531b3bac",
+        "covers": [
+          {
+            "path": "packages/playground/src/main.ts",
+            "sha256": "d46dfe9f2abc8d3a11eadf5b00d89ce6de06e38e4bb362756a102a14e22e4af4"
+          },
+          {
+            "path": "packages/playground/src/editor/xml-editor.ts",
+            "sha256": "0c8c5530977af5ae0fc70c2c057c3b822274e5c11e15936c60c0d637e4041a75"
+          }
+        ]
+      }
+    },
+    {
+      "id": "doc-reflects-text-empty-keeps",
+      "kind": "tla",
+      "model": "EditSync.tla",
+      "cfg": "EmptyKeeps-DocReflectsText.cfg",
+      "property": "DocReflectsText",
+      "expect": "violate",
+      "role": "broken-variant",
+      "note": "空テキストで文書を残すと、前の文書が生き残る"
+    },
+    {
+      "id": "sel-belongs-to-doc",
+      "kind": "tla",
+      "model": "Selection.tla",
+      "cfg": "SelFixed-SelBelongsToDoc.cfg",
+      "property": "SelBelongsToDoc",
+      "expect": "hold",
+      "role": "contract",
+      "brokenBy": "sel-belongs-to-doc-no-reset-on-load",
+      "note": "選択パネルの選択は、いま表示している文書の上で作ったものである",
+      "sync": {
+        "commit": "980fb7c7896d7825ab2cfe4ed3c9f955531b3bac",
+        "covers": [
+          {
+            "path": "packages/playground/src/main.ts",
+            "sha256": "d46dfe9f2abc8d3a11eadf5b00d89ce6de06e38e4bb362756a102a14e22e4af4"
+          }
+        ]
+      }
+    },
+    {
+      "id": "sel-belongs-to-doc-no-reset-on-load",
+      "kind": "tla",
+      "model": "Selection.tla",
+      "cfg": "SelNoResetOnLoad-SelBelongsToDoc.cfg",
+      "property": "SelBelongsToDoc",
+      "expect": "violate",
+      "role": "broken-variant",
+      "note": "読み込みで選択を捨てないと、前の文書の位置が新しい文書に移る"
+    },
+    {
+      "id": "sel-visible",
+      "kind": "tla",
+      "model": "Selection.tla",
+      "cfg": "SelFixed-SelVisible.cfg",
+      "property": "SelVisible",
+      "expect": "hold",
+      "role": "contract",
+      "brokenBy": "sel-visible-no-keep-highlight",
+      "note": "HTML 描画で選択パネルが選択を示すなら、プレビューにも強調が出ている",
+      "sync": {
+        "commit": "980fb7c7896d7825ab2cfe4ed3c9f955531b3bac",
+        "covers": [
+          {
+            "path": "packages/playground/src/main.ts",
+            "sha256": "d46dfe9f2abc8d3a11eadf5b00d89ce6de06e38e4bb362756a102a14e22e4af4"
+          }
+        ]
+      }
+    },
+    {
+      "id": "sel-visible-no-keep-highlight",
+      "kind": "tla",
+      "model": "Selection.tla",
+      "cfg": "SelNoKeepHighlight-SelVisible.cfg",
+      "property": "SelVisible",
+      "expect": "violate",
+      "role": "broken-variant",
+      "note": "描き直しで強調を戻さないと、表示設定の変更で強調だけが消える"
+    },
+    {
+      "id": "touch-anchor-fresh",
+      "kind": "tla",
+      "model": "Selection.tla",
+      "cfg": "SelFixed-TouchAnchorFresh.cfg",
+      "property": "TouchAnchorFresh",
+      "expect": "hold",
+      "role": "contract",
+      "brokenBy": "touch-anchor-fresh-no-reset-touch",
+      "note": "SP の 2 タップの 1 つ目は、いまの文書の字で、パネルにもその字が出ている",
+      "sync": {
+        "commit": "980fb7c7896d7825ab2cfe4ed3c9f955531b3bac",
+        "covers": [
+          {
+            "path": "packages/playground/src/main.ts",
+            "sha256": "d46dfe9f2abc8d3a11eadf5b00d89ce6de06e38e4bb362756a102a14e22e4af4"
+          }
+        ]
+      }
+    },
+    {
+      "id": "touch-anchor-fresh-no-reset-touch",
+      "kind": "tla",
+      "model": "Selection.tla",
+      "cfg": "SelNoResetTouch-TouchAnchorFresh.cfg",
+      "property": "TouchAnchorFresh",
+      "expect": "violate",
+      "role": "broken-variant",
+      "note": "選択を消す経路と画面幅の変化で 2 タップ状態を戻さないと、古い 1 つ目から範囲選択になる"
+    }
+  ]
+}

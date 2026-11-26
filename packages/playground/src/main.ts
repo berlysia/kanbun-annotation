@@ -298,6 +298,11 @@ let currentSaidokuRereadOkuri = '';
 // - 'tateten': selection matches a tateten range - kaeri enabled, tateten shows "解除"
 let currentSelectionMode: 'single' | 'multi' | 'tateten' = 'single';
 
+// SP 2-tap range selection (see handleTouchTokenTap).
+// Kept next to the selection state because clearSelectionPanel resets it too.
+let touchRangeState: 'idle' | 'first-selected' | 'range-selected' = 'idle';
+let touchFirstTokenId: string | null = null;
+
 // Cleanup function for interactive handlers
 let cleanupInteractiveHandlers: (() => void) | null = null;
 
@@ -705,6 +710,7 @@ function normalizeSelection(
  */
 // oxlint-disable-next-line eslint/complexity
 function updateSelectionPanel(fromId: string, toId: string): void {
+  forgetPanelDrafts();
   if (!currentDocument) {
     clearSelectionPanel();
     return;
@@ -1111,7 +1117,7 @@ function handleTatetenToggle(): void {
     });
   }
 
-  updateXmlFromDocument(newDoc);
+  commitDocument(newDoc);
   // parseAndRender handles selection restoration automatically
 }
 
@@ -1193,7 +1199,7 @@ function handleEmphasisToggle(): void {
     });
   }
 
-  updateXmlFromDocument(newDoc);
+  commitDocument(newDoc);
   // parseAndRender handles selection restoration automatically
 }
 
@@ -1215,7 +1221,7 @@ function updateExistingEmphasis(): void {
     style: currentEmphasisStyle,
   });
 
-  updateXmlFromDocument(newDoc);
+  commitDocument(newDoc);
   // parseAndRender handles selection restoration automatically
 }
 
@@ -1297,7 +1303,7 @@ function updateExistingUnderline(): void {
   // Build ref mark and highlight mark with optional ref
   newDoc = addUnderlineMarks(newDoc, normalizedFromId, normalizedToId, refInputValue, formatValue);
 
-  updateXmlFromDocument(newDoc);
+  commitDocument(newDoc);
   // parseAndRender handles selection restoration automatically
 }
 
@@ -1388,7 +1394,7 @@ function handleUnderlineToggle(): void {
     );
   }
 
-  updateXmlFromDocument(newDoc);
+  commitDocument(newDoc);
   // parseAndRender handles selection restoration automatically
 }
 
@@ -1429,7 +1435,7 @@ function applyKaeriValue(value: string | null): void {
     }
   }
 
-  updateXmlFromDocument(newDoc);
+  commitDocument(newDoc);
   // parseAndRender handles selection restoration automatically
 }
 
@@ -1499,7 +1505,7 @@ function handleKanaApply(): void {
   // Empty value: just remove (already done above)
   if (!value) {
     if (existingMarks.length > 0) {
-      updateXmlFromDocument(newDoc);
+      commitDocument(newDoc);
     }
     return;
   }
@@ -1511,7 +1517,7 @@ function handleKanaApply(): void {
     anchor: { from: currentSelectionFromId, to: currentSelectionToId },
   });
 
-  updateXmlFromDocument(newDoc);
+  commitDocument(newDoc);
   // parseAndRender handles selection restoration automatically
 }
 
@@ -1554,7 +1560,7 @@ function applySaidokuForm0(type: 'yomigana' | 'okurigana', value: string): void 
   });
 
   const newDoc = updateMark(currentDocument, currentSaidokuMarkId, { forms: newForms });
-  updateXmlFromDocument(newDoc);
+  commitDocument(newDoc);
 }
 
 /**
@@ -1658,7 +1664,7 @@ function handleSaidokuToggle(): void {
     });
   }
 
-  updateXmlFromDocument(newDoc);
+  commitDocument(newDoc);
 }
 
 /**
@@ -1681,13 +1687,19 @@ function handleSaidokuRereadApply(): void {
   // Keep forms[0], update forms[1]
   const form0 = mark.forms[0] ?? { n: 1 };
   const newDoc = updateMark(currentDocument, currentSaidokuMarkId, { forms: [form0, form1] });
-  updateXmlFromDocument(newDoc);
+  commitDocument(newDoc);
 }
 
 /**
  * Clear selection panel
  */
 function clearSelectionPanel(): void {
+  forgetPanelDrafts();
+  // Every path that drops the selection also drops a waiting first tap,
+  // so the next tap never extends from a character that is no longer selected.
+  touchRangeState = 'idle';
+  touchFirstTokenId = null;
+  hideTouchRangeHint();
   currentSelectionRange = null;
   currentSelectionFromId = null;
   currentSelectionToId = null;
@@ -1947,6 +1959,12 @@ function renderDocument(doc: SKAMDocument): void {
   // HTML source output
   htmlOutput.textContent = result.html;
 
+  // Display settings re-render through here without parseAndRender, so the
+  // highlight of a live selection is drawn again on the new markup.
+  if (currentSelectionFromId && currentSelectionToId) {
+    setSelectionClasses(renderOutput, currentSelectionFromId, currentSelectionToId);
+  }
+
   // Setup interactive event handlers (not in inline mode)
   if (!inline) {
     cleanupInteractiveHandlers = attachInteractiveHandlers(renderOutput, {
@@ -1987,6 +2005,9 @@ function parseAndRender(): void {
 
   const xmlText = xmlEditor.getValue().trim();
   if (!xmlText) {
+    // An empty editor means no document, like a parse failure: otherwise a GUI
+    // operation would write the previous document back into the editor.
+    clearDocumentView();
     showErrors([{ message: 'XMLを入力してください' }]);
     return;
   }
@@ -2035,24 +2056,44 @@ function parseAndRender(): void {
     } else {
       showErrors([{ message: '不明なエラーが発生しました' }]);
     }
-    jsonOutput.textContent = '';
-    renderOutput.innerHTML = '';
-    htmlOutput.textContent = '';
-    currentDocument = null;
-    clearSelectionPanel();
+    clearDocumentView();
   }
+}
+
+/** Show "no document": used when the editor is empty or does not parse */
+function clearDocumentView(): void {
+  cleanupInteractiveHandlers?.();
+  cleanupInteractiveHandlers = null;
+  jsonOutput.textContent = '';
+  renderOutput.innerHTML = '';
+  htmlOutput.textContent = '';
+  updateMarksList(null);
+  currentDocument = null;
+  clearSelectionPanel();
 }
 
 function loadSample(index: number, updateUrlState = true): void {
   const sample = SAMPLES[index];
   if (sample) {
-    xmlEditor.setValue(sample.xml);
     sampleSelect.value = String(index);
     if (updateUrlState) {
       updateURL({ sample: index });
     }
-    parseAndRender();
+    loadDocumentText(sample.xml);
   }
+}
+
+/**
+ * Show a new document (sample, uploaded or dropped file).
+ * The selection is dropped first: restoring it by position only makes sense
+ * while editing the same document, not across documents.
+ */
+function loadDocumentText(xml: string): void {
+  xmlEditor.replaceValue(xml);
+  clearSelectionPanel();
+  clearSelection(renderOutput);
+  closeBottomSheet();
+  parseAndRender();
 }
 
 function copyToClipboard(text: string): void {
@@ -2092,16 +2133,13 @@ function downloadXml(): void {
 }
 
 /**
- * Update XML editor from a SKAMDocument (GUI operation -> XML sync)
- *
- * This function is called when GUI operations modify the document.
- * It converts the document back to XML and updates the editor.
- * The onContentChange callback will trigger parseAndRender,
- * which restores selection using position-based tracking.
- *
- * @param doc The updated SKAMDocument
+ * Commit a document produced by a GUI operation: write it to the editor and
+ * parse it in the same call, so the next operation starts from this result.
+ * Waiting for the editor's debounce instead let a second operation within
+ * 300ms start from the old document and drop the first one.
+ * parseAndRender restores the selection by position.
  */
-function updateXmlFromDocument(doc: SKAMDocument): void {
+function commitDocument(doc: SKAMDocument): void {
   let xml: string;
   try {
     xml = stringify(doc);
@@ -2109,13 +2147,16 @@ function updateXmlFromDocument(doc: SKAMDocument): void {
     if (e instanceof SKAMXMLStringifyError) {
       // Keep the GUI-side document and leave the XML editor untouched instead of dropping marks silently.
       showErrors(formatStringifyLosses(e.losses));
+      // Handlers flip panel state (e.g. kaeri toggles) before committing; redraw it from the kept document.
+      if (currentSelectionFromId && currentSelectionToId) {
+        updateSelectionPanel(currentSelectionFromId, currentSelectionToId);
+      }
       return;
     }
     throw e;
   }
-  xmlEditor.setValue(xml);
-  // onContentChange → parseAndRender will be triggered automatically
-  // Selection is restored via position-based tracking in parseAndRender
+  xmlEditor.replaceValue(xml);
+  parseAndRender();
 }
 
 // Export updateXmlFromDocument to window for console testing and future GUI operations
@@ -2125,7 +2166,7 @@ declare global {
     currentDocument: SKAMDocument | null;
   }
 }
-window.updateXmlFromDocument = updateXmlFromDocument;
+window.updateXmlFromDocument = commitDocument;
 // Also expose currentDocument for testing purposes
 Object.defineProperty(window, 'currentDocument', {
   get: () => currentDocument,
@@ -2299,7 +2340,7 @@ function setupResizableDivider(): void {
 // Event Listeners
 // ============================================================================
 
-parseBtn.addEventListener('click', parseAndRender);
+parseBtn.addEventListener('click', () => reparseEditorKeepingDrafts());
 
 // File upload
 uploadBtn.addEventListener('click', () => {
@@ -2311,11 +2352,10 @@ fileUpload.addEventListener('change', async () => {
   if (file) {
     try {
       const text = await file.text();
-      xmlEditor.setValue(text);
       // Clear sample select when loading external file
       sampleSelect.value = '';
       updateURL({ sample: 0 });
-      parseAndRender();
+      loadDocumentText(text);
       console.log(`Loaded: ${file.name}`);
     } catch (e) {
       console.error('Failed to read file:', e);
@@ -2346,11 +2386,10 @@ xmlPane.addEventListener('drop', async (e) => {
   if (file && (file.name.endsWith('.xml') || file.name.endsWith('.skam.xml'))) {
     try {
       const text = await file.text();
-      xmlEditor.setValue(text);
       // Clear sample select when loading external file
       sampleSelect.value = '';
       updateURL({ sample: 0 });
-      parseAndRender();
+      loadDocumentText(text);
       console.log(`Loaded: ${file.name}`);
     } catch (err) {
       console.error('Failed to read file:', err);
@@ -2365,14 +2404,14 @@ xmlPane.addEventListener('drop', async (e) => {
 // This enables auto-parse on content change (after debounce)
 // Selection is restored via position-based tracking in parseAndRender
 xmlEditor.onContentChange(() => {
-  parseAndRender();
+  reparseEditorKeepingDrafts();
 });
 
 // Ctrl/Cmd+Enter to parse
 xmlEditor.getTextareaElement().addEventListener('keydown', (e) => {
   if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
     e.preventDefault();
-    parseAndRender();
+    reparseEditorKeepingDrafts();
   }
 });
 
@@ -2684,9 +2723,117 @@ const selectionPanel = document.getElementById('selection-panel') as HTMLElement
 const settingsPanel = document.getElementById('settings-panel') as HTMLDetailsElement;
 const compactTabBar = document.querySelector('.compact-tab-bar') as HTMLDivElement;
 
+const COMPACT_LAYOUT_QUERY = '(max-width: 768px)';
+
 /** Check if viewport uses compact (single-pane) layout */
 function isCompactLayout(): boolean {
-  return window.matchMedia('(max-width: 768px)').matches;
+  return window.matchMedia(COMPACT_LAYOUT_QUERY).matches;
+}
+
+// A selection made in the wide layout does not go through the 2-tap state,
+// so a first tap kept from before the switch would extend from a stale character.
+window.matchMedia(COMPACT_LAYOUT_QUERY).addEventListener('change', () => {
+  touchRangeState = 'idle';
+  touchFirstTokenId = null;
+  hideTouchRangeHint();
+});
+
+// --- Panel drafts across a re-parse of the editor ---
+
+/**
+ * Values the user has typed or chosen in the selection panel but not applied yet.
+ * updateSelectionPanel redraws the panel from the document, so a re-parse of an editor
+ * change would reset them. Only what the user touched is kept: an untouched field shows
+ * the document's value, including a value just changed in the editor.
+ * Style buttons are not tracked: they apply on click.
+ */
+const touchedPanelFields = new Set<string>();
+let kanaTypeChosen = false;
+
+function forgetPanelDrafts(): void {
+  touchedPanelFields.clear();
+  kanaTypeChosen = false;
+}
+
+selectionPanel.addEventListener(
+  'input',
+  (e) => {
+    const target = e.target as HTMLElement;
+    if (target.id) touchedPanelFields.add(target.id);
+  },
+  { capture: true }
+);
+selectionPanel.addEventListener(
+  'change',
+  (e) => {
+    const target = e.target as HTMLElement;
+    if (target.id) touchedPanelFields.add(target.id);
+  },
+  { capture: true }
+);
+selectionKanaTypes.addEventListener('click', (e) => {
+  const target = e.target as HTMLElement;
+  if (
+    target.classList.contains('selection-kana-type-btn') &&
+    target.dataset['type'] !== 'saidoku'
+  ) {
+    kanaTypeChosen = true;
+  }
+});
+
+/**
+ * Parse an editor change and keep the panel drafts when the selection stays on the
+ * same characters. Every re-parse that comes from the editor (the debounce, the parse
+ * button, Ctrl+Enter, the preview tab, the flush before a panel action) goes through
+ * here; a GUI commit and a document load call parseAndRender directly and drop drafts.
+ */
+function reparseEditorKeepingDrafts(): void {
+  const fields = [...touchedPanelFields].flatMap((id) => {
+    const field = document.getElementById(id) as HTMLInputElement | null;
+    return field && selectionPanel.contains(field) ? [[id, field.value] as const] : [];
+  });
+  const chosenKanaType = kanaTypeChosen ? currentSelectedKanaType : undefined;
+  const rangeBefore = currentSelectionRange;
+
+  parseAndRender();
+
+  const rangeAfter = currentSelectionRange;
+  const sameRange =
+    rangeBefore !== null &&
+    rangeAfter !== null &&
+    rangeBefore.fromIndex === rangeAfter.fromIndex &&
+    rangeBefore.toIndex === rangeAfter.toIndex;
+  if (!sameRange) return;
+
+  for (const [id, value] of fields) {
+    const field = document.getElementById(id) as HTMLInputElement | null;
+    if (!field) continue;
+    field.value = value;
+    touchedPanelFields.add(id);
+  }
+  if (chosenKanaType !== undefined) {
+    currentSelectedKanaType = chosenKanaType;
+    kanaTypeChosen = true;
+    updateKanaTypeButtons();
+  }
+  const hasKanaInput = Boolean(selectionKanaInput.value.trim());
+  const hasExistingKana = Boolean(currentKanaValues[currentSelectedKanaType]);
+  selectionKanaApply.disabled = !hasKanaInput && !hasExistingKana;
+}
+
+/**
+ * Apply an editor input that is still waiting for its debounce before any
+ * selection panel handler reads the document, so the handler starts from what
+ * the editor shows instead of overwriting it. Runs in the capture phase to
+ * precede the handlers on the panel's children; the click target is already
+ * fixed, so a button redrawn by the flush still gets its click.
+ */
+function flushEditorBeforePanelAction(): void {
+  xmlEditor.flushPendingChange();
+}
+
+for (const type of ['click', 'keydown', 'change'] as const) {
+  selectionPanel.addEventListener(type, flushEditorBeforePanelAction, { capture: true });
 }
 
 // --- Phase 1: SP Tab Switching ---
@@ -2709,7 +2856,7 @@ compactTabBar.addEventListener('click', (e) => {
 
   // Auto-render when switching to preview tab
   if (tab === 'preview') {
-    parseAndRender();
+    reparseEditorKeepingDrafts();
   }
 
   // Reset SP range selection state on tab switch
@@ -2784,9 +2931,6 @@ function closeBottomSheet(): void {
 }
 
 // --- Phase 5: 2-Tap Range Selection ---
-
-let touchRangeState: 'idle' | 'first-selected' | 'range-selected' = 'idle';
-let touchFirstTokenId: string | null = null;
 
 /**
  * Handle touch token tap with 2-tap range selection logic.

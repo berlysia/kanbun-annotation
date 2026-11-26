@@ -169,17 +169,46 @@ export class XmlEditor {
     this.lineNumbers.innerHTML = numbers.join('');
   }
 
+  // A change is pending exactly while debounceTimer is non-null: every path that
+  // ends the wait (fire, flush, replace) sets it back to null.
   private notifyChange(): void {
+    this.cancelPendingChange();
+    this.debounceTimer = window.setTimeout(() => {
+      this.debounceTimer = null;
+      this.runChangeCallbacks();
+    }, this.debounceMs);
+  }
+
+  private cancelPendingChange(): void {
     if (this.debounceTimer !== null) {
       window.clearTimeout(this.debounceTimer);
+      this.debounceTimer = null;
     }
+  }
 
-    this.debounceTimer = window.setTimeout(() => {
-      const value = this.textarea.value;
-      for (const callback of this.changeCallbacks) {
-        callback(value);
-      }
-    }, this.debounceMs);
+  private runChangeCallbacks(): void {
+    const value = this.textarea.value;
+    for (const callback of this.changeCallbacks) {
+      callback(value);
+    }
+  }
+
+  /**
+   * Whether an input is waiting for the debounce to notify
+   */
+  hasPendingChange(): boolean {
+    return this.debounceTimer !== null;
+  }
+
+  /**
+   * Notify a pending input now instead of after the debounce.
+   * Returns false and does nothing when no input is pending.
+   */
+  flushPendingChange(): boolean {
+    if (!this.hasPendingChange()) return false;
+    this.cancelPendingChange();
+    this.runChangeCallbacks();
+    return true;
   }
 
   /**
@@ -196,6 +225,16 @@ export class XmlEditor {
     this.textarea.value = xml;
     this.highlight();
     this.notifyChange();
+  }
+
+  /**
+   * Set XML content without notifying, and drop any pending input.
+   * For callers that parse the new content themselves right away.
+   */
+  replaceValue(xml: string): void {
+    this.cancelPendingChange();
+    this.textarea.value = xml;
+    this.highlight();
   }
 
   /**

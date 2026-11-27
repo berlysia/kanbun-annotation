@@ -17,6 +17,7 @@
   "baseBranch": "master",
   "updateInternalDependencies": "patch",
   "ignore": [
+    "@kanbun-skam/skam-text-parser",
     "@kanbun-skam/playground",
     "@kanbun-skam/integration-tests",
     "@kanbun-skam/baseline-check",

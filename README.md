@@ -24,6 +24,7 @@ SKAM-ML/XML を試せるインタラクティブなデモ: https://berlysia.gith
 | [@kanbun-skam/skam](./packages/skam/)                                 | SKAM 型定義・バリデーター・操作                        | v0.1.0  |
 | [@kanbun-skam/skam-xml-parser](./packages/skam-xml-parser/)           | SKAM-ML/XML パーサー                                   | v0.1.0  |
 | [@kanbun-skam/skam-xml-stringify](./packages/skam-xml-stringify/)     | SKAM JSON → SKAM-ML/XML シリアライザー                 | v0.1.0  |
+| [@kanbun-skam/skam-text-parser](./packages/skam-text-parser/)         | 簡易記法 → SKAM JSON パーサー                          | private |
 | [@kanbun-skam/skam-html-renderer](./packages/skam-html-renderer/)     | SKAM → HTML レンダラー                                 | v0.1.0  |
 | [@kanbun-skam/skam-canvas-renderer](./packages/skam-canvas-renderer/) | SKAM → Canvas レンダラー（画像エクスポート用）         | v0.1.0  |
 | [@kanbun-skam/skam-web-component](./packages/skam-web-component/)     | Web Component ラッパー                                 | v0.1.0  |

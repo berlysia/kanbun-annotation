@@ -42,6 +42,13 @@ git show f4700b92957075f4763eadc5ccbfd467d157c866:docs/plans/<名前>
 - **誤りの種類を構造で持つ**: parser の誤り (`SKAMXMLParseError`) に種類 (`kind`) を足し、利用者がメッセージの文言に頼らずに誤りを判別できるようにするかを決める。メッセージの文言は互換の対象外 (2026-10-21 に README に書いた)。parser の公開 API の追加になる。出典: fix/backlog-batch-a (2026-10-21)。規模: 中。
 - **WebKit の parsererror の文の確認**: ブラウザ版は、Chromium と Firefox の報告の形から構文の誤りの位置を読む。WebKit (Safari) の形は、手元の WSL で WebKit が起動せず確かめていない (未確認)。Chromium と同じ形でなければ、Safari では構文の誤りに位置が付かない。出典: feat/browser-parser-positions の調査 (2026-10-20)。規模: 小。
 
+## 簡易記法
+
+- **引用の注記**: 本文のカギ括弧は、傍点・傍線と同じく、現代の人が読むために後の時代に加えた記号として使われる。SKAM に引用の範囲を表す注記が無いので、簡易記法は `「」『』` を予約し、書くと誤りにしている。anchor ベースの注記を設計し、描画 (括弧が 1 字分の場所を取る)、SKAM-ML の要素、validator とあわせて作り、記法の引用の機能につなぐ。出典: ADR-048「決定しないこと」。規模: 大。
+- **playground で記法を入力する**: 書き味を実物で確かめるため、playground で記法を打って描画を見られるようにする。出典: 簡易記法の計画 (2026-11-27) の plan-2 の候補。規模: 中。
+- **IME の出力の確認**: 既定の記号が、Microsoft IME と Google 日本語入力のローマ字入力で、JIS 配列と US 配列のどちらでも変換なしに打てるかを、実機で確かめていない (未確認)。違えば既定の記号を差し替える。出典: ADR-048「受け入れた限界」。規模: 小。
+- **npm への公開**: `@kanbun-skam/skam-text-parser` は private で、changesets の ignore に入っている。公開するときは、API の semver の扱い、診断の code を互換の対象にするか、廃止の予告の期間を決め、`.changeset/config.json` の `fixed` に移す。出典: ADR-048「決定しないこと」。規模: 中。
+
 ## レンダラー
 
 - **grid baseline 補正の構造的課題 (#2)**: Chromium の補正に構造的な課題がある。補正は `--skam-grid-baseline-fix` と `calibrateGridBaseline()` が担う。Issue は open。出典: #2。規模: 大。

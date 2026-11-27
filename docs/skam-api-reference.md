@@ -425,6 +425,24 @@ validator が誤りも警告も返さない文書は、損失なしで書け、`
 
 `SKAM_ML_CONTENT_MODEL`（`@kanbun-skam/skam`）は、SKAM-ML-draft §7.0 の内容モデルの表。キーはテキストを持てる親要素（`block`、`span`、`tateten`、`yomigana`、`okimoji`、`joji`、`okototen`、`base`、`kun`、`soegana`、`t`）で、値は子に持てる要素の名前（テキストは `#text`）の配列。`yomigana`、`kun`、`base` は `saidoku` を子に持てない。`SKAM_ML_NESTING_ORDER` は範囲の要素の入れ子の順（外側から）。どちらも `@experimental` で、parser と stringify が同じ表を使う。
 
+## @kanbun-skam/skam-text-parser
+
+簡易記法（[docs/skam-text-notation.md](skam-text-notation.md)）から SKAM 文書を作る。private のパッケージ。
+
+```typescript
+import { createParser, parse, NotationConfigError } from '@kanbun-skam/skam-text-parser';
+import type { NotationOptions, NotationResult, NotationDiagnostic, SymbolTable, SymbolPair, FeatureName } from '@kanbun-skam/skam-text-parser';
+
+const parser = createParser({ features: { soegana: false } }); // 設定の矛盾は NotationConfigError
+const result: NotationResult = parser.parse(source);           // parse(source, options) も同じ
+```
+
+- `NotationOptions`: `features`（`FeatureName` ごとの有効・無効、省けば有効）、`symbols`（`SymbolTable` の一部。指定した機能の記号だけ既定と入れ替わる）、`maxInputLength`（UTF-16 単位、既定 100,000）
+- `SymbolTable`: `kaeri`・`yomigana`・`saidoku` は `SymbolPair`（`{ open, close }`）の配列、`rangeStart`・`soegana`・`tateten`・`escape` は記号の配列、`kutoten` は `{ symbol, kind }` の配列
+- `NotationConfigError.issues`: `SYMBOL_CONFLICT`（記号が同じか前方部分）、`EMPTY_SYMBOL`、`INVALID_LIMIT`
+- `NotationResult`: `{ ok: true, document, diagnostics }` か `{ ok: false, diagnostics }`。誤りの診断があれば文書を返さない
+- `NotationDiagnostic`: `severity`（`error` / `warning`）、`code`、`message`、`line`・`column`・`endLine`・`endColumn`（1 始まり、UTF-16 単位。終わりは範囲に含まない）。code の一覧は記法の仕様書にある
+
 ## @kanbun-skam/skam-html-renderer
 
 ```typescript

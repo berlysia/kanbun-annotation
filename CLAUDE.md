@@ -24,6 +24,7 @@ packages/
 ├── skam/                 # 型定義・バリデーター・CRUD操作 (サブパス: /rendering)
 ├── skam-xml-parser/      # SKAM-ML → JSON パーサー
 ├── skam-xml-stringify/   # JSON → SKAM-ML シリアライザー
+├── skam-text-parser/     # 簡易記法 → JSON パーサー（private。記法: docs/skam-text-notation.md）
 ├── skam-html-renderer/   # HTML レンダラー
 ├── skam-canvas-renderer/ # Canvas レンダラー（画像エクスポート用）
 ├── skam-web-component/   # Web Component ラッパー

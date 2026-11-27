@@ -12,15 +12,15 @@
       "brokenBy": "no-lost-edit-without-flush",
       "note": "GUI 操作が、エディタに打った文字やまだ反映していない操作を消さない",
       "sync": {
-        "commit": "e2f593d8119febc05076ca1755487cea2bb1e9d2",
+        "commit": "3565342ea2b8e37c649d92711781d2c8667c58ad",
         "covers": [
           {
             "path": "packages/playground/src/main.ts",
-            "sha256": "368a43314aa13f4e140a827915e3306f4bdc880b545e64f355ef38bf387a831b"
+            "sha256": "4a0c5306fd215fbb8e094e099c9edce510de3f63b4822f258d39f163ffbd1e8e"
           },
           {
             "path": "packages/playground/src/editor/xml-editor.ts",
-            "sha256": "0c8c5530977af5ae0fc70c2c057c3b822274e5c11e15936c60c0d637e4041a75"
+            "sha256": "15c3f0e79dbc3a37c0d88b8f83d61e2251c9c1146c7347798c7607d20603305a"
           }
         ]
       }
@@ -46,15 +46,15 @@
       "brokenBy": "doc-reflects-text-empty-keeps",
       "note": "タイマーが止まっているとき、文書はエディタのテキストを parse した結果と一致する (空なら文書なし)",
       "sync": {
-        "commit": "e2f593d8119febc05076ca1755487cea2bb1e9d2",
+        "commit": "3565342ea2b8e37c649d92711781d2c8667c58ad",
         "covers": [
           {
             "path": "packages/playground/src/main.ts",
-            "sha256": "368a43314aa13f4e140a827915e3306f4bdc880b545e64f355ef38bf387a831b"
+            "sha256": "4a0c5306fd215fbb8e094e099c9edce510de3f63b4822f258d39f163ffbd1e8e"
           },
           {
             "path": "packages/playground/src/editor/xml-editor.ts",
-            "sha256": "0c8c5530977af5ae0fc70c2c057c3b822274e5c11e15936c60c0d637e4041a75"
+            "sha256": "15c3f0e79dbc3a37c0d88b8f83d61e2251c9c1146c7347798c7607d20603305a"
           }
         ]
       }
@@ -70,6 +70,36 @@
       "note": "空テキストで文書を残すと、前の文書が生き残る"
     },
     {
+      "id": "no-lost-draft",
+      "kind": "tla",
+      "model": "EditSync.tla",
+      "cfg": "Fixed-NoLostDraft.cfg",
+      "property": "NoLostDraft",
+      "expect": "hold",
+      "role": "contract",
+      "brokenBy": "no-lost-draft-drop-on-switch",
+      "note": "XML と簡易記法を切り替えても、表に出ていない形式の本文が打ったまま残る",
+      "sync": {
+        "commit": "3565342ea2b8e37c649d92711781d2c8667c58ad",
+        "covers": [
+          {
+            "path": "packages/playground/src/main.ts",
+            "sha256": "4a0c5306fd215fbb8e094e099c9edce510de3f63b4822f258d39f163ffbd1e8e"
+          }
+        ]
+      }
+    },
+    {
+      "id": "no-lost-draft-drop-on-switch",
+      "kind": "tla",
+      "model": "EditSync.tla",
+      "cfg": "DropDraft-NoLostDraft.cfg",
+      "property": "NoLostDraft",
+      "expect": "violate",
+      "role": "broken-variant",
+      "note": "切り替えで今の本文を保存せずに捨てると、戻したときに打った本文が消える"
+    },
+    {
       "id": "sel-belongs-to-doc",
       "kind": "tla",
       "model": "Selection.tla",
@@ -80,11 +110,11 @@
       "brokenBy": "sel-belongs-to-doc-no-reset-on-load",
       "note": "選択パネルの選択は、いま表示している文書の上で作ったものである",
       "sync": {
-        "commit": "e2f593d8119febc05076ca1755487cea2bb1e9d2",
+        "commit": "3565342ea2b8e37c649d92711781d2c8667c58ad",
         "covers": [
           {
             "path": "packages/playground/src/main.ts",
-            "sha256": "368a43314aa13f4e140a827915e3306f4bdc880b545e64f355ef38bf387a831b"
+            "sha256": "4a0c5306fd215fbb8e094e099c9edce510de3f63b4822f258d39f163ffbd1e8e"
           }
         ]
       }
@@ -110,11 +140,11 @@
       "brokenBy": "sel-visible-no-keep-highlight",
       "note": "HTML 描画で選択パネルが選択を示すなら、プレビューにも強調が出ている",
       "sync": {
-        "commit": "e2f593d8119febc05076ca1755487cea2bb1e9d2",
+        "commit": "3565342ea2b8e37c649d92711781d2c8667c58ad",
         "covers": [
           {
             "path": "packages/playground/src/main.ts",
-            "sha256": "368a43314aa13f4e140a827915e3306f4bdc880b545e64f355ef38bf387a831b"
+            "sha256": "4a0c5306fd215fbb8e094e099c9edce510de3f63b4822f258d39f163ffbd1e8e"
           }
         ]
       }
@@ -140,11 +170,11 @@
       "brokenBy": "touch-anchor-fresh-no-reset-touch",
       "note": "SP の 2 タップの 1 つ目は、いまの文書の字で、パネルにもその字が出ている",
       "sync": {
-        "commit": "e2f593d8119febc05076ca1755487cea2bb1e9d2",
+        "commit": "3565342ea2b8e37c649d92711781d2c8667c58ad",
         "covers": [
           {
             "path": "packages/playground/src/main.ts",
-            "sha256": "368a43314aa13f4e140a827915e3306f4bdc880b545e64f355ef38bf387a831b"
+            "sha256": "4a0c5306fd215fbb8e094e099c9edce510de3f63b4822f258d39f163ffbd1e8e"
           }
         ]
       }

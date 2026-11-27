@@ -2,7 +2,6 @@
  * SKAM Playground
  */
 
-import { parse, SKAMXMLParseError } from '@kanbun-skam/skam-xml-parser';
 import { stringify, SKAMXMLStringifyError } from '@kanbun-skam/skam-xml-stringify';
 import { formatStringifyLosses } from './stringify-losses.js';
 import { escapeHtml } from './html-escape.js';
@@ -66,7 +65,8 @@ import {
   loadDefaultFont,
 } from '@kanbun-skam/skam-canvas-renderer';
 import type { Spacing, SpacingPreset } from '@kanbun-skam/skam/rendering';
-import { SAMPLES } from './samples.js';
+import { NOTATION_SAMPLES, SAMPLES } from './samples.js';
+import { parseInput, type InputFormat } from './editor/input-format.js';
 import { ErrorPanel, type ParseError } from './editor/error-panel.js';
 import { LintPanel, updateLintPanel } from './editor/lint-panel.js';
 import { XmlEditor } from './editor/xml-editor.js';
@@ -86,6 +86,8 @@ const jsonOutput = document.getElementById('json-output')?.querySelector('code')
 const renderOutput = document.getElementById('render-output') as HTMLDivElement;
 const htmlOutput = document.getElementById('html-output')?.querySelector('code') as HTMLElement;
 const sampleSelect = document.getElementById('sample-select') as HTMLSelectElement;
+const inputFormatRadios = document.querySelectorAll<HTMLInputElement>('input[name="input-format"]');
+const inputHeading = document.getElementById('input-heading') as HTMLHeadingElement;
 const copyJsonBtn = document.getElementById('copy-json-btn') as HTMLButtonElement;
 const copyHtmlBtn = document.getElementById('copy-html-btn') as HTMLButtonElement;
 const rendererRadios = document.querySelectorAll<HTMLInputElement>('input[name="renderer"]');
@@ -164,6 +166,11 @@ const resetCustomizeBtn = document.getElementById('reset-customize-btn') as HTML
 // ============================================================================
 
 let currentDocument: SKAMDocument | null = null;
+let currentInputFormat: InputFormat = 'xml';
+const inputDrafts: Record<InputFormat, { text: string; sample: number | null }> = {
+  xml: { text: SAMPLES[0]!.xml, sample: 0 },
+  notation: { text: NOTATION_SAMPLES[0]!.text, sample: 0 },
+};
 
 // Current selection state for panel actions
 // Position-based selection (token index) - survives parse/stringify round-trip
@@ -355,6 +362,7 @@ type ProfileNameOrCustom = ProfileName | 'custom';
 let currentProfileSettings: RenderProfile = { ...PROFILES.full };
 
 interface URLState {
+  input: InputFormat;
   sample: number;
   renderer: 'html' | 'canvas';
   mode: 'vertical' | 'horizontal';
@@ -366,12 +374,14 @@ interface URLState {
 
 function getStateFromURL(): URLState {
   const params = new URLSearchParams(window.location.search);
+  const input: InputFormat = params.get('input') === 'notation' ? 'notation' : 'xml';
+  const sampleCount = input === 'notation' ? NOTATION_SAMPLES.length : SAMPLES.length;
 
   const sampleStr = params.get('sample');
   let sample = 0;
   if (sampleStr !== null) {
     const parsed = parseInt(sampleStr, 10);
-    if (!isNaN(parsed) && parsed >= 0 && parsed < SAMPLES.length) {
+    if (!isNaN(parsed) && parsed >= 0 && parsed < sampleCount) {
       sample = parsed;
     }
   }
@@ -398,11 +408,19 @@ function getStateFromURL(): URLState {
       ? spacingStr
       : 'solid';
 
-  return { sample, renderer, mode, inline, profile, rubyMethod, spacing };
+  return { input, sample, renderer, mode, inline, profile, rubyMethod, spacing };
 }
 
 function updateURL(state: Partial<URLState>): void {
   const params = new URLSearchParams(window.location.search);
+
+  if (state.input !== undefined) {
+    if (state.input === 'notation') {
+      params.set('input', 'notation');
+    } else {
+      params.delete('input');
+    }
+  }
 
   if (state.sample !== undefined) {
     if (state.sample === 0) {
@@ -931,6 +949,16 @@ function updateSelectionPanel(fromId: string, toId: string): void {
 
   // Show actions panel
   selectionActions.style.display = 'block';
+  disableNotationEditing();
+}
+
+function disableNotationEditing(): void {
+  if (currentInputFormat !== 'notation') return;
+  for (const control of selectionActions.querySelectorAll<
+    HTMLButtonElement | HTMLInputElement | HTMLSelectElement
+  >('button, input, select')) {
+    control.disabled = true;
+  }
 }
 
 /**
@@ -1742,6 +1770,7 @@ function clearSelectionPanel(): void {
   updateKanaTypeButtons();
   selectionKanaInput.value = '';
   selectionKanaApply.disabled = true;
+  disableNotationEditing();
 }
 
 /**
@@ -2003,20 +2032,16 @@ function parseAndRender(): void {
   hideErrors();
   lintPanel.clear();
 
-  const xmlText = xmlEditor.getValue().trim();
-  if (!xmlText) {
-    // An empty editor means no document, like a parse failure: otherwise a GUI
-    // operation would write the previous document back into the editor.
-    clearDocumentView();
-    showErrors([{ message: 'XMLを入力してください' }]);
-    return;
-  }
-
   // Save selection range before parse (position-based)
   const savedRange = currentSelectionRange;
 
   try {
-    const doc = parse(xmlText);
+    const { doc, errors } = parseInput(currentInputFormat, xmlEditor.getValue());
+    if (!doc) {
+      clearDocumentView();
+      showErrors(errors);
+      return;
+    }
 
     // Canvas mode: skip selection restoration (no interactive selection in Canvas)
     if (getRendererMode() === 'canvas') {
@@ -2040,18 +2065,10 @@ function parseAndRender(): void {
     }
     // After a successful render only; failures below empty the panel in the catch
     updateLintPanel(lintPanel, doc);
+    if (errors.length > 0) showErrors(errors);
   } catch (err) {
     lintPanel.clear();
-    if (err instanceof SKAMXMLParseError) {
-      const parseError: ParseError = { message: err.message };
-      if (err.line !== undefined) {
-        parseError.line = err.line;
-      }
-      if (err.column !== undefined) {
-        parseError.column = err.column;
-      }
-      showErrors([parseError]);
-    } else if (err instanceof Error) {
+    if (err instanceof Error) {
       showErrors([{ message: err.message }]);
     } else {
       showErrors([{ message: '不明なエラーが発生しました' }]);
@@ -2073,14 +2090,55 @@ function clearDocumentView(): void {
 }
 
 function loadSample(index: number, updateUrlState = true): void {
-  const sample = SAMPLES[index];
-  if (sample) {
+  const text = currentInputFormat === 'xml' ? SAMPLES[index]?.xml : NOTATION_SAMPLES[index]?.text;
+  if (text !== undefined) {
     sampleSelect.value = String(index);
+    inputDrafts[currentInputFormat].sample = index;
     if (updateUrlState) {
       updateURL({ sample: index });
     }
-    loadDocumentText(sample.xml);
+    loadDocumentText(text);
   }
+}
+
+function updateInputFormatUI(): void {
+  const isNotation = currentInputFormat === 'notation';
+  const label = isNotation ? '簡易記法' : 'SKAM-ML/XML';
+  inputHeading.textContent = label;
+  xmlPane.setAttribute('aria-label', isNotation ? '簡易記法編集' : 'XML編集');
+  const editorTab = document.querySelector('.compact-tab[data-tab="editor"]');
+  if (editorTab) editorTab.textContent = isNotation ? '簡易記法' : 'XML';
+  for (const radio of inputFormatRadios) {
+    radio.checked = radio.value === currentInputFormat;
+  }
+  xmlEditor.setInputPresentation(!isNotation, `${label}を入力...`);
+  uploadBtn.disabled = isNotation;
+  downloadBtn.disabled = isNotation;
+  fileUpload.disabled = isNotation;
+  xmlPane.classList.remove('drag-over');
+  for (const control of selectionActions.querySelectorAll<
+    HTMLButtonElement | HTMLInputElement | HTMLSelectElement
+  >('button, input, select')) {
+    control.disabled = isNotation;
+  }
+
+  sampleSelect.replaceChildren(new Option('-- 選択 --', ''));
+  const samples = isNotation ? NOTATION_SAMPLES : SAMPLES;
+  for (const [index, sample] of samples.entries()) {
+    sampleSelect.appendChild(new Option(sample.name, String(index)));
+  }
+  const sample = inputDrafts[currentInputFormat].sample;
+  sampleSelect.value = sample === null ? '' : String(sample);
+}
+
+function switchInputFormat(format: InputFormat): void {
+  if (format === currentInputFormat) return;
+  xmlEditor.flushPendingChange();
+  inputDrafts[currentInputFormat].text = xmlEditor.getValue();
+  currentInputFormat = format;
+  updateInputFormatUI();
+  loadDocumentText(inputDrafts[format].text);
+  updateURL({ input: format, sample: inputDrafts[format].sample ?? 0 });
 }
 
 /**
@@ -2089,6 +2147,7 @@ function loadSample(index: number, updateUrlState = true): void {
  * while editing the same document, not across documents.
  */
 function loadDocumentText(xml: string): void {
+  inputDrafts[currentInputFormat].text = xml;
   xmlEditor.replaceValue(xml);
   clearSelectionPanel();
   clearSelection(renderOutput);
@@ -2109,6 +2168,7 @@ function copyToClipboard(text: string): void {
 }
 
 function downloadXml(): void {
+  if (currentInputFormat !== 'xml') return;
   const xml = xmlEditor.getValue();
   if (!xml.trim()) {
     alert('保存するXMLがありません');
@@ -2140,6 +2200,7 @@ function downloadXml(): void {
  * parseAndRender restores the selection by position.
  */
 function commitDocument(doc: SKAMDocument): void {
+  if (currentInputFormat !== 'xml') return;
   let xml: string;
   try {
     xml = stringify(doc);
@@ -2344,18 +2405,26 @@ parseBtn.addEventListener('click', () => reparseEditorKeepingDrafts());
 
 // File upload
 uploadBtn.addEventListener('click', () => {
+  if (currentInputFormat !== 'xml') return;
   fileUpload.click();
 });
 
+async function loadXmlFile(file: File): Promise<void> {
+  if (currentInputFormat !== 'xml') return;
+  const text = await file.text();
+  inputDrafts.xml = { text, sample: null };
+  if (currentInputFormat !== 'xml') return;
+  sampleSelect.value = '';
+  updateURL({ sample: 0 });
+  loadDocumentText(text);
+}
+
 fileUpload.addEventListener('change', async () => {
+  if (currentInputFormat !== 'xml') return;
   const file = fileUpload.files?.[0];
   if (file) {
     try {
-      const text = await file.text();
-      // Clear sample select when loading external file
-      sampleSelect.value = '';
-      updateURL({ sample: 0 });
-      loadDocumentText(text);
+      await loadXmlFile(file);
       console.log(`Loaded: ${file.name}`);
     } catch (e) {
       console.error('Failed to read file:', e);
@@ -2369,6 +2438,7 @@ fileUpload.addEventListener('change', async () => {
 // Drag and drop file support
 xmlPane.addEventListener('dragover', (e) => {
   e.preventDefault();
+  if (currentInputFormat !== 'xml') return;
   xmlPane.classList.add('drag-over');
 });
 
@@ -2382,14 +2452,11 @@ xmlPane.addEventListener('dragleave', (e) => {
 xmlPane.addEventListener('drop', async (e) => {
   e.preventDefault();
   xmlPane.classList.remove('drag-over');
+  if (currentInputFormat !== 'xml') return;
   const file = e.dataTransfer?.files[0];
   if (file && (file.name.endsWith('.xml') || file.name.endsWith('.skam.xml'))) {
     try {
-      const text = await file.text();
-      // Clear sample select when loading external file
-      sampleSelect.value = '';
-      updateURL({ sample: 0 });
-      loadDocumentText(text);
+      await loadXmlFile(file);
       console.log(`Loaded: ${file.name}`);
     } catch (err) {
       console.error('Failed to read file:', err);
@@ -2415,15 +2482,12 @@ xmlEditor.getTextareaElement().addEventListener('keydown', (e) => {
   }
 });
 
-// Sample select
-for (let i = 0; i < SAMPLES.length; i++) {
-  const sample = SAMPLES[i];
-  if (sample) {
-    const option = document.createElement('option');
-    option.value = String(i);
-    option.textContent = sample.name;
-    sampleSelect.appendChild(option);
-  }
+for (const radio of inputFormatRadios) {
+  radio.addEventListener('change', () => {
+    if (radio.checked) {
+      switchInputFormat(radio.value === 'notation' ? 'notation' : 'xml');
+    }
+  });
 }
 
 sampleSelect.addEventListener('change', () => {
@@ -2818,7 +2882,8 @@ function reparseEditorKeepingDrafts(): void {
   }
   const hasKanaInput = Boolean(selectionKanaInput.value.trim());
   const hasExistingKana = Boolean(currentKanaValues[currentSelectedKanaType]);
-  selectionKanaApply.disabled = !hasKanaInput && !hasExistingKana;
+  selectionKanaApply.disabled =
+    currentInputFormat === 'notation' || (!hasKanaInput && !hasExistingKana);
 }
 
 /**
@@ -3024,6 +3089,9 @@ calibrateGridBaseline(document.body);
 
 // Restore state from URL
 const initialState = getStateFromURL();
+currentInputFormat = initialState.input;
+inputDrafts[currentInputFormat].sample = initialState.sample;
+updateInputFormatUI();
 
 // Set renderer mode
 for (const radio of rendererRadios) {

@@ -28,6 +28,7 @@
     "@kanbun-skam/skam": "workspace:*",
     "@kanbun-skam/skam-canvas-renderer": "workspace:*",
     "@kanbun-skam/skam-html-renderer": "workspace:*",
+    "@kanbun-skam/skam-text-parser": "workspace:*",
     "@kanbun-skam/skam-xml-parser": "workspace:*",
     "@kanbun-skam/skam-web-component": "workspace:*",
     "@kanbun-skam/skam-xml-stringify": "workspace:*",

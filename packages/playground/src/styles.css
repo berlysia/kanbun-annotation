@@ -194,8 +194,49 @@
 
   .toolbar-actions {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 0.75rem;
+    max-width: 100%;
+  }
+
+  .input-format-heading {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .input-format-switch {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    flex-shrink: 0;
+    font-size: 0.875rem;
+  }
+
+  .input-format-switch label {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    min-height: 48px;
+    cursor: pointer;
+    white-space: nowrap;
+  }
+
+  .input-format-switch input {
+    accent-color: var(--editor-primary);
+  }
+
+  .input-format-switch input:focus-visible {
+    outline: 2px solid var(--editor-primary);
+    outline-offset: 2px;
+  }
+
+  .toolbar-btn:disabled,
+  .selection-actions button:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
   }
 
   .toolbar-btn {
@@ -225,14 +266,17 @@
     display: flex;
     align-items: center;
     gap: 0.5rem;
+    max-width: 100%;
   }
 
   .samples label {
     font-size: 0.75rem;
     color: var(--editor-text-secondary);
+    white-space: nowrap;
   }
 
   .samples select {
+    min-width: 0;
     font-size: 0.75rem;
     padding: 0.25rem 0.5rem;
     border: 1px solid var(--editor-border);
@@ -387,6 +431,20 @@
     flex: 1;
     word-break: break-word;
     color: var(--editor-error);
+  }
+
+  .error-item--warning {
+    background-color: var(--editor-warning-bg);
+  }
+
+  .error-item--warning,
+  .error-item--warning .error-location,
+  .error-item--warning .error-message {
+    color: var(--editor-warning);
+  }
+
+  .error-item--warning:hover {
+    background-color: var(--editor-warning-bg);
   }
 
   /* Divider (Resizable separator) */

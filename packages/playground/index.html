@@ -40,9 +40,26 @@
     <main class="main">
       <div class="editor-container" data-active-tab="editor">
         <div class="toolbar">
-          <h2>SKAM-ML/XML</h2>
+          <div class="input-format-heading">
+            <h2 id="input-heading">SKAM-ML/XML</h2>
+            <div class="input-format-switch" role="group" aria-label="入力形式">
+              <label for="input-format-xml">
+                <input id="input-format-xml" type="radio" name="input-format" value="xml" checked />
+                XML
+              </label>
+              <label for="input-format-notation">
+                <input
+                  id="input-format-notation"
+                  type="radio"
+                  name="input-format"
+                  value="notation"
+                />
+                簡易記法
+              </label>
+            </div>
+          </div>
           <div class="toolbar-actions">
-            <input type="file" id="file-upload" accept=".xml,.skam.xml" style="display: none" />
+            <input type="file" id="file-upload" accept=".xml,.skam.xml" hidden />
             <button id="upload-btn" type="button" class="toolbar-btn">開く</button>
             <button id="download-btn" type="button" class="toolbar-btn">保存</button>
             <div class="samples">
@@ -64,7 +81,11 @@
         <div class="panes-container">
           <div class="xml-pane" role="region" aria-label="XML編集">
             <div class="xml-editor-wrapper">
-              <textarea id="xml-input" placeholder="SKAM-ML/XMLを入力..."></textarea>
+              <textarea
+                id="xml-input"
+                aria-labelledby="input-heading"
+                placeholder="SKAM-ML/XMLを入力..."
+              ></textarea>
             </div>
             <div class="action-bar">
               <button id="parse-btn" type="button">パース &amp; レンダリング</button>

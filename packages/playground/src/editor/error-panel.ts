@@ -11,6 +11,8 @@ export interface ParseError {
   message: string;
   line?: number;
   column?: number;
+  severity?: 'error' | 'warning';
+  code?: string;
 }
 
 /**
@@ -100,6 +102,7 @@ export class ErrorPanel {
   private createErrorItem(error: ParseError): HTMLElement {
     const item = document.createElement('div');
     item.className = 'error-item';
+    item.classList.toggle('error-item--warning', error.severity === 'warning');
 
     if (error.line !== undefined) {
       item.dataset['line'] = String(error.line);
@@ -129,12 +132,11 @@ export class ErrorPanel {
     // メッセージ
     const message = document.createElement('span');
     message.className = 'error-message';
-    message.textContent = error.message;
+    message.textContent = error.code ? `${error.code} ${error.message}` : error.message;
     item.appendChild(message);
 
     // クリックイベント（行番号がある場合のみ）
     if (error.line !== undefined && this.errorClickCallback) {
-      item.style.cursor = 'pointer';
       item.addEventListener('click', () => {
         if (this.errorClickCallback && error.line !== undefined) {
           this.errorClickCallback(error.line, error.column);

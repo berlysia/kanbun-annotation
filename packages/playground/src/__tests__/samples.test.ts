@@ -1,6 +1,25 @@
 import { describe, it, expect } from 'vitest';
 import { parse } from '@kanbun-skam/skam-xml-parser';
-import { SAMPLES } from '../samples';
+import { readFileSync } from 'node:fs';
+import { NOTATION_SAMPLES, SAMPLES } from '../samples';
+import { parseInput } from '../editor/input-format.js';
+
+describe('NOTATION_SAMPLES', () => {
+  it.each(NOTATION_SAMPLES)('$name parses without errors', ({ text }) => {
+    const result = parseInput('notation', text);
+    expect(result.doc).not.toBeNull();
+    expect(result.errors.filter((error) => error.severity === 'error')).toEqual([]);
+  });
+
+  it('matches the five examples in the notation specification in order', () => {
+    const specification = readFileSync('../../docs/skam-text-notation.md', 'utf8');
+    const examples = specification.split('## 書き味\n')[1]?.split('## 既定の記号とキー')[0];
+    expect(examples).toBeDefined();
+    const blocks = [...examples!.matchAll(/```\n([\s\S]*?)\n```/g)].map((match) => match[1]);
+    expect(NOTATION_SAMPLES.map((sample) => sample.text)).toEqual(blocks);
+    expect(blocks).toHaveLength(5);
+  });
+});
 
 describe('SAMPLES', () => {
   it('the quiz sample declares edu and marks annotations with a quiz name', () => {

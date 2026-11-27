@@ -27,6 +27,7 @@ export class XmlEditor {
 
   private debounceMs: number;
   private showLineNumbers: boolean;
+  private highlightingEnabled = true;
   private debounceTimer: number | null = null;
   private changeCallbacks: Array<(xml: string) => void> = [];
 
@@ -143,7 +144,9 @@ export class XmlEditor {
     const escapedValue = escapeHtml(value);
 
     // Apply Prism highlighting
-    const highlighted = Prism.highlight(value, Prism.languages['markup']!, 'markup');
+    const highlighted = this.highlightingEnabled
+      ? Prism.highlight(value, Prism.languages['markup']!, 'markup')
+      : escapedValue;
     this.code.innerHTML = highlighted || escapedValue;
 
     // Ensure the pre element ends with newline for proper height matching
@@ -216,6 +219,13 @@ export class XmlEditor {
    */
   getValue(): string {
     return this.textarea.value;
+  }
+
+  setInputPresentation(highlightingEnabled: boolean, placeholder: string): void {
+    this.highlightingEnabled = highlightingEnabled;
+    this.textarea.placeholder = placeholder;
+    this.code.classList.toggle('language-markup', highlightingEnabled);
+    this.highlight();
   }
 
   /**

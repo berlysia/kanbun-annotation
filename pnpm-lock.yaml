@@ -86,6 +86,9 @@ importers:
       '@kanbun-skam/skam-screenshot':
         specifier: workspace:*
         version: link:../skam-screenshot
+      '@kanbun-skam/skam-text-parser':
+        specifier: workspace:*
+        version: link:../skam-text-parser
       '@kanbun-skam/skam-web-component':
         specifier: workspace:*
         version: link:../skam-web-component
@@ -201,6 +204,12 @@ importers:
       playwright:
         specifier: 1.52.0
         version: 1.52.0
+
+  packages/skam-text-parser:
+    dependencies:
+      '@kanbun-skam/skam':
+        specifier: workspace:*
+        version: link:../skam
 
   packages/skam-web-component:
     dependencies:

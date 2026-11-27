@@ -2,6 +2,9 @@ import type { KnipConfig } from 'knip';
 
 const config: KnipConfig = {
   workspaces: {
+    'packages/skam-text-parser': {
+      project: ['src/**/*.ts'],
+    },
     '.': {
       project: ['scripts/**/*.ts'],
       // the consumer check calls node_modules/typescript5/bin/tsc by path, which knip cannot see
